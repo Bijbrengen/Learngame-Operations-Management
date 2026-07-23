@@ -501,6 +501,9 @@
       kind: "warehouse",
       departmentColor: "tutorial-blue",
       materialId: "blue_8",
+      openRoof: true,
+      stockPart: { color: "blue", width: 4, depth: 2, label: "blauw 2×4-blok" },
+      distractorPart: { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" },
       layout: { x: 1, y: 4, width: 3.5, depth: 3.2, height: 58 }
     },
     {
@@ -511,6 +514,9 @@
       kind: "warehouse",
       departmentColor: "tutorial-yellow",
       materialId: "yellow_4",
+      openRoof: true,
+      stockPart: { color: "yellow", width: 2, depth: 2, label: "geel 2×2-blok" },
+      distractorPart: { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" },
       layout: { x: 1, y: 10, width: 3.5, depth: 3.2, height: 64 }
     },
     {
@@ -521,15 +527,21 @@
       kind: "warehouse",
       departmentColor: "green",
       materialId: "green_4",
+      openRoof: true,
+      stockPart: { color: "green", width: 2, depth: 2, label: "groen 2×2-blok" },
+      distractorPart: { id: "green_8_wrong", color: "green", width: 4, depth: 2, label: "groen 2×4-blok" },
       layout: { x: 1, y: 16, width: 3.5, depth: 3.2, height: 70 }
     },
     {
       id: "tutorial_player_stock",
-      title: "Speler Bouwvoorraad",
-      shortTitle: "Bouwvoorraad",
-      description: "Hier zie je alle onderdelen die je uit de magazijnen hebt opgehaald.",
-      kind: "warehouse",
+      title: "Bouwafdeling · materiaalontvangst",
+      shortTitle: "Bouwafdeling",
+      description: "Sleep de juiste blokken vanuit de magazijnen naar het ontvangstvak van de bouwafdeling.",
+      kind: "production",
       departmentColor: "tutorial-transit",
+      openRoof: true,
+      dropLabel: "BOUWAFDELING",
+      emptyLabel: "ontvangstvak leeg",
       layout: { x: 8, y: 10, width: 3.8, depth: 3.4, height: 48 }
     },
     {
@@ -550,6 +562,41 @@
     { from: "tutorial_player_stock", to: "tutorial_assembly", kind: "material", locked: true }
   ];
 
+  const INTERNAL_LOGISTICS_TUTORIAL_DEPARTMENTS = [
+    {
+      id: "tutorial_production",
+      title: "Productie",
+      shortTitle: "Productie",
+      description: "Toren B is gebouwd en staat hier als halffabricaat klaar voor intern transport.",
+      kind: "production",
+      departmentColor: "production-b",
+      openRoof: true,
+      emptyLabel: "productievak leeg",
+      layout: { x: 4, y: 12, width: 4.2, depth: 3.8, height: 78 }
+    },
+    {
+      id: "tutorial_next_department",
+      title: "Volgende afdeling · Gereed Product",
+      shortTitle: "Gereed Product",
+      description: "Deze afdeling ontvangt het halffabricaat vanuit Productie voor de volgende processtap.",
+      kind: "warehouse",
+      departmentColor: "finished",
+      openRoof: true,
+      showDropLabel: false,
+      emptyLabel: "wacht op Toren B",
+      layout: { x: 15, y: 5, width: 4.2, depth: 3.8, height: 66 }
+    }
+  ];
+
+  const INTERNAL_LOGISTICS_TUTORIAL_CONNECTIONS = [
+    {
+      from: "tutorial_production",
+      to: "tutorial_next_department",
+      kind: "material",
+      highlight: true
+    }
+  ];
+
   const state = {
     sessionId: "",
     clockMinutes: 600,
@@ -564,6 +611,7 @@
     opportunityCost: 0,
     interactionBuffer: [],
     contractEventBuffer: [],
+    tutorialDismissed: false,
     selectedLogisticsDepartmentId: "inbound",
     logisticsTutorial: {
       active: false,
@@ -571,6 +619,7 @@
       warehouseStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
       playerStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
       assemblyStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
+      semiFinished: { production: 0, nextDepartment: 0 },
       feedback: ""
     },
     config: {
@@ -622,6 +671,7 @@
     processIsometricViewButton: document.getElementById("processIsometricViewButton"),
     exportButton: document.getElementById("exportButton"),
     resetButton: document.getElementById("resetButton"),
+    tutorialExitButton: document.getElementById("tutorialExitButton"),
     moneyToggle: document.getElementById("moneyToggle"),
     pnlToggle: document.getElementById("pnlToggle"),
     intermediateToggle: document.getElementById("intermediateToggle"),
@@ -1532,7 +1582,46 @@
     state.logisticsTutorial.warehouseStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.semiFinished = { production: 0, nextDepartment: 0 };
     state.logisticsTutorial.feedback = "";
+  }
+
+  function setTutorialFocus(stage = "builder") {
+    if (state.tutorialDismissed) return;
+    document.body.classList.add("tutorial-focus");
+    document.body.classList.toggle("tutorial-stage-builder", stage === "builder");
+    document.body.classList.toggle("tutorial-stage-logistics", stage === "logistics");
+    if (els.tutorialExitButton) els.tutorialExitButton.hidden = false;
+  }
+
+  function leaveTutorialFocus() {
+    document.body.classList.remove(
+      "tutorial-focus",
+      "tutorial-stage-builder",
+      "tutorial-stage-logistics"
+    );
+    if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
+  }
+
+  function endTutorial({ completed = false } = {}) {
+    const phase = state.logisticsTutorial.phase;
+    state.tutorialDismissed = true;
+    state.logisticsTutorial.active = false;
+    state.logisticsTutorial.phase = completed ? "tutorial_complete" : "tutorial_skipped";
+    state.selectedLogisticsDepartmentId = "inbound";
+    els.dataModelPanel.classList.remove("visible");
+    leaveTutorialFocus();
+    if (!completed) window.LegoBuilder?.skipTutorial();
+    dispatchInteraction({
+      actionType: completed ? "complete_onboarding_tutorial" : "end_onboarding_tutorial",
+      learningObjectID: "self_starting_tutorial",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: completed ? "completed" : "skipped",
+      phase
+    });
+    renderAll();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function startLogisticsTutorial(force = false) {
@@ -1544,6 +1633,7 @@
       return;
     }
     state.logisticsTutorial.active = true;
+    setTutorialFocus("logistics");
     state.logisticsTutorial.phase = "collecting";
     state.logisticsTutorial.warehouseStock = {
       blue_8: state.inventory.blue_8 || 0,
@@ -1552,7 +1642,7 @@
     };
     state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
-    state.logisticsTutorial.feedback = "Begin bij Magazijn A en haal de twee blauwe basisblokken voor Toren B op.";
+    state.logisticsTutorial.feedback = "Sleep de juiste blokken vanuit de open magazijnen naar de Bouwvoorraad. Let goed op het formaat.";
     state.selectedLogisticsDepartmentId = "tutorial_warehouse_a";
     state.config.processView = "isometric";
     els.dataModelPanel.classList.add("visible");
@@ -1572,6 +1662,7 @@
     const definition = LOGISTICS_TUTORIAL_DEPARTMENTS.find(item => item.id === departmentId);
     const partId = definition?.materialId;
     if (!partId || state.logisticsTutorial.phase !== "collecting") return false;
+    state.selectedLogisticsDepartmentId = departmentId;
     const required = LOGISTICS_TUTORIAL_REQUIREMENTS[partId] || 0;
     const collected = state.logisticsTutorial.playerStock[partId] || 0;
     if (collected >= required) {
@@ -1590,8 +1681,8 @@
     const ready = tutorialRequirementsComplete();
     if (ready) {
       state.logisticsTutorial.phase = "ready";
-      state.logisticsTutorial.feedback = "Voorraad compleet! Verplaats de onderdelen naar Assemblage.";
-      state.selectedLogisticsDepartmentId = "tutorial_assembly";
+      state.logisticsTutorial.feedback = "Alle juiste blokken zijn bij de Bouwafdeling aangekomen.";
+      state.selectedLogisticsDepartmentId = "tutorial_player_stock";
     } else {
       const remainingLabels = {
         blue_8: "blauw 2×4",
@@ -1619,7 +1710,47 @@
       playerStock: state.logisticsTutorial.playerStock[partId]
     });
     renderAll();
+    if (ready) {
+      window.setTimeout(() => {
+        if (state.logisticsTutorial.phase === "ready") {
+          transferTutorialStockToAssembly();
+        }
+      }, 1100);
+    }
     return true;
+  }
+
+  function dropTutorialMaterial({ sourceDepartmentId, targetDepartmentId, partId } = {}) {
+    if (
+      state.logisticsTutorial.phase !== "collecting"
+      || targetDepartmentId !== "tutorial_player_stock"
+    ) {
+      return false;
+    }
+    const definition = LOGISTICS_TUTORIAL_DEPARTMENTS.find(
+      item => item.id === sourceDepartmentId
+    );
+    if (!definition?.materialId) return false;
+    state.selectedLogisticsDepartmentId = sourceDepartmentId;
+    if (partId !== definition.materialId) {
+      const wrongPart = definition.distractorPart?.id === partId
+        ? definition.distractorPart.label
+        : "dit blok";
+      state.logisticsTutorial.feedback = `${wrongPart} heeft niet het gevraagde formaat. Leg het terug en kijk goed naar de noppen.`;
+      dispatchInteraction({
+        actionType: "reject_tutorial_material_drop",
+        learningObjectID: `tutorial_stock_${partId}`,
+        objectRole: "warehouse_sorting",
+        role: "Lerende",
+        result: "incorrect",
+        sourceDepartmentId,
+        targetDepartmentId,
+        partId,
+        reason: "wrong_brick_format"
+      });
+      return false;
+    }
+    return collectTutorialMaterial(sourceDepartmentId);
   }
 
   function transferTutorialStockToAssembly() {
@@ -1633,6 +1764,7 @@
     state.logisticsTutorial.phase = "complete";
     state.logisticsTutorial.feedback = "Voorraad afgeleverd. Ga terug naar de bouwafdeling en zet Toren B in elkaar.";
     window.LegoBuilder?.setStockTutorialInventory(state.logisticsTutorial.assemblyStock);
+    setTutorialFocus("builder");
     dispatchInteraction({
       actionType: "complete_logistics_tutorial_step",
       learningObjectID: "tutorial_step_2_warehouse_inventory",
@@ -1647,13 +1779,189 @@
     return true;
   }
 
+  function startInternalLogisticsTutorial() {
+    state.logisticsTutorial.active = true;
+    setTutorialFocus("logistics");
+    state.logisticsTutorial.phase = "internal_ready";
+    state.logisticsTutorial.semiFinished = { production: 1, nextDepartment: 0 };
+    state.logisticsTutorial.feedback = "Toren B staat in het open productievak. Sleep de toren naar het open vak van de volgende afdeling.";
+    state.selectedLogisticsDepartmentId = "tutorial_production";
+    state.config.processView = "isometric";
+    els.dataModelPanel.classList.add("visible");
+    dispatchInteraction({
+      actionType: "start_internal_logistics_tutorial_step",
+      learningObjectID: "tutorial_step_3_internal_logistics",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "started",
+      step: 3,
+      productId: "B"
+    });
+    renderAll();
+    els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function transferTutorialSemiFinished() {
+    if (
+      state.logisticsTutorial.phase !== "internal_ready"
+      || state.logisticsTutorial.semiFinished.production < 1
+    ) {
+      return false;
+    }
+    state.logisticsTutorial.semiFinished.production = 0;
+    state.logisticsTutorial.semiFinished.nextDepartment = 1;
+    state.logisticsTutorial.phase = "internal_complete";
+    state.logisticsTutorial.feedback = "Interne logistiek voltooid: het halffabricaat is ontvangen door de volgende afdeling.";
+    state.selectedLogisticsDepartmentId = "tutorial_next_department";
+    dispatchInteraction({
+      actionType: "complete_internal_logistics_tutorial_step",
+      learningObjectID: "tutorial_step_3_internal_logistics",
+      objectRole: "internal_transport",
+      role: "Lerende",
+      result: "success",
+      step: 3,
+      productId: "B",
+      fromDepartment: "Productie",
+      toDepartment: "Gereed Product",
+      quantity: 1
+    });
+    renderAll();
+    window.setTimeout(() => {
+      if (state.logisticsTutorial.phase === "internal_complete") {
+        finishInternalLogisticsTutorial();
+      }
+    }, 1250);
+    return true;
+  }
+
+  function dropTutorialSemiFinished({
+    sourceDepartmentId,
+    targetDepartmentId,
+    cargoId
+  } = {}) {
+    if (
+      state.logisticsTutorial.phase !== "internal_ready"
+      || sourceDepartmentId !== "tutorial_production"
+      || targetDepartmentId !== "tutorial_next_department"
+      || cargoId !== "tower_b_semi_finished"
+    ) {
+      state.logisticsTutorial.feedback = "Sleep de gebouwde Toren B vanuit Productie naar het open vak van de volgende afdeling.";
+      return false;
+    }
+    return transferTutorialSemiFinished();
+  }
+
+  function finishInternalLogisticsTutorial() {
+    if (state.logisticsTutorial.phase !== "internal_complete") return false;
+    state.logisticsTutorial.active = false;
+    state.selectedLogisticsDepartmentId = "production_2";
+    window.LegoBuilder?.setInternalLogisticsComplete(true);
+    endTutorial({ completed: true });
+    return true;
+  }
+
+  function internalLogisticsTutorialScene() {
+    const tutorial = state.logisticsTutorial;
+    const completed = tutorial.phase === "internal_complete";
+    const productionAmount = tutorial.semiFinished.production;
+    const nextDepartmentAmount = tutorial.semiFinished.nextDepartment;
+    const departments = INTERNAL_LOGISTICS_TUTORIAL_DEPARTMENTS.map(definition => {
+      if (definition.id === "tutorial_production") {
+        return {
+          ...definition,
+          orders: [],
+          cargoVisual: completed
+            ? null
+            : {
+                kind: "tower",
+                cargoId: "tower_b_semi_finished",
+                productId: "B",
+                label: "gebouwde Toren B",
+                draggable: true
+              },
+          status: completed ? "idle" : "active",
+          badgeValue: productionAmount,
+          badgeLabel: `${productionAmount} halffabricaat bij Productie`,
+          primaryMetric: productionAmount ? "1 halffabricaat gereed" : "Transport vertrokken",
+          facts: [
+            { label: "Product", value: "Toren B" },
+            { label: "Halffabricaten aanwezig", value: productionAmount },
+            { label: "Transportstatus", value: completed ? "Doorgestuurd" : "Wacht op overdracht" }
+          ],
+          feedback: completed
+            ? { kind: "success", text: "Het halffabricaat heeft Productie verlaten." }
+            : { kind: "info", text: "Pak Toren B vast en sleep hem naar de volgende afdeling." }
+        };
+      }
+      return {
+        ...definition,
+        orders: [],
+        cargoVisual: completed
+          ? {
+              kind: "tower",
+              cargoId: "tower_b_semi_finished",
+              productId: "B",
+              label: "ontvangen Toren B",
+              draggable: false
+            }
+          : null,
+        acceptsCargoDrop: !completed,
+        status: completed ? "complete" : "idle",
+        badgeValue: nextDepartmentAmount,
+        badgeLabel: `${nextDepartmentAmount} halffabricaat ontvangen`,
+        primaryMetric: completed ? "1 halffabricaat ontvangen" : "Wacht op intern transport",
+        locked: false,
+        highlight: !completed,
+        facts: [
+          { label: "Product", value: completed ? "Toren B" : "Nog niet ontvangen" },
+          { label: "Halffabricaten ontvangen", value: nextDepartmentAmount },
+          { label: "Ontvangststatus", value: completed ? "Bevestigd" : "Onderweg na overdracht" }
+        ],
+        feedback: completed
+          ? { kind: "success", text: "Ontvangst bevestigd. Stap 3 is voltooid." }
+          : { kind: "info", text: "Zet het halffabricaat eerst vanuit Productie door." },
+        action: completed
+          ? { label: "Ga verder naar de volgende opdracht", disabled: false }
+          : null
+      };
+    });
+    return {
+      title: "Tutorial · Interne Logistiek",
+      legend: [
+        { color: "production-b", label: "Productie" },
+        { color: "finished", label: "Volgende afdeling" }
+      ],
+      selectedDepartmentId: state.selectedLogisticsDepartmentId,
+      departments,
+      connections: INTERNAL_LOGISTICS_TUTORIAL_CONNECTIONS.map(connection => ({
+        ...connection,
+        highlight: !completed
+      })),
+      tutorial: {
+        active: true,
+        visualOnly: true,
+        stepLabel: "3 / 3",
+        image: "assets/lego/tower-b.png",
+        eyebrow: "Self-starting tutorial · stap 3",
+        title: "Interne Logistiek",
+        instruction: "Pak de gebouwde Toren B in het open dak van Productie vast en sleep hem naar het open ontvangstvak van de volgende afdeling.",
+        feedback: tutorial.feedback,
+        status: tutorial.phase,
+        collected: completed ? 1 : 0,
+        required: 1
+      }
+    };
+  }
+
   function logisticsTutorialScene() {
     const tutorial = state.logisticsTutorial;
     const playerTotal = tutorialStockTotal(tutorial.playerStock);
     const assemblyTotal = tutorialStockTotal(tutorial.assemblyStock);
     const phaseReady = tutorial.phase === "ready";
     const phaseComplete = tutorial.phase === "complete";
-    const departments = LOGISTICS_TUTORIAL_DEPARTMENTS.map(definition => {
+    const departments = LOGISTICS_TUTORIAL_DEPARTMENTS
+      .filter(definition => definition.id !== "tutorial_assembly")
+      .map(definition => {
       const base = {
         ...definition,
         orders: [],
@@ -1672,6 +1980,20 @@
         const partLabel = partLabels[partId];
         return {
           ...base,
+          stockVisuals: [
+            {
+              ...definition.stockPart,
+              partId,
+              count: Math.max(0, required - picked),
+              draggable: picked < required && tutorial.phase === "collecting"
+            },
+            {
+              ...definition.distractorPart,
+              partId: definition.distractorPart.id,
+              count: 2,
+              draggable: tutorial.phase === "collecting"
+            }
+          ],
           badgeValue: remaining,
           badgeLabel: `${remaining} op voorraad`,
           primaryMetric: `${remaining} in stelling · ${picked}/${required} opgehaald`,
@@ -1682,16 +2004,43 @@
           ],
           feedback: picked >= required
             ? { kind: "success", text: "Benodigde hoeveelheid is opgehaald." }
-            : null,
-          action: {
-            label: picked >= required ? "Hoeveelheid compleet" : `Haal 1 ${partLabel.action} op`,
-            disabled: picked >= required || tutorial.phase !== "collecting"
-          }
+            : { kind: "info", text: `Sleep alleen het juiste formaat (${partLabel.action}) naar de Bouwvoorraad.` }
         };
       }
       if (definition.id === "tutorial_player_stock") {
         return {
           ...base,
+          stockVisuals: [
+            {
+              partId: "blue_8",
+              color: "blue",
+              width: 4,
+              depth: 2,
+              label: "blauw 2×4-blok",
+              count: tutorial.playerStock.blue_8,
+              draggable: false
+            },
+            {
+              partId: "yellow_4",
+              color: "yellow",
+              width: 2,
+              depth: 2,
+              label: "geel 2×2-blok",
+              count: tutorial.playerStock.yellow_4,
+              draggable: false
+            },
+            {
+              partId: "green_4",
+              color: "green",
+              width: 2,
+              depth: 2,
+              label: "groen 2×2-blok",
+              count: tutorial.playerStock.green_4,
+              draggable: false
+            }
+          ],
+          acceptsStockDrop: tutorial.phase === "collecting",
+          highlight: tutorial.phase === "collecting",
           badgeValue: playerTotal,
           badgeLabel: `${playerTotal} in bouwvoorraad`,
           primaryMetric: `${playerTotal}/4 verzameld`,
@@ -1703,6 +2052,9 @@
           ],
           feedback: phaseReady
             ? { kind: "success", text: "De ophaalopdracht is compleet." }
+            : null,
+          action: phaseReady
+            ? { label: "Ga met deze blokken bouwen", disabled: false }
             : null
         };
       }
@@ -1730,15 +2082,14 @@
           ? { label: "Verplaats 4 onderdelen naar Assemblage", disabled: false }
           : null
       };
-    });
+      });
     return {
       title: "Tutorial · Magazijn & Voorraad",
       legend: [
         { color: "tutorial-blue", label: "Magazijn A · blauw" },
         { color: "tutorial-yellow", label: "Magazijn B · geel" },
         { color: "green", label: "Magazijn C · groen" },
-        { color: "tutorial-transit", label: "Bouwvoorraad" },
-        { color: "production-a", label: "Assemblage" }
+        { color: "tutorial-transit", label: "Bouwafdeling" }
       ],
       selectedDepartmentId: state.selectedLogisticsDepartmentId,
       departments,
@@ -1753,9 +2104,12 @@
       )),
       tutorial: {
         active: true,
+        visualOnly: true,
+        stepLabel: "2 / 3",
+        image: "assets/lego/tower-b.png",
         eyebrow: "Self-starting tutorial · stap 2",
         title: "Magazijn & Voorraad (Logistieke basis)",
-        instruction: "Nieuwe bestelling: haal voor Toren B 2× blauw 2×4 uit Magazijn A, 1× geel 2×2 uit Magazijn B en 1× groen 2×2 uit Magazijn C.",
+        instruction: "Sleep naar de Bouwafdeling: 2× blauw 2×4 uit A, 1× geel 2×2 uit B en 1× groen 2×2 uit C. Er liggen ook blokken met een verkeerd formaat.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
         collected: tutorialCollectedCount(),
@@ -1765,6 +2119,12 @@
   }
 
   function isometricScene() {
+    if (
+      state.logisticsTutorial.active
+      && state.logisticsTutorial.phase.startsWith("internal_")
+    ) {
+      return internalLogisticsTutorialScene();
+    }
     if (state.logisticsTutorial.active) return logisticsTutorialScene();
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
@@ -1803,7 +2163,7 @@
           && departmentId === "tutorial_assembly"
           && state.logisticsTutorial.phase === "collecting"
         ) {
-          state.logisticsTutorial.feedback = "Assemblage is nog vergrendeld: verzamel eerst 4 blauw en 2 rood.";
+          state.logisticsTutorial.feedback = "Assemblage is nog vergrendeld: verzamel eerst alle vier onderdelen voor Toren B.";
         }
         dispatchInteraction({
           learningObjectID: `logistics_department_${departmentId}`,
@@ -1820,12 +2180,28 @@
       },
       onDepartmentAction: departmentId => {
         if (!state.logisticsTutorial.active) return;
+        if (
+          departmentId === "tutorial_next_department"
+          && state.logisticsTutorial.phase === "internal_complete"
+        ) {
+          finishInternalLogisticsTutorial();
+          return;
+        }
+        if (
+          departmentId === "tutorial_player_stock"
+          && state.logisticsTutorial.phase === "ready"
+        ) {
+          transferTutorialStockToAssembly();
+          return;
+        }
         if (departmentId === "tutorial_assembly") {
           transferTutorialStockToAssembly();
           return;
         }
         collectTutorialMaterial(departmentId);
-      }
+      },
+      onStockDrop: payload => dropTutorialMaterial(payload),
+      onCargoDrop: payload => dropTutorialSemiFinished(payload)
     });
   }
 
@@ -2095,9 +2471,7 @@
           resetLogisticsTutorial();
         }
         if (actionType === "complete_stock_tutorial_build") {
-          state.logisticsTutorial.active = false;
-          state.selectedLogisticsDepartmentId = "inbound";
-          renderDataModel(true);
+          startInternalLogisticsTutorial();
         }
         if (
           actionType === "start_lego_build"
@@ -2221,9 +2595,11 @@
     state.opportunityCost = 0;
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
+    state.tutorialDismissed = false;
     resetInventory();
     resetLogisticsTutorial();
     window.LegoBuilder?.restartTutorial();
+    setTutorialFocus("builder");
     dispatchInteraction({
       actionType: "setup_roles",
       result: "success",
@@ -2276,6 +2652,7 @@
     els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
+    els.tutorialExitButton?.addEventListener("click", () => endTutorial());
     [
       els.moneyToggle,
       els.pnlToggle,
@@ -2420,11 +2797,13 @@
       finishedGoods: { ...state.finishedGoods },
       purchaseCost: state.purchaseCost,
       opportunityCost: state.opportunityCost,
+      tutorialDismissed: state.tutorialDismissed,
       logisticsTutorial: {
         ...state.logisticsTutorial,
         warehouseStock: { ...state.logisticsTutorial.warehouseStock },
         playerStock: { ...state.logisticsTutorial.playerStock },
-        assemblyStock: { ...state.logisticsTutorial.assemblyStock }
+        assemblyStock: { ...state.logisticsTutorial.assemblyStock },
+        semiFinished: { ...state.logisticsTutorial.semiFinished }
       },
       orders: state.orders.map(order => ({ ...order }))
     }),
@@ -2433,7 +2812,13 @@
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
     startLogisticsTutorial,
     collectTutorialMaterial,
+    dropTutorialMaterial,
     transferTutorialStockToAssembly,
+    startInternalLogisticsTutorial,
+    transferTutorialSemiFinished,
+    dropTutorialSemiFinished,
+    finishInternalLogisticsTutorial,
+    endTutorial,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
     createOrder: makeOrder,

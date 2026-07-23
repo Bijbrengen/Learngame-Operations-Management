@@ -169,27 +169,49 @@ De volgende logische stap is een adapterlaag naar de simulator, vergelijkbaar me
 
 ## Interactieve LEGO-bouwmodule
 
-De bouwmodule start altijd met de self-starting tutorial voor Toren A. De
-grondplaat, noppen, blokken en doelmarkeringen worden door dezelfde
-`LegoTowerRenderer` in een vaste isometrische SVG-projectie getekend:
-
-1. twee gele 2x4-blokken naast elkaar op de grondplaat;
-2. een rood 2x4-blok, haaks over de naad;
-3. een wit 2x2-blok op de top.
+De bouwmodule start altijd met een woordarme tutorial voor Toren A. Bovenaan
+staat alleen dat de speler leverancier van LEGO-torens is en dat een klant de
+afgebeelde toren wil. De geanimeerde klanttoren laat de opbouw visueel zien.
+De grondplaat, noppen, blokken en grijze doelvlakken
+worden door dezelfde `LegoTowerRenderer` in een vaste isometrische
+SVG-projectie getekend. Blokken kunnen uitsluitend worden gesleept; klikken en
+handmatig draaien zijn uitgeschakeld. Een onjuist blok of een onjuiste positie
+geeft geen tekstmelding, maar laat het blok en de grondplaat kort trillen.
+Terugdraaien en wissen gebruiken alleen een terugpijl en prullenbakpictogram.
 
 Na deze bedieningsoefening verschijnt een nieuwe klantbestelling voor Toren B,
 maar het blokkenpalet is leeg. Via `Ga naar de magazijnen` opent Stap 2,
 `Magazijn & Voorraad`. De speler haalt in de isometrische logistieke kaart
 twee blauwe 2x4-blokken uit Magazijn A, één geel 2x2-blok uit Magazijn B en
-één groen 2x2-blok uit Magazijn C. Magazijnbadges nemen per klik af en de
-badge van de bouwvoorraad neemt toe. Assemblage blijft vergrendeld totdat de
-set compleet is; daarna lichten de route en afdeling groen op en kan de
-voorraad worden overgedragen.
+één groen 2x2-blok uit Magazijn C. De magazijnen hebben een open dak met een
+zichtbaar ophaalvak. Daarin liggen kleine, isometrische LEGO-blokken van het
+juiste én een misleidend formaat. De speler moet goed naar het aantal noppen
+kijken en de juiste blokken naar het ontvangstvak van de Bouwafdeling slepen.
+Een verkeerd formaat wordt geweigerd en teruggelegd. Een juist blok verdwijnt
+uit het magazijn en verschijnt zichtbaar in het open ontvangstvak van de
+Bouwafdeling. De magazijnbadge neemt af en de ontvangstteller neemt toe. Zodra
+alle vier blokken zichtbaar zijn aangekomen, kiest de speler daar
+`Ga met deze blokken bouwen`.
 
 Na de overdracht keert de speler terug naar de bouwafdeling. Alleen de vier
 opgehaalde onderdelen zijn beschikbaar en elk geplaatst blok wordt van de
 bouwvoorraad afgetrokken. Na een correcte Toren B wordt de vrije bouwopdracht
-ontgrendeld.
+nog niet direct ontgrendeld.
+
+Daarna start Stap 3, `Interne Logistiek`. Toren B staat als zichtbaar
+halffabricaat in het open dak van Productie. De speler pakt de complete toren
+vast en sleept hem via de gemarkeerde interne transportroute naar het open
+ontvangstvak van de volgende afdeling, Gereed Product. Daar verschijnt de
+toren opnieuw; de badge bij Productie neemt af van één naar nul en de
+ontvangstbadge neemt toe van nul naar één. Na de bevestigde ontvangst wordt
+vrij bouwen ontgrendeld.
+
+Na het aanmelden staat de applicatie in tutorial-focusmodus: alleen de actieve
+bouwoefening of logistieke kaart is zichtbaar. De orderstroom, instellingen,
+voorraadpanelen en meetlog blijven verborgen om rust te bewaren. Met
+het sluitpictogram kan de speler vanuit iedere stap direct naar de volledige
+applicatie gaan. Ook de logistieke stappen gebruiken geen detailpaneel,
+afdelingsondertitels of tekstuele goed/fout-feedback.
 
 Stap 2 is tijdens ontwikkeling rechtstreeks te openen via:
 

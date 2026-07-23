@@ -125,13 +125,121 @@
     `;
   }
 
+  function openWarehouseMarkup(department, geometry) {
+    const center = geometry.center;
+    const opening = geometry.roof.map(point => ({
+      x: point.x + (center.x - point.x) * 0.12,
+      y: point.y + (center.y - point.y) * 0.12 + 3
+    }));
+    const visuals = Array.isArray(department.stockVisuals) ? department.stockVisuals : [];
+    const items = visuals.flatMap((visual, visualIndex) => (
+      Array.from(
+        { length: Math.max(0, Math.min(4, Number(visual.count || 0))) },
+        (_, itemIndex) => ({
+          ...visual,
+          instanceId: `${visual.partId || visualIndex}-${itemIndex}`
+        })
+      )
+    )).slice(0, 6);
+    const scale = 0.34;
+    const offsets = [
+      { x: -49, y: 14 },
+      { x: -17, y: 1 },
+      { x: 18, y: 14 },
+      { x: 49, y: 1 },
+      { x: -16, y: -17 },
+      { x: 20, y: -17 }
+    ];
+    const bricks = window.LegoTowerRenderer
+      ? items.map((visual, index) => {
+        const width = Number(visual.width || 2);
+        const depth = Number(visual.depth || 2);
+        const brickX = (6 - width) / 2;
+        const brickY = (6 - depth) / 2;
+        const offset = offsets[index];
+        return `
+          <g class="iso-stock-brick${visual.draggable ? " is-draggable iso-draggable-object" : ""}"
+             transform="translate(${center.x + offset.x - 90 * scale} ${center.y + offset.y - 105 * scale}) scale(${scale})"
+             data-drag-kind="stock"
+             data-stock-source-id="${escapeHtml(department.id)}"
+             data-stock-part-id="${escapeHtml(visual.partId || "")}"
+             data-stock-instance-id="${escapeHtml(visual.instanceId)}"
+             role="img"
+             aria-label="${escapeHtml(visual.draggable
+               ? `Sleep ${visual.label || "blok"} naar de Bouwvoorraad`
+               : `${visual.label || "Blok"} in ${department.title}`)}">
+            ${window.LegoTowerRenderer.brick(
+              brickX,
+              brickY,
+              0,
+              width,
+              depth,
+              visual.color || "blue"
+            )}
+          </g>
+        `;
+      }).join("")
+      : "";
+    const cargo = towerCargoMarkup(department, geometry);
+    const empty = items.length === 0 && !cargo
+      ? `<text class="iso-empty-stock-label"
+               x="${center.x}"
+               y="${center.y + 7}"
+               text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
+      : "";
+    return `
+      <polygon class="iso-building-interior" points="${points(opening)}"></polygon>
+      <polyline class="iso-building-rim" points="${points([...geometry.roof, geometry.roof[0]])}"></polyline>
+      <g class="iso-visible-stock">${bricks}${cargo}${empty}</g>
+    `;
+  }
+
+  function towerCargoMarkup(department, geometry) {
+    const cargo = department.cargoVisual;
+    if (!cargo || cargo.kind !== "tower" || !window.LegoTowerRenderer) return "";
+    const scale = 0.56;
+    const tower = [
+      window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green"),
+      window.LegoTowerRenderer.brick(1, 1, 0.22, 2, 4, "blue"),
+      window.LegoTowerRenderer.brick(3, 1, 0.22, 2, 4, "blue"),
+      window.LegoTowerRenderer.brick(2, 2, 1, 2, 2, "yellow"),
+      window.LegoTowerRenderer.brick(2, 2, 1.78, 2, 2, "green")
+    ].join("");
+    return `
+      <g class="iso-cargo-tower${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
+         transform="translate(${geometry.center.x - 90 * scale} ${geometry.center.y + 19 - 105 * scale}) scale(${scale})"
+         data-drag-kind="cargo"
+         data-cargo-source-id="${escapeHtml(department.id)}"
+         data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
+         role="img"
+         aria-label="${escapeHtml(cargo.draggable
+           ? `Sleep ${cargo.label || "toren"} naar de volgende afdeling`
+           : cargo.label || "Toren")}">
+        ${tower}
+      </g>
+    `;
+  }
+
+  function stockDropTargetMarkup(department, geometry) {
+    if (!department.acceptsStockDrop && !department.acceptsCargoDrop) return "";
+    if (department.showDropLabel === false) return "";
+    const offsetY = Number(department.dropLabelOffsetY ?? -62);
+    return `
+      <g class="iso-stock-drop-label" transform="translate(${geometry.center.x} ${geometry.center.y + offsetY})">
+        <rect x="-74" y="-20" width="148" height="40" rx="10"></rect>
+        <text y="5" text-anchor="middle">${escapeHtml(department.dropLabel || "BOUWAFDELING")}</text>
+      </g>
+    `;
+  }
+
   function departmentMarkup(department, selectedId) {
     const geometry = zoneGeometry(department);
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
     return `
-      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${selected ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}"
+      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${selected ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
          data-department-id="${escapeHtml(department.id)}"
+         data-accepts-drag-kind="${department.acceptsCargoDrop ? "cargo" : department.acceptsStockDrop ? "stock" : ""}"
          role="button"
          tabindex="0"
          aria-disabled="${department.locked ? "true" : "false"}"
@@ -144,8 +252,13 @@
           <polygon class="iso-building-right" points="${points([
             geometry.floor[1], geometry.floor[2], geometry.roof[2], geometry.roof[1]
           ])}"></polygon>
-          <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>
-          ${symbolMarkup(department, geometry.center)}
+          ${department.openRoof
+            ? openWarehouseMarkup(department, geometry)
+            : `
+              <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>
+              ${symbolMarkup(department, geometry.center)}
+            `}
+          ${stockDropTargetMarkup(department, geometry)}
         </g>
       </g>
     `;
@@ -158,6 +271,7 @@
     const badgeValue = department.badgeValue ?? orderCount;
     const title = department.shortTitle || department.title;
     const labelWidth = title.length > 18 ? 230 : 194;
+    const hideMetric = Boolean(department.hideMetric);
     return `
       <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selected ? " is-selected" : ""}" aria-hidden="true">
         <g class="iso-status-badge" transform="translate(${geometry.badge.x} ${geometry.badge.y})">
@@ -165,9 +279,9 @@
           <text text-anchor="middle" dominant-baseline="central">${escapeHtml(badgeValue)}</text>
         </g>
         <g class="iso-zone-label" transform="translate(${geometry.label.x} ${geometry.label.y})">
-          <rect x="${-labelWidth / 2}" y="-21" width="${labelWidth}" height="52" rx="9"></rect>
-          <text class="iso-zone-title" y="-3" text-anchor="middle">${escapeHtml(title)}</text>
-          <text class="iso-zone-metric" y="18" text-anchor="middle">${escapeHtml(department.primaryMetric)}</text>
+          <rect x="${-labelWidth / 2}" y="-21" width="${labelWidth}" height="${hideMetric ? 36 : 52}" rx="9"></rect>
+          <text class="iso-zone-title" y="${hideMetric ? 2 : -3}" text-anchor="middle">${escapeHtml(title)}</text>
+          ${hideMetric ? "" : `<text class="iso-zone-metric" y="18" text-anchor="middle">${escapeHtml(department.primaryMetric)}</text>`}
         </g>
       </g>
     `;
@@ -232,6 +346,20 @@
     const collected = Number(tutorial.collected || 0);
     const required = Math.max(1, Number(tutorial.required || 1));
     const progress = Math.min(100, Math.round((collected / required) * 100));
+    if (tutorial.visualOnly) {
+      return `
+        <section class="iso-tutorial-banner is-visual-only" aria-label="${escapeHtml(tutorial.title || "Tutorial")}">
+          <p class="iso-visual-step">${escapeHtml(tutorial.stepLabel || "")}</p>
+          ${tutorial.image
+            ? `<img class="iso-tutorial-visual" src="${escapeHtml(tutorial.image)}" alt="">`
+            : ""}
+          <div class="iso-tutorial-progress" aria-label="${progress}% voltooid">
+            <span>${collected}/${required}</span>
+            <div><i style="width:${progress}%"></i></div>
+          </div>
+        </section>
+      `;
+    }
     return `
       <section class="iso-tutorial-banner is-${escapeHtml(tutorial.status || "collecting")}" aria-live="polite">
         <div class="iso-tutorial-copy">
@@ -276,13 +404,16 @@
       return leftDepth - rightDepth || left.layout.x - right.layout.x;
     });
     const zones = sortedDepartments.map(department => departmentMarkup(department, selected?.id)).join("");
-    const overlays = sortedDepartments.map(department => departmentOverlayMarkup(department, selected?.id)).join("");
+    const overlays = sortedDepartments.map(department => departmentOverlayMarkup({
+      ...department,
+      hideMetric: department.hideMetric || Boolean(scene.tutorial?.active)
+    }, selected?.id)).join("");
     const legend = (scene.legend || []).map(item => `
       <span><i class="department-${escapeHtml(item.color)}"></i>${escapeHtml(item.label)}</span>
     `).join("");
 
     container.innerHTML = `
-      <div class="iso-logistics-view">
+      <div class="iso-logistics-view${scene.tutorial?.active ? " is-tutorial" : ""}">
         <div class="iso-map-frame">
           <div class="iso-map-toolbar">
             <div>
@@ -315,7 +446,7 @@
             <g class="iso-overlay-layer">${overlays}</g>
           </svg>
         </div>
-        ${detailMarkup(selected)}
+        ${scene.tutorial?.active ? "" : detailMarkup(selected)}
       </div>
     `;
 
@@ -333,6 +464,80 @@
           activate(element);
         }
       });
+    });
+    let stockDrag = null;
+    const clearDropTarget = () => {
+      container.querySelector(".iso-department.is-drag-over")?.classList.remove("is-drag-over");
+    };
+    const dropTargetAt = (clientX, clientY, dragKind) => {
+      const target = document.elementFromPoint(clientX, clientY)?.closest(".iso-department.is-drop-target");
+      return target
+        && container.contains(target)
+        && target.dataset.acceptsDragKind === dragKind
+        ? target
+        : null;
+    };
+    const finishStockDrag = (event, cancelled = false) => {
+      if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
+      const { element, dragKind, sourceDepartmentId, partId, instanceId, cargoId } = stockDrag;
+      const target = cancelled ? null : dropTargetAt(event.clientX, event.clientY, dragKind);
+      clearDropTarget();
+      element.classList.remove("is-dragging");
+      element.style.translate = "";
+      if (element.hasPointerCapture(event.pointerId)) {
+        element.releasePointerCapture(event.pointerId);
+      }
+      stockDrag = null;
+      let accepted = null;
+      if (target && dragKind === "stock" && typeof options.onStockDrop === "function") {
+        accepted = options.onStockDrop({
+          sourceDepartmentId,
+          targetDepartmentId: target.dataset.departmentId,
+          partId,
+          instanceId
+        });
+      }
+      if (target && dragKind === "cargo" && typeof options.onCargoDrop === "function") {
+        accepted = options.onCargoDrop({
+          sourceDepartmentId,
+          targetDepartmentId: target.dataset.departmentId,
+          cargoId
+        });
+      }
+      if ((!target || accepted === false) && element.isConnected) {
+        element.classList.add("is-rejected");
+        window.setTimeout(() => element.classList.remove("is-rejected"), 430);
+      }
+    };
+    container.querySelectorAll(".iso-draggable-object").forEach(element => {
+      element.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        element.setPointerCapture(event.pointerId);
+        element.classList.add("is-dragging");
+        stockDrag = {
+          element,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          dragKind: element.dataset.dragKind,
+          sourceDepartmentId: element.dataset.stockSourceId || element.dataset.cargoSourceId,
+          partId: element.dataset.stockPartId,
+          instanceId: element.dataset.stockInstanceId,
+          cargoId: element.dataset.cargoId
+        };
+      });
+      element.addEventListener("pointermove", event => {
+        if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
+        const deltaX = event.clientX - stockDrag.startX;
+        const deltaY = event.clientY - stockDrag.startY;
+        element.style.translate = `${deltaX}px ${deltaY}px`;
+        clearDropTarget();
+        dropTargetAt(event.clientX, event.clientY, stockDrag.dragKind)?.classList.add("is-drag-over");
+      });
+      element.addEventListener("pointerup", finishStockDrag);
+      element.addEventListener("pointercancel", event => finishStockDrag(event, true));
     });
     container.querySelector(".iso-department-action")?.addEventListener("click", event => {
       const departmentId = event.currentTarget.dataset.departmentAction;

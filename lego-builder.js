@@ -51,23 +51,14 @@
 
   const TUTORIAL = [
     {
-      title: "Bestelling & eerste gele blokjes",
-      request: "Ik wil een toren met een basis van 2 gele blokjes (2×4).",
-      instruction: "Kies Geel 2×4 en plaats de twee blokken naast elkaar in het midden.",
       image: "assets/lego/tutorial-step-1.gif",
       expectedCount: 2
     },
     {
-      title: "Volgende laag: rood",
-      request: "Plaats daar bovenop een rood blokje (2×4).",
-      instruction: "Kies Rood 2×4, draai het en plaats het haaks over de naad.",
       image: "assets/lego/tutorial-step-2.gif",
       expectedCount: 3
     },
     {
-      title: "Afmaken: wit",
-      request: "Maak de toren af met een wit blokje (2×2) op de top.",
-      instruction: "Kies Wit 2×2 en plaats het midden bovenop het rode blok.",
       image: "assets/lego/tutorial-step-3.gif",
       expectedCount: 4
     }
@@ -84,6 +75,7 @@
     tutorialComplete: false,
     freeBuildUnlocked: false,
     stockTutorialComplete: false,
+    internalLogisticsComplete: false,
     availableStock: {},
     productId: "A",
     selectedType: "yellow_8",
@@ -173,11 +165,12 @@
   }
 
   function tutorialRotationForPiece(type) {
-    if (state.mode !== "tutorial" || state.tutorialComplete) return false;
     const piece = PIECES[type];
     if (!piece || piece.width === piece.depth) return false;
-    const expected = GOALS.A.bricks
-      .slice(0, TUTORIAL[state.tutorialStep].expectedCount)
+    const targets = state.mode === "tutorial" && !state.tutorialComplete
+      ? GOALS.A.bricks.slice(0, TUTORIAL[state.tutorialStep].expectedCount)
+      : GOALS[state.productId].bricks;
+    const expected = targets
       .find(target => target.type === type && !state.bricks.some(brick => canonical(brick) === canonical(target)));
     return Boolean(expected && expected.width === piece.depth && expected.depth === piece.width);
   }
@@ -186,10 +179,24 @@
     if (typeof options.onEvent === "function") options.onEvent(actionType, data);
   }
 
+  function animateRejection() {
+    requestAnimationFrame(() => {
+      const selected = container?.querySelector(`[data-piece-type="${state.selectedType}"]`);
+      const board = container?.querySelector(".builder-board");
+      selected?.classList.add("is-rejected");
+      board?.classList.add("is-rejected");
+      window.setTimeout(() => {
+        selected?.classList.remove("is-rejected");
+        board?.classList.remove("is-rejected");
+      }, 430);
+    });
+  }
+
   function reject(text, reason) {
     state.feedback = { kind: "error", text };
     emit("reject_lego_brick", { reason, productId: state.productId, selectedType: state.selectedType });
     render();
+    animateRejection();
   }
 
   function placeAt(x, y) {
@@ -258,8 +265,7 @@
       return;
     }
     state.tutorialComplete = true;
-    state.feedback = { kind: "success", text: "Toren A is correct. De oefentutorial is voltooid." };
-    emit("complete_lego_tutorial", { productId: "A" });
+    state.feedback = { kind: "success", text: "" };
   }
 
   function boardPoint(event) {
@@ -307,15 +313,6 @@
     return candidates.sort((left, right) => left.distance - right.distance || right.z - left.z)[0] || null;
   }
 
-  function selectPiece(type) {
-    if (!PIECES[type]) return;
-    state.selectedType = type;
-    state.rotated = tutorialRotationForPiece(type);
-    state.feedback = { kind: "info", text: `${PIECES[type].label} geselecteerd. Klik of sleep naar de grondplaat.` };
-    emit("select_lego_brick", { type, mode: state.mode });
-    render();
-  }
-
   function startFreeBuild(productId = state.productId) {
     state.mode = "free";
     state.productId = GOALS[productId] ? productId : "A";
@@ -335,6 +332,7 @@
     state.bricks = [];
     state.availableStock = {};
     state.stockTutorialComplete = false;
+    state.internalLogisticsComplete = false;
     state.feedback = {
       kind: "error",
       text: `Nieuwe bestelling: ${GOALS[state.productId].name}. Het blokkenpalet is leeg; haal eerst voorraad op.`
@@ -392,6 +390,7 @@
     state.tutorialComplete = false;
     state.freeBuildUnlocked = false;
     state.stockTutorialComplete = false;
+    state.internalLogisticsComplete = false;
     state.availableStock = {};
     state.productId = "A";
     state.selectedType = "yellow_8";
@@ -421,6 +420,13 @@
       return;
     }
     if (state.mode === "stock_build" && state.stockTutorialComplete) {
+      if (!state.internalLogisticsComplete) {
+        emit("complete_stock_tutorial_build", {
+          productId: state.productId,
+          brickCount: state.bricks.length
+        });
+        return;
+      }
       startFreeBuild(state.productId);
       return;
     }
@@ -429,18 +435,7 @@
         reject("Maak eerst alle drie tutorialstappen af.", "tutorial_incomplete");
         return;
       }
-      if (!state.freeBuildUnlocked) {
-        state.feedback = {
-          kind: "info",
-          text: "Voltooi eerst Stap 2: haal de bouwvoorraad op in de magazijnkaart."
-        };
-        if (typeof options.onTutorialNextRequested === "function") {
-          options.onTutorialNextRequested();
-        }
-        render();
-        return;
-      }
-      startFreeBuild(state.productId);
+      emit("complete_lego_tutorial", { productId: "A" });
       return;
     }
     const correct = validateBuild(state.productId, state.bricks);
@@ -457,13 +452,9 @@
     }
     if (state.mode === "stock_build" && correct) {
       state.stockTutorialComplete = true;
-      state.freeBuildUnlocked = true;
-      emit("complete_stock_tutorial_build", {
-        productId: state.productId,
-        brickCount: state.bricks.length
-      });
     }
     render();
+    if (!correct) animateRejection();
   }
 
   function brickMarkup(brick) {
@@ -498,15 +489,9 @@
           window.LegoTowerRenderer.iso(target.x + target.width, target.y + target.depth, z),
           window.LegoTowerRenderer.iso(target.x, target.y + target.depth, z)
         ];
-        const center = window.LegoTowerRenderer.iso(
-          target.x + target.width / 2,
-          target.y + target.depth / 2,
-          z
-        );
         return `
           <g class="builder-target" aria-hidden="true">
             <polygon points="${corners.map(point => point.join(",")).join(" ")}"></polygon>
-            <text x="${center[0]}" y="${center[1] - 2}" text-anchor="middle">plaats hier</text>
           </g>
         `;
       }).join("");
@@ -559,6 +544,7 @@
               data-piece-type="${piece.id}"
               draggable="${disabled ? "false" : "true"}"
               ${disabled ? "disabled" : ""}
+              aria-label="${escapeHtml(piece.label)}${stockBound ? `, ${available} beschikbaar` : ""}"
               aria-pressed="${state.selectedType === piece.id}">
         ${window.LegoTowerRenderer
           ? window.LegoTowerRenderer.renderPart(
@@ -566,8 +552,7 @@
               piece.label
             )
           : `<span class="palette-brick-shape ${piece.width === 2 && piece.depth === 2 ? "is-square" : ""}"></span>`}
-        <strong>${escapeHtml(piece.label)}</strong>
-        ${stockBound ? `<span class="builder-stock-count">Bouwvoorraad: ${available}</span>` : ""}
+        ${stockBound ? `<span class="builder-stock-count" aria-hidden="true">${available}</span>` : ""}
       </button>
     `;
       }).join("");
@@ -575,69 +560,91 @@
 
   function render() {
     if (!container) return;
-    const tutorial = TUTORIAL[state.tutorialStep];
     const goal = GOALS[state.productId];
-    const prompt = state.mode === "tutorial" ? tutorial.request : goal.request;
-    const instruction = state.mode === "tutorial"
-      ? tutorial.instruction
-      : state.mode === "stock_waiting"
-        ? "De vorige toren is klaar. Voor deze nieuwe bestelling zijn geen blokken beschikbaar: haal ze op in de magazijnen."
-        : state.mode === "stock_build"
-          ? "Gebruik uitsluitend de opgehaalde bouwvoorraad en lever Toren B daarna ter controle."
-          : "Bouw de bestelling exact na en kies daarna Klaar / Leveren.";
-    const image = state.mode === "tutorial" ? tutorial.image : goal.image;
-    const tutorialLabel = state.mode === "tutorial"
-      ? `Oefentutorial · stap ${state.tutorialStep + 1}/3`
-      : state.mode === "stock_waiting"
-        ? "Tutorial · nieuwe bestelling"
-        : state.mode === "stock_build"
-          ? "Tutorial · terug bij Assemblage"
-          : "Klantbestelling";
-    container.innerHTML = `
-      <div class="lego-builder-shell">
-        <header class="builder-order-card">
-          <div>
-            <p class="eyebrow">${escapeHtml(tutorialLabel)}</p>
-            <h3>${escapeHtml(state.mode === "tutorial" ? tutorial.title : goal.name)}</h3>
-            <blockquote>“${escapeHtml(prompt)}”</blockquote>
-            <p>${escapeHtml(instruction)}</p>
-          </div>
-          <img src="${escapeHtml(image)}" alt="Bouwvoorbeeld ${escapeHtml(state.mode === "tutorial" ? tutorial.title : goal.name)}">
-        </header>
+    const image = state.mode === "tutorial"
+      ? TUTORIAL[state.tutorialStep].image
+      : goal.image;
+    const deliverLabel = state.mode === "stock_waiting"
+      ? "Naar de magazijnen"
+      : state.mode === "stock_build" && state.stockTutorialComplete && !state.internalLogisticsComplete
+        ? "Ga verder"
+        : state.mode === "stock_build" && state.stockTutorialComplete
+          ? "Naar de volgende opdracht"
+          : "Lever de toren";
+    const deliverIcon = state.mode === "stock_waiting"
+      || state.tutorialComplete
+      || state.stockTutorialComplete
+      ? "→"
+      : "✓";
+    const catalog = state.mode === "free"
+      ? `
         <div class="builder-catalog" aria-label="Productcatalogus">
           ${Object.values(GOALS).map(product => `
             <button type="button" data-product-id="${product.name.slice(-1)}"
-                    class="${state.productId === product.name.slice(-1) ? "is-selected" : ""}"
-                    ${state.mode !== "free" ? "disabled" : ""}>
+                    class="${state.productId === product.name.slice(-1) ? "is-selected" : ""}">
               ${escapeHtml(product.name)}
             </button>
           `).join("")}
         </div>
+      `
+      : "";
+    const deliverButton = state.mode === "tutorial" && !state.tutorialComplete
+      ? ""
+      : `
+        <button type="button"
+                class="primary-button builder-icon-button builder-deliver"
+                aria-label="${escapeHtml(deliverLabel)}"
+                title="${escapeHtml(deliverLabel)}">
+          ${deliverIcon}
+        </button>
+      `;
+    const showCompletion = state.mode === "tutorial" && state.tutorialComplete
+      || state.mode === "stock_build" && state.stockTutorialComplete && !state.internalLogisticsComplete;
+    const completion = showCompletion
+      ? `
+        <section class="builder-step-complete" role="status" aria-live="polite">
+          <span aria-hidden="true">✓</span>
+          <div>
+            <strong>Gefeliciteerd!</strong>
+            <p>Je hebt deze stap onder de knie.</p>
+          </div>
+        </section>
+      `
+      : "";
+    container.innerHTML = `
+      <div class="lego-builder-shell">
+        <header class="builder-order-card">
+          <div>
+            <p class="eyebrow">Klantbestelling</p>
+            <h3>Je bent leverancier van LEGO-torens.</h3>
+            <p class="builder-customer-request">Een klant wil deze toren.</p>
+          </div>
+          <img src="${escapeHtml(image)}" alt="Gewenste LEGO-toren">
+        </header>
+        ${completion}
+        ${catalog}
         <div class="builder-workspace">
           <aside class="builder-palette" aria-label="Lego-blokkenpalet">
-            <h4>Blokkenpalet</h4>
-            <p>${state.mode === "stock_waiting" ? "Voorraad: 0. Haal eerst onderdelen op." : "Klik of sleep een blok."}</p>
             <div class="builder-palette-grid">${paletteMarkup()}</div>
-            <button type="button" class="secondary-button builder-rotate" ${state.mode === "stock_waiting" ? "disabled" : ""}>Draai 90°</button>
           </aside>
           <div class="builder-board-column">
             ${boardMarkup()}
-            <div class="builder-selection">Gekozen: <strong>${escapeHtml(currentPiece()?.label || "geen")}</strong>${state.rotated ? " · gedraaid" : ""}</div>
           </div>
-          <aside class="builder-actions">
-            <h4>Bouwcontrole</h4>
-            <div class="builder-feedback is-${escapeHtml(state.feedback.kind)}" role="status" aria-live="polite">${escapeHtml(state.feedback.text)}</div>
-            <button type="button" class="primary-button builder-deliver">${
-              state.mode === "tutorial" && state.tutorialComplete
-                ? "Nieuwe bestelling bekijken"
-                : state.mode === "stock_waiting"
-                  ? "Ga naar de magazijnen"
-                  : state.mode === "stock_build" && state.stockTutorialComplete
-                    ? "Start vrije opdracht"
-                    : "Klaar / Leveren"
-            }</button>
-            <button type="button" class="secondary-button builder-undo" ${state.bricks.length ? "" : "disabled"}>Laatste blok terug</button>
-            <button type="button" class="secondary-button builder-reset">Grondplaat leegmaken</button>
+          <aside class="builder-actions" aria-label="Bouwacties">
+            ${deliverButton}
+            <button type="button"
+                    class="secondary-button builder-icon-button builder-undo"
+                    aria-label="Laatste bewerking terugdraaien"
+                    title="Laatste bewerking terugdraaien"
+                    ${state.bricks.length ? "" : "disabled"}>↶</button>
+            <button type="button"
+                    class="secondary-button builder-icon-button builder-reset"
+                    aria-label="Grondplaat leegmaken"
+                    title="Grondplaat leegmaken">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7"></path>
+              </svg>
+            </button>
           </aside>
         </div>
       </div>
@@ -647,7 +654,6 @@
 
   function wire() {
     container.querySelectorAll("[data-piece-type]").forEach(button => {
-      button.addEventListener("click", () => selectPiece(button.dataset.pieceType));
       button.addEventListener("dragstart", event => {
         state.selectedType = button.dataset.pieceType;
         state.rotated = tutorialRotationForPiece(state.selectedType);
@@ -659,10 +665,6 @@
       button.addEventListener("click", () => startFreeBuild(button.dataset.productId));
     });
     const board = container.querySelector(".builder-board");
-    board.addEventListener("click", event => {
-      const candidate = snapCandidate(event);
-      if (candidate) placeAt(candidate.x, candidate.y);
-    });
     board.addEventListener("dragover", event => {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
@@ -675,14 +677,7 @@
       const candidate = snapCandidate(event);
       if (candidate) placeAt(candidate.x, candidate.y);
     });
-    container.querySelector(".builder-rotate").addEventListener("click", () => {
-      const piece = PIECES[state.selectedType];
-      if (piece.width !== piece.depth) state.rotated = !state.rotated;
-      state.feedback = { kind: "info", text: state.rotated ? "Blok 90° gedraaid." : "Blok teruggedraaid." };
-      emit("rotate_lego_brick", { type: state.selectedType, rotated: state.rotated });
-      render();
-    });
-    container.querySelector(".builder-deliver").addEventListener("click", deliver);
+    container.querySelector(".builder-deliver")?.addEventListener("click", deliver);
     container.querySelector(".builder-undo").addEventListener("click", undo);
     container.querySelector(".builder-reset").addEventListener("click", resetBuild);
   }
@@ -711,6 +706,28 @@
     render();
   }
 
+  function setInternalLogisticsComplete(completed) {
+    state.internalLogisticsComplete = Boolean(completed);
+    state.freeBuildUnlocked = state.internalLogisticsComplete;
+    if (state.internalLogisticsComplete && state.mode === "stock_build" && state.stockTutorialComplete) {
+      state.feedback = {
+        kind: "success",
+        text: "Stap 3 is voltooid. Je kunt nu verder naar een vrije opdracht."
+      };
+    }
+    render();
+  }
+
+  function skipTutorial() {
+    const productId = GOALS[state.productId] ? state.productId : "A";
+    state.tutorialComplete = true;
+    state.stockTutorialComplete = true;
+    state.internalLogisticsComplete = true;
+    state.freeBuildUnlocked = true;
+    emit("skip_lego_tutorial", { productId });
+    startFreeBuild(productId);
+  }
+
   window.LegoBuilder = {
     mount,
     setProduct,
@@ -720,6 +737,8 @@
     reset: resetBuild,
     restartTutorial,
     setFreeBuildUnlocked,
+    setInternalLogisticsComplete,
+    skipTutorial,
     validateBuild,
     getCatalog: () => Object.fromEntries(
       Object.entries(GOALS).map(([productId, goal]) => [
@@ -733,6 +752,7 @@
       tutorialComplete: state.tutorialComplete,
       freeBuildUnlocked: state.freeBuildUnlocked,
       stockTutorialComplete: state.stockTutorialComplete,
+      internalLogisticsComplete: state.internalLogisticsComplete,
       availableStock: { ...state.availableStock },
       productId: state.productId,
       selectedType: state.selectedType,
