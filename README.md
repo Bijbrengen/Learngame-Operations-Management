@@ -177,6 +177,26 @@ grondplaat, noppen, blokken en doelmarkeringen worden door dezelfde
 2. een rood 2x4-blok, haaks over de naad;
 3. een wit 2x2-blok op de top.
 
+Na deze bedieningsoefening verschijnt een nieuwe klantbestelling voor Toren B,
+maar het blokkenpalet is leeg. Via `Ga naar de magazijnen` opent Stap 2,
+`Magazijn & Voorraad`. De speler haalt in de isometrische logistieke kaart
+twee blauwe 2x4-blokken uit Magazijn A, één geel 2x2-blok uit Magazijn B en
+één groen 2x2-blok uit Magazijn C. Magazijnbadges nemen per klik af en de
+badge van de bouwvoorraad neemt toe. Assemblage blijft vergrendeld totdat de
+set compleet is; daarna lichten de route en afdeling groen op en kan de
+voorraad worden overgedragen.
+
+Na de overdracht keert de speler terug naar de bouwafdeling. Alleen de vier
+opgehaalde onderdelen zijn beschikbaar en elk geplaatst blok wordt van de
+bouwvoorraad afgetrokken. Na een correcte Toren B wordt de vrije bouwopdracht
+ontgrendeld.
+
+Stap 2 is tijdens ontwikkeling rechtstreeks te openen via:
+
+```text
+http://127.0.0.1:4173/#tutorialStep2
+```
+
 Daarna kan de speler een bestelling voor A, B of C kiezen. De catalogus en
 validatie gebruiken één gedeelde set bouwdoelen. Een klik of drop wordt vanuit
 de isometrische schermcoördinaten teruggerekend naar het dichtstbijzijnde

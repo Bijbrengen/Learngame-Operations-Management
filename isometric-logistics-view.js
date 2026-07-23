@@ -70,9 +70,10 @@
     const path = `M ${start.x} ${start.y} C ${start.x + bend} ${start.y + curveOffsetY}, ${end.x - bend} ${end.y + curveOffsetY}, ${end.x} ${end.y}`;
     const flowKind = connection.kind === "customer" ? "customer" : "material";
     const markerId = flowKind === "customer" ? "isoFlowArrowCustomer" : "isoFlowArrowMaterial";
+    const stateClass = connection.highlight ? " is-highlighted" : connection.locked ? " is-locked" : "";
     return `
-      <path class="iso-flow-shadow flow-${flowKind}" d="${path}"></path>
-      <path class="iso-flow-line flow-${flowKind}" d="${path}" marker-end="url(#${markerId})"></path>
+      <path class="iso-flow-shadow flow-${flowKind}${stateClass}" d="${path}"></path>
+      <path class="iso-flow-line flow-${flowKind}${stateClass}" d="${path}" marker-end="url(#${markerId})"></path>
     `;
   }
 
@@ -129,11 +130,12 @@
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
     return `
-      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${selected ? " is-selected" : ""}"
+      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${selected ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}"
          data-department-id="${escapeHtml(department.id)}"
          role="button"
          tabindex="0"
-         aria-label="${escapeHtml(`${department.title}: ${statusText(department.status)}, ${orderCount} lopende orders`)}">
+         aria-disabled="${department.locked ? "true" : "false"}"
+         aria-label="${escapeHtml(`${department.title}: ${statusText(department.status)}, ${department.badgeLabel || `${orderCount} lopende orders`}`)}">
         <g class="iso-building">
           <polygon class="iso-zone-floor" points="${points(geometry.floor)}"></polygon>
           <polygon class="iso-building-left" points="${points([
@@ -153,13 +155,14 @@
     const geometry = zoneGeometry(department);
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
+    const badgeValue = department.badgeValue ?? orderCount;
     const title = department.shortTitle || department.title;
     const labelWidth = title.length > 18 ? 230 : 194;
     return `
       <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selected ? " is-selected" : ""}" aria-hidden="true">
         <g class="iso-status-badge" transform="translate(${geometry.badge.x} ${geometry.badge.y})">
           <circle r="13"></circle>
-          <text text-anchor="middle" dominant-baseline="central">${orderCount}</text>
+          <text text-anchor="middle" dominant-baseline="central">${escapeHtml(badgeValue)}</text>
         </g>
         <g class="iso-zone-label" transform="translate(${geometry.label.x} ${geometry.label.y})">
           <rect x="${-labelWidth / 2}" y="-21" width="${labelWidth}" height="52" rx="9"></rect>
@@ -194,6 +197,17 @@
           </li>
         `).join("")
       : "<li><span>Geen lopende orders in deze afdeling.</span></li>";
+    const action = department.action
+      ? `<button type="button"
+                 class="primary-button iso-department-action"
+                 data-department-action="${escapeHtml(department.id)}"
+                 ${department.action.disabled ? "disabled" : ""}>
+           ${escapeHtml(department.action.label)}
+         </button>`
+      : "";
+    const feedback = department.feedback
+      ? `<p class="iso-detail-feedback is-${escapeHtml(department.feedback.kind || "info")}">${escapeHtml(department.feedback.text)}</p>`
+      : "";
     return `
       <aside class="iso-department-detail" aria-live="polite">
         <div class="iso-detail-heading">
@@ -205,9 +219,32 @@
         </div>
         <p>${escapeHtml(department.description)}</p>
         <div class="iso-detail-facts">${facts}</div>
+        ${feedback}
+        ${action}
         <h4>Lopende orders</h4>
         <ul class="iso-detail-orders">${orders}</ul>
       </aside>
+    `;
+  }
+
+  function tutorialMarkup(tutorial) {
+    if (!tutorial?.active) return "";
+    const collected = Number(tutorial.collected || 0);
+    const required = Math.max(1, Number(tutorial.required || 1));
+    const progress = Math.min(100, Math.round((collected / required) * 100));
+    return `
+      <section class="iso-tutorial-banner is-${escapeHtml(tutorial.status || "collecting")}" aria-live="polite">
+        <div class="iso-tutorial-copy">
+          <p class="eyebrow">${escapeHtml(tutorial.eyebrow || "Self-starting tutorial · stap 2")}</p>
+          <h3>${escapeHtml(tutorial.title || "Magazijn & voorraad")}</h3>
+          <p>${escapeHtml(tutorial.instruction || "")}</p>
+          <strong>${escapeHtml(tutorial.feedback || "")}</strong>
+        </div>
+        <div class="iso-tutorial-progress" aria-label="${progress}% voltooid">
+          <span>${collected}/${required}</span>
+          <div><i style="width:${progress}%"></i></div>
+        </div>
+      </section>
     `;
   }
 
@@ -254,6 +291,7 @@
             </div>
             <div class="iso-map-legend" aria-label="Afdelingslegenda">${legend}</div>
           </div>
+          ${tutorialMarkup(scene.tutorial)}
           <svg class="iso-map" viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}" role="img" aria-label="Isometrische kaart van de logistieke afdelingen">
             <defs>
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
@@ -295,6 +333,12 @@
           activate(element);
         }
       });
+    });
+    container.querySelector(".iso-department-action")?.addEventListener("click", event => {
+      const departmentId = event.currentTarget.dataset.departmentAction;
+      if (departmentId && typeof options.onDepartmentAction === "function") {
+        options.onDepartmentAction(departmentId);
+      }
     });
   }
 

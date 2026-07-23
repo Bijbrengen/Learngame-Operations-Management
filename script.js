@@ -486,6 +486,70 @@
     }
   };
 
+  const LOGISTICS_TUTORIAL_REQUIREMENTS = Object.freeze({
+    blue_8: 2,
+    yellow_4: 1,
+    green_4: 1
+  });
+
+  const LOGISTICS_TUTORIAL_DEPARTMENTS = [
+    {
+      id: "tutorial_warehouse_a",
+      title: "Grondstoffenmagazijn A",
+      shortTitle: "Magazijn A · Blauw",
+      description: "Stelling A bevat de blauwe 2×4-bouwstenen voor de ophaalopdracht.",
+      kind: "warehouse",
+      departmentColor: "tutorial-blue",
+      materialId: "blue_8",
+      layout: { x: 1, y: 4, width: 3.5, depth: 3.2, height: 58 }
+    },
+    {
+      id: "tutorial_warehouse_b",
+      title: "Grondstoffenmagazijn B",
+      shortTitle: "Magazijn B · Geel",
+      description: "Stelling B bevat het gele 2×2-blok voor Toren B.",
+      kind: "warehouse",
+      departmentColor: "tutorial-yellow",
+      materialId: "yellow_4",
+      layout: { x: 1, y: 10, width: 3.5, depth: 3.2, height: 64 }
+    },
+    {
+      id: "tutorial_warehouse_c",
+      title: "Grondstoffenmagazijn C",
+      shortTitle: "Magazijn C · Groen",
+      description: "Stelling C bevat het groene 2×2-topblok voor Toren B.",
+      kind: "warehouse",
+      departmentColor: "green",
+      materialId: "green_4",
+      layout: { x: 1, y: 16, width: 3.5, depth: 3.2, height: 70 }
+    },
+    {
+      id: "tutorial_player_stock",
+      title: "Speler Bouwvoorraad",
+      shortTitle: "Bouwvoorraad",
+      description: "Hier zie je alle onderdelen die je uit de magazijnen hebt opgehaald.",
+      kind: "warehouse",
+      departmentColor: "tutorial-transit",
+      layout: { x: 8, y: 10, width: 3.8, depth: 3.4, height: 48 }
+    },
+    {
+      id: "tutorial_assembly",
+      title: "Assemblage",
+      shortTitle: "Assemblage",
+      description: "De bouwplek blijft vergrendeld totdat de volledige ophaalopdracht in de bouwvoorraad zit.",
+      kind: "production",
+      departmentColor: "production-a",
+      layout: { x: 15, y: 10, width: 4, depth: 3.6, height: 76 }
+    }
+  ];
+
+  const LOGISTICS_TUTORIAL_CONNECTIONS = [
+    { from: "tutorial_warehouse_a", to: "tutorial_player_stock", kind: "material", curveOffsetY: -36 },
+    { from: "tutorial_warehouse_b", to: "tutorial_player_stock", kind: "material" },
+    { from: "tutorial_warehouse_c", to: "tutorial_player_stock", kind: "material", curveOffsetY: 36 },
+    { from: "tutorial_player_stock", to: "tutorial_assembly", kind: "material", locked: true }
+  ];
+
   const state = {
     sessionId: "",
     clockMinutes: 600,
@@ -501,6 +565,14 @@
     interactionBuffer: [],
     contractEventBuffer: [],
     selectedLogisticsDepartmentId: "inbound",
+    logisticsTutorial: {
+      active: false,
+      phase: "locked",
+      warehouseStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
+      playerStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
+      assemblyStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
+      feedback: ""
+    },
     config: {
       money: true,
       pnl: true,
@@ -1439,7 +1511,261 @@
     };
   }
 
+  function tutorialStockTotal(stock) {
+    return Object.values(stock).reduce((sum, amount) => sum + Number(amount || 0), 0);
+  }
+
+  function tutorialCollectedCount() {
+    return tutorialStockTotal(state.logisticsTutorial.playerStock)
+      + tutorialStockTotal(state.logisticsTutorial.assemblyStock);
+  }
+
+  function tutorialRequirementsComplete() {
+    return Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).every(
+      ([partId, required]) => (state.logisticsTutorial.playerStock[partId] || 0) >= required
+    );
+  }
+
+  function resetLogisticsTutorial() {
+    state.logisticsTutorial.active = false;
+    state.logisticsTutorial.phase = "locked";
+    state.logisticsTutorial.warehouseStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.feedback = "";
+  }
+
+  function startLogisticsTutorial(force = false) {
+    if (state.logisticsTutorial.active && !force) {
+      els.dataModelPanel.classList.add("visible");
+      state.config.processView = "isometric";
+      renderDataModel(true);
+      els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    state.logisticsTutorial.active = true;
+    state.logisticsTutorial.phase = "collecting";
+    state.logisticsTutorial.warehouseStock = {
+      blue_8: state.inventory.blue_8 || 0,
+      yellow_4: state.inventory.yellow_4 || 0,
+      green_4: state.inventory.green_4 || 0
+    };
+    state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.feedback = "Begin bij Magazijn A en haal de twee blauwe basisblokken voor Toren B op.";
+    state.selectedLogisticsDepartmentId = "tutorial_warehouse_a";
+    state.config.processView = "isometric";
+    els.dataModelPanel.classList.add("visible");
+    dispatchInteraction({
+      actionType: "start_logistics_tutorial_step",
+      learningObjectID: "tutorial_step_2_warehouse_inventory",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "started",
+      step: 2
+    });
+    renderAll();
+    els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function collectTutorialMaterial(departmentId) {
+    const definition = LOGISTICS_TUTORIAL_DEPARTMENTS.find(item => item.id === departmentId);
+    const partId = definition?.materialId;
+    if (!partId || state.logisticsTutorial.phase !== "collecting") return false;
+    const required = LOGISTICS_TUTORIAL_REQUIREMENTS[partId] || 0;
+    const collected = state.logisticsTutorial.playerStock[partId] || 0;
+    if (collected >= required) {
+      state.logisticsTutorial.feedback = `${definition.shortTitle} is voor deze opdracht compleet.`;
+      renderDataModel(true);
+      return false;
+    }
+    if ((state.logisticsTutorial.warehouseStock[partId] || 0) <= 0) {
+      state.logisticsTutorial.feedback = `${definition.shortTitle} heeft onvoldoende voorraad.`;
+      renderDataModel(true);
+      return false;
+    }
+    state.logisticsTutorial.warehouseStock[partId] -= 1;
+    state.logisticsTutorial.playerStock[partId] = collected + 1;
+    state.inventory[partId] = Math.max(0, (state.inventory[partId] || 0) - 1);
+    const ready = tutorialRequirementsComplete();
+    if (ready) {
+      state.logisticsTutorial.phase = "ready";
+      state.logisticsTutorial.feedback = "Voorraad compleet! Verplaats de onderdelen naar Assemblage.";
+      state.selectedLogisticsDepartmentId = "tutorial_assembly";
+    } else {
+      const remainingLabels = {
+        blue_8: "blauw 2×4",
+        yellow_4: "geel 2×2",
+        green_4: "groen 2×2"
+      };
+      const remaining = Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS)
+        .map(([requiredPartId, amount]) => ({
+          label: remainingLabels[requiredPartId],
+          amount: Math.max(0, amount - (state.logisticsTutorial.playerStock[requiredPartId] || 0))
+        }))
+        .filter(item => item.amount > 0)
+        .map(item => `${item.amount}× ${item.label}`);
+      state.logisticsTutorial.feedback = `Nog ophalen: ${remaining.join(", ")}.`;
+    }
+    dispatchInteraction({
+      actionType: "collect_tutorial_material",
+      learningObjectID: `tutorial_stock_${partId}`,
+      objectRole: "warehouse_pick",
+      role: "Lerende",
+      result: "success",
+      departmentId,
+      partId,
+      warehouseRemaining: state.logisticsTutorial.warehouseStock[partId],
+      playerStock: state.logisticsTutorial.playerStock[partId]
+    });
+    renderAll();
+    return true;
+  }
+
+  function transferTutorialStockToAssembly() {
+    if (state.logisticsTutorial.phase !== "ready" || !tutorialRequirementsComplete()) {
+      state.logisticsTutorial.feedback = "Assemblage blijft vergrendeld totdat de ophaalopdracht compleet is.";
+      renderDataModel(true);
+      return false;
+    }
+    state.logisticsTutorial.assemblyStock = { ...state.logisticsTutorial.playerStock };
+    state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    state.logisticsTutorial.phase = "complete";
+    state.logisticsTutorial.feedback = "Voorraad afgeleverd. Ga terug naar de bouwafdeling en zet Toren B in elkaar.";
+    window.LegoBuilder?.setStockTutorialInventory(state.logisticsTutorial.assemblyStock);
+    dispatchInteraction({
+      actionType: "complete_logistics_tutorial_step",
+      learningObjectID: "tutorial_step_2_warehouse_inventory",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "success",
+      step: 2,
+      assemblyStock: { ...state.logisticsTutorial.assemblyStock }
+    });
+    renderAll();
+    els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
+  function logisticsTutorialScene() {
+    const tutorial = state.logisticsTutorial;
+    const playerTotal = tutorialStockTotal(tutorial.playerStock);
+    const assemblyTotal = tutorialStockTotal(tutorial.assemblyStock);
+    const phaseReady = tutorial.phase === "ready";
+    const phaseComplete = tutorial.phase === "complete";
+    const departments = LOGISTICS_TUTORIAL_DEPARTMENTS.map(definition => {
+      const base = {
+        ...definition,
+        orders: [],
+        status: phaseComplete && definition.id === "tutorial_assembly" ? "complete" : "idle"
+      };
+      if (definition.materialId) {
+        const partId = definition.materialId;
+        const required = LOGISTICS_TUTORIAL_REQUIREMENTS[partId];
+        const picked = tutorial.playerStock[partId] || tutorial.assemblyStock[partId] || 0;
+        const remaining = tutorial.warehouseStock[partId] || 0;
+        const partLabels = {
+          blue_8: { assignment: "blauwe 2×4-blokken", action: "blauw 2×4-blok" },
+          yellow_4: { assignment: "geel 2×2-blok", action: "geel 2×2-blok" },
+          green_4: { assignment: "groen 2×2-blok", action: "groen 2×2-blok" }
+        };
+        const partLabel = partLabels[partId];
+        return {
+          ...base,
+          badgeValue: remaining,
+          badgeLabel: `${remaining} op voorraad`,
+          primaryMetric: `${remaining} in stelling · ${picked}/${required} opgehaald`,
+          facts: [
+            { label: "Magazijnvoorraad", value: remaining },
+            { label: "Opdracht", value: `${required}× ${partLabel.assignment}` },
+            { label: "Al opgehaald", value: picked }
+          ],
+          feedback: picked >= required
+            ? { kind: "success", text: "Benodigde hoeveelheid is opgehaald." }
+            : null,
+          action: {
+            label: picked >= required ? "Hoeveelheid compleet" : `Haal 1 ${partLabel.action} op`,
+            disabled: picked >= required || tutorial.phase !== "collecting"
+          }
+        };
+      }
+      if (definition.id === "tutorial_player_stock") {
+        return {
+          ...base,
+          badgeValue: playerTotal,
+          badgeLabel: `${playerTotal} in bouwvoorraad`,
+          primaryMetric: `${playerTotal}/4 verzameld`,
+          facts: [
+            { label: "Blauw 2×4", value: tutorial.playerStock.blue_8 },
+            { label: "Geel 2×2", value: tutorial.playerStock.yellow_4 },
+            { label: "Groen 2×2", value: tutorial.playerStock.green_4 },
+            { label: "Status", value: phaseReady ? "Compleet" : phaseComplete ? "Overgedragen" : "Verzamelen" }
+          ],
+          feedback: phaseReady
+            ? { kind: "success", text: "De ophaalopdracht is compleet." }
+            : null
+        };
+      }
+      return {
+        ...base,
+        badgeValue: assemblyTotal,
+        badgeLabel: `${assemblyTotal} bij assemblage`,
+        primaryMetric: phaseComplete ? "Voorraad ontvangen" : phaseReady ? "Klaar voor ontvangst" : "Vergrendeld",
+        locked: tutorial.phase === "collecting",
+        highlight: phaseReady,
+        facts: [
+          { label: "Bouwvoorraad ontvangen", value: assemblyTotal },
+          { label: "Toegang", value: phaseComplete ? "Vrij" : phaseReady ? "Beschikbaar" : "Vergrendeld" },
+          { label: "Volgende stap", value: phaseComplete ? "Bouwen" : "Voorraad compleet maken" }
+        ],
+        feedback: phaseReady
+          ? { kind: "success", text: "Voorraad compleet. Assemblage is nu beschikbaar." }
+          : {
+              kind: phaseComplete ? "success" : "info",
+              text: phaseComplete
+                ? "Alle materialen zijn overgedragen."
+                : "Verzamel eerst alle vier onderdelen voor Toren B."
+            },
+        action: phaseReady
+          ? { label: "Verplaats 4 onderdelen naar Assemblage", disabled: false }
+          : null
+      };
+    });
+    return {
+      title: "Tutorial · Magazijn & Voorraad",
+      legend: [
+        { color: "tutorial-blue", label: "Magazijn A · blauw" },
+        { color: "tutorial-yellow", label: "Magazijn B · geel" },
+        { color: "green", label: "Magazijn C · groen" },
+        { color: "tutorial-transit", label: "Bouwvoorraad" },
+        { color: "production-a", label: "Assemblage" }
+      ],
+      selectedDepartmentId: state.selectedLogisticsDepartmentId,
+      departments,
+      connections: LOGISTICS_TUTORIAL_CONNECTIONS.map(connection => (
+        connection.to === "tutorial_assembly"
+          ? {
+              ...connection,
+              locked: tutorial.phase === "collecting",
+              highlight: phaseReady
+            }
+          : connection
+      )),
+      tutorial: {
+        active: true,
+        eyebrow: "Self-starting tutorial · stap 2",
+        title: "Magazijn & Voorraad (Logistieke basis)",
+        instruction: "Nieuwe bestelling: haal voor Toren B 2× blauw 2×4 uit Magazijn A, 1× geel 2×2 uit Magazijn B en 1× groen 2×2 uit Magazijn C.",
+        feedback: tutorial.feedback,
+        status: tutorial.phase,
+        collected: tutorialCollectedCount(),
+        required: 4
+      }
+    };
+  }
+
   function isometricScene() {
+    if (state.logisticsTutorial.active) return logisticsTutorialScene();
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
     const visible = new Set(state.config.visibleLogisticsDepartments);
@@ -1472,6 +1798,13 @@
     window.IsometricLogisticsView.mount(els.dataModelGrid, isometricScene(), {
       onDepartmentSelect: departmentId => {
         state.selectedLogisticsDepartmentId = departmentId;
+        if (
+          state.logisticsTutorial.active
+          && departmentId === "tutorial_assembly"
+          && state.logisticsTutorial.phase === "collecting"
+        ) {
+          state.logisticsTutorial.feedback = "Assemblage is nog vergrendeld: verzamel eerst 4 blauw en 2 rood.";
+        }
         dispatchInteraction({
           learningObjectID: `logistics_department_${departmentId}`,
           actionType: "inspect_logistics_department",
@@ -1484,6 +1817,14 @@
         renderDataModel(true);
         renderMetrics();
         renderEvents();
+      },
+      onDepartmentAction: departmentId => {
+        if (!state.logisticsTutorial.active) return;
+        if (departmentId === "tutorial_assembly") {
+          transferTutorialStockToAssembly();
+          return;
+        }
+        collectTutorialMaterial(departmentId);
       }
     });
   }
@@ -1747,7 +2088,27 @@
         });
         renderEvents();
         renderMetrics();
+        if (actionType === "complete_lego_tutorial") {
+          window.LegoBuilder?.prepareStockTutorial("B");
+        }
+        if (actionType === "restart_lego_tutorial") {
+          resetLogisticsTutorial();
+        }
+        if (actionType === "complete_stock_tutorial_build") {
+          state.logisticsTutorial.active = false;
+          state.selectedLogisticsDepartmentId = "inbound";
+          renderDataModel(true);
+        }
+        if (
+          actionType === "start_lego_build"
+          && state.logisticsTutorial.phase === "complete"
+        ) {
+          state.logisticsTutorial.active = false;
+          state.selectedLogisticsDepartmentId = "inbound";
+          renderDataModel(true);
+        }
       },
+      onTutorialNextRequested: () => startLogisticsTutorial(),
       onDelivered: delivery => {
         if (!delivery.correct) return;
         const selected = selectedOrder();
@@ -1861,6 +2222,7 @@
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
     resetInventory();
+    resetLogisticsTutorial();
     window.LegoBuilder?.restartTutorial();
     dispatchInteraction({
       actionType: "setup_roles",
@@ -1994,6 +2356,11 @@
   }
 
   function applyInitialRoute() {
+    if (location.hash === "#tutorialStep2") {
+      window.LegoBuilder?.prepareStockTutorial("B");
+      startLogisticsTutorial(true);
+      return;
+    }
     if (location.hash === "#isometricLogistics") {
       state.config.processView = "isometric";
       els.dataModelPanel.classList.add("visible");
@@ -2053,11 +2420,20 @@
       finishedGoods: { ...state.finishedGoods },
       purchaseCost: state.purchaseCost,
       opportunityCost: state.opportunityCost,
+      logisticsTutorial: {
+        ...state.logisticsTutorial,
+        warehouseStock: { ...state.logisticsTutorial.warehouseStock },
+        playerStock: { ...state.logisticsTutorial.playerStock },
+        assemblyStock: { ...state.logisticsTutorial.assemblyStock }
+      },
       orders: state.orders.map(order => ({ ...order }))
     }),
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
+    startLogisticsTutorial,
+    collectTutorialMaterial,
+    transferTutorialStockToAssembly,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
     createOrder: makeOrder,
