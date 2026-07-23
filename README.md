@@ -57,6 +57,15 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 - starten bij `Klant 1` met de echte ICG2-handeling `Ik wil een order plaatsen`;
 - orders aanmaken voor een configureerbare catalogus van 3 tot 9 torensoorten, standaard met het ICG2-v2 voorbeeld `3 torens` en `7 minuten`;
 - de gekozen order direct als LEGO-torenpreview zien, inclusief aantal en orderwaarde;
+- vóór het vrije spel een interactieve tutorial doorlopen waarin Toren A in
+  drie stappen wordt gebouwd met de drie GIF-voorbeelden uit `source_docs`;
+- LEGO-blokken uit het bestaande SVG-palet aanklikken of slepen, 90 graden
+  draaien en in een isometrische 3D-view op een groene 6x6-grondplaat laten
+  vastklikken;
+- alleen op een volledig ondersteund, vlak oppervlak bouwen en een levering
+  op kleur, afmeting, laag en positie laten controleren;
+- na de tutorial klantorders voor Toren A, B en C bouwen volgens de
+  bijgeleverde productafbeeldingen;
 - vaste of vrije verkoopprijs gebruiken en het aantal verschillende LEGO-torens aanpassen;
 - de order door Operations, Magazijn Grondstoffen, Productie 1, SS1, Productie 2, SS2, Productie 3, klantacceptatie, kwaliteitscontrole en archief laten lopen;
 - grondstoffen inkopen met de prijzen uit het inkoopformulier;
@@ -124,10 +133,38 @@ Deze digital twin kiest bewust voor een kleine, testbare kern:
 
 - `script.js` bevat de speldata, configuratie, engine-acties en eventdispatch;
 - `lego-tower-renderer.js` bevat de vaste isometrische LEGO-torenrenderer voor 6x6 grondplaat, 2x4- en 2x2-blokken;
+- `lego-builder.js` bevat de tutorialstate, het herbruikte blokkenpalet,
+  klik/drag-and-drop, grid-snapping, steuncontrole en levervalidatie;
 - `index.html` bevat alleen de statische werkbank;
 - `style.css` maakt de orderstroom, voorraad en torens visueel inspecteerbaar.
 
 De volgende logische stap is een adapterlaag naar de simulator, vergelijkbaar met het profiel `phile`, zodat LEARNGame-events expliciet naar de vijf markers `(T, A, V, R, S)` kunnen worden vertaald.
+
+## Interactieve LEGO-bouwmodule
+
+De bouwmodule start altijd met de self-starting tutorial voor Toren A. De
+grondplaat, noppen, blokken en doelmarkeringen worden door dezelfde
+`LegoTowerRenderer` in een vaste isometrische SVG-projectie getekend:
+
+1. twee gele 2x4-blokken naast elkaar op de grondplaat;
+2. een rood 2x4-blok, haaks over de naad;
+3. een wit 2x2-blok op de top.
+
+Daarna kan de speler een bestelling voor A, B of C kiezen. De catalogus en
+validatie gebruiken één gedeelde set bouwdoelen. Een klik of drop wordt vanuit
+de isometrische schermcoördinaten teruggerekend naar het dichtstbijzijnde
+geldige punt op het 6x6-raster. Daarbij wordt ook de stapelhoogte meegenomen,
+zodat op een hoger blok kan worden doorgebouwd. Een blok krijgt automatisch de
+eerstvolgende geldige laag.
+Alle bedekte noppen moeten dezelfde steunhoogte hebben; daardoor kan een blok
+niet in de lucht of half op een lager blok worden geplaatst. `Klaar / Leveren`
+vergelijkt vervolgens type, kleur, maat, onderlinge positie en laag. Een
+correcte toren blijft geldig wanneer de speler het volledige bouwwerk op de
+grondplaat verschuift of 90, 180 of 270 graden draait.
+
+De bronbeelden zijn voor de runtime overgenomen naar `assets/lego/`. De
+interactieve blokjes zelf blijven afkomstig uit `LegoTowerRenderer`, zodat het
+palet en de bestaande torenvoorbeelden dezelfde SVG-vormtaal gebruiken.
 
 ## Isometrische logistieke view
 

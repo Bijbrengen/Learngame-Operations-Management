@@ -32,45 +32,45 @@
     A: {
       id: "A",
       name: "Toren A",
-      towerBlueprint: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x4" },
+      towerBlueprint: { lower: "yellow", middle: "red", upper: "white", middleSize: "2x4" },
       price: 49,
       stages: [
-        { department: 1, output: "ss1", recipe: { base_green: 1, blue_4: 2 } },
-        { department: 2, input: "ss1", output: "ss2", recipe: { yellow_8: 1 } },
-        { department: 3, input: "ss2", output: "finished", recipe: { green_4: 1 } }
+        { department: 1, output: "ss1", recipe: { base_green: 1, yellow_8: 2 } },
+        { department: 2, input: "ss1", output: "ss2", recipe: { red_8: 1 } },
+        { department: 3, input: "ss2", output: "finished", recipe: { white_4: 1 } }
       ],
-      visual: [["green_4"], ["yellow_8"], ["blue_4", "blue_4"], ["base_green"]]
+      visual: [["white_4"], ["red_8"], ["yellow_8", "yellow_8"], ["base_green"]]
     },
     B: {
       id: "B",
       name: "Toren B",
-      towerBlueprint: { lower: "red", middle: "white", upper: "green", middleSize: "2x4" },
+      towerBlueprint: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x2" },
       price: 58,
       stages: [
-        { department: 1, output: "ss1", recipe: { base_green: 1, red_4: 2 } },
-        { department: 2, input: "ss1", output: "ss2", recipe: { white_8: 1 } },
+        { department: 1, output: "ss1", recipe: { base_green: 1, blue_8: 2 } },
+        { department: 2, input: "ss1", output: "ss2", recipe: { yellow_4: 1 } },
         { department: 3, input: "ss2", output: "finished", recipe: { green_4: 1 } }
       ],
-      visual: [["green_4"], ["white_8"], ["red_4", "red_4"], ["base_green"]]
+      visual: [["green_4"], ["yellow_4"], ["blue_8", "blue_8"], ["base_green"]]
     },
     C: {
       id: "C",
       name: "Toren C",
-      towerBlueprint: { lower: "blue", middle: "red", upper: "white", middleSize: "2x2" },
+      towerBlueprint: { lower: "white", middle: "blue", upper: "red", middleSize: "2x2" },
       price: 76,
       stages: [
-        { department: 1, output: "ss1", recipe: { base_green: 1, blue_4: 2 } },
-        { department: 2, input: "ss1", output: "ss2", recipe: { red_4: 1 } },
-        { department: 3, input: "ss2", output: "finished", recipe: { white_4: 1 } }
+        { department: 1, output: "ss1", recipe: { base_green: 1, white_8: 2 } },
+        { department: 2, input: "ss1", output: "ss2", recipe: { blue_4: 1 } },
+        { department: 3, input: "ss2", output: "finished", recipe: { red_4: 1 } }
       ],
-      visual: [["white_4"], ["red_4"], ["blue_4", "blue_4"], ["base_green"]]
+      visual: [["red_4"], ["blue_4"], ["white_8", "white_8"], ["base_green"]]
     }
   };
 
   const TOWER_BLUEPRINTS = [
-    { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x4" },
-    { lower: "red", middle: "white", upper: "green", middleSize: "2x4" },
-    { lower: "blue", middle: "red", upper: "white", middleSize: "2x2" },
+    { lower: "yellow", middle: "red", upper: "white", middleSize: "2x4" },
+    { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x2" },
+    { lower: "white", middle: "blue", upper: "red", middleSize: "2x2" },
     { lower: "yellow", middle: "blue", upper: "red", middleSize: "2x4" },
     { lower: "white", middle: "green", upper: "yellow", middleSize: "2x2" },
     { lower: "red", middle: "blue", upper: "white", middleSize: "2x4" },
@@ -529,6 +529,7 @@
     dueInput: document.getElementById("dueInput"),
     orderForm: document.getElementById("orderForm"),
     orderPreview: document.getElementById("orderPreview"),
+    legoBuilderMount: document.getElementById("legoBuilderMount"),
     laneGrid: document.getElementById("laneGrid"),
     selectedOrderBox: document.getElementById("selectedOrderBox"),
     advanceButton: document.getElementById("advanceButton"),
@@ -805,6 +806,7 @@
     };
     state.orders.push(order);
     state.selectedOrderId = order.id;
+    window.LegoBuilder?.setProduct(productId);
     dispatchInteraction({
       actionType: "customer_order_request",
       orderId: order.id,
@@ -1731,6 +1733,41 @@
     renderOrderPreview();
   }
 
+  function initLegoBuilder() {
+    if (!window.LegoBuilder || !els.legoBuilderMount) return;
+    window.LegoBuilder.mount(els.legoBuilderMount, {
+      onEvent: (actionType, data = {}) => {
+        dispatchInteraction({
+          actionType,
+          learningObjectID: "interactive_lego_tower_builder",
+          objectRole: "lego_build",
+          role: "Productiemedewerker",
+          ...data,
+          result: data.result || "success"
+        });
+        renderEvents();
+        renderMetrics();
+      },
+      onDelivered: delivery => {
+        if (!delivery.correct) return;
+        const selected = selectedOrder();
+        const order = selected?.productId === delivery.productId
+          ? selected
+          : [...state.orders].reverse().find(candidate => !candidate.done && candidate.productId === delivery.productId);
+        if (order) {
+          order.buildValidated = true;
+          order.builtBricks = delivery.bricks.map(brick => ({ ...brick }));
+          order.history.push({
+            step: "lego_build_validated",
+            at: state.clockMinutes,
+            productId: delivery.productId
+          });
+        }
+        renderAll();
+      }
+    });
+  }
+
   function syncConfigFromControls(dispatch = true) {
     state.config.money = els.moneyToggle.checked;
     state.config.pnl = els.pnlToggle.checked;
@@ -1766,6 +1803,7 @@
     els.productTypeCountInput.value = String(count);
     rebuildProducts(count);
     productOptions();
+    window.LegoBuilder?.setProduct(els.productSelect.value);
     updatePriceInput();
     state.orders = [];
     state.selectedOrderId = null;
@@ -1823,6 +1861,7 @@
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
     resetInventory();
+    window.LegoBuilder?.restartTutorial();
     dispatchInteraction({
       actionType: "setup_roles",
       result: "success",
@@ -1886,6 +1925,7 @@
     els.productSelect.addEventListener("change", () => {
       updatePriceInput();
       renderOrderPreview();
+      window.LegoBuilder?.setProduct(els.productSelect.value);
     });
     els.productTypeCountInput.addEventListener("change", () => applyProductTypeCount(true));
     els.logisticsOrganizationSelect.addEventListener("change", () => {
@@ -2017,6 +2057,7 @@
     }),
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
+    getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
     createOrder: makeOrder,
@@ -2026,6 +2067,7 @@
   };
 
   initControls();
+  initLegoBuilder();
   wireEvents();
   registerServiceWorker();
   resetState();

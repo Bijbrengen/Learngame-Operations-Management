@@ -50,6 +50,7 @@ button {
 
 .topbar,
 .order-band,
+.lego-builder-panel,
 .process-panel,
 .control-panel,
 .inventory-panel,
@@ -198,9 +199,10 @@ button {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.75fr);
-  grid-template-rows: auto minmax(360px, 1fr) minmax(260px, 0.7fr);
+  grid-template-rows: auto auto minmax(360px, 1fr) minmax(260px, 0.7fr);
   grid-template-areas:
     "order controls"
+    "builder controls"
     "process controls"
     "inventory ledger";
   gap: 14px;
@@ -213,6 +215,213 @@ button {
   grid-template-columns: minmax(220px, 290px) minmax(230px, 320px) minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
+}
+
+.lego-builder-panel {
+  grid-area: builder;
+  min-width: 0;
+  padding: 14px;
+}
+
+.lego-builder-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.builder-order-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fffdf8, #f3f7ef);
+}
+
+.builder-order-card h3,
+.builder-order-card p,
+.builder-order-card blockquote {
+  margin: 0;
+}
+
+.builder-order-card blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--green);
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.builder-order-card img {
+  width: 100%;
+  height: 132px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.builder-catalog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.builder-catalog button {
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.builder-catalog button.is-selected {
+  border-color: var(--green);
+  background: #e8f6ec;
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
+.builder-workspace {
+  display: grid;
+  grid-template-columns: 180px minmax(300px, 1fr) 180px;
+  gap: 14px;
+  align-items: start;
+}
+
+.builder-palette,
+.builder-actions {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f7f1;
+}
+
+.builder-palette h4,
+.builder-palette p,
+.builder-actions h4 {
+  margin: 0;
+}
+
+.builder-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.builder-palette-item {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-width: 0;
+  min-height: 88px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: grab;
+}
+
+.builder-palette-item strong {
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.builder-palette-item .lego-part-3d {
+  width: 62px;
+  height: 50px;
+}
+
+.builder-palette-item.is-selected {
+  border-color: #167fb4;
+  background: #e9f6fc;
+}
+
+.builder-board-column {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.builder-board {
+  display: block;
+  width: min(100%, 520px);
+  aspect-ratio: 520 / 420;
+  overflow: hidden;
+  border: 2px solid #b8c9bf;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 38%, #ffffff 0, #eef4ee 55%, #dde7df 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 12px 24px rgba(31, 75, 47, 0.18);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.builder-board .iso-brick {
+  pointer-events: none;
+}
+
+.builder-target {
+  pointer-events: none;
+}
+
+.builder-target polygon {
+  fill: rgba(255, 255, 255, 0.3);
+  stroke: #ffffff;
+  stroke-width: 2.4;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  animation: builder-target-pulse 1.1s ease-in-out infinite alternate;
+}
+
+.builder-target text {
+  fill: #173d26;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 2;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+@keyframes builder-target-pulse {
+  to {
+    fill: rgba(255, 255, 255, 0.68);
+    stroke: #167fb4;
+  }
+}
+
+.builder-selection {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.builder-feedback {
+  min-height: 92px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.builder-feedback.is-success {
+  border-color: #6fb784;
+  background: #e8f6ec;
+  color: #225f37;
+}
+
+.builder-feedback.is-error {
+  border-color: #d97c73;
+  background: #fff0ee;
+  color: #8a2922;
 }
 
 .order-form,
@@ -1498,9 +1707,10 @@ select {
 
   .workbench {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
     grid-template-areas:
       "order"
+      "builder"
       "controls"
       "process"
       "inventory"
@@ -1597,11 +1807,25 @@ select {
   }
 
   .order-band,
+  .lego-builder-panel,
   .process-panel,
   .control-panel,
   .inventory-panel,
   .ledger-panel {
     padding: 10px;
+  }
+
+  .builder-order-card,
+  .builder-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-order-card img {
+    height: 160px;
+  }
+
+  .builder-palette-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .role-card {

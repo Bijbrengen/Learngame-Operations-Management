@@ -82,6 +82,39 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('id="logisticsOrganizationSelect"', html)
         self.assertIn('setProcessView("isometric")', game)
 
+    def test_interactive_lego_builder_uses_the_three_source_products(self) -> None:
+        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        assets = [
+            "assets/lego/tutorial-step-1.gif",
+            "assets/lego/tutorial-step-2.gif",
+            "assets/lego/tutorial-step-3.gif",
+            "assets/lego/tower-a.png",
+            "assets/lego/tower-b.png",
+            "assets/lego/tower-c.png",
+        ]
+        self.assertTrue(all((PRODUCT_ROOT / asset).is_file() for asset in assets))
+        self.assertIn('src="lego-builder.js"', html)
+        self.assertIn('id="legoBuilderMount"', html)
+        self.assertIn("window.LegoTowerRenderer.renderPart", builder)
+        self.assertIn("supportedLayer", builder)
+        self.assertIn("boardProjection", builder)
+        self.assertIn("snapCandidate", builder)
+        self.assertIn("LegoTowerRenderer.brick", builder)
+        self.assertIn("builder-isometric-scene", builder)
+        self.assertIn("validateBuild", builder)
+        self.assertIn("normalizedSignature", builder)
+        self.assertIn("tutorialRotationForPiece", builder)
+        self.assertIn("dragstart", builder)
+        self.assertIn("grid", builder.lower())
+        self.assertIn('towerBlueprint: { lower: "yellow", middle: "red", upper: "white"', game)
+        self.assertIn('towerBlueprint: { lower: "blue", middle: "yellow", upper: "green"', game)
+        self.assertIn('towerBlueprint: { lower: "white", middle: "blue", upper: "red"', game)
+        self.assertIn('A: { lower: "yellow", middle: "red", upper: "white"', renderer)
+        self.assertIn("getLegoBuilderSnapshot", game)
+
     def test_local_contract_is_the_host_contract_snapshot(self) -> None:
         local_contract_path = PRODUCT_ROOT / "contracts/events/leerpret-interaction-event-v1.schema.json"
         local_contract = json.loads(local_contract_path.read_text(encoding="utf-8"))

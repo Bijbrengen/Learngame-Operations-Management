@@ -8,9 +8,9 @@ class LegoTowerRenderer {
   };
 
   static blueprints = {
-    A: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x4" },
-    B: { lower: "red", middle: "white", upper: "green", middleSize: "2x4" },
-    C: { lower: "blue", middle: "red", upper: "white", middleSize: "2x2" }
+    A: { lower: "yellow", middle: "red", upper: "white", middleSize: "2x4" },
+    B: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x2" },
+    C: { lower: "white", middle: "blue", upper: "red", middleSize: "2x2" }
   };
 
   static render(productId, label = "LEGO toren", blueprintOverride = null, className = "tower-large") {
