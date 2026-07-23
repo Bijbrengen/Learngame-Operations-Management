@@ -48,6 +48,102 @@ button {
   padding: 16px;
 }
 
+.auth-pending .app-shell,
+.auth-required .app-shell {
+  pointer-events: none;
+  user-select: none;
+}
+
+.auth-pending .app-shell {
+  visibility: hidden;
+}
+
+.auth-required .app-shell {
+  filter: blur(5px) saturate(0.65);
+}
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 24px;
+  background: rgba(24, 33, 29, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.auth-gate[hidden] {
+  display: none;
+}
+
+.auth-card {
+  width: min(100%, 470px);
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: #fffdf8;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
+.auth-card h2,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card .eyebrow {
+  color: var(--green);
+}
+
+.auth-card small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.auth-shield {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px 18px 24px 24px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 900;
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12);
+}
+
+.auth-message {
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #edf3ef;
+  color: #30483b;
+  font-size: 0.84rem;
+}
+
+.auth-message.is-error {
+  background: #fff0ee;
+  color: #8a2922;
+}
+
+.google-sign-in-mount {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-status-button {
+  max-width: 190px;
+}
+
+.auth-status-button.is-authenticated {
+  border-color: rgba(137, 219, 158, 0.7);
+  background: rgba(60, 143, 84, 0.32);
+}
+
 .topbar,
 .order-band,
 .lego-builder-panel,

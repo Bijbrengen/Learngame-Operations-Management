@@ -20,6 +20,17 @@
   ],
   "host_integration": {
     "compatibility_url": "/tools/leerbox/learngame-operations-management/",
+    "auth": {
+      "strategy": "google-and-leerpret-scoped-session-v1",
+      "session_endpoint": "/api/auth/leerbox/session",
+      "google_session_endpoint": "/api/auth/leerbox/google",
+      "existing_session_exchange_endpoint": "/api/auth/leerbox/exchange",
+      "logout_endpoint": "/api/auth/leerbox/logout",
+      "cookie": "leerpret_leerbox_session",
+      "default_role": "learner",
+      "optional_entitlement": "attraction",
+      "standalone_api_default": "http://127.0.0.1:8011/api"
+    },
     "legacy_event_message": "leerpret-preview-events",
     "host_owned_state": "backend/data/leerbox-mutations/leerbox-learngame-operations-management",
     "host_owned_source_archive": "info/LEARNGame Operations Management"

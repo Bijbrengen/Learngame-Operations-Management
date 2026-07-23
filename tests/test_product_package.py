@@ -115,6 +115,30 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('A: { lower: "yellow", middle: "red", upper: "white"', renderer)
         self.assertIn("getLegoBuilderSnapshot", game)
 
+    def test_leerpret_login_uses_the_shared_server_session(self) -> None:
+        auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
+        self.assertIn('src="leerpret-auth.js"', html)
+        self.assertIn('id="leerpretGoogleSignIn"', html)
+        self.assertIn('id="leerpretAuthStatus"', html)
+        self.assertIn("https://accounts.google.com/gsi/client", html)
+        self.assertIn('credentials: "include"', auth)
+        self.assertIn("/auth/leerbox/session?leerbox_id=", auth)
+        self.assertIn("/auth/leerbox/exchange?leerbox_id=", auth)
+        self.assertIn('request("/auth/leerbox/google"', auth)
+        self.assertIn('request("/auth/google/config"', auth)
+        self.assertIn("googleIdentity.renderButton", auth)
+        self.assertIn('request("/auth/leerbox/logout"', auth)
+        self.assertIn('"learner"', auth)
+        self.assertIn('"attraction"', auth)
+        self.assertIn("leerpret-auth-changed", auth)
+        self.assertNotIn("leerpret-local-dev", auth)
+        self.assertNotIn("leerpretAuthApiKey", html)
+        self.assertNotIn("API-sleutel</span>", html)
+        self.assertNotIn('localStorage.setItem("api_key"', auth)
+        self.assertIn("./leerpret-auth.js", worker)
+
     def test_local_contract_is_the_host_contract_snapshot(self) -> None:
         local_contract_path = PRODUCT_ROOT / "contracts/events/leerpret-interaction-event-v1.schema.json"
         local_contract = json.loads(local_contract_path.read_text(encoding="utf-8"))

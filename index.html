@@ -15,7 +15,20 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="auth-pending">
+  <section id="leerpretAuthGate" class="auth-gate" aria-labelledby="leerpretAuthTitle">
+    <div class="auth-card">
+      <div class="auth-shield" aria-hidden="true">LP</div>
+      <div>
+        <p class="eyebrow">Leerpret-account</p>
+        <h2 id="leerpretAuthTitle">Veilig en pseudoniem aanmelden</h2>
+        <p>Meld je in deze standalone game aan met je Google-account. Open je de game vanuit Leerpret terwijl je daar al bent ingelogd, dan wordt die aanmelding automatisch overgenomen.</p>
+      </div>
+      <p id="leerpretAuthMessage" class="auth-message" role="status" aria-live="polite">Bestaande sessie controleren…</p>
+      <div id="leerpretGoogleSignIn" class="google-sign-in-mount" aria-label="Aanmelden met Google"></div>
+      <small>De LO-game ontvangt een beperkte, aflopende HttpOnly-sessie. Deze sessie geeft geen toegang tot de Leerpret-engine of beheerrollen.</small>
+    </div>
+  </section>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
@@ -47,6 +60,9 @@
       </section>
 
       <div class="top-actions">
+        <button id="leerpretAuthStatus" class="tool-button auth-status-button" type="button" disabled>
+          Sessie controleren…
+        </button>
         <button id="dataModelButton" class="tool-button" type="button" title="Orderproces en datamodel uit eerste conceptschema bekijken">
           <span class="button-icon">OP</span>
           <span>Orderproces</span>
@@ -240,6 +256,8 @@
   </div>
 
   <script src="lego-tower-renderer.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="leerpret-auth.js"></script>
   <script src="lego-builder.js"></script>
   <script src="isometric-logistics-view.js"></script>
   <script src="script.js"></script>

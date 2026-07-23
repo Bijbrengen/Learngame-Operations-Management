@@ -6,6 +6,33 @@ De browserruntime heeft geen backend- of buildafhankelijkheden. `product.json`
 beschrijft wat bij dit product hoort en welke hostkoppelingen bij afsplitsing
 door een adapter of deploymentconfiguratie moeten worden overgenomen.
 
+## Aanmelden via Leerpret
+
+De standalone LO-game toont rechtstreeks Google Sign-In en gebruikt bewust
+niet de engine-sessie:
+
+1. de game controleert `GET /api/auth/leerbox/session` met
+   `credentials: include`;
+2. wanneer de game vanuit een reeds aangemelde Leerpret-frontend is geopend,
+   wisselt zij die aanmelding stil in voor een beperkte LO-sessie;
+3. een standalone bezoeker meldt zich in de game zelf aan met Google Identity
+   Services; de backend verifieert het Google ID-token en maakt daarna
+   `leerpret_leerbox_session`;
+4. afmelden loopt via `POST /api/auth/leerbox/logout`.
+
+De speler vult in de LO-game dus geen organisatie of API-sleutel in. De
+beperkte sessie bevat standaard alleen `learner` (`Lerende`).
+`attraction` (`Leerattractie`) wordt alleen geaccepteerd wanneer de backend
+dat recht in de getekende sessie heeft opgenomen. Deze cookie wordt niet door
+de engine-, architect- of technologieroutes als autorisatie geaccepteerd.
+
+Lokaal gebruikt de game standaard `http://127.0.0.1:8011/api`. Een andere
+centrale service kan via de opstartparameter `?api=...` worden gekozen. De Leerpret-backend
+moet voor een afzonderlijke oorsprong die oorsprong opnemen in
+`LEERPRET_CORS_ORIGINS`. Google Sign-In vereist daarnaast
+`GOOGLE_OAUTH_CLIENT_ID` op de backend en de oorsprong van de standalone game
+als Authorized JavaScript origin in Google Cloud.
+
 ## Uitgangspunten
 
 - Een basisgame met configuraties in plaats van losse spelversies.
