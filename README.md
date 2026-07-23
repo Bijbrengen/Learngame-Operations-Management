@@ -50,7 +50,7 @@ Binnen het Leerpret-dashboard blijft de bestaande compatibiliteits-URL werken:
 
 Leerpret vindt deze repository via `LEARNGAME_OM_DIR`. Als beide repositories
 naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
-`../learngame-operations-management`.
+`../Learngame Operations Management`.
 
 ## Wat de proefopstelling nu doet
 
