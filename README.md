@@ -6,6 +6,36 @@ De browserruntime heeft geen backend- of buildafhankelijkheden. `product.json`
 beschrijft wat bij dit product hoort en welke hostkoppelingen bij afsplitsing
 door een adapter of deploymentconfiguratie moeten worden overgenomen.
 
+## Character Creation en gedragsscan
+
+Na het aanmelden doorloopt de speler eerst een gamified point-buy-wizard:
+
+1. kernprofiel (voornaam, achternaam, gender en e-mail);
+2. Basic Style Scan met 10 categorieën;
+3. Response Style Scan met 10 categorieën;
+4. daarna pas de bestaande self-starting bouwtutorial.
+
+Elke categorie bevat vier gedragskenmerken. De speler moet exact 20 punten
+verdelen, met 0 tot en met 10 punten per kenmerk. Een volgende categorie blijft
+vergrendeld totdat de actieve categorie klopt. De radarvisualisatie is een live
+preview, geen testuitslag.
+
+De brondocumenten gebruiken niet dezelfde scoringsrichting: in
+`Behavior Basic style.pdf` gaan de meeste punten naar het kenmerk dat het minst
+past; in `Behavior Response style.pdf` gaan de meeste punten naar het kenmerk
+dat onder druk het best past. De wizard vermeldt dit per fase.
+
+Na beide scans verstuurt de game het profiel met de beperkte LO-gamesessie naar:
+
+```text
+POST /api/v1/player/behavior-profile
+```
+
+De Leerpret-backend valideert de volledige 0–10/20-puntenverdeling opnieuw en
+slaat het profiel op onder een gehashte, niet-raadbare profiel-id. Zonder een
+geldige `learner`-sessie voor `learngame-operations-management` antwoordt de
+route met `401`.
+
 ## Aanmelden via Leerpret
 
 De standalone LO-game toont rechtstreeks Google Sign-In en gebruikt bewust

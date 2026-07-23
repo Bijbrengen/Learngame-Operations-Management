@@ -44,6 +44,29 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('specversion: "1.0"', script)
         self.assertIn("contract_events", script)
 
+    def test_character_creation_runs_both_ipsative_scans_before_tutorial(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        wizard = (PRODUCT_ROOT / "character-creation.js").read_text(encoding="utf-8")
+        stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
+        self.assertIn('id="characterCreationGate"', html)
+        self.assertIn('src="character-creation.js"', html)
+        self.assertLess(html.index('src="character-creation.js"'), html.index('src="script.js"'))
+        self.assertIn("basic_style", wizard)
+        self.assertIn("response_style", wizard)
+        trait_block = wizard.split("const TRAIT_GROUPS = [", 1)[1].split(
+            "];\n\n  const freshAllocations",
+            1,
+        )[0]
+        self.assertEqual(10, len(re.findall(r"^    \[$", trait_block, flags=re.MULTILINE)))
+        self.assertIn("Meeste punten = past het minst", wizard)
+        self.assertIn("Meeste punten = past het best onder druk", wizard)
+        self.assertIn("Math.min(10, 20 - totalWithoutCurrent", wizard)
+        self.assertIn('PROFILE_ENDPOINT = "/v1/player/behavior-profile"', wizard)
+        self.assertIn("behavior-profile-completed", wizard)
+        self.assertIn(".character-creation-active .app-shell", stylesheet)
+        self.assertIn('"./character-creation.js"', service_worker)
+
     def test_isometric_logistics_view_is_separate_and_configurable(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")

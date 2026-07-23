@@ -2810,6 +2810,12 @@
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
+    beginOnboardingTutorial: () => {
+      state.tutorialDismissed = false;
+      setTutorialFocus("builder");
+      window.LegoBuilder?.restartTutorial();
+      renderAll();
+    },
     startLogisticsTutorial,
     collectTutorialMaterial,
     dropTutorialMaterial,
