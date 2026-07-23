@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leerpret.nl/contracts/events/leerpret-interaction-event-v1.schema.json",
+  "title": "Leerpret interaction event v1",
+  "description": "Versioneerbare, taalneutrale event-envelope voor interacties met een leerbox.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specversion", "type", "id", "source", "time", "datacontenttype", "privacy", "data"],
+  "properties": {
+    "specversion": {"const": "1.0"},
+    "type": {
+      "type": "string",
+      "pattern": "^nl\\.leerpret\\.interaction\\.[a-z0-9._-]+\\.v1$"
+    },
+    "id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "source": {"type": "string", "minLength": 1, "maxLength": 300},
+    "time": {"type": "string", "format": "date-time"},
+    "subject": {"type": ["string", "null"], "maxLength": 300},
+    "datacontenttype": {"const": "application/json"},
+    "correlation_id": {"type": ["string", "null"], "maxLength": 200},
+    "causation_id": {"type": ["string", "null"], "maxLength": 200},
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "actor_id_kind", "retention_class"],
+      "properties": {
+        "classification": {"enum": ["public", "pseudonymous", "sensitive"]},
+        "actor_id_kind": {"enum": ["none", "session", "pseudonym"]},
+        "retention_class": {"enum": ["ephemeral", "operational", "research"]}
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_version", "leerbox_id", "learning_object_id", "action_type"],
+      "properties": {
+        "event_version": {"const": 1},
+        "leerbox_id": {"type": "string", "minLength": 1, "maxLength": 200},
+        "leerbox_version": {"type": ["string", "null"], "maxLength": 120},
+        "session_id": {"type": ["string", "null"], "maxLength": 200},
+        "actor_id": {"type": ["string", "null"], "maxLength": 200},
+        "learning_object_id": {"type": "string", "minLength": 1, "maxLength": 200},
+        "action_type": {"type": "string", "minLength": 1, "maxLength": 120},
+        "result": {"type": ["string", "null"], "maxLength": 200},
+        "object_role": {"type": ["string", "null"], "maxLength": 120},
+        "stage": {"type": ["string", "null"], "maxLength": 120},
+        "strategy": {"type": ["string", "null"], "maxLength": 120},
+        "duration_ms": {"type": ["integer", "null"], "minimum": 0},
+        "markers": {
+          "type": "array",
+          "items": {"enum": ["T", "A", "V", "R", "S"]},
+          "uniqueItems": true
+        },
+        "attributes": {"type": "object"}
+      }
+    }
+  }
+}

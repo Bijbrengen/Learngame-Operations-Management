@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "leerbox-learngame-operations-management",
+  "name": "LEARNGame Operations Management",
+  "repository_name": "learngame-operations-management",
+  "version": "ICG2-v2",
+  "entrypoint": "index.html",
+  "runtime": {
+    "kind": "static-pwa",
+    "external_dependencies": [],
+    "supported_delivery": ["file", "http", "https"]
+  },
+  "public_contracts": [
+    "contracts/events/leerpret-interaction-event-v1.schema.json"
+  ],
+  "fixtures": [
+    "fixtures/learngame-operations-management-capture.json",
+    "fixtures/learngame-operations-management-orderproces-engine-input.json",
+    "fixtures/learngame-operations-management-orderproces-contactberichten.json"
+  ],
+  "host_integration": {
+    "compatibility_url": "/tools/leerbox/learngame-operations-management/",
+    "legacy_event_message": "leerpret-preview-events",
+    "host_owned_state": "backend/data/leerbox-mutations/leerbox-learngame-operations-management",
+    "host_owned_source_archive": "info/LEARNGame Operations Management"
+  }
+}

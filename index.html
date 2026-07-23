@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#242424">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LEARNGame OM">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Mobiele leerbox-proefopstelling voor LEARNGame Operations Management.">
+  <title>LEARNGame OM | Leerbox</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <p class="eyebrow">Leerbox</p>
+        <h1>LEARNGame OM</h1>
+      </div>
+
+      <section class="metric-strip" aria-label="Spelstatus">
+        <div class="metric">
+          <span>Invoer</span>
+          <strong id="openOrdersValue">0</strong>
+        </div>
+        <div class="metric">
+          <span>Bezig</span>
+          <strong id="throughputValue">0</strong>
+        </div>
+        <div class="metric">
+          <span>Gereed</span>
+          <strong id="cashValue">0</strong>
+        </div>
+        <div class="metric">
+          <span>Te laat</span>
+          <strong id="profitValue">0</strong>
+        </div>
+        <div class="metric">
+          <span>Events</span>
+          <strong id="lateValue">0</strong>
+        </div>
+      </section>
+
+      <div class="top-actions">
+        <button id="dataModelButton" class="tool-button" type="button" title="Orderproces en datamodel uit eerste conceptschema bekijken">
+          <span class="button-icon">OP</span>
+          <span>Orderproces</span>
+        </button>
+        <button id="exportButton" class="tool-button" type="button" title="Eventbuffer naar klembord">
+          <span class="button-icon">{ }</span>
+          <span>Events</span>
+        </button>
+        <button id="resetButton" class="tool-button" type="button" title="Proefopstelling opnieuw starten">
+          <span class="button-icon">R</span>
+          <span>Reset</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <section class="order-band" aria-label="Klantorder">
+        <div class="role-card active-role-card">
+          <div class="role-token">K1</div>
+          <div>
+            <p class="eyebrow">Klant 1</p>
+            <h2>Ik wil een order plaatsen</h2>
+          </div>
+        </div>
+        <div id="orderPreview" class="order-preview" aria-label="Ordervoorbeeld"></div>
+        <form id="orderForm" class="order-form">
+          <label>
+            <span>Product</span>
+            <select id="productSelect"></select>
+          </label>
+          <label>
+            <span>Aantal</span>
+            <input id="quantityInput" type="number" min="1" max="12" value="2">
+          </label>
+          <label>
+            <span>Prijs per stuk</span>
+            <input id="priceInput" type="number" min="0" step="1">
+          </label>
+          <label>
+            <span>Levertijd</span>
+            <input id="dueInput" type="number" min="10" max="120" value="35">
+          </label>
+          <button class="primary-button" type="submit">
+            <span class="button-icon">+</span>
+            <span>Plaats order</span>
+          </button>
+        </form>
+      </section>
+
+      <section class="process-panel" aria-label="Orderstroom">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Digital twin</p>
+            <h2>Order- en informatiestroom</h2>
+          </div>
+          <div id="clockValue" class="clock-pill">00:00</div>
+        </div>
+        <div id="laneGrid" class="lane-grid"></div>
+      </section>
+
+      <aside class="control-panel" aria-label="Besturing">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Proefopstelling</p>
+            <h2>Spelkern</h2>
+          </div>
+        </div>
+
+        <div id="selectedOrderBox" class="selected-order">
+          Selecteer of maak een order.
+        </div>
+
+        <div class="button-row">
+          <button id="advanceButton" class="primary-button" type="button">
+            <span class="button-icon">&gt;</span>
+            <span>Nu bijwerken</span>
+          </button>
+          <button id="disruptionButton" class="danger-button" type="button">
+            <span class="button-icon">!</span>
+            <span>Verstoring</span>
+          </button>
+        </div>
+
+        <form id="purchaseForm" class="purchase-form">
+          <label>
+            <span>Inkoop</span>
+            <select id="purchasePartSelect"></select>
+          </label>
+          <label>
+            <span>Aantal</span>
+            <input id="purchaseQuantityInput" type="number" min="1" max="50" value="6">
+          </label>
+          <button class="secondary-button" type="submit">
+            <span class="button-icon">$</span>
+            <span>Koop</span>
+          </button>
+        </form>
+
+        <div class="toggle-grid">
+          <label class="toggle-field">
+            <input id="moneyToggle" type="checkbox" checked>
+            <span>Geld</span>
+          </label>
+          <label class="toggle-field">
+            <input id="pnlToggle" type="checkbox" checked>
+            <span>Winst/verlies</span>
+          </label>
+          <label class="toggle-field">
+            <input id="intermediateToggle" type="checkbox" checked>
+            <span>Tussenvoorraad</span>
+          </label>
+          <label class="toggle-field">
+            <input id="opportunityToggle" type="checkbox" checked>
+            <span>Opportunity costs</span>
+          </label>
+          <label class="toggle-field">
+            <input id="roleFreedomToggle" type="checkbox">
+            <span>Rolvrijheid</span>
+          </label>
+          <label class="select-field">
+            <span>Prijs</span>
+            <select id="priceModeSelect">
+              <option value="fixed">vast</option>
+              <option value="free">vrij</option>
+            </select>
+          </label>
+          <label class="select-field">
+            <span>Torensoorten</span>
+            <input id="productTypeCountInput" type="number" min="3" max="9" step="1" value="3">
+          </label>
+        </div>
+      </aside>
+
+      <section class="inventory-panel" aria-label="Voorraad">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">LEGO-stroom</p>
+            <h2>Voorraad en werk in uitvoering</h2>
+          </div>
+          <div id="stockSignal" class="stock-signal">OK</div>
+        </div>
+        <div id="inventoryGrid" class="inventory-grid"></div>
+      </section>
+
+      <section class="ledger-panel" aria-label="Meetlog">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Events</p>
+            <h2>Kale meetlijn</h2>
+          </div>
+          <div id="eventCountValue" class="clock-pill">0</div>
+        </div>
+        <div id="eventLog" class="event-log"></div>
+      </section>
+
+      <section id="dataModelPanel" class="data-model-panel" aria-label="Orderproces en datamodel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Procesmodel</p>
+            <h2>Orderproces met datamodelobjecten</h2>
+          </div>
+          <div class="process-view-controls" aria-label="Weergave orderproces">
+            <button id="processGraphViewButton" class="view-toggle active" type="button">Procesgraph</button>
+            <button id="processSequenceViewButton" class="view-toggle" type="button">Sequentie</button>
+            <button id="processSwimlaneViewButton" class="view-toggle" type="button">Afdelingsroute</button>
+            <div id="dataModelCount" class="clock-pill">0</div>
+          </div>
+        </div>
+        <div id="dataModelGrid" class="data-model-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="lego-tower-renderer.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

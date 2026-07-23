@@ -1,0 +1,870 @@
+{
+  "schema_version": "leerbox_capture_v4",
+  "capture_mode": "existing",
+  "completeness": {
+    "required_fields_complete": true,
+    "unknown_fields": [],
+    "open_questions": []
+  },
+  "metadata": {
+    "work_name": "LEARNGame Operations Management",
+    "leerbox_id": "leerbox-learngame-operations-management",
+    "type": "role_simulation",
+    "status": "digital_twin",
+    "domain": "operations management, logistieke ketens en rolcoördinatie",
+    "summary": "Digitale twin van de ICG2-v2 logistieke LEARNGame waarin klantorder, operations, productie, tussenvoorraden, kwaliteit en archief als meetbare keten worden gespeeld."
+  },
+  "datamodel_color_legend": {
+    "green": "klantcontact, inkoop en magazijn grondstoffen",
+    "yellow": "verkoop en betaling",
+    "red": "operations-overdracht",
+    "purple": "productieafdelingen",
+    "blue": "administratie, geldstroom en magazijn gereed product"
+  },
+  "pedagogical_core": {
+    "central_learning_goal": "De speler leert hoe een order door een logistieke keten stroomt en hoe rolafstemming, materiaalbeschikbaarheid en herstelacties de ketenprestatie bepalen.",
+    "central_discovery": "Een keten presteert pas goed wanneer lokale rolhandelingen, voorraadbeslissingen en opvolging op elkaar aansluiten.",
+    "success_definition": "Een order wordt correct geregistreerd, geproduceerd, geaccepteerd, gecontroleerd en gearchiveerd ondanks mogelijke verstoringen of tekorten.",
+    "why_it_matters_for_participant": "De simulatie maakt zichtbaar hoe kleine verzuimen, stockouts en rolafwijkingen de hele keten raken en hoe herstel het verschil maakt."
+  },
+  "participants": {
+    "primary_target_group": "leerlingen, studenten en teams die operations management, logistiek of ketensamenwerking oefenen",
+    "secondary_target_groups": [
+      "docenten",
+      "trainers",
+      "onderwijsarchitecten"
+    ],
+    "prior_knowledge": "Enige intuïtie over orders, materialen en productie helpt, maar de interface bouwt de keten stap voor stap op via rollen en taakkaarten.",
+    "known_barriers_or_support_needs": "Rolverwarring, voorraadtekorten, druk op doorlooptijd en het overzien van de hele keten kunnen start en voortgang bemoeilijken.",
+    "social_setting": "group"
+  },
+  "entry_and_orientation": {
+    "first_visible_action": "Klant 1 plaatst een order via de expliciete rolhandeling 'Ik wil een order plaatsen'.",
+    "minimal_start_instruction": "Begin bij de klantorder en voer daarna de actie uit die de taakkaart als volgende stap toont.",
+    "self_starting_signal": "De interface opent niet op een configuratiescherm maar op de zichtbare klantactie waarmee de keten meteen in beweging komt.",
+    "self_explaining_cues": [
+      "De taakkaart toont steeds wie aan zet is.",
+      "De orderbaan laat de huidige ketenpositie zien.",
+      "Knoppen dragen roltaal zoals Vrijgeven PD1, Controleer SS1 en Archiveer.",
+      "Verstoringen en blokkades verschijnen direct als frictiesignalen."
+    ],
+    "proactive_invitation": "De speler of het team moet zelf besluiten wanneer vrijgeven, inkopen, herstellen of afwijken nodig is om de orderstroom gaande te houden."
+  },
+  "play_characteristics": {
+    "recognizable_play_form": "Serious game en rolgestuurde ketensimulatie.",
+    "play_theme_or_story": "Een klantorder beweegt door operations, magazijn, productie, tussenvoorraden, kwaliteitscontrole en archief.",
+    "core_mechanics": [
+      "order registreren",
+      "rolgebonden stappen uitvoeren",
+      "materialen inkopen en uitgeven",
+      "productiestappen doorlopen",
+      "verstoringen opvangen",
+      "kwaliteit en archivering afronden"
+    ],
+    "rules_or_constraints": [
+      "De keten volgt een vaste ICG2-v2-volgorde.",
+      "Materialen moeten beschikbaar zijn voor een productiestap.",
+      "Verstoringen veroorzaken vertraging of opportunity costs.",
+      "Rollen mogen de keten ondersteunen of juist verstoren.",
+      "Een order is pas klaar na klantacceptatie, kwaliteitscontrole en archivering."
+    ],
+    "freedom_degrees": "Middel tot hoog: de ketenvolgorde ligt vast, maar rolvrijheid, inkopen, herstelkeuzes, prijsinstellingen en verstoringen variëren.",
+    "known_game_or_familiar_hook": "Werkplaatssimulatie en logistieke rolgame.",
+    "roles_or_multiplayer_structure": "Klant, Operations, Productie, Magazijn en kwaliteitsrollen werken samen binnen één keten.",
+    "direct_feedback_loop": "De orderpositie, blokkades, doorlooptijd, voorraad, kosten en stapresultaten veranderen direct na elke actie."
+  },
+  "objects": [
+    {
+      "object_id": "klantorderformulier",
+      "label": "Klantorderformulier",
+      "role": "start",
+      "affordance": "Start de keten via een concrete orderaanvraag.",
+      "visible_cues": "Klantrol, torenkeuze, aantal en levertijd.",
+      "loggable_actions": [
+        "customer_order_request",
+        "register_order"
+      ]
+    },
+    {
+      "object_id": "operations_inbox",
+      "label": "Operations-inbox",
+      "role": "orientation",
+      "affordance": "Laat zien welke order aan zet is en welke vervolgstap logisch is.",
+      "visible_cues": "Werkvoorraad, taakkaart en vrijgaveknoppen.",
+      "loggable_actions": [
+        "update_worklist",
+        "release_to_pd1",
+        "release_to_pd2",
+        "release_to_pd3",
+        "release_to_customer"
+      ]
+    },
+    {
+      "object_id": "grondstoffen_magazijn",
+      "label": "Grondstoffenmagazijn",
+      "role": "barrier",
+      "affordance": "Maakt materiaaltekorten, inkopen en herstelacties zichtbaar.",
+      "visible_cues": "Beschikbare onderdelen, inkoopmogelijkheden en stockoutmeldingen.",
+      "loggable_actions": [
+        "issue_materials",
+        "purchase_materials",
+        "blocked"
+      ]
+    },
+    {
+      "object_id": "productielijn",
+      "label": "Productielijn",
+      "role": "practice",
+      "affordance": "Verwerkt de order in drie productiestappen met tussenvoorraden.",
+      "visible_cues": "PD1, SS1, PD2, SS2 en PD3 als zichtbare ketendelen.",
+      "loggable_actions": [
+        "start_production",
+        "complete_production_step",
+        "ss1_check",
+        "ss2_check"
+      ]
+    },
+    {
+      "object_id": "kwaliteitscontrole_en_archief",
+      "label": "Kwaliteitscontrole en archief",
+      "role": "success",
+      "affordance": "Rondt de order af via acceptatie, controle en archivering.",
+      "visible_cues": "Klantacceptatie, kwaliteitscheck en archiefstatus.",
+      "loggable_actions": [
+        "customer_acceptance",
+        "quality_control",
+        "archive_order"
+      ]
+    },
+    {
+      "object_id": "dm_00_inkoop",
+      "label": "00 - Inkoop",
+      "role": "recovery",
+      "affordance": "Herstelt materiaalbeschikbaarheid via het inkoopproces.",
+      "visible_cues": "500 - Manager Inkoop, route 501 -> 000.",
+      "loggable_actions": [
+        "purchase_materials"
+      ]
+    },
+    {
+      "object_id": "dm_01_wil_bestellen",
+      "label": "01 - Wil bestellen",
+      "role": "start",
+      "affordance": "Start de keten wanneer de klant een bestelling initieert.",
+      "visible_cues": "100 - Klant, route 0 -> 201.",
+      "loggable_actions": [
+        "customer_order_request"
+      ]
+    },
+    {
+      "object_id": "dm_01_verkooptransactie",
+      "label": "01 - Verkooptransactie",
+      "role": "start",
+      "affordance": "Legt de klantvraag vast als verkooptransactie.",
+      "visible_cues": "200 - Manager Verkoop, route 201 -> 205.",
+      "loggable_actions": [
+        "customer_order_request"
+      ]
+    },
+    {
+      "object_id": "dm_02_orderformulier_naar_adm",
+      "label": "02 - Orderformulier naar ADM",
+      "role": "order_flow",
+      "affordance": "Draagt het orderformulier over aan administratie.",
+      "visible_cues": "200 - Manager Verkoop, route 205 -> 301.",
+      "loggable_actions": [
+        "register_order"
+      ]
+    },
+    {
+      "object_id": "dm_02_ontv_orderformulier_adm",
+      "label": "02 - Ontvangst orderformulier ADM",
+      "role": "order_flow",
+      "affordance": "Bevestigt ontvangst van de verkooporder bij administratie.",
+      "visible_cues": "300 - Manager Administratie, route 301 -> 305.",
+      "loggable_actions": [
+        "register_order"
+      ]
+    },
+    {
+      "object_id": "dm_03_orderverwerking",
+      "label": "03 - Orderverwerking",
+      "role": "practice",
+      "affordance": "Verwerkt de order administratief voordat Operations aan zet komt.",
+      "visible_cues": "300 - Manager Administratie, route 305 -> 310.",
+      "loggable_actions": [
+        "register_order"
+      ]
+    },
+    {
+      "object_id": "dm_04_orderformulier_naar_ops",
+      "label": "04 - Orderformulier naar OPS",
+      "role": "orientation",
+      "affordance": "Verplaatst de verwerkte order naar Operations.",
+      "visible_cues": "300 - Manager Administratie, route 310 -> 401.",
+      "loggable_actions": [
+        "update_worklist"
+      ]
+    },
+    {
+      "object_id": "dm_05_ontv_orderformulier_ops",
+      "label": "05 - Ontvangst orderformulier OPS",
+      "role": "orientation",
+      "affordance": "Maakt de order zichtbaar voor Operations.",
+      "visible_cues": "400 - Manager Operations, route 401 -> 405.",
+      "loggable_actions": [
+        "update_worklist"
+      ]
+    },
+    {
+      "object_id": "dm_06_orderformulier_naar_pdt_a",
+      "label": "06 - Orderformulier naar PDT A",
+      "role": "order_flow",
+      "affordance": "Geeft de order vrij naar productieafdeling A.",
+      "visible_cues": "400/600 - Manager Operations naar Productie A, route 405 -> 601.",
+      "loggable_actions": [
+        "release_to_pd1"
+      ]
+    },
+    {
+      "object_id": "dm_06_orderformulier_naar_pdt_b",
+      "label": "06 - Orderformulier naar PDT B",
+      "role": "order_flow",
+      "affordance": "Geeft de order vrij naar productieafdeling B.",
+      "visible_cues": "400/700 - Manager Operations naar Productie B, route 406 -> 701.",
+      "loggable_actions": [
+        "release_to_pd2"
+      ]
+    },
+    {
+      "object_id": "dm_06_orderformulier_naar_pdt_c",
+      "label": "06 - Orderformulier naar PDT C",
+      "role": "order_flow",
+      "affordance": "Geeft de order vrij naar productieafdeling C.",
+      "visible_cues": "400/800 - Manager Operations naar Productie C, route 407 -> 801.",
+      "loggable_actions": [
+        "release_to_pd3"
+      ]
+    },
+    {
+      "object_id": "dm_07_ontv_orderformulier_pda_a",
+      "label": "07 - Ontvangst orderformulier A",
+      "role": "practice",
+      "affordance": "Laat productieafdeling A de vrijgegeven order ontvangen.",
+      "visible_cues": "600 - Manager Prod Afd A, route 601 -> 605.",
+      "loggable_actions": [
+        "confirm_order_receipt"
+      ]
+    },
+    {
+      "object_id": "dm_07_grondstoffen_halen_a",
+      "label": "07 - Grondstoffen halen A",
+      "role": "barrier",
+      "affordance": "Maakt de grondstofafhankelijkheid van productieafdeling A zichtbaar.",
+      "visible_cues": "600 naar 900, route 605 -> 901.",
+      "loggable_actions": [
+        "issue_materials"
+      ]
+    },
+    {
+      "object_id": "dm_07_ontv_orderformulier_pda_b",
+      "label": "07 - Ontvangst orderformulier B",
+      "role": "practice",
+      "affordance": "Laat productieafdeling B de vrijgegeven order ontvangen.",
+      "visible_cues": "700 - Manager Prod Afd B, route 701 -> 705.",
+      "loggable_actions": [
+        "confirm_order_receipt"
+      ]
+    },
+    {
+      "object_id": "dm_07_grondstoffen_halen_b",
+      "label": "07 - Grondstoffen halen B",
+      "role": "barrier",
+      "affordance": "Maakt de grondstofafhankelijkheid van productieafdeling B zichtbaar.",
+      "visible_cues": "700 naar 900, route 705 -> 902.",
+      "loggable_actions": [
+        "issue_materials"
+      ]
+    },
+    {
+      "object_id": "dm_07_ontv_orderformulier_pda_c",
+      "label": "07 - Ontvangst orderformulier C",
+      "role": "practice",
+      "affordance": "Laat productieafdeling C de vrijgegeven order ontvangen.",
+      "visible_cues": "800 - Manager Prod Afd C, route 801 -> 805.",
+      "loggable_actions": [
+        "confirm_order_receipt"
+      ]
+    },
+    {
+      "object_id": "dm_07_grondstoffen_halen_c",
+      "label": "07 - Grondstoffen halen C",
+      "role": "barrier",
+      "affordance": "Maakt de grondstofafhankelijkheid van productieafdeling C zichtbaar.",
+      "visible_cues": "800 naar 900, route 805 -> 903.",
+      "loggable_actions": [
+        "issue_materials"
+      ]
+    },
+    {
+      "object_id": "dm_08_materiaaluitgifte_pda_a",
+      "label": "8 - Materiaaluitgifte PDA A",
+      "role": "barrier",
+      "affordance": "Geeft grondstoffen uit aan productieafdeling A of toont materiaalfrictie.",
+      "visible_cues": "900 - Manager Mag. GS, route 901 -> 610.",
+      "loggable_actions": [
+        "issue_materials",
+        "stockout"
+      ]
+    },
+    {
+      "object_id": "dm_08_materiaaluitgifte_pda_b",
+      "label": "8 - Materiaaluitgifte PDA B",
+      "role": "barrier",
+      "affordance": "Geeft grondstoffen uit aan productieafdeling B of toont materiaalfrictie.",
+      "visible_cues": "900 - Manager Mag. GS, route 902 -> 710.",
+      "loggable_actions": [
+        "issue_materials",
+        "stockout"
+      ]
+    },
+    {
+      "object_id": "dm_08_materiaaluitgifte_pda_c",
+      "label": "8 - Materiaaluitgifte PDA C",
+      "role": "barrier",
+      "affordance": "Geeft grondstoffen uit aan productieafdeling C of toont materiaalfrictie.",
+      "visible_cues": "900 - Manager Mag. GS, route 903 -> 810.",
+      "loggable_actions": [
+        "issue_materials",
+        "stockout"
+      ]
+    },
+    {
+      "object_id": "dm_09_start_productie_a",
+      "label": "09 - Start productie A",
+      "role": "practice",
+      "affordance": "Start de fysieke productiestap bij productieafdeling A.",
+      "visible_cues": "600 - Manager Prod Afd A, route 610 -> 615.",
+      "loggable_actions": [
+        "start_production"
+      ]
+    },
+    {
+      "object_id": "dm_10_productie_gereed_a",
+      "label": "10 - Productie gereed A",
+      "role": "practice",
+      "affordance": "Markeert afronding van productieafdeling A.",
+      "visible_cues": "600 - Manager Prod Afd A, route 615 -> 620.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_11_producten_naar_mag_gp_a",
+      "label": "11 - Producten naar MAG GP A",
+      "role": "order_flow",
+      "affordance": "Verplaatst producten van afdeling A naar magazijn gereed product.",
+      "visible_cues": "600 naar 1000, route 620 -> 1001.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_09_start_productie_b",
+      "label": "09 - Start productie B",
+      "role": "practice",
+      "affordance": "Start de fysieke productiestap bij productieafdeling B.",
+      "visible_cues": "700 - Manager Prod Afd B, route 710 -> 715.",
+      "loggable_actions": [
+        "start_production"
+      ]
+    },
+    {
+      "object_id": "dm_10_productie_gereed_b",
+      "label": "10 - Productie gereed B",
+      "role": "practice",
+      "affordance": "Markeert afronding van productieafdeling B.",
+      "visible_cues": "700 - Manager Prod Afd B, route 715 -> 720.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_11_producten_naar_mag_gp_b",
+      "label": "11 - Producten naar MAG GP B",
+      "role": "order_flow",
+      "affordance": "Verplaatst producten van afdeling B naar magazijn gereed product.",
+      "visible_cues": "700 naar 1000, route 720 -> 1002.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_09_start_productie_c",
+      "label": "09 - Start productie C",
+      "role": "practice",
+      "affordance": "Start de fysieke productiestap bij productieafdeling C.",
+      "visible_cues": "800 - Manager Prod Afd C, route 810 -> 815.",
+      "loggable_actions": [
+        "start_production"
+      ]
+    },
+    {
+      "object_id": "dm_10_productie_gereed_c",
+      "label": "10 - Productie gereed C",
+      "role": "practice",
+      "affordance": "Markeert afronding van productieafdeling C.",
+      "visible_cues": "800 - Manager Prod Afd C, route 815 -> 820.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_11_producten_naar_mag_gp_c",
+      "label": "11 - Producten naar MAG GP C",
+      "role": "order_flow",
+      "affordance": "Verplaatst producten van afdeling C naar magazijn gereed product.",
+      "visible_cues": "800 naar 1000, route 820 -> 1003.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_12_ontv_producten_pda_a",
+      "label": "12 - Ontvangst producten PDA A",
+      "role": "feedback",
+      "affordance": "Bevestigt ontvangst van producten uit productieafdeling A bij magazijn gereed product.",
+      "visible_cues": "1000 - Manager Gereed Product, route 1001 -> 625.",
+      "loggable_actions": [
+        "quality_control"
+      ]
+    },
+    {
+      "object_id": "dm_12_ontv_producten_pda_b",
+      "label": "12 - Ontvangst producten PDA B",
+      "role": "feedback",
+      "affordance": "Bevestigt ontvangst van producten uit productieafdeling B bij magazijn gereed product.",
+      "visible_cues": "1000 - Manager Gereed Product, route 1002 -> 725.",
+      "loggable_actions": [
+        "quality_control"
+      ]
+    },
+    {
+      "object_id": "dm_12_ontv_producten_pda_c",
+      "label": "12 - Ontvangst producten PDA C",
+      "role": "feedback",
+      "affordance": "Bevestigt ontvangst van producten uit productieafdeling C bij magazijn gereed product.",
+      "visible_cues": "1000 - Manager Gereed Product, route 1003 -> 825.",
+      "loggable_actions": [
+        "quality_control"
+      ]
+    },
+    {
+      "object_id": "dm_13_orderformulier_naar_ops_a",
+      "label": "13 - Orderformulier naar OPS A",
+      "role": "order_flow",
+      "affordance": "Stuurt de afmelding van productieafdeling A terug naar Operations.",
+      "visible_cues": "600 naar 400, route 625 -> 410.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_13_orderformulier_naar_ops_b",
+      "label": "13 - Orderformulier naar OPS B",
+      "role": "order_flow",
+      "affordance": "Stuurt de afmelding van productieafdeling B terug naar Operations.",
+      "visible_cues": "700 naar 400, route 725 -> 410.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_13_orderformulier_naar_ops_c",
+      "label": "13 - Orderformulier naar OPS C",
+      "role": "order_flow",
+      "affordance": "Stuurt de afmelding van productieafdeling C terug naar Operations.",
+      "visible_cues": "800 naar 400, route 825 -> 410.",
+      "loggable_actions": [
+        "complete_production_step"
+      ]
+    },
+    {
+      "object_id": "dm_14_ontv_orderformulier_ops",
+      "label": "14 - Ontvangst orderformulier OPS",
+      "role": "orientation",
+      "affordance": "Laat Operations de terugmelding verwerken.",
+      "visible_cues": "400 - Manager Operations, hoofdroute 410 -> 415.",
+      "loggable_actions": [
+        "confirm_customer_accepted"
+      ]
+    },
+    {
+      "object_id": "dm_15_orderformulier_naar_vkp",
+      "label": "15 - Orderformulier naar VKP",
+      "role": "order_flow",
+      "affordance": "Geeft verkoop opdracht om levering en klantcontact af te ronden.",
+      "visible_cues": "400 naar 200 - Operations naar Verkoop, hoofdroute 415 -> 210.",
+      "loggable_actions": [
+        "release_to_customer"
+      ]
+    },
+    {
+      "object_id": "dm_14_ontv_orderformulier_ops_terug",
+      "label": "14 - Ontvangst orderformulier OPS",
+      "role": "orientation",
+      "affordance": "Laat Operations de tweede terugmelding uit de 400-reeks verwerken.",
+      "visible_cues": "400 - Manager Operations, route 420 -> 425.",
+      "loggable_actions": [
+        "confirm_customer_accepted"
+      ]
+    },
+    {
+      "object_id": "dm_15_orderformulier_naar_vkp_terug",
+      "label": "15 - Orderformulier naar VKP",
+      "role": "order_flow",
+      "affordance": "Geeft de tweede Operations-overdracht naar Verkoop weer.",
+      "visible_cues": "400 naar 200 - Operations naar Verkoop, route 425 -> 210.",
+      "loggable_actions": [
+        "release_to_customer"
+      ]
+    },
+    {
+      "object_id": "dm_16_ontv_orderformulier_vkp",
+      "label": "16 - Ontvangst orderformulier VKP",
+      "role": "orientation",
+      "affordance": "Laat verkoop de leveropdracht ontvangen.",
+      "visible_cues": "200 - Manager Verkoop, route 210 -> 215.",
+      "loggable_actions": [
+        "release_to_customer"
+      ]
+    },
+    {
+      "object_id": "dm_17_producten_halen",
+      "label": "17 - Producten halen",
+      "role": "practice",
+      "affordance": "Laat verkoop de producten ophalen bij gereed product.",
+      "visible_cues": "200 naar 1000 - Verkoop naar MAG GP, route 215 -> 1005.",
+      "loggable_actions": [
+        "quality_control"
+      ]
+    },
+    {
+      "object_id": "dm_18_uitgifte_producten",
+      "label": "18 - Uitgifte producten",
+      "role": "success",
+      "affordance": "Geeft producten uit vanuit magazijn gereed product.",
+      "visible_cues": "1000 - Manager Gereed Product, route 1005 -> 220.",
+      "loggable_actions": [
+        "quality_control"
+      ]
+    },
+    {
+      "object_id": "dm_19_ontvangst_producten_vkp",
+      "label": "19 - Ontvangst producten VKP",
+      "role": "success",
+      "affordance": "Bevestigt ontvangst van producten bij verkoop.",
+      "visible_cues": "200 - Manager Verkoop, route 220 -> 225.",
+      "loggable_actions": [
+        "customer_acceptance"
+      ]
+    },
+    {
+      "object_id": "dm_19_afleveren_producten",
+      "label": "19 - Afleveren producten",
+      "role": "success",
+      "affordance": "Levert producten af aan de klant.",
+      "visible_cues": "200 naar 100 - Verkoop naar Klant, route 225 -> 105.",
+      "loggable_actions": [
+        "customer_acceptance"
+      ]
+    },
+    {
+      "object_id": "dm_20_ontv_producten_klant",
+      "label": "20 - Ontvangst producten klant",
+      "role": "success",
+      "affordance": "Laat de klant de producten ontvangen.",
+      "visible_cues": "100 - Klant, route 105 -> 110.",
+      "loggable_actions": [
+        "customer_acceptance"
+      ]
+    },
+    {
+      "object_id": "dm_20_betaal_vkp",
+      "label": "20 - Betaal VKP",
+      "role": "success",
+      "affordance": "Laat de klant verkoop betalen.",
+      "visible_cues": "100 - Klant, route 110 -> 230.",
+      "loggable_actions": [
+        "customer_acceptance"
+      ]
+    },
+    {
+      "object_id": "dm_21_ontv_betaling",
+      "label": "21 - Ontvangst betaling",
+      "role": "success",
+      "affordance": "Bevestigt ontvangst van betaling bij verkoop.",
+      "visible_cues": "200 - Manager Verkoop, route 230 -> 235.",
+      "loggable_actions": [
+        "customer_acceptance"
+      ]
+    },
+    {
+      "object_id": "dm_22_geld_naar_adm",
+      "label": "22 - Geld naar ADM",
+      "role": "order_flow",
+      "affordance": "Draagt geld en administratie over.",
+      "visible_cues": "200 naar 300 - Verkoop naar Administratie, route 235 -> 315.",
+      "loggable_actions": [
+        "archive_order"
+      ]
+    },
+    {
+      "object_id": "dm_22_ontvangst_geld_en_form",
+      "label": "22 - Ontvangst geld en formulier",
+      "role": "order_flow",
+      "affordance": "Laat administratie geld en formulier ontvangen.",
+      "visible_cues": "300 - Manager Administratie, route 315 -> 320.",
+      "loggable_actions": [
+        "archive_order"
+      ]
+    },
+    {
+      "object_id": "dm_23_archiveren_formulier",
+      "label": "23 - Archiveren formulier",
+      "role": "success",
+      "affordance": "Sluit de order af door archivering.",
+      "visible_cues": "300 - Manager Administratie, route 320 -> 0.",
+      "loggable_actions": [
+        "archive_order"
+      ]
+    }
+  ],
+  "interaction_route": [
+    {
+      "step": 1,
+      "participant_action": "Laat Klant 1 een order voor toren A, B of C plaatsen.",
+      "object_id": "klantorderformulier",
+      "action_type": "customer_order_request",
+      "expected_feedback": "Er verschijnt een order met klantvraag, aantal en levertijd.",
+      "if_success_next": "Operations registreert en beoordeelt de order.",
+      "if_stuck_next": "Controleer rolinstelling of basisconfiguratie zodat de klantactie zichtbaar wordt."
+    },
+    {
+      "step": 2,
+      "participant_action": "Registreer de order in Operations en geef haar vrij naar PD1.",
+      "object_id": "operations_inbox",
+      "action_type": "release_to_pd1",
+      "expected_feedback": "De order verschuift naar de volgende ketenstap en de taakkaart wisselt van rol.",
+      "if_success_next": "Magazijn en PD1 verwerken materialen en eerste productie.",
+      "if_stuck_next": "Werk de werklijst bij of controleer of de order volledig is geregistreerd."
+    },
+    {
+      "step": 3,
+      "participant_action": "Geef materialen uit en start de eerste productiestap.",
+      "object_id": "productielijn",
+      "action_type": "start_production",
+      "expected_feedback": "De order krijgt voortgang in de productie en schuift later door naar SS1.",
+      "if_success_next": "Operations controleert SS1 en geeft vrij naar PD2.",
+      "if_stuck_next": "Koop ontbrekende materialen in of herstel een geblokkeerde rolstap."
+    },
+    {
+      "step": 4,
+      "participant_action": "Vang een materiaaltekort of verstoring op door in te kopen of bij te sturen.",
+      "object_id": "grondstoffen_magazijn",
+      "action_type": "purchase_materials",
+      "expected_feedback": "De blokkade verandert van stockout naar herstel en de keten kan verder.",
+      "if_success_next": "De volgende productiestap kan doorgaan richting PD2 of PD3.",
+      "if_stuck_next": "Herzie rolgedrag, voorraad of orderdoorloop om verdere vertraging te voorkomen."
+    },
+    {
+      "step": 5,
+      "participant_action": "Laat de klant accepteren en voer kwaliteitscontrole uit.",
+      "object_id": "kwaliteitscontrole_en_archief",
+      "action_type": "quality_control",
+      "expected_feedback": "De order krijgt succes- of herwerksignaal voordat archivering plaatsvindt.",
+      "if_success_next": "Archiveer de order als afgeronde ketencasus.",
+      "if_stuck_next": "Herwerk de order of corrigeer de ketenstap die klantacceptatie blokkeert."
+    },
+    {
+      "step": 6,
+      "participant_action": "Archiveer de order als definitief afgehandeld.",
+      "object_id": "kwaliteitscontrole_en_archief",
+      "action_type": "archive_order",
+      "expected_feedback": "De order verlaat de actieve keten en telt als afgeronde run.",
+      "if_success_next": "De ketenrun is compleet en de eventlog bevat een volledige orderflow.",
+      "if_stuck_next": "Controleer of acceptatie en kwaliteitscontrole al succesvol zijn afgerond."
+    }
+  ],
+  "barriers_and_recovery": {
+    "main_barrier": "Materiaaltekorten, vergeten updates, rolverwarring en verstoringen kunnen de orderstroom blokkeren of vertragen.",
+    "why_productive": "De speler ziet hierdoor dat ketenprestatie niet uit één handeling komt maar uit tijdige afstemming en herstel over meerdere rollen heen.",
+    "recovery_options": [
+      "materialen inkopen",
+      "de werklijst opnieuw bijwerken",
+      "een volgende rol expliciet vrijgeven",
+      "verstoringen registreren en compenseren",
+      "herwerk uitvoeren na kwaliteitscontrole"
+    ],
+    "too_hard_when": "Te veel rollen tegelijk onduidelijk zijn, de interface niet laat zien wie aan zet is of verstoringen elkaar opstapelen zonder herstelruimte."
+  },
+  "didactic_functions": {
+    "goal_clarity": {
+      "status": "present",
+      "evidence": "Een order is pas klaar wanneer registratie, productie, acceptatie, controle en archivering zijn afgerond."
+    },
+    "motivation": {
+      "status": "present",
+      "evidence": "De zichtbare orderstroom en verstoringen maken het ketendoel concreet en urgent."
+    },
+    "prior_knowledge_connection": {
+      "status": "partial",
+      "evidence": "De simulatie sluit goed aan op logistieke praktijkintuïties, maar vraagt wel enige kennismaking met ICG2-roltaal."
+    },
+    "orientation": {
+      "status": "present",
+      "evidence": "Taakkaarten, rolbanen en zichtbare orderlocaties maken de volgende stap afleesbaar."
+    },
+    "practice_opportunity": {
+      "status": "present",
+      "evidence": "Elke order biedt meerdere ketenstappen, verstoringen en herstelmomenten."
+    },
+    "process_support": {
+      "status": "present",
+      "evidence": "De interface ondersteunt via rollen, knoppen en statusovergangen zonder de ketenlogica te verbergen."
+    },
+    "feedback": {
+      "status": "present",
+      "evidence": "Blokkades, vertraging, kosten, succes en orderverplaatsing reageren direct op handelingen."
+    },
+    "assessment_or_success_evidence": {
+      "status": "present",
+      "evidence": "Een volledige orderhistorie en archivering maken succes expliciet toetsbaar."
+    },
+    "evaluation_or_reflection": {
+      "status": "partial",
+      "evidence": "De run toont waar de keten vastloopt, maar expliciete reflectie vindt vooral achteraf in dashboard of nabespreking plaats."
+    }
+  },
+  "playful_learning_requirements": {
+    "recognizable_play_frame": {
+      "status": "present",
+      "evidence": "De leerbox presenteert zich als een rol- en ketensimulatie met concrete ordermissie."
+    },
+    "familiar_or_fast_entry": {
+      "status": "present",
+      "evidence": "De eerste zichtbare actie is een herkenbare klantorder in plaats van een abstracte configuratiestap."
+    },
+    "rules_explicit_or_discoverable": {
+      "status": "present",
+      "evidence": "De ketenvolgorde, rolacties en blokkades zijn expliciet zichtbaar in de interface en README."
+    },
+    "freedom_to_choose_or_shape_play": {
+      "status": "partial",
+      "evidence": "De ketenvolgorde ligt vast, maar spelers kiezen wel herstel, rolvrijheid en omgaan met verstoringen."
+    },
+    "creativity_and_self_thinking": {
+      "status": "present",
+      "evidence": "Spelers moeten zelf ketenproblemen duiden en herstelacties plannen."
+    },
+    "direct_feedback_loop": {
+      "status": "present",
+      "evidence": "Orderstatus, blokkades, kosten en succes veranderen direct na elke ketenhandeling."
+    },
+    "safe_try_retry_space": {
+      "status": "present",
+      "evidence": "Stockouts, herwerk en verstoringen zijn ingebouwd als herstelbare frictie in plaats van direct einde."
+    },
+    "role_or_multiplayer_interaction": {
+      "status": "present",
+      "evidence": "De simulatie is gebouwd rond meerdere rollen die elkaar in de keten afhankelijk maken."
+    },
+    "proactive_initiative_invited": {
+      "status": "present",
+      "evidence": "De speler of het team moet zelf op tijd vrijgeven, inkopen, controleren en herstellen."
+    }
+  },
+  "learning_style_and_adaptivity": {
+    "playful_entry": {
+      "status": "present",
+      "evidence": "De keten start met een concrete rolhandeling en niet met theorie-uitleg."
+    },
+    "reproductive_route": {
+      "status": "partial",
+      "evidence": "Spelers kunnen beginnen door de vaste ketenvolgorde en rolknoppen te volgen."
+    },
+    "application_route": {
+      "status": "present",
+      "evidence": "De kern van de box is het toepassen van logistieke beslissingen in een concrete orderstroom."
+    },
+    "meaning_route": {
+      "status": "partial",
+      "evidence": "De simulatie maakt de betekenis van ketenafhankelijkheid zichtbaar, maar expliciete reflectie blijft beperkt."
+    },
+    "productive_route": {
+      "status": "present",
+      "evidence": "Verstoringen, rolvrijheid en herstel dwingen spelers eigen oplossingsstrategieën te ontwikkelen."
+    },
+    "adaptivity_in_tempo_or_route": {
+      "status": "present",
+      "evidence": "Configuratie, verstoringen, prijskeuze en herstelpaden laten meerdere routes en tempoverschillen toe."
+    },
+    "individual_and_social_options": {
+      "status": "present",
+      "evidence": "De kern is sociaal rolspel, maar individuele rolbeslissingen blijven binnen de keten herkenbaar."
+    }
+  },
+  "measurement": {
+    "marker_mapping": {
+      "T": "Doorlooptijd, wachttijd en betrokken blijven over de hele orderroute vormen de tijdsmarker.",
+      "A": "Registreren, vrijgeven, produceren, inkopen en controleren maken activiteit zichtbaar.",
+      "V": "Wisselen tussen rolhandelingen, herstelkeuzes en omgang met verstoringen voedt variatie.",
+      "R": "Herstel na stockout, kwaliteitsfrictie of vergeten updates vormt resilience.",
+      "S": "Klantacceptatie, kwaliteitscontrole en archivering maken succes ondubbelzinnig."
+    },
+    "event_contract": {
+      "required_fields": [
+        "personID",
+        "sessionID",
+        "learningBoxID",
+        "leerbox_id",
+        "learningObjectID",
+        "timestamp",
+        "actionType",
+        "objectRole",
+        "result",
+        "stage",
+        "strategy"
+      ],
+      "example_action_types": [
+        "customer_order_request",
+        "register_order",
+        "release_to_pd1",
+        "issue_materials",
+        "start_production",
+        "purchase_materials",
+        "inspect_data_model_object",
+        "toggle_order_process_model_view",
+        "quality_control",
+        "archive_order"
+      ]
+    },
+    "privacy_notes": "De proefopstelling registreert kale interactie-events met pseudonieme rollen en personen in plaats van inhoudelijke persoonsgegevens."
+  },
+  "source_integrity": {
+    "explicitly_stated_by_user": [
+      "README.md: ICG2-v2-flow, orderstroom, digital twin en self-starting klantactie",
+      "script.js: concrete action types, ketenstappen en verstoringen",
+      "info/LEARNGame Operations Management/Eerste Concept SChema_90cmx900cm.html: compacte conceptschema-weergave",
+      "info/LEARNGame Operations Management/Eerste Concept SChema_90cmx900cm.pdf: volledige orderprocesvisualisatie met genummerde reeks 0 t/m 23 uit het eerste conceptschema",
+      "articles/Leerpret geimplementeerd.tex: context, affordances, struggle en engine-koppeling"
+    ],
+    "normalized_by_model": [
+      "vijf samengestelde route-objecten behouden en PDF-nodes met dezelfde procesnummers maar verschillende overdrachtspunten als afzonderlijke dm_-leerobjecten opgenomen",
+      "procesgebieden 400 Operations en 500 Inkoop gesplitst en productieafdelingen 600, 700 en 800 gescheiden zodat het orderproces met verbindingen kan worden gevisualiseerd",
+      "didactische functies en speels-leren-eisen geclassificeerd met present/partial",
+      "README- en scriptdetails samengevat naar één canonieke route"
+    ],
+    "left_unknown": []
+  }
+}

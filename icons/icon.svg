@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LEARNGame OM">
+  <rect width="512" height="512" rx="96" fill="#242424"/>
+  <path d="M104 344h304v56H104z" fill="#2f7d56"/>
+  <path d="M130 272h252v68H130z" fill="#2f6fb0"/>
+  <path d="M160 202h192v66H160z" fill="#d3a622"/>
+  <path d="M196 132h120v66H196z" fill="#bf3f32"/>
+  <g fill="#fffdf8" opacity=".86">
+    <circle cx="170" cy="306" r="15"/>
+    <circle cx="256" cy="306" r="15"/>
+    <circle cx="342" cy="306" r="15"/>
+    <circle cx="211" cy="235" r="14"/>
+    <circle cx="301" cy="235" r="14"/>
+    <circle cx="256" cy="165" r="13"/>
+  </g>
+  <path d="M104 398h304v24H104z" fill="#fffdf8" opacity=".92"/>
+</svg>
