@@ -64,6 +64,14 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 - drie productiestappen per order simuleren;
 - het eerste conceptschema als orderproces met datamodelobjecten bekijken via de knop `Orderproces`;
 - binnen die weergave wisselen tussen `Procesgraph` per afdeling, `Sequentie` als slingerend links-rechts/rechts-links orderpad en `Afdelingsroute` als sequentieel pad binnen vaste afdelingsbanen;
+- via `Isometrische kaart` de indeling uit
+  `source_docs/20260209-LO-Game-spelversie-4-HR.pptx` als aanklikbare
+  SVG-zones bekijken: Magazijn Grondstoffen, Productieafdeling A, B en C,
+  Magazijn Gereed Product en de klant;
+- in die kaart de drie afzonderlijke materiaalroutes uit dia 13, 15 en 16
+  zien: Grondstoffen -> Afdeling A/B/C -> Gereed Product. Er is dus geen
+  centraal splits- of samenvoegpunt; elke afdeling heeft een eigen aanvoer
+  en afvoer. Vanaf Gereed Product loopt een aparte uitleverroute naar de klant;
 - de genummerde datamodelobjecten `00` t/m `23` als expliciete leerobjecten inspecteren;
 - de ICG2-loginlogica als bronmetadata registreren: QR-code per rol, taalkeuze, account, game code en rol;
 - geldstromen, resultaat en opportunity costs bijhouden;
@@ -120,6 +128,84 @@ Deze digital twin kiest bewust voor een kleine, testbare kern:
 - `style.css` maakt de orderstroom, voorraad en torens visueel inspecteerbaar.
 
 De volgende logische stap is een adapterlaag naar de simulator, vergelijkbaar met het profiel `phile`, zodat LEARNGame-events expliciet naar de vijf markers `(T, A, V, R, S)` kunnen worden vertaald.
+
+## Isometrische logistieke view
+
+De nieuwe view bestaat uit drie gescheiden lagen:
+
+```text
+script.js
+  game-state, afdelingsdefinities, voorraad- en orderprojectie
+        |
+        v
+isometric-logistics-view.js
+  generieke SVG-projectie, zones, verbindingen en interactie
+        |
+        v
+style.css
+  oppervlakken, statuskleuren, responsiviteit en animatie
+```
+
+De renderer ontvangt alleen een scene-object met `departments`,
+`connections` en `selectedDepartmentId`. Daardoor kan een andere statebron
+later dezelfde view gebruiken. De afdelingskleuren volgen dia 17 van
+`20260209-LO-Game-spelversie-4-HR.pptx`: roze voor Grondstoffen, oplopende
+blauwtinten voor Afdeling A, B en C, en petrol voor Gereed Product. De groene
+lijnen zijn de drie afzonderlijke materiaalstromen uit dia 13, 15 en 16; de
+cyaan lijn is de uitlevering naar de klant. Operationele status blijft een
+afzonderlijk gegeven.
+
+De Game Master-instelling `Organisatie` bewaart twee organisatievarianten in
+dezelfde game:
+
+- `Productgericht (LO 3/4)` toont drie zelfstandige productafdelingen. Het
+  grondstoffenmagazijn heeft drie afzonderlijke uitstromen naar A, B en C,
+  waarna iedere afdeling rechtstreeks aan Magazijn Gereed Product levert;
+- `Functionele keten (LO 1/2/5/6/7)` toont de seriële stroom Inkomend
+  Magazijn -> Assemblage 1 -> Assemblage 2 -> Assemblage 3 ->
+  Kwaliteitscontrole -> Expeditie.
+
+De instelling verandert de organisatorische projectie en niet de opgeslagen
+orders, voorraad of interactie-events. Wisselen kan ook programmatisch:
+
+```js
+window.LEARNGameOMSimulator.setLogisticsOrganizationVariant("functional");
+window.LEARNGameOMSimulator.setLogisticsOrganizationVariant("product");
+```
+
+De vaste isometrische projectie is:
+
+```js
+screenX = originX + (gridX - gridY) * tileWidth / 2;
+screenY = originY + (gridX + gridY) * tileHeight / 2 - elevation;
+```
+
+Een afdeling wordt toegevoegd door een definitie aan
+`ISOMETRIC_DEPARTMENT_DEFINITIONS` en eventueel een verbinding aan
+`ISOMETRIC_DEPARTMENT_CONNECTIONS` toe te voegen. De Game Master kan zichtbare
+afdelingen tijdens runtime instellen:
+
+```js
+window.LEARNGameOMSimulator.setVisibleLogisticsDepartments([
+  "inbound",
+  "production_1",
+  "quality",
+  "dispatch"
+]);
+```
+
+De actuele afdelingsprojectie, inclusief status, voorraden en orders, is
+beschikbaar via:
+
+```js
+window.LEARNGameOMSimulator.getLogisticsDepartments();
+```
+
+De view is rechtstreeks te openen via:
+
+```text
+http://127.0.0.1:4173/#isometricLogistics
+```
 
 ## Productgrens
 

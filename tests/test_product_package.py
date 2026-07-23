@@ -44,6 +44,44 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('specversion: "1.0"', script)
         self.assertIn("contract_events", script)
 
+    def test_isometric_logistics_view_is_separate_and_configurable(self) -> None:
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("window.IsometricLogisticsView", renderer)
+        self.assertIn("isometric-logistics-view.js", html)
+        self.assertIn("sortedDepartments", renderer)
+        self.assertIn("iso-overlay-layer", renderer)
+        self.assertIn("Math.max(...floor.map", renderer)
+        self.assertIn("departmentColor", game)
+        self.assertIn('departmentColor: "raw"', game)
+        self.assertIn('departmentColor: "production-a"', game)
+        self.assertIn('departmentColor: "production-b"', game)
+        self.assertIn('departmentColor: "production-c"', game)
+        self.assertIn('departmentColor: "finished"', game)
+        self.assertIn('{ from: "inbound", to: "production_1", kind: "material"', game)
+        self.assertIn('{ from: "inbound", to: "production_2", kind: "material"', game)
+        self.assertIn('{ from: "inbound", to: "production_3", kind: "material"', game)
+        product_connections = game.split("const ISOMETRIC_DEPARTMENT_CONNECTIONS = [", 1)[1].split("];", 1)[0]
+        self.assertEqual(
+            3,
+            len(re.findall(r'\{ from: "inbound", to: "production_[123]", kind: "material"', product_connections)),
+        )
+        self.assertIn('{ from: "production_1", to: "quality", kind: "material"', game)
+        self.assertIn('{ from: "production_2", to: "quality", kind: "material"', game)
+        self.assertIn('{ from: "production_3", to: "quality", kind: "material"', game)
+        self.assertIn('{ from: "quality", to: "dispatch", kind: "customer"', game)
+        self.assertNotIn("junctionMarkup", renderer)
+        self.assertNotIn("scene.junctions", renderer)
+        self.assertIn("setVisibleLogisticsDepartments", game)
+        self.assertIn("LOGISTICS_ORGANIZATION_VARIANTS", game)
+        self.assertIn('logisticsOrganization: "product"', game)
+        self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_CONNECTIONS", game)
+        self.assertIn('{ from: "production_1", to: "production_2", kind: "material" }', game)
+        self.assertIn("setLogisticsOrganizationVariant", game)
+        self.assertIn('id="logisticsOrganizationSelect"', html)
+        self.assertIn('setProcessView("isometric")', game)
+
     def test_local_contract_is_the_host_contract_snapshot(self) -> None:
         local_contract_path = PRODUCT_ROOT / "contracts/events/leerpret-interaction-event-v1.schema.json"
         local_contract = json.loads(local_contract_path.read_text(encoding="utf-8"))

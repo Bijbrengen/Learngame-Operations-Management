@@ -311,6 +311,181 @@
     { id: "customer_pressure", label: "Klant wil kortere levertijd", minutes: 2, cost: 6, roleId: "customer1" }
   ];
 
+  const ISOMETRIC_DEPARTMENT_DEFINITIONS = [
+    {
+      id: "inbound",
+      title: "Magazijn Grondstoffen",
+      shortTitle: "Grondstoffen",
+      description: "Ontvangst, opslag en uitgifte van LEGO-grondstoffen voor de drie productiestappen.",
+      kind: "warehouse",
+      departmentColor: "raw",
+      lanes: ["raw"],
+      layout: { x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }
+    },
+    {
+      id: "production_1",
+      title: "Productieafdeling A",
+      shortTitle: "Afdeling A",
+      description: "Zelfstandige productieafdeling voor de productorder Toren A.",
+      kind: "production",
+      departmentColor: "production-a",
+      productIds: ["A"],
+      lanes: ["pd1", "ss1"],
+      layout: { x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }
+    },
+    {
+      id: "production_2",
+      title: "Productieafdeling B",
+      shortTitle: "Afdeling B",
+      description: "Zelfstandige productieafdeling voor de productorder Toren B.",
+      kind: "production",
+      departmentColor: "production-b",
+      productIds: ["B"],
+      lanes: ["pd2", "ss2"],
+      layout: { x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }
+    },
+    {
+      id: "production_3",
+      title: "Productieafdeling C",
+      shortTitle: "Afdeling C",
+      description: "Zelfstandige productieafdeling voor de productorder Toren C.",
+      kind: "production",
+      departmentColor: "production-c",
+      productIds: ["C"],
+      lanes: ["pd3"],
+      layout: { x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }
+    },
+    {
+      id: "quality",
+      title: "Magazijn Gereed Product",
+      shortTitle: "Gereed Product",
+      description: "Ontvangst en controle van complete torens vóór uitlevering aan de klant.",
+      kind: "warehouse",
+      departmentColor: "finished",
+      lanes: ["finished", "customer"],
+      layout: { x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }
+    },
+    {
+      id: "dispatch",
+      title: "Klant / Uitlevering",
+      shortTitle: "Klant",
+      description: "Uitlevering van het gereed product aan de klant en administratieve afsluiting.",
+      kind: "dispatch",
+      departmentColor: "customer",
+      lanes: ["archive"],
+      layout: { x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 }
+    }
+  ];
+
+  const ISOMETRIC_DEPARTMENT_CONNECTIONS = [
+    { from: "inbound", to: "production_1", kind: "material", fromOffset: { x: 68, y: -30 }, toOffset: { x: -68, y: -30 }, curveOffsetY: -54 },
+    { from: "inbound", to: "production_2", kind: "material", fromOffset: { x: 70, y: 0 }, toOffset: { x: -70, y: 0 }, curveOffsetY: -8 },
+    { from: "inbound", to: "production_3", kind: "material", fromOffset: { x: 68, y: 30 }, toOffset: { x: -68, y: 30 }, curveOffsetY: 48 },
+    { from: "production_1", to: "quality", kind: "material", fromOffset: { x: 68, y: -30 }, toOffset: { x: -68, y: -30 }, curveOffsetY: -54 },
+    { from: "production_2", to: "quality", kind: "material", fromOffset: { x: 70, y: 0 }, toOffset: { x: -70, y: 0 }, curveOffsetY: -8 },
+    { from: "production_3", to: "quality", kind: "material", fromOffset: { x: 68, y: 30 }, toOffset: { x: -68, y: 30 }, curveOffsetY: 48 },
+    { from: "quality", to: "dispatch", kind: "customer", fromOffset: { x: 24, y: 56 }, toOffset: { x: 0, y: -56 }, curveOffsetY: 32 }
+  ];
+
+  const FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS = [
+    {
+      id: "inbound",
+      title: "Inkomend Magazijn",
+      shortTitle: "Inkomend Magazijn",
+      description: "Ontvangst, opslag en seriële uitgifte van grondstoffen aan de functionele productieketen.",
+      kind: "warehouse",
+      departmentColor: "green",
+      lanes: ["raw"],
+      layout: { x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }
+    },
+    {
+      id: "production_1",
+      title: "Assemblage 1",
+      shortTitle: "Assemblage 1",
+      description: "Eerste functionele assemblagestap voor alle torensoorten.",
+      kind: "production",
+      departmentColor: "purple",
+      lanes: ["pd1"],
+      layout: { x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }
+    },
+    {
+      id: "production_2",
+      title: "Assemblage 2",
+      shortTitle: "Assemblage 2",
+      description: "Tweede functionele assemblagestap; ontvangt het halfproduct van Assemblage 1.",
+      kind: "production",
+      departmentColor: "purple",
+      lanes: ["ss1", "pd2"],
+      layout: { x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }
+    },
+    {
+      id: "production_3",
+      title: "Assemblage 3",
+      shortTitle: "Assemblage 3",
+      description: "Derde functionele assemblagestap; maakt het product gereed voor controle.",
+      kind: "production",
+      departmentColor: "purple",
+      lanes: ["ss2", "pd3"],
+      layout: { x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }
+    },
+    {
+      id: "quality",
+      title: "Kwaliteitscontrole",
+      shortTitle: "Kwaliteitscontrole",
+      description: "Controleert het complete product na de drie seriële assemblagestappen.",
+      kind: "quality",
+      departmentColor: "blue",
+      lanes: ["finished", "customer"],
+      layout: { x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }
+    },
+    {
+      id: "dispatch",
+      title: "Expeditie",
+      shortTitle: "Expeditie",
+      description: "Levert het gecontroleerde product uit en sluit de keten administratief af.",
+      kind: "dispatch",
+      departmentColor: "yellow",
+      lanes: ["archive"],
+      layout: { x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 }
+    }
+  ];
+
+  const FUNCTIONAL_ISOMETRIC_DEPARTMENT_CONNECTIONS = [
+    { from: "inbound", to: "production_1", kind: "material" },
+    { from: "production_1", to: "production_2", kind: "material" },
+    { from: "production_2", to: "production_3", kind: "material" },
+    { from: "production_3", to: "quality", kind: "material" },
+    { from: "quality", to: "dispatch", kind: "customer", fromOffset: { x: 24, y: 56 }, toOffset: { x: 0, y: -56 }, curveOffsetY: 32 }
+  ];
+
+  const LOGISTICS_ORGANIZATION_VARIANTS = {
+    product: {
+      id: "product",
+      title: "Productgerichte organisatie · LO-Game 3 en 4",
+      departments: ISOMETRIC_DEPARTMENT_DEFINITIONS,
+      connections: ISOMETRIC_DEPARTMENT_CONNECTIONS,
+      legend: [
+        { color: "raw", label: "Grondstoffen" },
+        { color: "production-a", label: "Afdeling A" },
+        { color: "production-b", label: "Afdeling B" },
+        { color: "production-c", label: "Afdeling C" },
+        { color: "finished", label: "Gereed Product" }
+      ]
+    },
+    functional: {
+      id: "functional",
+      title: "Functionele ketenorganisatie · LO-Game 1, 2, 5, 6 en 7",
+      departments: FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS,
+      connections: FUNCTIONAL_ISOMETRIC_DEPARTMENT_CONNECTIONS,
+      legend: [
+        { color: "green", label: "Magazijn" },
+        { color: "purple", label: "Assemblage" },
+        { color: "blue", label: "Kwaliteitscontrole" },
+        { color: "yellow", label: "Expeditie" }
+      ]
+    }
+  };
+
   const state = {
     sessionId: "",
     clockMinutes: 600,
@@ -325,6 +500,7 @@
     opportunityCost: 0,
     interactionBuffer: [],
     contractEventBuffer: [],
+    selectedLogisticsDepartmentId: "inbound",
     config: {
       money: true,
       pnl: true,
@@ -332,7 +508,9 @@
       opportunityCosts: true,
       roleFreedom: false,
       priceMode: "fixed",
+      logisticsOrganization: "product",
       productTypeCount: MIN_PRODUCT_TYPES,
+      visibleLogisticsDepartments: ISOMETRIC_DEPARTMENT_DEFINITIONS.map(department => department.id),
       processView: "graph"
     }
   };
@@ -368,6 +546,7 @@
     processGraphViewButton: document.getElementById("processGraphViewButton"),
     processSequenceViewButton: document.getElementById("processSequenceViewButton"),
     processSwimlaneViewButton: document.getElementById("processSwimlaneViewButton"),
+    processIsometricViewButton: document.getElementById("processIsometricViewButton"),
     exportButton: document.getElementById("exportButton"),
     resetButton: document.getElementById("resetButton"),
     moneyToggle: document.getElementById("moneyToggle"),
@@ -376,6 +555,7 @@
     opportunityToggle: document.getElementById("opportunityToggle"),
     roleFreedomToggle: document.getElementById("roleFreedomToggle"),
     priceModeSelect: document.getElementById("priceModeSelect"),
+    logisticsOrganizationSelect: document.getElementById("logisticsOrganizationSelect"),
     productTypeCountInput: document.getElementById("productTypeCountInput")
   };
 
@@ -1105,14 +1285,26 @@
   }
 
   function renderDataModel(force = false) {
-    els.dataModelCount.textContent = String(DATA_MODEL_LEARNING_OBJECTS.length);
     const panelIsVisible = els.dataModelPanel.classList.contains("visible");
     if (!force && !panelIsVisible) return;
 
-    els.dataModelGrid.innerHTML = renderOrderProcessView();
+    const isIsometric = state.config.processView === "isometric";
+    els.dataModelCount.textContent = String(
+      isIsometric
+        ? state.config.visibleLogisticsDepartments.length
+        : DATA_MODEL_LEARNING_OBJECTS.length
+    );
     els.processGraphViewButton.classList.toggle("active", state.config.processView === "graph");
     els.processSequenceViewButton.classList.toggle("active", state.config.processView === "sequence");
     els.processSwimlaneViewButton.classList.toggle("active", state.config.processView === "swimlane");
+    els.processIsometricViewButton.classList.toggle("active", isIsometric);
+
+    if (isIsometric) {
+      renderIsometricLogisticsView();
+      return;
+    }
+
+    els.dataModelGrid.innerHTML = renderOrderProcessView();
 
     els.dataModelGrid.querySelectorAll(".data-model-node").forEach(node => {
       node.addEventListener("click", () => {
@@ -1126,6 +1318,171 @@
         renderEvents();
         renderMetrics();
       });
+    });
+  }
+
+  function orderSnapshotForDepartment(order) {
+    const step = currentStep(order);
+    return {
+      id: order.id,
+      product: `${order.quantity}× ${productById(order.productId).name}`,
+      stage: step.label,
+      status: order.done ? "done" : order.status
+    };
+  }
+
+  function ordersForDepartment(definition) {
+    return state.orders
+      .filter(order => {
+        if (definition.id === "dispatch") return order.done || currentStep(order).lane === "archive";
+        if (definition.productIds) {
+          const productionLanes = ["pd1", "ss1", "pd2", "ss2", "pd3"];
+          return (
+            !order.done
+            && definition.productIds.includes(order.productId)
+            && productionLanes.includes(currentStep(order).lane)
+          );
+        }
+        return !order.done && definition.lanes.includes(currentStep(order).lane);
+      })
+      .map(orderSnapshotForDepartment);
+  }
+
+  function departmentStatus(definition, orders) {
+    if (orders.some(order => order.status === "blocked")) return "blocked";
+    if (definition.id === "inbound") {
+      const lowParts = PARTS.filter(part => (state.inventory[part.id] || 0) <= part.reorder).length;
+      if (lowParts > 0) return "attention";
+    }
+    if (orders.length > 0) return "active";
+    if (definition.id === "dispatch" && state.orders.some(order => order.done)) return "complete";
+    return "idle";
+  }
+
+  function sumProductStock(store) {
+    return productIds().reduce((sum, productId) => sum + (store[productId] || 0), 0);
+  }
+
+  function departmentFacts(definition, orders) {
+    if (definition.id === "inbound") {
+      const total = PARTS.reduce((sum, part) => sum + (state.inventory[part.id] || 0), 0);
+      const lowParts = PARTS.filter(part => (state.inventory[part.id] || 0) <= part.reorder).length;
+      return {
+        primaryMetric: `${total} onderdelen`,
+        facts: [
+          { label: "Totale grondstofvoorraad", value: total },
+          { label: "Onder minimumsignaal", value: lowParts },
+          { label: "Materiaaluitgiftes actief", value: orders.length }
+        ]
+      };
+    }
+    if (definition.id.startsWith("production_") && !definition.productIds) {
+      return {
+        primaryMetric: `${orders.length} lopend`,
+        facts: [
+          { label: "Lopende orders", value: orders.length },
+          { label: "Processtap", value: definition.shortTitle },
+          { label: "Organisatie", value: "Functionele keten" }
+        ]
+      };
+    }
+    if (definition.id === "production_1") {
+      return {
+        primaryMetric: `${orders.length} × Toren A`,
+        facts: [
+          { label: "Lopende productorders", value: orders.length },
+          { label: "Product", value: "Toren A" },
+          { label: "Afdeling", value: "A" }
+        ]
+      };
+    }
+    if (definition.id === "production_2") {
+      return {
+        primaryMetric: `${orders.length} × Toren B`,
+        facts: [
+          { label: "Lopende productorders", value: orders.length },
+          { label: "Product", value: "Toren B" },
+          { label: "Afdeling", value: "B" }
+        ]
+      };
+    }
+    if (definition.id === "production_3") {
+      return {
+        primaryMetric: `${orders.length} × Toren C`,
+        facts: [
+          { label: "Lopende productorders", value: orders.length },
+          { label: "Product", value: "Toren C" },
+          { label: "Afdeling", value: "C" }
+        ]
+      };
+    }
+    if (definition.id === "quality") {
+      return {
+        primaryMetric: `${sumProductStock(state.finishedGoods)} gereed`,
+        facts: [
+          { label: "Te controleren orders", value: orders.length },
+          { label: "Gereed-productvoorraad", value: sumProductStock(state.finishedGoods) },
+          { label: "Kwaliteitsrol", value: "MFP" }
+        ]
+      };
+    }
+    const completed = state.orders.filter(order => order.done).length;
+    return {
+      primaryMetric: `${completed} uitgeleverd`,
+      facts: [
+        { label: "Afgeronde orders", value: completed },
+        { label: "Lopende overdrachten", value: orders.filter(order => order.status !== "done").length },
+        { label: "Archiefstatus", value: completed ? "Bijgewerkt" : "Leeg" }
+      ]
+    };
+  }
+
+  function isometricScene() {
+    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
+      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    const visible = new Set(state.config.visibleLogisticsDepartments);
+    return {
+      title: organization.title,
+      legend: organization.legend,
+      organizationId: organization.id,
+      selectedDepartmentId: state.selectedLogisticsDepartmentId,
+      departments: organization.departments
+        .filter(definition => visible.has(definition.id))
+        .map(definition => {
+          const orders = ordersForDepartment(definition);
+          const metrics = departmentFacts(definition, orders);
+          return {
+            ...definition,
+            ...metrics,
+            orders,
+            status: departmentStatus(definition, orders)
+          };
+        }),
+      connections: organization.connections
+    };
+  }
+
+  function renderIsometricLogisticsView() {
+    if (!window.IsometricLogisticsView) {
+      els.dataModelGrid.innerHTML = "<p>De isometrische renderer kon niet worden geladen.</p>";
+      return;
+    }
+    window.IsometricLogisticsView.mount(els.dataModelGrid, isometricScene(), {
+      onDepartmentSelect: departmentId => {
+        state.selectedLogisticsDepartmentId = departmentId;
+        dispatchInteraction({
+          learningObjectID: `logistics_department_${departmentId}`,
+          actionType: "inspect_logistics_department",
+          objectRole: "logistics_zone",
+          result: "success",
+          role: "Spelkern",
+          departmentId,
+          logisticsOrganization: state.config.logisticsOrganization
+        });
+        renderDataModel(true);
+        renderMetrics();
+        renderEvents();
+      }
     });
   }
 
@@ -1381,6 +1738,7 @@
     state.config.opportunityCosts = els.opportunityToggle.checked;
     state.config.roleFreedom = els.roleFreedomToggle.checked;
     state.config.priceMode = els.priceModeSelect.value;
+    state.config.logisticsOrganization = els.logisticsOrganizationSelect.value;
     if (dispatch) {
       dispatchInteraction({
         actionType: "change_configuration",
@@ -1514,6 +1872,7 @@
     els.processGraphViewButton.addEventListener("click", () => setProcessView("graph"));
     els.processSequenceViewButton.addEventListener("click", () => setProcessView("sequence"));
     els.processSwimlaneViewButton.addEventListener("click", () => setProcessView("swimlane"));
+    els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
     [
@@ -1529,6 +1888,9 @@
       renderOrderPreview();
     });
     els.productTypeCountInput.addEventListener("change", () => applyProductTypeCount(true));
+    els.logisticsOrganizationSelect.addEventListener("change", () => {
+      setLogisticsOrganizationVariant(els.logisticsOrganizationSelect.value);
+    });
     els.quantityInput.addEventListener("input", renderOrderPreview);
     els.priceInput.addEventListener("input", renderOrderPreview);
   }
@@ -1547,6 +1909,40 @@
     renderEvents();
   }
 
+  function setVisibleLogisticsDepartments(departmentIds) {
+    const knownIds = new Set(
+      Object.values(LOGISTICS_ORGANIZATION_VARIANTS)
+        .flatMap(variant => variant.departments.map(department => department.id))
+    );
+    const requestedIds = Array.isArray(departmentIds) ? departmentIds : [];
+    const visibleIds = Array.from(new Set(requestedIds)).filter(id => knownIds.has(id));
+    state.config.visibleLogisticsDepartments = visibleIds;
+    if (!visibleIds.includes(state.selectedLogisticsDepartmentId)) {
+      state.selectedLogisticsDepartmentId = visibleIds[0] || null;
+    }
+    renderDataModel(true);
+  }
+
+  function setLogisticsOrganizationVariant(variantId) {
+    if (!LOGISTICS_ORGANIZATION_VARIANTS[variantId]) return false;
+    state.config.logisticsOrganization = variantId;
+    els.logisticsOrganizationSelect.value = variantId;
+    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments.includes("inbound")
+      ? "inbound"
+      : state.config.visibleLogisticsDepartments[0] || null;
+    dispatchInteraction({
+      actionType: "change_logistics_organization",
+      learningObjectID: "configuration_logistics_organization",
+      result: variantId,
+      objectRole: "configuration",
+      role: "Game Master"
+    });
+    renderDataModel(true);
+    renderMetrics();
+    renderEvents();
+    return true;
+  }
+
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     if (!/^https?:$/.test(location.protocol)) return;
@@ -1558,6 +1954,13 @@
   }
 
   function applyInitialRoute() {
+    if (location.hash === "#isometricLogistics") {
+      state.config.processView = "isometric";
+      els.dataModelPanel.classList.add("visible");
+      renderDataModel(true);
+      return;
+    }
+
     if (location.hash === "#dataModelPanel") {
       els.dataModelPanel.classList.add("visible");
       renderDataModel(true);
@@ -1581,6 +1984,7 @@
     els.opportunityToggle.checked = state.config.opportunityCosts;
     els.roleFreedomToggle.checked = state.config.roleFreedom;
     els.priceModeSelect.value = state.config.priceMode;
+    els.logisticsOrganizationSelect.value = state.config.logisticsOrganization;
     els.productTypeCountInput.min = String(MIN_PRODUCT_TYPES);
     els.productTypeCountInput.max = String(MAX_PRODUCT_TYPES);
     els.productTypeCountInput.value = String(state.config.productTypeCount);
@@ -1612,6 +2016,9 @@
       orders: state.orders.map(order => ({ ...order }))
     }),
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
+    getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
+    setVisibleLogisticsDepartments,
+    setLogisticsOrganizationVariant,
     createOrder: makeOrder,
     advanceSelectedOrder,
     purchaseMaterials,

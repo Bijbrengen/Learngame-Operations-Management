@@ -40,6 +40,11 @@
       "name": "Orderproces",
       "short_name": "Proces",
       "url": "./index.html#dataModelPanel"
+    },
+    {
+      "name": "Isometrische ketenkaart",
+      "short_name": "Ketenkaart",
+      "url": "./index.html#isometricLogistics"
     }
   ]
 }

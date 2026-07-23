@@ -1,10 +1,11 @@
-const CACHE_VERSION = "learngame-om-v2";
+const CACHE_VERSION = "learngame-om-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
   "./lego-tower-renderer.js",
+  "./isometric-logistics-view.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

@@ -173,6 +173,13 @@
               <option value="free">vrij</option>
             </select>
           </label>
+          <label class="select-field wide-select-field">
+            <span>Organisatie</span>
+            <select id="logisticsOrganizationSelect">
+              <option value="product">Productgericht (LO 3/4)</option>
+              <option value="functional">Functionele keten (LO 1/2/5/6/7)</option>
+            </select>
+          </label>
           <label class="select-field">
             <span>Torensoorten</span>
             <input id="productTypeCountInput" type="number" min="3" max="9" step="1" value="3">
@@ -212,6 +219,7 @@
             <button id="processGraphViewButton" class="view-toggle active" type="button">Procesgraph</button>
             <button id="processSequenceViewButton" class="view-toggle" type="button">Sequentie</button>
             <button id="processSwimlaneViewButton" class="view-toggle" type="button">Afdelingsroute</button>
+            <button id="processIsometricViewButton" class="view-toggle" type="button">Isometrische kaart</button>
             <div id="dataModelCount" class="clock-pill">0</div>
           </div>
         </div>
@@ -221,6 +229,7 @@
   </div>
 
   <script src="lego-tower-renderer.js"></script>
+  <script src="isometric-logistics-view.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
