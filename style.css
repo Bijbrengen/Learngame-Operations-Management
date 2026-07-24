@@ -5264,6 +5264,7 @@ select {
 .manager-dashboard .control-panel,
 .manager-dashboard .inventory-panel,
 .manager-dashboard .ledger-panel,
+.manager-dashboard .tower-editor-panel,
 .manager-dashboard .data-model-panel {
   border-color: var(--lp-line);
   color: var(--lp-ink);
@@ -5288,8 +5289,353 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 
 .manager-dashboard .control-panel,
 .manager-dashboard .inventory-panel,
-.manager-dashboard .ledger-panel {
+.manager-dashboard .ledger-panel,
+.manager-dashboard .tower-editor-panel {
   padding: clamp(14px, 2vw, 22px);
+}
+
+.tower-editor-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.tower-editor-builder,
+.tower-assortment {
+  border: 1px solid var(--lp-line);
+  border-radius: 14px;
+  padding: clamp(14px, 2.5vw, 24px);
+  background: rgba(5, 17, 22, 0.58);
+}
+
+.tower-editor-subhead,
+.tower-editor-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tower-editor-subhead h3,
+.tower-editor-subhead p {
+  margin: 0;
+}
+
+.tower-editor-subhead > span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--lp-accent);
+  background: rgba(50, 221, 210, 0.1);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tower-editor-design-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.tower-editor-preview {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(126, 176, 177, 0.18);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 62%, rgba(50, 221, 210, 0.12), transparent 42%),
+    #071318;
+}
+
+.tower-editor-preview-svg {
+  width: min(100%, 360px);
+  height: 270px;
+}
+
+.tower-editor-empty-preview {
+  max-width: 230px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--lp-muted);
+  text-align: center;
+}
+
+.tower-editor-empty-preview > span {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px dashed var(--lp-accent-border);
+  border-radius: 14px;
+  color: var(--lp-accent);
+  font-size: 1.8rem;
+}
+
+.tower-editor-empty-preview p {
+  margin: 0;
+}
+
+.tower-editor-field-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #d9e9e8;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tower-part-palette {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(92px, 1fr));
+  gap: 9px;
+}
+
+.tower-part-choice {
+  min-height: 112px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+  color: var(--lp-ink);
+  background: var(--lp-surface-soft);
+  cursor: pointer;
+}
+
+.tower-part-choice:hover,
+.tower-part-choice:focus-visible {
+  border-color: var(--lp-accent);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.tower-part-choice.is-disabled,
+.tower-part-choice.is-disabled:hover,
+.tower-part-choice.is-disabled:focus-visible {
+  border-color: #34464c;
+  opacity: 0.34;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.tower-part-choice .lego-part-3d {
+  width: 82px;
+  height: 72px;
+}
+
+.tower-part-choice span {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.tower-stack-section {
+  margin-top: 18px;
+}
+
+.tower-editor-field-row .tower-editor-field-label {
+  margin: 0;
+}
+
+.tower-editor-field-row button {
+  border: 0;
+  color: var(--lp-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.tower-stack-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tower-stack-list li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--lp-line);
+  border-radius: 9px;
+  padding: 8px;
+  background: rgba(14, 36, 43, 0.68);
+}
+
+.tower-stack-list li > span:nth-child(2) {
+  display: grid;
+}
+
+.tower-stack-list small,
+.tower-stack-empty,
+.tower-editor-hint {
+  color: var(--lp-muted);
+}
+
+.tower-stack-index {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #041312;
+  background: var(--lp-accent);
+  font-weight: 900;
+}
+
+.tower-stack-list button {
+  border: 0;
+  color: #ffaaa0;
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.tower-product-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 150px auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.tower-product-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--lp-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tower-product-form input {
+  min-height: 42px;
+  border: 1px solid var(--lp-line);
+  border-radius: 9px;
+  padding: 0 11px;
+  color: var(--lp-ink);
+  background: #071318;
+}
+
+.tower-product-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tower-editor-hint {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+}
+
+.tower-editor-success {
+  margin: 12px 0 0;
+  border-left: 3px solid var(--lp-accent);
+  padding: 9px 12px;
+  color: #a6f3df;
+  background: rgba(50, 221, 210, 0.08);
+}
+
+.tower-assortment {
+  margin-top: 0;
+}
+
+.tower-assortment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tower-assortment-card {
+  overflow: hidden;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  background: var(--lp-surface-soft);
+}
+
+.tower-assortment-animation {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(50, 221, 210, 0.1), transparent 64%);
+}
+
+.tower-assortment-svg {
+  width: 190px;
+  height: 165px;
+}
+
+.tower-assortment-card > div:last-child {
+  padding: 12px 14px 14px;
+}
+
+.tower-assortment-card h3,
+.tower-assortment-card p {
+  margin: 0;
+}
+
+.tower-assortment-card span {
+  color: var(--lp-muted);
+  font-size: 0.72rem;
+}
+
+.tower-assortment-remove {
+  display: block;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 139, 125, 0.34);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #ffaaa0;
+  background: rgba(157, 54, 44, 0.08);
+  cursor: pointer;
+}
+
+.tower-assortment-remove:hover,
+.tower-assortment-remove:focus-visible {
+  border-color: #ffaaa0;
+  background: rgba(157, 54, 44, 0.16);
+  outline: none;
+}
+
+.tower-assortment-remove.is-disabled,
+.tower-assortment-remove.is-disabled:hover,
+.tower-assortment-remove.is-disabled:focus-visible {
+  border-color: #526267;
+  color: #7f8d90;
+  background: #172429;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .tower-editor-design-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tower-product-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tower-product-form button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .tower-part-palette {
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+  }
+
+  .tower-product-form {
+    grid-template-columns: 1fr;
+  }
+
+  .tower-product-form button {
+    grid-column: auto;
+  }
 }
 
 .manager-dashboard .data-model-panel,

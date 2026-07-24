@@ -42,7 +42,10 @@ class ProductPackageTests(unittest.TestCase):
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
-        self.assertEqual(["session", "process", "inventory", "core", "events", "settings"], tabs)
+        self.assertEqual(
+            ["session", "process", "inventory", "core", "events", "tower-editor", "settings"],
+            tabs,
+        )
 
     def test_runtime_exposes_versioned_events_without_dropping_legacy_events(self) -> None:
         script = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -209,9 +212,10 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("window.LegoTowerRenderer.renderPart", builder)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
         self.assertIn("window.LegoTowerRenderer.definitions()", builder)
-        self.assertIn('id="lego-${color}-top"', renderer)
-        self.assertIn('fill="url(#lego-${color}-top)"', renderer)
-        self.assertIn('fill="url(#lego-${color}-right)"', renderer)
+        self.assertIn("static gradientId(", renderer)
+        self.assertIn('this.gradientId(color, "top", scope)', renderer)
+        self.assertIn('this.gradientId(color, "right", scope)', renderer)
+        self.assertIn('const scope = `part-${this.animationId += 1}`', renderer)
         self.assertNotIn('image: "assets/lego/tower-', builder)
         self.assertNotIn("<img src=", builder)
         self.assertIn("supportedLayer", builder)
@@ -506,6 +510,31 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("player-running-session", runtime)
         self.assertIn("placePlayerSessionPanel", runtime)
         self.assertIn("is-utility-session", runtime)
+
+    def test_tower_editor_adds_animated_products_to_the_assortment(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        editor = (PRODUCT_ROOT / "tower-editor.js").read_text(encoding="utf-8")
+        renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
+        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        self.assertIn('data-manager-tab="tower-editor"', html)
+        self.assertIn('data-manager-panel="tower-editor"', html)
+        self.assertIn("Productassortiment", html)
+        self.assertIn("renderAnimated", editor)
+        self.assertIn("tower-assortment-grid", editor)
+        self.assertIn("registerCustomProduct", game)
+        self.assertIn("removeCustomProduct", game)
+        self.assertIn("CUSTOM_PRODUCTS_STORAGE", game)
+        self.assertIn("data-remove-assortment-product", editor)
+        self.assertIn("Kan niet bij een actieve gamesessie", editor)
+        self.assertIn("learngame-session-state", editor)
+        self.assertIn("static renderSequence(", renderer)
+        self.assertIn("static foundationCount(", renderer)
+        self.assertIn("completedLayerCount", editor)
+        self.assertIn("partFitsCurrentLayer", editor)
+        self.assertIn("precies 3 lagen hoog", editor)
+        self.assertIn("registerProduct", builder)
+        self.assertIn("unregisterProduct", builder)
 
 
 if __name__ == "__main__":

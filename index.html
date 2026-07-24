@@ -270,8 +270,14 @@
             <small>Acties en meetlijn</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="settings">
+                  data-manager-tab="tower-editor">
             <span aria-hidden="true">05</span>
+            <strong>Toreneditor</strong>
+            <small>Productassortiment</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="settings">
+            <span aria-hidden="true">06</span>
             <strong>Instellingen</strong>
             <small>Spelregels en varianten</small>
           </button>
@@ -447,6 +453,20 @@
         </div>
       </section>
 
+      <section id="towerEditorPanel"
+               class="tower-editor-panel manager-dashboard-panel"
+               data-manager-panel="tower-editor"
+               aria-labelledby="towerEditorTitle">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Productassortiment</p>
+            <h2 id="towerEditorTitle">Ontwerp een nieuwe LEGO-toren</h2>
+          </div>
+          <span class="clock-pill">Toreneditor</span>
+        </div>
+        <div id="towerEditorMount"></div>
+      </section>
+
       <section class="inventory-panel manager-dashboard-panel"
                data-manager-panel="inventory"
                aria-label="Voorraad">
@@ -513,6 +533,7 @@
   </section>
 
   <script src="lego-tower-renderer.js"></script>
+  <script src="tower-editor.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="leerpret-auth.js"></script>
   <script src="leerpret-theme.js"></script>

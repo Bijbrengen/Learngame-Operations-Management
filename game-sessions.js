@@ -265,6 +265,12 @@
       `;
     }
     renderConsensus();
+    window.dispatchEvent(new CustomEvent("learngame-session-state", {
+      detail: {
+        session: state.session,
+        running: state.session?.status === "running"
+      }
+    }));
   }
 
   async function refresh() {

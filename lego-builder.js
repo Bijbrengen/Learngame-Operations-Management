@@ -751,6 +751,68 @@
     return true;
   }
 
+  function registerProduct(product) {
+    const sequence = Array.isArray(product?.towerSequence)
+      ? product.towerSequence.filter(pieceId => PIECES[pieceId])
+      : [];
+    const foundationCount = PIECES[sequence[0]]?.width === 2 && PIECES[sequence[0]]?.depth === 2
+      ? 4
+      : 2;
+    if (
+      !product?.id
+      || !product?.name
+      || sequence.length !== foundationCount + 2
+      || !sequence.slice(0, foundationCount).every(type => (
+        PIECES[type]?.width === PIECES[sequence[0]]?.width
+        && PIECES[type]?.depth === PIECES[sequence[0]]?.depth
+      ))
+    ) {
+      return false;
+    }
+    const foundationPositions = foundationCount === 4
+      ? [[1, 1], [3, 1], [1, 3], [3, 3]]
+      : [[1, 1], [3, 1]];
+    const bricks = sequence.map((type, index) => {
+      const piece = PIECES[type];
+      if (index < foundationCount) {
+        const [x, y] = foundationPositions[index];
+        return { type, x, y, width: piece.width, depth: piece.depth, z: 0 };
+      }
+      const long = piece.width === 2 && piece.depth === 4;
+      return {
+        type,
+        x: long ? 1 : 2,
+        y: 2,
+        width: long ? 4 : piece.width,
+        depth: long ? 2 : piece.depth,
+        z: index - foundationCount + 1
+      };
+    });
+    GOALS[product.id] = {
+      name: product.name,
+      sequence,
+      request: `Bouw ${product.name} volgens het ontwerp uit het productassortiment.`,
+      bricks
+    };
+    return true;
+  }
+
+  function unregisterProduct(productId) {
+    if (["A", "B", "C"].includes(productId) || !GOALS[productId]) return false;
+    delete GOALS[productId];
+    if (state.productId === productId) {
+      state.productId = "A";
+      state.selectedType = GOALS.A.bricks[0].type;
+      state.bricks = [];
+      state.feedback = {
+        kind: "info",
+        text: "Het verwijderde ontwerp was actief. Toren A is opnieuw geselecteerd."
+      };
+      render();
+    }
+    return true;
+  }
+
   function setFreeBuildUnlocked(unlocked) {
     state.freeBuildUnlocked = Boolean(unlocked);
     if (state.freeBuildUnlocked && state.mode === "tutorial" && state.tutorialComplete) {
@@ -787,6 +849,8 @@
   window.LegoBuilder = {
     mount,
     setProduct,
+    registerProduct,
+    unregisterProduct,
     startFreeBuild,
     prepareStockTutorial,
     setStockTutorialInventory,

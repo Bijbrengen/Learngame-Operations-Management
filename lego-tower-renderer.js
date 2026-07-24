@@ -52,17 +52,21 @@ class LegoTowerRenderer {
     red_4: { color: "red", width: 2, depth: 2 }
   };
 
-  static definitions() {
+  static gradientId(color, face, scope = "") {
+    return `lego-${scope ? `${scope}-` : ""}${color}-${face}`;
+  }
+
+  static definitions(scope = "") {
     return Object.entries(this.palette).map(([color, shades]) => `
-      <linearGradient id="lego-${color}-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="${this.gradientId(color, "top", scope)}" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="${shades.top[0]}"></stop>
         <stop offset="100%" stop-color="${shades.top[1]}"></stop>
       </linearGradient>
-      <linearGradient id="lego-${color}-left" x1="0%" y1="0%" x2="0%" y2="100%">
+      <linearGradient id="${this.gradientId(color, "left", scope)}" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stop-color="${shades.left[0]}"></stop>
         <stop offset="100%" stop-color="${shades.left[1]}"></stop>
       </linearGradient>
-      <linearGradient id="lego-${color}-right" x1="0%" y1="0%" x2="0%" y2="100%">
+      <linearGradient id="${this.gradientId(color, "right", scope)}" x1="0%" y1="0%" x2="0%" y2="100%">
         <stop offset="0%" stop-color="${shades.right[0]}"></stop>
         <stop offset="100%" stop-color="${shades.right[1]}"></stop>
       </linearGradient>
@@ -71,19 +75,20 @@ class LegoTowerRenderer {
 
   static render(productId, label = "LEGO toren", blueprintOverride = null, className = "tower-large") {
     const blueprint = blueprintOverride || this.blueprints[productId] || this.blueprints.A;
+    const scope = `render-${this.animationId += 1}`;
     const bricks = [
-      this.plate(0, 0, 0, 6, 6, "green"),
-      this.brick(1, 1, 0.22, 2, 4, blueprint.lower),
-      this.brick(3, 1, 0.22, 2, 4, blueprint.lower),
+      this.plate(0, 0, 0, 6, 6, "green", scope),
+      this.brick(1, 1, 0.22, 2, 4, blueprint.lower, scope),
+      this.brick(3, 1, 0.22, 2, 4, blueprint.lower, scope),
       blueprint.middleSize === "2x2"
-        ? this.brick(2, 2, 1.0, 2, 2, blueprint.middle)
-        : this.brick(1, 2, 1.0, 4, 2, blueprint.middle),
-      this.brick(2, 2, 1.78, 2, 2, blueprint.upper)
+        ? this.brick(2, 2, 1.0, 2, 2, blueprint.middle, scope)
+        : this.brick(1, 2, 1.0, 4, 2, blueprint.middle, scope),
+      this.brick(2, 2, 1.78, 2, 2, blueprint.upper, scope)
     ];
 
     return `
       <svg class="${this.escape(className)}" viewBox="0 0 180 150" role="img" aria-label="${this.escape(label)}">
-        <defs>${this.definitions()}</defs>
+        <defs>${this.definitions(scope)}</defs>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,0.14)"></ellipse>
         ${bricks.join("")}
       </svg>
@@ -98,12 +103,18 @@ class LegoTowerRenderer {
   static layoutSequence(sequence) {
     if (!Array.isArray(sequence) || sequence.length < 1) return [];
 
+    const foundationCount = this.foundationCount(sequence);
+    const foundationPositions = foundationCount === 4
+      ? [[1, 1], [3, 1], [1, 3], [3, 3]]
+      : [[1, 1], [3, 1]];
     return sequence.map((pieceId, index) => {
       const piece = this.pieces[pieceId];
       if (!piece) throw new Error(`Onbekend LEGO-blok: ${pieceId}`);
 
-      if (index === 0) return { ...piece, pieceId, x: 1, y: 1, z: 0.22 };
-      if (index === 1) return { ...piece, pieceId, x: 3, y: 1, z: 0.22 };
+      if (index < foundationCount) {
+        const [x, y] = foundationPositions[index];
+        return { ...piece, pieceId, x, y, z: 0.22 };
+      }
 
       const isLong = piece.width === 2 && piece.depth === 4;
       return {
@@ -113,9 +124,14 @@ class LegoTowerRenderer {
         y: 2,
         width: isLong ? 4 : piece.width,
         depth: isLong ? 2 : piece.depth,
-        z: 0.22 + (index - 1) * 0.78
+        z: 1 + (index - foundationCount) * 0.78
       };
     });
+  }
+
+  static foundationCount(sequence) {
+    const firstPiece = this.pieces[sequence?.[0]];
+    return firstPiece?.width === 2 && firstPiece?.depth === 2 ? 4 : 2;
   }
 
   static renderAnimated(
@@ -125,6 +141,7 @@ class LegoTowerRenderer {
   ) {
     const blocks = this.layoutSequence(sequence);
     const animationId = `lego-tower-build-${this.animationId += 1}`;
+    const gradientScope = animationId;
     const duration = Math.max(5.5, blocks.length * 1.25 + 1.5);
     const settleAt = Math.min(88, 22 + blocks.length * 15);
     const animationCss = blocks.map((block, index) => {
@@ -166,14 +183,14 @@ class LegoTowerRenderer {
                  cx="${shadowX}" cy="${shadowY + 4}"
                  rx="${Math.max(10, (block.width + block.depth) * 3.2)}" ry="4"></ellipse>
         <g class="animated-tower-block-${index}">
-          ${this.brick(block.x, block.y, block.z, block.width, block.depth, block.color)}
+          ${this.brick(block.x, block.y, block.z, block.width, block.depth, block.color, gradientScope)}
         </g>`;
     }).join("");
 
     return `
       <svg id="${animationId}" class="${this.escape(className)}" viewBox="0 0 180 150"
            role="img" aria-label="${this.escape(label)}">
-        <defs>${this.definitions()}</defs>
+        <defs>${this.definitions(gradientScope)}</defs>
         <style>
           ${animationCss}
           #${animationId} [class^="animated-tower-shadow-"] { fill: #06140c; }
@@ -183,8 +200,28 @@ class LegoTowerRenderer {
           }
         </style>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,.14)"></ellipse>
-        ${this.plate(0, 0, 0, 6, 6, "green")}
+        ${this.plate(0, 0, 0, 6, 6, "green", gradientScope)}
         ${blockMarkup}
+      </svg>
+    `;
+  }
+
+  static renderSequence(
+    sequence,
+    label = "Zelf ontworpen LEGO-toren",
+    className = "tower-large"
+  ) {
+    const blocks = this.layoutSequence(sequence);
+    const scope = `sequence-${this.animationId += 1}`;
+    return `
+      <svg class="${this.escape(className)}" viewBox="0 0 180 150"
+           role="img" aria-label="${this.escape(label)}">
+        <defs>${this.definitions(scope)}</defs>
+        <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,.14)"></ellipse>
+        ${this.plate(0, 0, 0, 6, 6, "green", scope)}
+        ${blocks.map(block => (
+          this.brick(block.x, block.y, block.z, block.width, block.depth, block.color, scope)
+        )).join("")}
       </svg>
     `;
   }
@@ -193,30 +230,31 @@ class LegoTowerRenderer {
     const color = part.color || "green";
     const width = part.width === "wide" ? 4 : 2;
     const depth = 2;
+    const scope = `part-${this.animationId += 1}`;
     const bricks = [
       part.id === "base_green"
-        ? this.plate(0, 0, 0, 6, 6, color)
-        : this.brick(2, 2, 0, width, depth, color)
+        ? this.plate(0, 0, 0, 6, 6, color, scope)
+        : this.brick(2, 2, 0, width, depth, color, scope)
     ];
 
     return `
       <svg class="lego-part-3d${part.id === "base_green" ? " base-plate" : ""}" viewBox="0 0 180 150" role="img" aria-label="${this.escape(label)}">
-        <defs>${this.definitions()}</defs>
+        <defs>${this.definitions(scope)}</defs>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,0.12)"></ellipse>
         ${bricks.join("")}
       </svg>
     `;
   }
 
-  static plate(x, y, z, width, depth, color) {
-    return this.solid(x, y, z, width, depth, 0.22, color, true);
+  static plate(x, y, z, width, depth, color, scope = "") {
+    return this.solid(x, y, z, width, depth, 0.22, color, true, scope);
   }
 
-  static brick(x, y, z, width, depth, color) {
-    return this.solid(x, y, z, width, depth, 0.72, color, true);
+  static brick(x, y, z, width, depth, color, scope = "") {
+    return this.solid(x, y, z, width, depth, 0.72, color, true, scope);
   }
 
-  static solid(x, y, z, width, depth, height, color, studs) {
+  static solid(x, y, z, width, depth, height, color, studs, scope = "") {
     const shade = this.palette[color] || this.palette.blue;
     const topZ = z + height;
     const p0 = this.iso(x, y, topZ);
@@ -227,32 +265,32 @@ class LegoTowerRenderer {
     const b1 = this.iso(x + width, y, z);
     const b2 = this.iso(x + width, y + depth, z);
     const b3 = this.iso(x, y + depth, z);
-    const studMarkup = studs ? this.studs(x, y, topZ, width, depth, color) : "";
+    const studMarkup = studs ? this.studs(x, y, topZ, width, depth, color, scope) : "";
 
     return `
       <g class="iso-brick">
-        <polygon points="${this.points([p3, p2, b2, b3])}" fill="url(#lego-${color}-left)"></polygon>
-        <polygon points="${this.points([p1, p2, b2, b1])}" fill="url(#lego-${color}-right)"></polygon>
+        <polygon points="${this.points([p3, p2, b2, b3])}" fill="url(#${this.gradientId(color, "left", scope)})"></polygon>
+        <polygon points="${this.points([p1, p2, b2, b1])}" fill="url(#${this.gradientId(color, "right", scope)})"></polygon>
         <polygon points="${this.points([p0, p1, p2, p3])}"
-                 fill="url(#lego-${color}-top)"
+                 fill="url(#${this.gradientId(color, "top", scope)})"
                  stroke="${shade.stroke}" stroke-opacity="0.42" stroke-width="0.65"></polygon>
         ${studMarkup}
       </g>
     `;
   }
 
-  static studs(x, y, z, width, depth, color) {
+  static studs(x, y, z, width, depth, color, scope = "") {
     const markup = [];
     for (let sx = 0; sx < width; sx += 1) {
       for (let sy = 0; sy < depth; sy += 1) {
         const [cx, cy] = this.iso(x + sx + 0.5, y + sy + 0.5, z + 0.06);
-        markup.push(this.stud(cx, cy, color, width >= 6 ? 0.75 : 0.88));
+        markup.push(this.stud(cx, cy, color, width >= 6 ? 0.75 : 0.88, scope));
       }
     }
     return markup.join("");
   }
 
-  static stud(cx, cy, color, scale) {
+  static stud(cx, cy, color, scale, scope = "") {
     const shade = this.palette[color] || this.palette.green;
     const radiusX = 4.8 * scale;
     const radiusY = 2.45 * scale;
@@ -264,9 +302,9 @@ class LegoTowerRenderer {
                A ${radiusX} ${radiusY} 0 0 0 ${cx + radiusX},${bottomY}
                L ${cx + radiusX},${topY}
                A ${radiusX} ${radiusY} 0 0 1 ${cx - radiusX},${topY} Z"
-            fill="url(#lego-${color}-right)"></path>
+            fill="url(#${this.gradientId(color, "right", scope)})"></path>
       <ellipse cx="${cx}" cy="${topY}" rx="${radiusX}" ry="${radiusY}"
-               fill="url(#lego-${color}-top)"
+               fill="url(#${this.gradientId(color, "top", scope)})"
                stroke="${shade.stroke}" stroke-opacity="0.62" stroke-width="0.55"></ellipse>
       <ellipse cx="${cx - radiusX * 0.2}" cy="${topY - radiusY * 0.25}"
                rx="${radiusX * 0.55}" ry="${radiusY * 0.38}"

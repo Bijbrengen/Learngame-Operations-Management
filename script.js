@@ -1,6 +1,7 @@
 (() => {
   const LEARNING_OBJECT_ID = "leerbox-learngame-operations-management";
   const PERSON_ID = `person-${Math.random().toString(36).slice(2, 8)}`;
+  const CUSTOM_PRODUCTS_STORAGE = "learngame.om.customProducts.v1";
 
   const ROLES = [
     { id: "customer1", token: "K1", lane: "customer", title: "Klant 1" },
@@ -34,6 +35,7 @@
       name: "Toren A",
       towerBlueprint: { lower: "yellow", middle: "red", upper: "white", middleSize: "2x4" },
       price: 49,
+      towerSequence: ["yellow_8", "yellow_8", "red_8", "white_4"],
       stages: [
         { department: 1, output: "ss1", recipe: { base_green: 1, yellow_8: 2 } },
         { department: 2, input: "ss1", output: "ss2", recipe: { red_8: 1 } },
@@ -46,6 +48,7 @@
       name: "Toren B",
       towerBlueprint: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x2" },
       price: 58,
+      towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
       stages: [
         { department: 1, output: "ss1", recipe: { base_green: 1, blue_8: 2 } },
         { department: 2, input: "ss1", output: "ss2", recipe: { yellow_4: 1 } },
@@ -58,6 +61,7 @@
       name: "Toren C",
       towerBlueprint: { lower: "white", middle: "blue", upper: "red", middleSize: "2x2" },
       price: 76,
+      towerSequence: ["white_8", "white_8", "blue_4", "red_4"],
       stages: [
         { department: 1, output: "ss1", recipe: { base_green: 1, white_8: 2 } },
         { department: 2, input: "ss1", output: "ss2", recipe: { blue_4: 1 } },
@@ -686,6 +690,7 @@
     purchaseCost: 0,
     opportunityCost: 0,
     assignedRoleId: null,
+    customProducts: loadCustomProducts(),
     appView: "player",
     managerTab: "core",
     attention: {
@@ -786,6 +791,7 @@
     managerViewButton: document.getElementById("managerViewButton"),
     playerWorkbench: document.getElementById("playerWorkbench"),
     managerWorkbench: document.getElementById("managerWorkbench"),
+    towerEditorMount: document.getElementById("towerEditorMount"),
     playerTaskPanel: document.getElementById("playerTaskPanel"),
     playerWaitingPanel: document.getElementById("playerWaitingPanel"),
     playerRoleToken: document.getElementById("playerRoleToken"),
@@ -885,6 +891,9 @@
       name: `Toren ${id}`,
       towerBlueprint: blueprint,
       price: materialCost * 3 + 25 + index * 3,
+      towerSequence: stages.flatMap(stage => (
+        Object.entries(stage.recipe).flatMap(([partId, amount]) => Array(amount).fill(partId))
+      )).filter(partId => partId !== "base_green"),
       stages,
       visual: makeTowerVisual(blueprint)
     };
@@ -892,12 +901,154 @@
 
   function rebuildProducts(count = MIN_PRODUCT_TYPES) {
     const productCount = Math.max(MIN_PRODUCT_TYPES, Math.min(MAX_PRODUCT_TYPES, Number(count) || MIN_PRODUCT_TYPES));
-    PRODUCTS = Object.fromEntries(
-      Array.from({ length: productCount }, (_, index) => {
+    const standardProducts = Array.from({ length: productCount }, (_, index) => {
         const id = PRODUCT_IDS[index];
-        return [id, BASE_PRODUCTS[id] || makeGeneratedProduct(index)];
-      })
+        return BASE_PRODUCTS[id] || makeGeneratedProduct(index);
+      });
+    PRODUCTS = Object.fromEntries(
+      [...standardProducts, ...state.customProducts].map(product => [product.id, product])
     );
+  }
+
+  function loadCustomProducts() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_STORAGE) || "[]");
+      if (!Array.isArray(stored)) return [];
+      return stored.flatMap(item => {
+        try {
+          return [makeCustomProduct(item, item.id)];
+        } catch {
+          return [];
+        }
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomProducts() {
+    localStorage.setItem(CUSTOM_PRODUCTS_STORAGE, JSON.stringify(
+      state.customProducts.map(product => ({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        towerSequence: product.towerSequence
+      }))
+    ));
+  }
+
+  function recipeFromSequence(sequence) {
+    return sequence.reduce((recipe, partId) => {
+      recipe[partId] = (recipe[partId] || 0) + 1;
+      return recipe;
+    }, {});
+  }
+
+  function makeCustomProduct(draft, existingId = null) {
+    const sequence = Array.isArray(draft?.towerSequence)
+      ? draft.towerSequence.filter(partId => partId !== "base_green" && partById(partId))
+      : [];
+    const firstPart = partById(sequence[0]);
+    const foundationCount = firstPart?.width === "narrow" ? 4 : 2;
+    const foundationUsesOneFormat = sequence
+      .slice(0, foundationCount)
+      .every(partId => partById(partId)?.width === firstPart?.width);
+    if (sequence.length !== foundationCount + 2 || !foundationUsesOneFormat) {
+      throw new Error(
+        "Een eigen toren heeft een volle eerste laag en is precies 3 lagen hoog."
+      );
+    }
+    const name = String(draft.name || "").trim().slice(0, 48);
+    if (!name) throw new Error("Geef de toren een productnaam.");
+    const price = Math.max(1, Math.min(9999, Math.round(Number(draft.price) || 0)));
+    const firstBreak = Math.ceil(sequence.length / 3);
+    const secondBreak = Math.ceil(sequence.length * 2 / 3);
+    const stageSequences = [
+      sequence.slice(0, firstBreak),
+      sequence.slice(firstBreak, secondBreak),
+      sequence.slice(secondBreak)
+    ];
+    const firstRecipe = { base_green: 1, ...recipeFromSequence(stageSequences[0]) };
+    const id = existingId || `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    return {
+      id,
+      name,
+      price,
+      custom: true,
+      towerSequence: sequence,
+      stages: [
+        { department: 1, output: "ss1", recipe: firstRecipe },
+        { department: 2, input: "ss1", output: "ss2", recipe: recipeFromSequence(stageSequences[1]) },
+        { department: 3, input: "ss2", output: "finished", recipe: recipeFromSequence(stageSequences[2]) }
+      ],
+      visual: [
+        ...sequence.slice().reverse().map(partId => [partId]),
+        ["base_green"]
+      ]
+    };
+  }
+
+  function registerCustomProduct(draft) {
+    let product;
+    try {
+      product = makeCustomProduct(draft);
+    } catch (error) {
+      window.alert(error.message);
+      return null;
+    }
+    state.customProducts.push(product);
+    saveCustomProducts();
+    PRODUCTS[product.id] = product;
+    window.LegoBuilder?.registerProduct(product);
+    state.ss1[product.id] = 0;
+    state.ss2[product.id] = 0;
+    state.finishedGoods[product.id] = 0;
+    productOptions();
+    els.productSelect.value = product.id;
+    window.LegoBuilder?.setProduct(product.id);
+    dispatchInteraction({
+      actionType: "add_product_to_assortment",
+      learningObjectID: "tower_editor",
+      result: "added",
+      objectRole: "product_configuration",
+      role: "Game Master",
+      productId: product.id,
+      productName: product.name,
+      towerSequence: [...product.towerSequence]
+    });
+    renderAll();
+    return product;
+  }
+
+  function removeCustomProduct(productId) {
+    const product = state.customProducts.find(item => item.id === productId);
+    if (!product) return false;
+    if (state.orders.some(order => !order.done && order.productId === productId)) {
+      window.alert("Deze toren hoort bij een actieve order en kan pas daarna worden verwijderd.");
+      return false;
+    }
+    state.customProducts = state.customProducts.filter(item => item.id !== productId);
+    saveCustomProducts();
+    delete PRODUCTS[productId];
+    delete state.ss1[productId];
+    delete state.ss2[productId];
+    delete state.finishedGoods[productId];
+    window.LegoBuilder?.unregisterProduct(productId);
+    productOptions();
+    if (!PRODUCTS[els.productSelect.value]) {
+      els.productSelect.value = Object.keys(PRODUCTS)[0];
+    }
+    dispatchInteraction({
+      actionType: "remove_product_from_assortment",
+      learningObjectID: "tower_editor",
+      result: "removed",
+      objectRole: "product_configuration",
+      role: "Game Master",
+      productId,
+      productName: product.name
+    });
+    renderAll();
+    return true;
   }
 
   function productById(productId) {
@@ -977,7 +1128,7 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["session", "core", "settings", "inventory", "events", "process"]);
+    const allowed = new Set(["session", "core", "tower-editor", "settings", "inventory", "events", "process"]);
     const nextTab = allowed.has(tab) ? tab : "core";
     state.managerTab = nextTab;
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
@@ -1488,6 +1639,13 @@
   function renderTower(productId) {
     const product = productById(productId);
     if (window.LegoTowerRenderer) {
+      if (product.towerSequence) {
+        return window.LegoTowerRenderer.renderSequence(
+          product.towerSequence,
+          product.name,
+          "tower-mini-3d"
+        );
+      }
       return window.LegoTowerRenderer.render(productId, product.name, product.towerBlueprint, "tower-mini-3d");
     }
     return `<div class="tower-mini" aria-label="${escapeHtml(product.name)}">` +
@@ -1504,6 +1662,13 @@
   function renderTowerLarge(productId) {
     const product = productById(productId);
     if (window.LegoTowerRenderer) {
+      if (product.towerSequence) {
+        return window.LegoTowerRenderer.renderSequence(
+          product.towerSequence,
+          product.name,
+          "tower-large"
+        );
+      }
       return window.LegoTowerRenderer.render(productId, product.name, product.towerBlueprint, "tower-large");
     }
     return renderTower(productId);
@@ -3359,6 +3524,7 @@
 
   function initLegoBuilder() {
     if (!window.LegoBuilder || !els.legoBuilderMount) return;
+    state.customProducts.forEach(product => window.LegoBuilder.registerProduct(product));
     window.LegoBuilder.mount(els.legoBuilderMount, {
       onEvent: (actionType, data = {}) => {
         dispatchInteraction({
@@ -3410,6 +3576,16 @@
     });
   }
 
+  function initTowerEditor() {
+    if (!window.TowerEditor || !els.towerEditorMount) return;
+    window.TowerEditor.mount(els.towerEditorMount, {
+      parts: PARTS,
+      products: Object.values(PRODUCTS),
+      onAdd: registerCustomProduct,
+      onDelete: removeCustomProduct
+    });
+  }
+
   function syncConfigFromControls(dispatch = true) {
     state.config.money = els.moneyToggle.checked;
     state.config.pnl = els.pnlToggle.checked;
@@ -3445,6 +3621,7 @@
     els.productTypeCountInput.value = String(count);
     rebuildProducts(count);
     productOptions();
+    window.TowerEditor?.setProducts(Object.values(PRODUCTS));
     window.LegoBuilder?.setProduct(els.productSelect.value);
     updatePriceInput();
     state.orders = [];
@@ -3839,6 +4016,7 @@
 
   initControls();
   initLegoBuilder();
+  initTowerEditor();
   wireEvents();
   registerServiceWorker();
   resetState();
