@@ -540,7 +540,7 @@
       kind: "production",
       departmentColor: "tutorial-transit",
       openRoof: true,
-      dropLabel: "BOUWAFDELING",
+      showDropLabel: false,
       emptyLabel: "ontvangstvak leeg",
       layout: { x: 8, y: 10, width: 3.8, depth: 3.4, height: 48 }
     },
@@ -597,6 +597,59 @@
     }
   ];
 
+  const FINANCIAL_TUTORIAL_DEPARTMENTS = [
+    {
+      id: "tutorial_finance_warehouse",
+      title: "Magazijn",
+      shortTitle: "Magazijn",
+      description: "Hier worden de onderdelen tegen de actuele interne verrekenprijs uitgegeven.",
+      kind: "warehouse",
+      departmentColor: "raw",
+      openRoof: true,
+      emptyLabel: "materialen uitgegeven",
+      layout: { x: 3, y: 13, width: 4.1, depth: 3.7, height: 70 }
+    },
+    {
+      id: "tutorial_finance_finished",
+      title: "Gereed Product",
+      shortTitle: "Gereed Product",
+      description: "Verzamel hier de onderdelen. Zodra de set compleet is, staat Toren B klaar voor verkoop.",
+      kind: "warehouse",
+      departmentColor: "finished",
+      openRoof: true,
+      showDropLabel: false,
+      emptyLabel: "wacht op onderdelen",
+      layout: { x: 11, y: 10, width: 4.2, depth: 3.8, height: 68 }
+    },
+    {
+      id: "tutorial_finance_dispatch",
+      title: "Expeditie",
+      shortTitle: "Expeditie",
+      description: "Lever Toren B hier aan de klant om de verkoopopbrengst te ontvangen.",
+      kind: "dispatch",
+      departmentColor: "yellow",
+      openRoof: true,
+      showDropLabel: false,
+      emptyLabel: "wacht op levering",
+      layout: { x: 18, y: 5, width: 4.2, depth: 3.8, height: 62 }
+    }
+  ];
+
+  const FINANCIAL_TUTORIAL_CONNECTIONS = [
+    {
+      from: "tutorial_finance_warehouse",
+      to: "tutorial_finance_finished",
+      kind: "material",
+      highlight: true
+    },
+    {
+      from: "tutorial_finance_finished",
+      to: "tutorial_finance_dispatch",
+      kind: "customer",
+      locked: true
+    }
+  ];
+
   const state = {
     sessionId: "",
     clockMinutes: 600,
@@ -612,6 +665,9 @@
     interactionBuffer: [],
     contractEventBuffer: [],
     tutorialDismissed: false,
+    tutorialCompleted: false,
+    tutorialPaused: false,
+    tutorialStage: "builder",
     selectedLogisticsDepartmentId: "inbound",
     logisticsTutorial: {
       active: false,
@@ -620,6 +676,20 @@
       playerStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
       assemblyStock: { blue_8: 0, yellow_4: 0, green_4: 0 },
       semiFinished: { production: 0, nextDepartment: 0 },
+      finance: {
+        enabled: false,
+        moneyEnabled: true,
+        pnlEnabled: true,
+        openingBalance: 0,
+        balance: 0,
+        purchaseCost: 0,
+        revenue: 0,
+        margin: 0,
+        picked: { blue_8: 0, yellow_4: 0, green_4: 0 },
+        delivered: false,
+        mutation: null,
+        flash: ""
+      },
       feedback: ""
     },
     config: {
@@ -672,6 +742,7 @@
     exportButton: document.getElementById("exportButton"),
     resetButton: document.getElementById("resetButton"),
     tutorialExitButton: document.getElementById("tutorialExitButton"),
+    tutorialResumeButton: document.getElementById("tutorialResumeButton"),
     moneyToggle: document.getElementById("moneyToggle"),
     pnlToggle: document.getElementById("pnlToggle"),
     intermediateToggle: document.getElementById("intermediateToggle"),
@@ -1583,15 +1654,32 @@
     state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.semiFinished = { production: 0, nextDepartment: 0 };
+    state.logisticsTutorial.finance = {
+      enabled: false,
+      moneyEnabled: Boolean(state.config.money),
+      pnlEnabled: Boolean(state.config.pnl),
+      openingBalance: 0,
+      balance: 0,
+      purchaseCost: 0,
+      revenue: 0,
+      margin: 0,
+      picked: { blue_8: 0, yellow_4: 0, green_4: 0 },
+      delivered: false,
+      mutation: null,
+      flash: ""
+    };
     state.logisticsTutorial.feedback = "";
   }
 
   function setTutorialFocus(stage = "builder") {
     if (state.tutorialDismissed) return;
+    state.tutorialStage = stage;
+    state.tutorialPaused = false;
     document.body.classList.add("tutorial-focus");
     document.body.classList.toggle("tutorial-stage-builder", stage === "builder");
     document.body.classList.toggle("tutorial-stage-logistics", stage === "logistics");
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = false;
+    if (els.tutorialResumeButton) els.tutorialResumeButton.hidden = true;
   }
 
   function leaveTutorialFocus() {
@@ -1603,15 +1691,96 @@
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
   }
 
+  function updateTutorialResumeButton() {
+    if (!els.tutorialResumeButton) return;
+    els.tutorialResumeButton.hidden = false;
+    const label = state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten";
+    els.tutorialResumeButton.querySelector("span:last-child").textContent = label;
+    els.tutorialResumeButton.title = state.tutorialCompleted
+      ? "Tutorial opnieuw starten vanaf Stap 1"
+      : "Tutorial hervatten waar je bent gestopt";
+  }
+
+  function pauseTutorial() {
+    if (state.tutorialDismissed || state.tutorialCompleted) return false;
+    const phase = state.logisticsTutorial.phase;
+    state.tutorialDismissed = true;
+    state.tutorialPaused = true;
+    state.logisticsTutorial.active = false;
+    leaveTutorialFocus();
+    updateTutorialResumeButton();
+    dispatchInteraction({
+      actionType: "pause_onboarding_tutorial",
+      learningObjectID: "self_starting_tutorial",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "paused",
+      phase,
+      stage: state.tutorialStage
+    });
+    renderAll();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return true;
+  }
+
+  function resumeTutorial() {
+    if (state.tutorialCompleted) {
+      state.tutorialCompleted = false;
+      state.tutorialPaused = false;
+      state.tutorialDismissed = false;
+      resetLogisticsTutorial();
+      window.LegoBuilder?.restartTutorial();
+      setTutorialFocus("builder");
+      dispatchInteraction({
+        actionType: "restart_onboarding_tutorial",
+        learningObjectID: "self_starting_tutorial",
+        objectRole: "onboarding",
+        role: "Lerende",
+        result: "restarted",
+        step: 1
+      });
+      renderAll();
+      els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return true;
+    }
+    if (!state.tutorialPaused) return false;
+    state.tutorialDismissed = false;
+    state.tutorialPaused = false;
+    if (state.tutorialStage === "logistics") {
+      state.logisticsTutorial.active = true;
+      state.config.processView = "isometric";
+      els.dataModelPanel.classList.add("visible");
+      setTutorialFocus("logistics");
+      renderAll();
+      els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      setTutorialFocus("builder");
+      renderAll();
+      els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    dispatchInteraction({
+      actionType: "resume_onboarding_tutorial",
+      learningObjectID: "self_starting_tutorial",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "resumed",
+      phase: state.logisticsTutorial.phase,
+      stage: state.tutorialStage
+    });
+    return true;
+  }
+
   function endTutorial({ completed = false } = {}) {
     const phase = state.logisticsTutorial.phase;
     state.tutorialDismissed = true;
+    state.tutorialCompleted = completed;
+    state.tutorialPaused = false;
     state.logisticsTutorial.active = false;
     state.logisticsTutorial.phase = completed ? "tutorial_complete" : "tutorial_skipped";
     state.selectedLogisticsDepartmentId = "inbound";
     els.dataModelPanel.classList.remove("visible");
     leaveTutorialFocus();
-    if (!completed) window.LegoBuilder?.skipTutorial();
+    updateTutorialResumeButton();
     dispatchInteraction({
       actionType: completed ? "complete_onboarding_tutorial" : "end_onboarding_tutorial",
       learningObjectID: "self_starting_tutorial",
@@ -1712,7 +1881,7 @@
     renderAll();
     if (ready) {
       window.setTimeout(() => {
-        if (state.logisticsTutorial.phase === "ready") {
+        if (state.logisticsTutorial.phase === "ready" && !state.tutorialPaused) {
           transferTutorialStockToAssembly();
         }
       }, 1100);
@@ -1827,7 +1996,7 @@
     });
     renderAll();
     window.setTimeout(() => {
-      if (state.logisticsTutorial.phase === "internal_complete") {
+      if (state.logisticsTutorial.phase === "internal_complete" && !state.tutorialPaused) {
         finishInternalLogisticsTutorial();
       }
     }, 1250);
@@ -1853,11 +2022,339 @@
 
   function finishInternalLogisticsTutorial() {
     if (state.logisticsTutorial.phase !== "internal_complete") return false;
-    state.logisticsTutorial.active = false;
-    state.selectedLogisticsDepartmentId = "production_2";
     window.LegoBuilder?.setInternalLogisticsComplete(true);
+    startFinancialTutorial();
+    return true;
+  }
+
+  function financialTutorialProduct() {
+    return productById("B");
+  }
+
+  function financialTutorialSalePrice() {
+    const product = financialTutorialProduct();
+    if (state.config.priceMode !== "fixed" && els.productSelect.value === "B") {
+      return Math.max(0, Number(els.priceInput.value || product.price));
+    }
+    return product.price;
+  }
+
+  function financialTutorialMaterialTotal() {
+    return Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).reduce(
+      (sum, [partId, quantity]) => sum + partById(partId).price * quantity,
+      0
+    );
+  }
+
+  function financialTutorialPickedTotal() {
+    return tutorialStockTotal(state.logisticsTutorial.finance.picked);
+  }
+
+  function financialTutorialMaterialsComplete() {
+    return Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).every(
+      ([partId, required]) => (state.logisticsTutorial.finance.picked[partId] || 0) >= required
+    );
+  }
+
+  function showFinancialMutation(departmentId, amount) {
+    const finance = state.logisticsTutorial.finance;
+    if (!finance.moneyEnabled || !amount) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    finance.mutation = { id, departmentId, amount };
+    finance.flash = amount > 0 ? "credit" : "debit";
+    window.setTimeout(() => {
+      if (state.logisticsTutorial.finance.mutation?.id !== id) return;
+      state.logisticsTutorial.finance.mutation = null;
+      state.logisticsTutorial.finance.flash = "";
+      renderDataModel(true);
+    }, 1050);
+  }
+
+  function startFinancialTutorial() {
+    const finance = state.logisticsTutorial.finance;
+    const salePrice = financialTutorialSalePrice();
+    finance.enabled = true;
+    finance.moneyEnabled = Boolean(state.config.money);
+    finance.pnlEnabled = Boolean(state.config.pnl);
+    finance.openingBalance = finance.moneyEnabled ? Math.max(salePrice * 2, financialTutorialMaterialTotal() * 4) : 0;
+    finance.balance = finance.openingBalance;
+    finance.purchaseCost = 0;
+    finance.revenue = 0;
+    finance.margin = 0;
+    finance.picked = { blue_8: 0, yellow_4: 0, green_4: 0 };
+    finance.delivered = false;
+    finance.mutation = null;
+    finance.flash = "";
+    state.logisticsTutorial.active = true;
+    state.logisticsTutorial.phase = "financial_purchase";
+    state.logisticsTutorial.feedback = finance.moneyEnabled
+      ? "Voltooi de order en let op de financiële mutaties bij inkoop en verkoop."
+      : "Geld staat uit in de Game Master-instellingen. Doorloop de order zonder financiële mutaties.";
+    state.selectedLogisticsDepartmentId = "tutorial_finance_warehouse";
+    state.config.processView = "isometric";
+    setTutorialFocus("logistics");
+    els.dataModelPanel.classList.add("visible");
+    dispatchInteraction({
+      actionType: "start_financial_tutorial_step",
+      learningObjectID: "tutorial_step_4_financial_transaction",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "started",
+      step: 4,
+      productId: "B",
+      moneyEnabled: finance.moneyEnabled,
+      pnlEnabled: finance.pnlEnabled,
+      openingBalance: finance.openingBalance,
+      configuredSalePrice: salePrice,
+      configuredMaterialCost: financialTutorialMaterialTotal()
+    });
+    renderAll();
+    els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function dropFinancialTutorialMaterial({
+    sourceDepartmentId,
+    targetDepartmentId,
+    partId
+  } = {}) {
+    const tutorial = state.logisticsTutorial;
+    const finance = tutorial.finance;
+    if (
+      tutorial.phase !== "financial_purchase"
+      || sourceDepartmentId !== "tutorial_finance_warehouse"
+      || targetDepartmentId !== "tutorial_finance_finished"
+      || !(partId in LOGISTICS_TUTORIAL_REQUIREMENTS)
+    ) return false;
+
+    const required = LOGISTICS_TUTORIAL_REQUIREMENTS[partId];
+    const picked = finance.picked[partId] || 0;
+    if (picked >= required) return false;
+    finance.picked[partId] = picked + 1;
+    const cost = finance.moneyEnabled ? partById(partId).price : 0;
+    finance.purchaseCost += cost;
+    finance.balance -= cost;
+    state.purchaseCost += state.config.pnl ? cost : 0;
+    state.selectedLogisticsDepartmentId = "tutorial_finance_finished";
+    showFinancialMutation("tutorial_finance_warehouse", -cost);
+
+    const complete = financialTutorialMaterialsComplete();
+    if (complete) {
+      tutorial.phase = "financial_sale_ready";
+      tutorial.feedback = "De materiaalset is compleet. Sleep Toren B vanuit Gereed Product naar Expeditie.";
+    } else {
+      tutorial.feedback = "De afschrijving is verwerkt. Haal ook de overige onderdelen op.";
+    }
+    dispatchInteraction({
+      actionType: "tutorial_financial_material_issue",
+      learningObjectID: `tutorial_finance_${partId}`,
+      objectRole: "internal_settlement",
+      role: "Lerende",
+      result: "success",
+      step: 4,
+      partId,
+      amount: cost,
+      balance: finance.balance,
+      moneyEnabled: finance.moneyEnabled
+    });
+    renderAll();
+    return true;
+  }
+
+  function deliverFinancialTutorialOrder({
+    sourceDepartmentId,
+    targetDepartmentId,
+    cargoId
+  } = {}) {
+    const tutorial = state.logisticsTutorial;
+    const finance = tutorial.finance;
+    if (
+      tutorial.phase !== "financial_sale_ready"
+      || sourceDepartmentId !== "tutorial_finance_finished"
+      || targetDepartmentId !== "tutorial_finance_dispatch"
+      || cargoId !== "tower_b_customer_order"
+    ) return false;
+
+    const revenue = finance.moneyEnabled ? financialTutorialSalePrice() : 0;
+    finance.revenue = revenue;
+    finance.balance += revenue;
+    finance.margin = revenue - finance.purchaseCost;
+    finance.delivered = true;
+    tutorial.phase = "financial_complete";
+    tutorial.feedback = finance.moneyEnabled
+      ? "Verkoop ontvangen. Bekijk de marge en ga daarna door naar de meesterproef."
+      : "Order geleverd. Geld stond uit, daarom zijn geen bedragen geboekt.";
+    state.selectedLogisticsDepartmentId = "tutorial_finance_dispatch";
+    showFinancialMutation("tutorial_finance_dispatch", revenue);
+    dispatchInteraction({
+      actionType: "complete_financial_tutorial_transaction",
+      learningObjectID: "tutorial_step_4_financial_transaction",
+      objectRole: "sale",
+      role: "Lerende",
+      result: "success",
+      step: 4,
+      productId: "B",
+      purchaseCost: finance.purchaseCost,
+      revenue: finance.revenue,
+      margin: finance.margin,
+      closingBalance: finance.balance,
+      moneyEnabled: finance.moneyEnabled
+    });
+    renderAll();
+    return true;
+  }
+
+  function finishFinancialTutorial() {
+    if (state.logisticsTutorial.phase !== "financial_complete") return false;
+    dispatchInteraction({
+      actionType: "start_tutorial_mastery_trial",
+      learningObjectID: "tutorial_step_5_mastery",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "started",
+      step: 5
+    });
     endTutorial({ completed: true });
     return true;
+  }
+
+  function financialTutorialScene() {
+    const tutorial = state.logisticsTutorial;
+    const finance = tutorial.finance;
+    const materialsComplete = financialTutorialMaterialsComplete();
+    const delivered = tutorial.phase === "financial_complete";
+    const pickedTotal = financialTutorialPickedTotal();
+    const remainingTotal = Object.values(LOGISTICS_TUTORIAL_REQUIREMENTS).reduce(
+      (sum, amount) => sum + amount,
+      0
+    ) - pickedTotal;
+    const partVisuals = {
+      blue_8: { color: "blue", width: 4, depth: 2, label: "blauw 2×4-blok" },
+      yellow_4: { color: "yellow", width: 2, depth: 2, label: "geel 2×2-blok" },
+      green_4: { color: "green", width: 2, depth: 2, label: "groen 2×2-blok" }
+    };
+    const departments = FINANCIAL_TUTORIAL_DEPARTMENTS.map(definition => {
+      if (definition.id === "tutorial_finance_warehouse") {
+        return {
+          ...definition,
+          orders: [],
+          stockVisuals: Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).map(([partId, required]) => ({
+            ...partVisuals[partId],
+            partId,
+            count: Math.max(0, required - (finance.picked[partId] || 0)),
+            draggable: tutorial.phase === "financial_purchase"
+          })),
+          status: remainingTotal ? "active" : "complete",
+          badgeValue: remainingTotal,
+          badgeLabel: `${remainingTotal} onderdelen nog uit te geven`,
+          primaryMetric: `${remainingTotal} onderdelen beschikbaar`,
+          facts: [
+            { label: "Onderdelen nog uitgeven", value: remainingTotal },
+            { label: "Verrekenprijs", value: finance.moneyEnabled ? formatMoney(financialTutorialMaterialTotal()) : "Geld uit" }
+          ]
+        };
+      }
+      if (definition.id === "tutorial_finance_finished") {
+        return {
+          ...definition,
+          orders: [],
+          stockVisuals: materialsComplete
+            ? []
+            : Object.entries(finance.picked).map(([partId, count]) => ({
+                ...partVisuals[partId],
+                partId,
+                count,
+                draggable: false
+              })),
+          cargoVisual: materialsComplete && !delivered
+            ? {
+                kind: "tower",
+                cargoId: "tower_b_customer_order",
+                productId: "B",
+                label: "Toren B voor de klant",
+                draggable: tutorial.phase === "financial_sale_ready"
+              }
+            : null,
+          acceptsStockDrop: tutorial.phase === "financial_purchase",
+          status: materialsComplete ? "complete" : "active",
+          highlight: tutorial.phase === "financial_purchase",
+          badgeValue: materialsComplete ? 1 : pickedTotal,
+          badgeLabel: materialsComplete ? "1 verkoopklare Toren B" : `${pickedTotal}/4 onderdelen ontvangen`,
+          primaryMetric: materialsComplete ? "Toren B verkoopklaar" : `${pickedTotal}/4 onderdelen`,
+          facts: [
+            { label: "Materiaalset", value: `${pickedTotal}/4` },
+            { label: "Verkoopprijs Toren B", value: finance.moneyEnabled ? formatMoney(financialTutorialSalePrice()) : "Geld uit" }
+          ]
+        };
+      }
+      return {
+        ...definition,
+        orders: [],
+        cargoVisual: delivered
+          ? {
+              kind: "tower",
+              cargoId: "tower_b_customer_order",
+              productId: "B",
+              label: "geleverde Toren B",
+              draggable: false
+            }
+          : null,
+        acceptsCargoDrop: tutorial.phase === "financial_sale_ready",
+        status: delivered ? "complete" : materialsComplete ? "active" : "idle",
+        highlight: tutorial.phase === "financial_sale_ready",
+        locked: !materialsComplete,
+        badgeValue: delivered ? 1 : 0,
+        badgeLabel: delivered ? "1 order geleverd" : "Nog geen levering",
+        primaryMetric: delivered ? "Verkoop ontvangen" : "Wacht op Toren B",
+        facts: [
+          { label: "Order", value: "Toren B" },
+          { label: "Opbrengst", value: finance.moneyEnabled ? formatMoney(finance.revenue) : "Geld uit" }
+        ]
+      };
+    });
+
+    return {
+      title: "Tutorial · Financieel & Transactie",
+      legend: [
+        { color: "raw", label: "Magazijn" },
+        { color: "finished", label: "Gereed Product" },
+        { color: "yellow", label: "Expeditie" }
+      ],
+      selectedDepartmentId: state.selectedLogisticsDepartmentId,
+      departments,
+      connections: FINANCIAL_TUTORIAL_CONNECTIONS.map(connection => (
+        connection.to === "tutorial_finance_dispatch"
+          ? { ...connection, locked: !materialsComplete, highlight: materialsComplete && !delivered }
+          : { ...connection, highlight: !materialsComplete }
+      )),
+      finance: {
+        active: true,
+        moneyEnabled: finance.moneyEnabled,
+        pnlEnabled: finance.pnlEnabled,
+        openingBalance: finance.openingBalance,
+        balance: finance.balance,
+        purchaseCost: finance.purchaseCost,
+        revenue: finance.revenue,
+        margin: finance.margin,
+        flash: finance.flash,
+        mutation: finance.mutation,
+        complete: delivered,
+        nextLabel: "Naar Stap 5"
+      },
+      tutorial: {
+        active: true,
+        visualOnly: false,
+        stepLabel: "4 / 5",
+        eyebrow: "Self-starting tutorial · stap 4",
+        title: "Financieel & Transactie",
+        instruction: finance.moneyEnabled
+          ? "Voltooi de order en let op de financiële mutaties bij inkoop en verkoop."
+          : "Voltooi de order. De Game Master heeft spelen met geld uitgeschakeld.",
+        feedback: tutorial.feedback,
+        status: tutorial.phase,
+        collected: delivered ? 2 : materialsComplete ? 1 : 0,
+        required: 2
+      }
+    };
   }
 
   function internalLogisticsTutorialScene() {
@@ -1940,7 +2437,7 @@
       tutorial: {
         active: true,
         visualOnly: true,
-        stepLabel: "3 / 3",
+        stepLabel: "3 / 5",
         image: "assets/lego/tower-b.png",
         eyebrow: "Self-starting tutorial · stap 3",
         title: "Interne Logistiek",
@@ -2105,7 +2602,7 @@
       tutorial: {
         active: true,
         visualOnly: true,
-        stepLabel: "2 / 3",
+        stepLabel: "2 / 5",
         image: "assets/lego/tower-b.png",
         eyebrow: "Self-starting tutorial · stap 2",
         title: "Magazijn & Voorraad (Logistieke basis)",
@@ -2119,6 +2616,12 @@
   }
 
   function isometricScene() {
+    if (
+      state.logisticsTutorial.active
+      && state.logisticsTutorial.phase.startsWith("financial_")
+    ) {
+      return financialTutorialScene();
+    }
     if (
       state.logisticsTutorial.active
       && state.logisticsTutorial.phase.startsWith("internal_")
@@ -2181,6 +2684,13 @@
       onDepartmentAction: departmentId => {
         if (!state.logisticsTutorial.active) return;
         if (
+          departmentId === "tutorial_finance_dispatch"
+          && state.logisticsTutorial.phase === "financial_complete"
+        ) {
+          finishFinancialTutorial();
+          return;
+        }
+        if (
           departmentId === "tutorial_next_department"
           && state.logisticsTutorial.phase === "internal_complete"
         ) {
@@ -2200,8 +2710,17 @@
         }
         collectTutorialMaterial(departmentId);
       },
-      onStockDrop: payload => dropTutorialMaterial(payload),
-      onCargoDrop: payload => dropTutorialSemiFinished(payload)
+      onStockDrop: payload => state.logisticsTutorial.phase.startsWith("financial_")
+        ? dropFinancialTutorialMaterial(payload)
+        : dropTutorialMaterial(payload),
+      onCargoDrop: payload => state.logisticsTutorial.phase.startsWith("financial_")
+        ? deliverFinancialTutorialOrder(payload)
+        : dropTutorialSemiFinished(payload),
+      onFinanceAction: action => {
+        if (action === "next" && state.logisticsTutorial.phase === "financial_complete") {
+          finishFinancialTutorial();
+        }
+      }
     });
   }
 
@@ -2596,6 +3115,9 @@
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
     state.tutorialDismissed = false;
+    state.tutorialCompleted = false;
+    state.tutorialPaused = false;
+    state.tutorialStage = "builder";
     resetInventory();
     resetLogisticsTutorial();
     window.LegoBuilder?.restartTutorial();
@@ -2652,7 +3174,8 @@
     els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
-    els.tutorialExitButton?.addEventListener("click", () => endTutorial());
+    els.tutorialExitButton?.addEventListener("click", pauseTutorial);
+    els.tutorialResumeButton?.addEventListener("click", resumeTutorial);
     [
       els.moneyToggle,
       els.pnlToggle,
@@ -2733,6 +3256,10 @@
   }
 
   function applyInitialRoute() {
+    if (location.hash === "#tutorialStep4") {
+      startFinancialTutorial();
+      return;
+    }
     if (location.hash === "#tutorialStep2") {
       window.LegoBuilder?.prepareStockTutorial("B");
       startLogisticsTutorial(true);
@@ -2798,12 +3325,22 @@
       purchaseCost: state.purchaseCost,
       opportunityCost: state.opportunityCost,
       tutorialDismissed: state.tutorialDismissed,
+      tutorialCompleted: state.tutorialCompleted,
+      tutorialPaused: state.tutorialPaused,
+      tutorialStage: state.tutorialStage,
       logisticsTutorial: {
         ...state.logisticsTutorial,
         warehouseStock: { ...state.logisticsTutorial.warehouseStock },
         playerStock: { ...state.logisticsTutorial.playerStock },
         assemblyStock: { ...state.logisticsTutorial.assemblyStock },
-        semiFinished: { ...state.logisticsTutorial.semiFinished }
+        semiFinished: { ...state.logisticsTutorial.semiFinished },
+        finance: {
+          ...state.logisticsTutorial.finance,
+          picked: { ...state.logisticsTutorial.finance.picked },
+          mutation: state.logisticsTutorial.finance.mutation
+            ? { ...state.logisticsTutorial.finance.mutation }
+            : null
+        }
       },
       orders: state.orders.map(order => ({ ...order }))
     }),
@@ -2812,6 +3349,17 @@
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
     beginOnboardingTutorial: () => {
       state.tutorialDismissed = false;
+      state.tutorialCompleted = false;
+      state.tutorialPaused = false;
+      if (location.hash === "#tutorialStep4") {
+        startFinancialTutorial();
+        return;
+      }
+      if (location.hash === "#tutorialStep2") {
+        window.LegoBuilder?.prepareStockTutorial("B");
+        startLogisticsTutorial(true);
+        return;
+      }
       setTutorialFocus("builder");
       window.LegoBuilder?.restartTutorial();
       renderAll();
@@ -2824,6 +3372,12 @@
     transferTutorialSemiFinished,
     dropTutorialSemiFinished,
     finishInternalLogisticsTutorial,
+    startFinancialTutorial,
+    dropFinancialTutorialMaterial,
+    deliverFinancialTutorialOrder,
+    finishFinancialTutorial,
+    pauseTutorial,
+    resumeTutorial,
     endTutorial,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,

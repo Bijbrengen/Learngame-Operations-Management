@@ -2,7 +2,6 @@
   "use strict";
 
   const LEERBOX_ID = "learngame-operations-management";
-  const DEFAULT_LOCAL_API = "http://127.0.0.1:8011/api";
   const STORAGE_API = "leerpret.apiBase";
   const state = {
     apiBase: "",
@@ -10,13 +9,39 @@
     user: null,
     roles: [],
     online: false,
-    googleInitialized: false
+    googleInitialized: false,
+    googleCodeClient: null
   };
+
+  function loopbackHost(hostname) {
+    return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
+  }
+
+  function localApiForCurrentPage() {
+    const pageHost = location.hostname || "127.0.0.1";
+    const formattedHost = pageHost.includes(":") && !pageHost.startsWith("[")
+      ? `[${pageHost}]`
+      : pageHost;
+    const protocol = location.protocol === "https:" ? "https:" : "http:";
+    return `${protocol}//${formattedHost}:8011/api`;
+  }
+
+  function alignStoredLoopbackHost(value) {
+    if (!value || !loopbackHost(location.hostname)) return value;
+    try {
+      const url = new URL(String(value), location.origin);
+      if (!loopbackHost(url.hostname) || url.hostname === location.hostname) return value;
+      url.hostname = location.hostname;
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      return value;
+    }
+  }
 
   function normalizedApiBase(value) {
     const fallback = location.pathname.startsWith("/tools/leerbox/")
       ? `${location.origin}/api`
-      : DEFAULT_LOCAL_API;
+      : localApiForCurrentPage();
     try {
       const url = new URL(String(value || fallback).trim(), location.origin);
       return ["http:", "https:"].includes(url.protocol)
@@ -29,8 +54,10 @@
 
   function resolveApiBase() {
     const params = new URLSearchParams(location.search);
+    const explicitApi = params.get("api");
+    const rememberedApi = localStorage.getItem("api_base") || localStorage.getItem(STORAGE_API);
     state.apiBase = normalizedApiBase(
-      params.get("api") || localStorage.getItem("api_base") || localStorage.getItem(STORAGE_API)
+      explicitApi || alignStoredLoopbackHost(rememberedApi)
     );
     localStorage.setItem("api_base", state.apiBase);
     localStorage.setItem(STORAGE_API, state.apiBase);
@@ -141,30 +168,49 @@
 
   async function waitForGoogleLibrary() {
     for (let attempt = 0; attempt < 80; attempt += 1) {
-      if (window.google?.accounts?.id) return window.google.accounts.id;
+      if (window.google?.accounts?.oauth2) return window.google.accounts.oauth2;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     throw new Error("De Google-aanmeldknop kon niet worden geladen.");
   }
 
-  async function handleGoogleCredential(response) {
+  async function handleGoogleCode(response) {
     const els = elements();
+    const scopes = new Set(String(response.scope || "").split(/\s+/).filter(Boolean));
+    if (!response.code || !scopes.has("openid") || scopes.has("email") || scopes.has("profile")) {
+      renderRequired("Google gaf niet de afgesproken minimale aanmeldrechten terug.", true);
+      return;
+    }
     if (els.message) {
-      els.message.textContent = "Google-account controleren…";
+      els.message.textContent = "Pseudonieme accountkoppeling controleren…";
       els.message.className = "auth-message is-info";
     }
     try {
-      const payload = await request("/auth/leerbox/google", {
+      await request("/auth/leerbox/google-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XmlHttpRequest"
+        },
         body: JSON.stringify({
-          credential: response.credential,
-          leerbox_id: LEERBOX_ID
+          code: response.code,
+          leerbox_id: LEERBOX_ID,
+          redirect_uri: location.origin
         })
       });
-      acceptSession(payload);
+      // Do not trust only the login response: verify that the browser actually
+      // retained and returns the restricted HttpOnly cookie.
+      const confirmed = await request(
+        `/auth/leerbox/session?leerbox_id=${encodeURIComponent(LEERBOX_ID)}`
+      );
+      acceptSession(confirmed);
     } catch (error) {
-      renderRequired(error.message || "Aanmelden met Google is niet gelukt.", true);
+      renderRequired(
+        error.status === 401
+          ? "De browser kon de LO-sessie niet bewaren. Open de game en backend via dezelfde hostnaam (bijvoorbeeld beide via localhost) en meld opnieuw aan."
+          : error.message || "Aanmelden met Google is niet gelukt.",
+        true
+      );
     }
   }
 
@@ -178,20 +224,22 @@
       if (!config.enabled || !config.client_id) {
         throw new Error("Google Sign-In is nog niet geconfigureerd op de Leerpret-backend.");
       }
-      const googleIdentity = await waitForGoogleLibrary();
-      googleIdentity.initialize({
+      const googleOAuth = await waitForGoogleLibrary();
+      state.googleCodeClient = googleOAuth.initCodeClient({
         client_id: config.client_id,
-        callback: handleGoogleCredential
+        scope: "openid",
+        include_granted_scopes: false,
+        ux_mode: "popup",
+        select_account: true,
+        callback: handleGoogleCode,
+        error_callback: () => renderRequired("De Google-aanmelding is afgebroken.", true)
       });
-      googleIdentity.renderButton(els.googleMount, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "rectangular",
-        locale: "nl",
-        width: Math.min(380, Math.max(240, els.googleMount.clientWidth || 320))
-      });
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "google-minimal-login-button";
+      button.textContent = "Pseudoniem aanmelden met Google";
+      button.addEventListener("click", () => state.googleCodeClient?.requestCode());
+      els.googleMount.replaceChildren(button);
     } catch (error) {
       state.googleInitialized = false;
       if (els.message) {
@@ -217,11 +265,14 @@
     // When opened from the signed-in Leerpret dashboard, exchange that session
     // silently. A standalone visitor simply receives 401 and sees Google.
     try {
-      const payload = await request(
+      await request(
         `/auth/leerbox/exchange?leerbox_id=${encodeURIComponent(LEERBOX_ID)}`,
         { method: "POST" }
       );
-      acceptSession(payload);
+      const confirmed = await request(
+        `/auth/leerbox/session?leerbox_id=${encodeURIComponent(LEERBOX_ID)}`
+      );
+      acceptSession(confirmed);
       return true;
     } catch (exchangeError) {
       state.online = exchangeError.status === 401;
@@ -244,11 +295,11 @@
     } catch {
       // De lokale vergrendeling wint ook wanneer de service net offline ging.
     }
-    window.google?.accounts?.id?.disableAutoSelect();
     state.authenticated = false;
     state.user = null;
     state.roles = [];
     state.googleInitialized = false;
+    state.googleCodeClient = null;
     const mount = elements().googleMount;
     if (mount) mount.replaceChildren();
     renderRequired("Je bent afgemeld. Je kunt opnieuw met Google aanmelden.", state.online);

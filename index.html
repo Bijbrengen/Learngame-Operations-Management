@@ -22,11 +22,11 @@
       <div>
         <p class="eyebrow">Leerpret-account</p>
         <h2 id="leerpretAuthTitle">Veilig en pseudoniem aanmelden</h2>
-        <p>Meld je in deze standalone game aan met je Google-account. Open je de game vanuit Leerpret terwijl je daar al bent ingelogd, dan wordt die aanmelding automatisch overgenomen.</p>
+        <p>Meld je in deze standalone game pseudoniem aan met je Google-account. Leerpret vraagt Google alleen om een vaste accountcode, niet om je naam, e-mailadres of profielfoto. Open je de game vanuit Leerpret terwijl je daar al bent ingelogd, dan wordt die aanmelding automatisch overgenomen.</p>
       </div>
       <p id="leerpretAuthMessage" class="auth-message" role="status" aria-live="polite">Bestaande sessie controleren…</p>
       <div id="leerpretGoogleSignIn" class="google-sign-in-mount" aria-label="Aanmelden met Google"></div>
-      <small>De LO-game ontvangt een beperkte, aflopende HttpOnly-sessie. Deze sessie geeft geen toegang tot de Leerpret-engine of beheerrollen.</small>
+      <small>De accountcode wordt direct met een geheime sleutel gepseudonimiseerd. De beperkte, aflopende HttpOnly-sessie geeft geen toegang tot de Leerpret-engine of beheerrollen.</small>
     </div>
   </section>
   <section id="characterCreationGate"
@@ -68,6 +68,22 @@
       <div class="top-actions">
         <button id="leerpretAuthStatus" class="tool-button auth-status-button" type="button" disabled>
           Sessie controleren…
+        </button>
+        <button id="characterEditButton"
+                class="tool-button character-edit-button"
+                type="button"
+                title="Gedragsstijl en karakter aanpassen"
+                hidden>
+          <span class="button-icon" aria-hidden="true">KA</span>
+          <span>Karakter aanpassen</span>
+        </button>
+        <button id="tutorialResumeButton"
+                class="tool-button tutorial-resume-button"
+                type="button"
+                title="Tutorial hervatten of opnieuw starten"
+                hidden>
+          <span class="button-icon" aria-hidden="true">▶</span>
+          <span>Tutorial hervatten</span>
         </button>
         <button id="tutorialExitButton"
                 class="tool-button tutorial-exit-button"

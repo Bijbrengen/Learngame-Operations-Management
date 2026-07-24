@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "learngame-om.behavior-profile.v1";
+  const DRAFT_KEY = "learngame-om.behavior-draft.v1";
   const PROFILE_ENDPOINT = "/v1/player/behavior-profile";
   const AXES = ["Daadkracht", "Dynamiek", "Verbinding", "Structuur"];
   const ARCHETYPES = ["Initiator", "Inspirator", "Verbinder", "Analist"];
@@ -70,12 +71,16 @@
 
   const freshAllocations = () => TRAIT_GROUPS.map(() => [0, 0, 0, 0]);
   const state = {
-    phase: "identity",
+    phase: "intro",
     category: 0,
-    player: { first_name: "", surname: "", gender: "", email: "" },
     allocations: { basic_style: freshAllocations(), response_style: freshAllocations() },
     submitting: false,
     submitError: "",
+    checking: false,
+    lookupError: "",
+    entryMode: "onboarding",
+    existingProfile: null,
+    lookupSequence: 0,
     apiBase: "",
     mounted: false
   };
@@ -83,12 +88,97 @@
   let mount = null;
   let gate = null;
 
+  function editButton() {
+    return document.getElementById("characterEditButton");
+  }
+
+  function setEditButtonVisible(visible) {
+    const button = editButton();
+    if (button) button.hidden = !visible;
+  }
+
   function scanKey() {
     return state.phase === "response" ? "response_style" : "basic_style";
   }
 
   function categoryTotal(scan = scanKey(), index = state.category) {
     return state.allocations[scan][index].reduce((sum, value) => sum + value, 0);
+  }
+
+  function validAllocationMatrix(value) {
+    return Array.isArray(value)
+      && value.length === 10
+      && value.every(category =>
+        Array.isArray(category)
+        && category.length === 4
+        && category.every(points => Number.isInteger(points) && points >= 0 && points <= 10)
+      );
+  }
+
+  function allocationsFromPayload(scan) {
+    if (!Array.isArray(scan?.categories) || scan.categories.length !== 10) return null;
+    const ordered = [...scan.categories].sort((left, right) => left.category_index - right.category_index);
+    const matrix = ordered.map((category, index) =>
+      TRAIT_GROUPS[index].map(([slug]) => Number(category?.traits?.[slug]))
+    );
+    return validAllocationMatrix(matrix) ? matrix : null;
+  }
+
+  function applyExistingProfile(profile) {
+    const basic = allocationsFromPayload(profile?.scans?.basic_style);
+    const response = allocationsFromPayload(profile?.scans?.response_style);
+    if (!basic || !response) return false;
+    state.allocations = { basic_style: basic, response_style: response };
+    state.existingProfile = profile;
+    return true;
+  }
+
+  function saveDraft() {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        phase: state.phase === "submitting" ? "response" : state.phase,
+        category: state.phase === "submitting" ? 9 : state.category,
+        allocations: state.allocations
+      }));
+    } catch {
+      // A private browser may disable storage; the in-memory wizard still works.
+    }
+  }
+
+  function restoreDraft() {
+    try {
+      const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null");
+      if (!draft || typeof draft !== "object") return;
+
+      // Also accept the public payload shape. This makes it possible to save a
+      // profile from an already-open older wizard before a hard refresh.
+      if (draft.scans) {
+        const basic = allocationsFromPayload(draft.scans.basic_style);
+        const response = allocationsFromPayload(draft.scans.response_style);
+        if (!basic || !response) return;
+        state.allocations = { basic_style: basic, response_style: response };
+        state.phase = "response";
+        state.category = 9;
+        saveDraft();
+        return;
+      }
+
+      if (
+        !validAllocationMatrix(draft.allocations?.basic_style)
+        || !validAllocationMatrix(draft.allocations?.response_style)
+      ) return;
+      state.allocations = {
+        basic_style: draft.allocations.basic_style,
+        response_style: draft.allocations.response_style
+      };
+      state.phase = ["intro", "basic", "response"].includes(draft.phase)
+        ? draft.phase
+        : "intro";
+      state.category = Math.max(0, Math.min(9, Number(draft.category) || 0));
+      saveDraft();
+    } catch {
+      // Ignore a malformed or unavailable tab-local draft.
+    }
   }
 
   function completedCount(scan) {
@@ -147,7 +237,7 @@
   }
 
   function phaseHeader() {
-    const active = state.phase === "identity" ? 1 : state.phase === "basic" ? 2 : 3;
+    const active = state.phase === "intro" ? 1 : state.phase === "basic" ? 2 : 3;
     return `
       <header class="character-header">
         <div class="character-emblem" aria-hidden="true">OM</div>
@@ -156,7 +246,7 @@
           <h1 id="characterCreationTitle">Stel je operationele avatar samen</h1>
         </div>
         <ol class="character-phases" aria-label="Voortgang">
-          ${["Identiteit", "Basisstijl", "Drukproef"].map((label, index) => `
+          ${["Rolkeuze", "Basisstijl", "Drukproef"].map((label, index) => `
             <li class="${index + 1 === active ? "is-active" : ""} ${index + 1 < active ? "is-complete" : ""}">
               <span>${index + 1}</span>${label}
             </li>`).join("")}
@@ -164,34 +254,21 @@
       </header>`;
   }
 
-  function identityMarkup() {
+  function introMarkup() {
     return `
       <div class="character-stage identity-stage">
         <div class="character-copy">
-          <span class="behavior-kicker">Fase 1 · Origin & Identity</span>
-          <h2>Definieer je kernprofiel</h2>
-          <p>Leg de basis van je avatar vast voordat je de operationele simulatie betreedt.</p>
+          <span class="behavior-kicker">Fase 1 · Jouw rol in de simulatie</span>
+          <h2>Houd jezelf een spiegel voor</h2>
+          <p>Om je een passende rol in de game te geven, vragen we je twee korte gedragsstijltests te doen. Op basis van je antwoorden kiest de game de rol die het beste bij je past.</p>
+          <p>We vragen hiervoor niet om je naam, e-mailadres, geslacht of profielfoto. Je antwoorden worden alleen gekoppeld aan je pseudonieme gamesessie.</p>
           <div class="identity-avatar" aria-hidden="true"><span></span></div>
         </div>
-        <form id="characterIdentityForm" class="identity-form">
-          <label>Voornaam
-            <input name="first_name" autocomplete="given-name" required value="${escapeHtml(state.player.first_name)}">
-          </label>
-          <label>Achternaam
-            <input name="surname" autocomplete="family-name" required value="${escapeHtml(state.player.surname)}">
-          </label>
-          <label>Gender
-            <select name="gender" required>
-              <option value="">Kies…</option>
-              ${[["M", "Man"], ["F", "Vrouw"], ["X", "Anders / non-binair"], ["N", "Zeg ik liever niet"]]
-                .map(([value, label]) => `<option value="${value}" ${state.player.gender === value ? "selected" : ""}>${label}</option>`).join("")}
-            </select>
-          </label>
-          <label>E-mail
-            <input name="email" type="email" autocomplete="email" required value="${escapeHtml(state.player.email)}">
-          </label>
-          <button class="character-primary" type="submit">Start attribuutverdeling <span aria-hidden="true">→</span></button>
-        </form>
+        <div class="identity-form behavior-purpose-card">
+          <strong>Waarom deze gedragsstijltest?</strong>
+          <p>De simulatie gebruikt je verdeling om je spelrol en opdrachten passend te maken. Er wordt geen identiteit aan het profiel toegevoegd.</p>
+          <button class="character-primary" type="button" data-action="begin-scans">Start gedragsstijltest <span aria-hidden="true">→</span></button>
+        </div>
       </div>`;
   }
 
@@ -305,12 +382,29 @@
       </div>`;
   }
 
+  function lookupMarkup() {
+    return `
+      <div class="character-stage completion-stage">
+        <div class="completion-sigil" aria-hidden="true">${state.lookupError ? "!" : "…"}</div>
+        <span class="behavior-kicker">Accountprofiel</span>
+        <h2>${state.lookupError ? "Profielcontrole is niet gelukt" : "Bestaand karakter controleren"}</h2>
+        <p>${escapeHtml(state.lookupError || "We controleren of je deze gedragsstijlscan al hebt voltooid.")}</p>
+        ${state.lookupError
+          ? '<button class="character-primary" type="button" data-action="retry-lookup">Opnieuw controleren</button>'
+          : '<div class="profile-loader" aria-label="Bezig"></div>'}
+      </div>`;
+  }
+
   function render() {
     if (!mount) return;
+    if (state.checking || state.lookupError) {
+      mount.innerHTML = `<div class="character-creation-shell">${lookupMarkup()}</div>`;
+      return;
+    }
     mount.innerHTML = `
       <div class="character-creation-shell">
         ${phaseHeader()}
-        ${state.phase === "identity" ? identityMarkup() : state.phase === "submitting" ? submittingMarkup() : scanMarkup()}
+        ${state.phase === "intro" ? introMarkup() : state.phase === "submitting" ? submittingMarkup() : scanMarkup()}
       </div>`;
   }
 
@@ -319,7 +413,10 @@
     const current = values[traitIndex];
     const totalWithoutCurrent = values.reduce((sum, value, index) => index === traitIndex ? sum : sum + value, 0);
     values[traitIndex] = Math.max(0, Math.min(10, 20 - totalWithoutCurrent, Number(requested)));
-    if (values[traitIndex] !== current) render();
+    if (values[traitIndex] !== current) {
+      saveDraft();
+      render();
+    }
   }
 
   function storeReceipt(receipt) {
@@ -337,7 +434,6 @@
       total_allocated: categoryTotal(scan, index)
     }));
     return {
-      player_info: { ...state.player },
       scans: {
         basic_style: { categories: categories("basic_style") },
         response_style: { categories: categories("response_style") }
@@ -372,16 +468,28 @@
         } catch {
           detail = "";
         }
-        throw new Error(detail || `De service antwoordde met status ${response.status}.`);
+        const error = new Error(
+          response.status === 401
+            ? "Je LO-sessie is verlopen of kon niet worden meegestuurd. Meld je opnieuw aan; je ingevulde punten blijven in dit venster bewaard."
+            : detail || `De service antwoordde met status ${response.status}.`
+        );
+        error.status = response.status;
+        throw error;
       }
       const result = await response.json();
       storeReceipt(result);
+      sessionStorage.removeItem(DRAFT_KEY);
+      state.existingProfile = body;
+      setEditButtonVisible(true);
       window.dispatchEvent(new CustomEvent("behavior-profile-completed", { detail: { payload: body, receipt: result } }));
       finish();
     } catch (error) {
       state.submitting = false;
       state.submitError = error.message || "Het profiel kon niet worden opgeslagen.";
       render();
+      if (error.status === 401) {
+        window.LeerpretAuth?.checkSession?.();
+      }
     }
   }
 
@@ -389,7 +497,10 @@
     document.body.classList.remove("character-creation-active");
     gate.hidden = true;
     gate.setAttribute("aria-hidden", "true");
-    window.LEARNGameOMSimulator?.beginOnboardingTutorial?.();
+    if (state.entryMode === "onboarding") {
+      window.LEARNGameOMSimulator?.beginOnboardingTutorial?.();
+    }
+    state.entryMode = "onboarding";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -400,8 +511,9 @@
       state.phase = "basic";
       state.category = 9;
     } else {
-      state.phase = "identity";
+      state.phase = "intro";
     }
+    saveDraft();
     render();
   }
 
@@ -409,12 +521,14 @@
     if (categoryTotal() !== 20) return;
     if (state.category < 9) {
       state.category += 1;
+      saveDraft();
       render();
       return;
     }
     if (state.phase === "basic") {
       state.phase = "response";
       state.category = 0;
+      saveDraft();
       render();
       return;
     }
@@ -425,6 +539,7 @@
     const node = event.target.closest("[data-category]");
     if (node && !node.disabled) {
       state.category = Number(node.dataset.category);
+      saveDraft();
       render();
       return;
     }
@@ -437,7 +552,16 @@
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (action === "previous") goPrevious();
     if (action === "next") goNext();
+    if (action === "begin-scans") {
+      state.phase = "basic";
+      state.category = 0;
+      saveDraft();
+      render();
+    }
     if (action === "retry") submitProfile();
+    if (action === "retry-lookup") {
+      checkAccountProfile(window.LeerpretAuth?.getSession?.() || {});
+    }
   }
 
   function handleInput(event) {
@@ -446,30 +570,76 @@
     }
   }
 
-  function handleSubmit(event) {
-    if (event.target.id !== "characterIdentityForm") return;
-    event.preventDefault();
-    if (!event.target.reportValidity()) return;
-    const form = new FormData(event.target);
-    state.player = {
-      first_name: String(form.get("first_name") || "").trim(),
-      surname: String(form.get("surname") || "").trim(),
-      gender: String(form.get("gender") || ""),
-      email: String(form.get("email") || "").trim()
-    };
-    state.phase = "basic";
-    state.category = 0;
-    render();
-  }
-
-  function start(session = {}) {
-    if (!state.mounted || !session.authenticated) return;
-    state.apiBase = session.apiBase || state.apiBase;
-    if (session.user?.email && !state.player.email) state.player.email = session.user.email;
+  function showGate() {
     document.body.classList.add("character-creation-active");
     gate.hidden = false;
     gate.removeAttribute("aria-hidden");
+  }
+
+  async function checkAccountProfile(session = {}, { forceEdit = false } = {}) {
+    if (!state.mounted || !session.authenticated) return;
+    state.apiBase = session.apiBase || state.apiBase;
+    const sequence = ++state.lookupSequence;
+    state.entryMode = forceEdit ? "edit" : "onboarding";
+    state.checking = true;
+    state.lookupError = "";
+    showGate();
     render();
+    try {
+      const apiBase = state.apiBase.replace(/\/+$/, "");
+      const response = await fetch(`${apiBase}${PROFILE_ENDPOINT}`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        const error = new Error(
+          response.status === 401
+            ? "Je LO-sessie is verlopen. Meld je opnieuw aan."
+            : `De profielservice antwoordde met status ${response.status}.`
+        );
+        error.status = response.status;
+        throw error;
+      }
+      const result = await response.json();
+      if (sequence !== state.lookupSequence) return;
+      state.checking = false;
+      if (result.exists) {
+        applyExistingProfile(result.profile);
+        setEditButtonVisible(true);
+        sessionStorage.removeItem(DRAFT_KEY);
+        if (!forceEdit) {
+          finish();
+          return;
+        }
+      } else {
+        state.existingProfile = null;
+        setEditButtonVisible(false);
+      }
+      state.phase = "intro";
+      state.category = 0;
+      render();
+    } catch (error) {
+      if (sequence !== state.lookupSequence) return;
+      state.checking = false;
+      state.lookupError = error.message || "Het accountprofiel kon niet worden gecontroleerd.";
+      render();
+      if (error.status === 401) window.LeerpretAuth?.checkSession?.();
+    }
+  }
+
+  function start(session = {}) {
+    if (!session.authenticated) {
+      setEditButtonVisible(false);
+      return;
+    }
+    checkAccountProfile(session);
+  }
+
+  function edit() {
+    const session = window.LeerpretAuth?.getSession?.() || {};
+    if (!session.authenticated) return;
+    checkAccountProfile(session, { forceEdit: true });
   }
 
   function initialize() {
@@ -477,9 +647,10 @@
     gate = document.getElementById("characterCreationGate");
     if (!mount || !gate) return;
     state.mounted = true;
+    restoreDraft();
     mount.addEventListener("click", handleClick);
     mount.addEventListener("input", handleInput);
-    mount.addEventListener("submit", handleSubmit);
+    editButton()?.addEventListener("click", edit);
     window.addEventListener("leerpret-auth-changed", event => start(event.detail || {}));
     const session = window.LeerpretAuth?.getSession?.();
     if (session?.authenticated) start(session);
@@ -487,6 +658,7 @@
 
   window.BehaviorCharacterCreation = {
     start,
+    edit,
     getPayload: payload,
     getStateSnapshot: () => JSON.parse(JSON.stringify(state))
   };

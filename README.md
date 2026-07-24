@@ -10,10 +10,14 @@ door een adapter of deploymentconfiguratie moeten worden overgenomen.
 
 Na het aanmelden doorloopt de speler eerst een gamified point-buy-wizard:
 
-1. kernprofiel (voornaam, achternaam, gender en e-mail);
+1. een korte uitleg: de gedragsstijltest helpt de game een passende rol kiezen;
 2. Basic Style Scan met 10 categorieën;
 3. Response Style Scan met 10 categorieën;
 4. daarna pas de bestaande self-starting bouwtutorial.
+
+De wizard vraagt geen naam, e-mailadres, geslacht of profielfoto. Het
+gedragsprofiel wordt uitsluitend gekoppeld aan de pseudonieme, leerboxgebonden
+sessie.
 
 Elke categorie bevat vier gedragskenmerken. De speler moet exact 20 punten
 verdelen, met 0 tot en met 10 punten per kenmerk. Een volgende categorie blijft
@@ -34,7 +38,10 @@ POST /api/v1/player/behavior-profile
 De Leerpret-backend valideert de volledige 0–10/20-puntenverdeling opnieuw en
 slaat het profiel op onder een gehashte, niet-raadbare profiel-id. Zonder een
 geldige `learner`-sessie voor `learngame-operations-management` antwoordt de
-route met `401`.
+route met `401`. Bij een volgende aanmelding vraagt de game dit accountprofiel
+eerst op en slaat de wizard automatisch over wanneer het al bestaat. Via
+`Karakter aanpassen` kan de speler het bestaande profiel bewust opnieuw openen
+en onder hetzelfde account overschrijven.
 
 ## Aanmelden via Leerpret
 
@@ -45,10 +52,12 @@ niet de engine-sessie:
    `credentials: include`;
 2. wanneer de game vanuit een reeds aangemelde Leerpret-frontend is geopend,
    wisselt zij die aanmelding stil in voor een beperkte LO-sessie;
-3. een standalone bezoeker meldt zich in de game zelf aan met Google Identity
-   Services; de backend verifieert het Google ID-token en maakt daarna
-   `leerpret_leerbox_session`;
-4. afmelden loopt via `POST /api/auth/leerbox/logout`.
+3. een standalone bezoeker meldt zich in de game zelf aan via een
+   authorization-codeflow met uitsluitend de scope `openid`; Google deelt
+   daardoor geen naam, e-mailadres of profielfoto met Leerpret;
+4. de backend maakt van Googles vaste accountcode direct een
+   Leerpret-specifiek pseudoniem en verwijdert de tijdelijke Google-tokens;
+5. afmelden loopt via `POST /api/auth/leerbox/logout`.
 
 De speler vult in de LO-game dus geen organisatie of API-sleutel in. De
 beperkte sessie bevat standaard alleen `learner` (`Lerende`).
@@ -56,12 +65,17 @@ beperkte sessie bevat standaard alleen `learner` (`Lerende`).
 dat recht in de getekende sessie heeft opgenomen. Deze cookie wordt niet door
 de engine-, architect- of technologieroutes als autorisatie geaccepteerd.
 
-Lokaal gebruikt de game standaard `http://127.0.0.1:8011/api`. Een andere
-centrale service kan via de opstartparameter `?api=...` worden gekozen. De Leerpret-backend
+Lokaal gebruikt de game standaard poort `8011` op dezelfde hostnaam waarmee
+de game is geopend. Bij `http://localhost:4173` wordt dat dus
+`http://localhost:8011/api`; bij `http://127.0.0.1:4173` wordt het
+`http://127.0.0.1:8011/api`. Een eerder opgeslagen afwijkende loopback-host
+wordt automatisch hersteld. Een andere centrale service kan via de
+opstartparameter `?api=...` worden gekozen. De Leerpret-backend
 moet voor een afzonderlijke oorsprong die oorsprong opnemen in
-`LEERPRET_CORS_ORIGINS`. Google Sign-In vereist daarnaast
-`GOOGLE_OAUTH_CLIENT_ID` op de backend en de oorsprong van de standalone game
-als Authorized JavaScript origin in Google Cloud.
+`LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
+`GOOGLE_OAUTH_CLIENT_ID` en `GOOGLE_OAUTH_CLIENT_SECRET` op de backend en de
+oorsprong van de standalone game als Authorized JavaScript origin in Google
+Cloud. Het client secret hoort uitsluitend in de genegeerde `backend/.env`.
 
 ## Uitgangspunten
 
@@ -233,20 +247,42 @@ halffabricaat in het open dak van Productie. De speler pakt de complete toren
 vast en sleept hem via de gemarkeerde interne transportroute naar het open
 ontvangstvak van de volgende afdeling, Gereed Product. Daar verschijnt de
 toren opnieuw; de badge bij Productie neemt af van één naar nul en de
-ontvangstbadge neemt toe van nul naar één. Na de bevestigde ontvangst wordt
-vrij bouwen ontgrendeld.
+ontvangstbadge neemt toe van nul naar één. Na de bevestigde ontvangst start
+Stap 4.
+
+Stap 4, `Financieel & Transactie`, herhaalt de orderoverdracht vanuit financieel
+perspectief. De speler sleept de onderdelen uit het open Magazijn naar Gereed
+Product. Iedere materiaaluitgifte boekt de actuele onderdeelprijs af en toont
+een rode min-mutatie bij het magazijn. Zodra de materiaalset compleet is,
+verschijnt Toren B. De speler sleept die naar Expeditie; daar wordt de actuele
+verkoopprijs bijgeschreven met een groene plus-mutatie. Een zwevende
+saldo-indicator reageert rood of groen en het afsluitende overzicht toont
+inkoopkosten, verkoopopbrengst en marge. De bedragen en de aan/uit-status van
+geld komen uit de bestaande Game Master-state en product-/onderdeelcatalogus.
+Met `Naar Stap 5` verlaat de speler de begeleide route en begint de vrije game
+als meesterproef.
 
 Na het aanmelden staat de applicatie in tutorial-focusmodus: alleen de actieve
 bouwoefening of logistieke kaart is zichtbaar. De orderstroom, instellingen,
 voorraadpanelen en meetlog blijven verborgen om rust te bewaren. Met
-het sluitpictogram kan de speler vanuit iedere stap direct naar de volledige
-applicatie gaan. Ook de logistieke stappen gebruiken geen detailpaneel,
-afdelingsondertitels of tekstuele goed/fout-feedback.
+het sluitpictogram kan de speler vanuit iedere stap de tutorial pauzeren en
+direct naar de volledige applicatie gaan. `Tutorial hervatten` opent exact de
+bouw- of logistieke stap waar de speler stopte. Na volledige afronding verandert
+de knop in `Tutorial opnieuw` en begint de route weer bij Stap 1. De visuele
+logistieke stappen gebruiken geen detailpaneel of
+afdelingsondertitels. Alleen de financiële stap toont de expliciete opdracht en
+het compacte transactieresultaat dat voor het leerdoel nodig is.
 
 Stap 2 is tijdens ontwikkeling rechtstreeks te openen via:
 
 ```text
 http://127.0.0.1:4173/#tutorialStep2
+```
+
+Stap 4 heeft voor gerichte ontwikkeling dezelfde directe route:
+
+```text
+http://127.0.0.1:4173/#tutorialStep4
 ```
 
 Daarna kan de speler een bestelling voor A, B of C kiezen. De catalogus en

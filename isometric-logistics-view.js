@@ -13,6 +13,16 @@
       .replace(/'/g, "&#039;");
   }
 
+  function formatEuro(value, signed = false) {
+    const amount = Number(value || 0);
+    const prefix = signed && amount > 0 ? "+" : "";
+    return `${prefix}${new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0
+    }).format(amount)}`;
+  }
+
   function project(x, y, z = 0) {
     return {
       x: PROJECTION.originX + (x - y) * (PROJECTION.tileWidth / 2),
@@ -376,6 +386,73 @@
     `;
   }
 
+  function financeHudMarkup(finance) {
+    if (!finance?.active) return "";
+    const flash = finance.flash === "credit"
+      ? " is-credit"
+      : finance.flash === "debit"
+        ? " is-debit"
+        : "";
+    return `
+      <aside class="iso-finance-hud${flash}${finance.moneyEnabled ? "" : " is-disabled"}"
+             aria-live="polite"
+             aria-label="${finance.moneyEnabled ? `Kassasaldo ${formatEuro(finance.balance)}` : "Spelen met geld staat uit"}">
+        <span class="iso-finance-icon" aria-hidden="true">€</span>
+        <span>
+          <small>${finance.moneyEnabled ? "Kassasaldo" : "Game Master"}</small>
+          <strong>${finance.moneyEnabled ? formatEuro(finance.balance) : "Geld uit"}</strong>
+        </span>
+      </aside>
+    `;
+  }
+
+  function financeMutationMarkup(finance, departmentById) {
+    const mutation = finance?.mutation;
+    if (!finance?.active || !finance.moneyEnabled || !mutation) return "";
+    const department = departmentById.get(mutation.departmentId);
+    if (!department) return "";
+    const geometry = zoneGeometry(department);
+    const positive = Number(mutation.amount) > 0;
+    return `
+      <g transform="translate(${geometry.center.x} ${geometry.center.y - 64})" aria-hidden="true">
+        <g class="iso-money-mutation ${positive ? "is-positive" : "is-negative"}">
+          <rect x="-54" y="-22" width="108" height="44" rx="22"></rect>
+          <text text-anchor="middle" dominant-baseline="central">${escapeHtml(formatEuro(mutation.amount, true))}</text>
+        </g>
+      </g>
+    `;
+  }
+
+  function financeSummaryMarkup(finance) {
+    if (!finance?.active || !finance.complete) return "";
+    const value = amount => finance.moneyEnabled ? formatEuro(amount) : "—";
+    const resultValue = !finance.moneyEnabled
+      ? "—"
+      : finance.pnlEnabled
+        ? formatEuro(finance.margin)
+        : "Verborgen";
+    return `
+      <section class="iso-finance-summary" role="dialog" aria-modal="false" aria-labelledby="isoFinanceSummaryTitle">
+        <p class="eyebrow">Transactie voltooid</p>
+        <h3 id="isoFinanceSummaryTitle">${finance.moneyEnabled ? "Resultaat van deze order" : "Financiële module uitgeschakeld"}</h3>
+        <dl>
+          <div><dt>Inkoopkosten</dt><dd class="is-cost">${value(finance.purchaseCost)}</dd></div>
+          <div><dt>Verkoopopbrengst</dt><dd class="is-revenue">${value(finance.revenue)}</dd></div>
+          <div class="is-result"><dt>Resultaat / marge</dt><dd>${resultValue}</dd></div>
+        </dl>
+        ${finance.moneyEnabled
+          ? `<p>Van ${formatEuro(finance.openingBalance)} naar <strong>${formatEuro(finance.balance)}</strong>.</p>`
+          : "<p>De orderstroom werkt door, maar er zijn geen bedragen geboekt.</p>"}
+        ${finance.moneyEnabled && !finance.pnlEnabled
+          ? "<p>De Game Master heeft de resultaatweergave uitgeschakeld.</p>"
+          : ""}
+        <button type="button" class="primary-button" data-finance-action="next">
+          ${escapeHtml(finance.nextLabel || "Naar Stap 5")}
+        </button>
+      </section>
+    `;
+  }
+
   function mount(container, scene, options = {}) {
     if (!container) return;
     const departments = (scene.departments || []).filter(department => department.visible !== false);
@@ -423,6 +500,7 @@
             <div class="iso-map-legend" aria-label="Afdelingslegenda">${legend}</div>
           </div>
           ${tutorialMarkup(scene.tutorial)}
+          ${financeHudMarkup(scene.finance)}
           <svg class="iso-map" viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}" role="img" aria-label="Isometrische kaart van de logistieke afdelingen">
             <defs>
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
@@ -443,8 +521,9 @@
             <g class="iso-grid-lines" aria-hidden="true"></g>
             <g class="iso-flow-layer" aria-hidden="true">${flows}</g>
             <g class="iso-department-layer">${zones}</g>
-            <g class="iso-overlay-layer">${overlays}</g>
+            <g class="iso-overlay-layer">${overlays}${financeMutationMarkup(scene.finance, departmentById)}</g>
           </svg>
+          ${financeSummaryMarkup(scene.finance)}
         </div>
         ${scene.tutorial?.active ? "" : detailMarkup(selected)}
       </div>
@@ -543,6 +622,12 @@
       const departmentId = event.currentTarget.dataset.departmentAction;
       if (departmentId && typeof options.onDepartmentAction === "function") {
         options.onDepartmentAction(departmentId);
+      }
+    });
+    container.querySelector("[data-finance-action]")?.addEventListener("click", event => {
+      const action = event.currentTarget.dataset.financeAction;
+      if (action && typeof options.onFinanceAction === "function") {
+        options.onFinanceAction(action);
       }
     });
   }
