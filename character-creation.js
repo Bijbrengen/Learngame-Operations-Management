@@ -5,6 +5,7 @@
   const DRAFT_KEY = "learngame-om.behavior-draft.v1";
   const PROFILE_ENDPOINT = "/v1/player/behavior-profile";
   const AXES = ["Daadkracht", "Dynamiek", "Verbinding", "Structuur"];
+  const AXIS_ICONS = ["◆", "✦", "●", "▦"];
   const ARCHETYPES = ["Initiator", "Inspirator", "Verbinder", "Analist"];
   const TRAIT_GROUPS = [
     [
@@ -70,6 +71,14 @@
   ];
 
   const freshAllocations = () => TRAIT_GROUPS.map(() => [0, 0, 0, 0]);
+  const freshTiming = () => ({
+    basic_style_category_ms: Array(10).fill(0),
+    response_style_category_ms: Array(10).fill(0),
+    activeScan: null,
+    activeCategory: null,
+    activeSince: 0,
+    edits: 0
+  });
   const state = {
     phase: "intro",
     category: 0,
@@ -79,6 +88,8 @@
     checking: false,
     lookupError: "",
     qualityReview: null,
+    timing: freshTiming(),
+    result: null,
     entryMode: "onboarding",
     existingProfile: null,
     lookupSequence: 0,
@@ -104,6 +115,21 @@
 
   function categoryTotal(scan = scanKey(), index = state.category) {
     return state.allocations[scan][index].reduce((sum, value) => sum + value, 0);
+  }
+
+  function beginCategoryTiming(scan = scanKey(), category = state.category) {
+    state.timing.activeScan = scan;
+    state.timing.activeCategory = category;
+    state.timing.activeSince = Date.now();
+  }
+
+  function commitCategoryTiming() {
+    const { activeScan, activeCategory, activeSince } = state.timing;
+    if (!activeScan || activeCategory === null || !activeSince) return;
+    const key = `${activeScan}_category_ms`;
+    const elapsed = Math.max(0, Date.now() - activeSince);
+    state.timing[key][activeCategory] += elapsed;
+    state.timing.activeSince = Date.now();
   }
 
   function validAllocationMatrix(value) {
@@ -139,7 +165,12 @@
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
         phase: state.phase === "submitting" ? "response" : state.phase,
         category: state.phase === "submitting" ? 9 : state.category,
-        allocations: state.allocations
+        allocations: state.allocations,
+        timing: {
+          basic_style_category_ms: state.timing.basic_style_category_ms,
+          response_style_category_ms: state.timing.response_style_category_ms,
+          edits: state.timing.edits
+        }
       }));
     } catch {
       // A private browser may disable storage; the in-memory wizard still works.
@@ -172,10 +203,16 @@
         basic_style: draft.allocations.basic_style,
         response_style: draft.allocations.response_style
       };
+      if (Array.isArray(draft.timing?.basic_style_category_ms)) {
+        state.timing.basic_style_category_ms = draft.timing.basic_style_category_ms.slice(0, 10);
+        state.timing.response_style_category_ms = draft.timing.response_style_category_ms.slice(0, 10);
+        state.timing.edits = Number(draft.timing.edits) || 0;
+      }
       state.phase = ["intro", "basic", "response"].includes(draft.phase)
         ? draft.phase
         : "intro";
       state.category = Math.max(0, Math.min(9, Number(draft.category) || 0));
+      if (["basic", "response"].includes(state.phase)) beginCategoryTiming();
       saveDraft();
     } catch {
       // Ignore a malformed or unavailable tab-local draft.
@@ -262,6 +299,7 @@
           <span class="behavior-kicker">Fase 1 · Jouw rol in de simulatie</span>
           <h2>Houd jezelf een spiegel voor</h2>
           <p>Om je een passende rol in de game te geven, vragen we je twee korte gedragsstijltests te doen. Op basis van je antwoorden kiest de game de rol die het beste bij je past.</p>
+          <p>Neem er rustig de tijd voor: een nauwkeurige rolmatch verhoogt de leerpret en voorkomt dat jij of je team tijd verliest aan taken die minder goed passen.</p>
           <p>We vragen hiervoor niet om je naam, e-mailadres, geslacht of profielfoto. Je antwoorden worden alleen gekoppeld aan je pseudonieme gamesessie.</p>
           <div class="identity-avatar" aria-hidden="true"><span></span></div>
         </div>
@@ -327,10 +365,14 @@
           <div class="trait-allocation-list">
             ${TRAIT_GROUPS[state.category].map(([slug, label], traitIndex) => `
               <div class="trait-allocation ${values[traitIndex] === 10 ? "is-capped" : ""}">
-                <label for="trait-${traitIndex}">
-                  <span>${escapeHtml(label)}</span>
-                  <output>${values[traitIndex]}</output>
-                </label>
+                <div class="trait-allocation-heading">
+                  <label for="trait-${traitIndex}">
+                    <span><i class="trait-axis-icon axis-${traitIndex}" aria-hidden="true">${AXIS_ICONS[traitIndex]}</i>${escapeHtml(label)}</span>
+                  </label>
+                  <input class="trait-value-input" type="number" min="0" max="10" step="1"
+                         value="${values[traitIndex]}" data-trait-value="${traitIndex}"
+                         aria-label="Punten voor ${escapeHtml(label)}">
+                </div>
                 <div class="trait-controls">
                   <button type="button" data-step="${traitIndex}" data-delta="-1"
                           ${values[traitIndex] === 0 ? "disabled" : ""}
@@ -404,6 +446,109 @@
       </div>`;
   }
 
+  function overviewMarkup() {
+    const allBalanced = ["basic_style", "response_style"].every(scan =>
+      state.allocations[scan].every((_, index) => categoryTotal(scan, index) === 20)
+    );
+    const review = window.BehaviorResponseQuality?.assess(state.allocations, state.timing);
+    const issuesFor = (scan, categoryIndex) => review?.rowIssues?.[scan]?.[categoryIndex] || [];
+    const hasStatisticalWarnings = ["basic_style", "response_style"].some(scan =>
+      TRAIT_GROUPS.some((_, categoryIndex) => issuesFor(scan, categoryIndex).length)
+    );
+    const scanTable = (scan, title) => `
+      <section class="behavior-overview-scan">
+        <h3>${title}</h3>
+        <div class="behavior-overview-table">
+          ${TRAIT_GROUPS.map((traits, categoryIndex) => `
+            <div class="behavior-overview-row ${issuesFor(scan, categoryIndex).length ? "is-statistically-doubtful" : ""}"
+                 ${issuesFor(scan, categoryIndex).length ? `title="${escapeHtml(issuesFor(scan, categoryIndex).join(" "))}"` : ""}>
+              <strong>${categoryIndex + 1}</strong>
+              ${traits.map(([, label], traitIndex) => `
+                <label title="${escapeHtml(label)}">
+                  <span>${escapeHtml(label)}</span>
+                  <input type="number" min="0" max="10" step="1"
+                         value="${state.allocations[scan][categoryIndex][traitIndex]}"
+                         data-overview-scan="${scan}"
+                         data-overview-category="${categoryIndex}"
+                         data-overview-trait="${traitIndex}">
+                </label>`).join("")}
+              <output class="${categoryTotal(scan, categoryIndex) === 20 && !issuesFor(scan, categoryIndex).length ? "is-balanced" : "is-invalid"}">
+                ${issuesFor(scan, categoryIndex).length ? "! " : ""}${categoryTotal(scan, categoryIndex)}/20
+              </output>
+            </div>`).join("")}
+        </div>
+      </section>`;
+    return `
+      <div class="character-stage behavior-overview-stage">
+        <div class="scan-title-row">
+          <div>
+            <span class="behavior-kicker">Controle voor de rolmatching</span>
+            <h2>Bekijk en pas je verdeling aan</h2>
+            <p>Controleer rustig of dit de spiegel is die je wilde voorhouden. Iedere rij moet samen precies 20 punten bevatten.${hasStatisticalWarnings ? " Rode rijen vragen ook inhoudelijk om extra aandacht." : ""}</p>
+          </div>
+        </div>
+        ${scanTable("basic_style", "Basisstijl · hoge punten = past het minst")}
+        ${scanTable("response_style", "Drukproef · hoge punten = past het best")}
+        <div class="character-actions">
+          <button type="button" class="character-secondary" data-action="back-to-response">← Terug</button>
+          <button type="button" class="character-primary" data-action="review-profile" ${allBalanced ? "" : "disabled"}>
+            Bereken passende rol <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function resultMarkup() {
+    const analysis = state.result?.analysis || state.qualityReview || {};
+    const profile = analysis.profile || {};
+    const matches = profile.roleMatches || profile.role_matches || [];
+    const recommended = profile.recommendedRole || profile.recommended_role || matches[0] || {};
+    const reliability = analysis.reliability ?? 0;
+    const leastMatching = [...matches].sort(
+      (left, right) => Number(left.match) - Number(right.match)
+    ).slice(0, Math.min(2, Math.max(0, matches.length - 1)));
+    return `
+      <div class="character-stage behavior-result-stage">
+        <span class="behavior-kicker">Jouw rol in de simulatie</span>
+        <h2>${escapeHtml(recommended.title || "Passende rol berekend")}</h2>
+        <p>Op basis van je Basisstijl en je reactie onder druk past deze rol het beste bij je huidige profiel.</p>
+        <div class="behavior-result-hero">
+          <div class="role-match-ring" style="--match: ${Number(recommended.match || 0)}">
+            <strong>${Number(recommended.match || 0)}%</strong><span>rolmatch</span>
+          </div>
+          <div>
+            <span>Herkenbaar archetype</span>
+            <strong>${escapeHtml(profile.archetype || "In balans")}</strong>
+            <span>Betrouwbaarheid</span>
+            <strong>${reliability}%</strong>
+          </div>
+        </div>
+        <section class="role-fit-section">
+          <h3>Wat goed bij je past</h3>
+          <div class="role-match-list">
+            ${matches.slice(0, 5).map(match => `
+              <div><span>${escapeHtml(match.title)}</span><progress max="100" value="${Number(match.match)}"></progress><strong>${Number(match.match)}%</strong></div>
+            `).join("")}
+          </div>
+        </section>
+        ${leastMatching.length ? `
+          <section class="role-fit-section role-fit-section-less">
+            <h3>Wat minder bij je past</h3>
+            <p>Deze rollen sluiten van de beschikbare rollen het minst aan op je huidige profiel.</p>
+            <div class="role-match-list">
+              ${leastMatching.map(match => `
+                <div><span>${escapeHtml(match.title)}</span><progress max="100" value="${Number(match.match)}"></progress><strong>${Number(match.match)}%</strong></div>
+              `).join("")}
+            </div>
+          </section>` : ""}
+        ${(analysis.attentionNotes || analysis.attention_notes || []).map(note => `<p class="result-attention-note">${escapeHtml(note)}</p>`).join("")}
+        <div class="character-actions">
+          <button type="button" class="character-secondary" data-action="download-report">Download PDF-rapport</button>
+          <button type="button" class="character-primary" data-action="start-game">Start in mijn rol <span aria-hidden="true">→</span></button>
+        </div>
+      </div>`;
+  }
+
   function lookupMarkup() {
     return `
       <div class="character-stage completion-stage">
@@ -432,6 +577,10 @@
             ? submittingMarkup()
             : state.phase === "quality_warning"
               ? qualityWarningMarkup()
+              : state.phase === "overview"
+                ? overviewMarkup()
+                : state.phase === "result"
+                  ? resultMarkup()
               : scanMarkup()}
       </div>`;
   }
@@ -442,6 +591,7 @@
     const totalWithoutCurrent = values.reduce((sum, value, index) => index === traitIndex ? sum : sum + value, 0);
     values[traitIndex] = Math.max(0, Math.min(10, 20 - totalWithoutCurrent, Number(requested)));
     if (values[traitIndex] !== current) {
+      state.timing.edits += 1;
       saveDraft();
       render();
     }
@@ -468,7 +618,12 @@
       },
       metadata: {
         completion_timestamp: new Date().toISOString(),
-        engine_target: "Leerpret Engine Archetype Matcher"
+        engine_target: "Leerpret Engine Archetype Matcher",
+        timing: {
+          basic_style_category_ms: state.timing.basic_style_category_ms.map(Math.round),
+          response_style_category_ms: state.timing.response_style_category_ms.map(Math.round),
+          edits: state.timing.edits
+        }
       }
     };
   }
@@ -508,9 +663,13 @@
       storeReceipt(result);
       sessionStorage.removeItem(DRAFT_KEY);
       state.existingProfile = body;
+      state.result = result;
+      state.qualityReview = result.analysis || state.qualityReview;
+      state.phase = "result";
+      state.submitting = false;
       setEditButtonVisible(true);
       window.dispatchEvent(new CustomEvent("behavior-profile-completed", { detail: { payload: body, receipt: result } }));
-      finish();
+      render();
     } catch (error) {
       state.submitting = false;
       state.submitError = error.message || "Het profiel kon niet worden opgeslagen.";
@@ -533,6 +692,7 @@
   }
 
   function goPrevious() {
+    commitCategoryTiming();
     if (state.category > 0) {
       state.category -= 1;
     } else if (state.phase === "response") {
@@ -542,13 +702,16 @@
       state.phase = "intro";
     }
     saveDraft();
+    if (["basic", "response"].includes(state.phase)) beginCategoryTiming();
     render();
   }
 
   function goNext() {
     if (categoryTotal() !== 20) return;
+    commitCategoryTiming();
     if (state.category < 9) {
       state.category += 1;
+      beginCategoryTiming();
       saveDraft();
       render();
       return;
@@ -556,24 +719,22 @@
     if (state.phase === "basic") {
       state.phase = "response";
       state.category = 0;
+      beginCategoryTiming();
       saveDraft();
       render();
       return;
     }
-    const review = window.BehaviorResponseQuality?.assess(state.allocations);
-    if (review?.doubtful) {
-      state.qualityReview = review;
-      state.phase = "quality_warning";
-      render();
-      return;
-    }
-    submitProfile();
+    state.phase = "overview";
+    saveDraft();
+    render();
   }
 
   function handleClick(event) {
     const node = event.target.closest("[data-category]");
     if (node && !node.disabled) {
+      commitCategoryTiming();
       state.category = Number(node.dataset.category);
+      beginCategoryTiming();
       saveDraft();
       render();
       return;
@@ -590,26 +751,85 @@
     if (action === "begin-scans") {
       state.phase = "basic";
       state.category = 0;
+      beginCategoryTiming();
       saveDraft();
       render();
     }
     if (action === "retry") submitProfile();
     if (action === "retry-quality") {
       state.allocations = { basic_style: freshAllocations(), response_style: freshAllocations() };
+      state.timing = freshTiming();
       state.qualityReview = null;
       state.phase = "basic";
       state.category = 0;
+      beginCategoryTiming();
       saveDraft();
       render();
     }
     if (action === "retry-lookup") {
       checkAccountProfile(window.LeerpretAuth?.getSession?.() || {});
     }
+    if (action === "back-to-response") {
+      state.phase = "response";
+      state.category = 9;
+      beginCategoryTiming();
+      render();
+    }
+    if (action === "review-profile") {
+      const review = window.BehaviorResponseQuality?.assess(state.allocations, state.timing);
+      state.qualityReview = review;
+      if (review?.doubtful) {
+        state.phase = "quality_warning";
+        render();
+      } else {
+        submitProfile();
+      }
+    }
+    if (action === "start-game") finish();
+    if (action === "download-report") downloadReport();
   }
 
   function handleInput(event) {
     if (event.target.matches("[data-trait]")) {
       setAllocation(Number(event.target.dataset.trait), event.target.value);
+    }
+    if (event.target.matches("[data-overview-scan]")) {
+      const scan = event.target.dataset.overviewScan;
+      const category = Number(event.target.dataset.overviewCategory);
+      const trait = Number(event.target.dataset.overviewTrait);
+      state.allocations[scan][category][trait] = Math.max(0, Math.min(10, Number(event.target.value) || 0));
+      state.timing.edits += 1;
+      saveDraft();
+      render();
+    }
+  }
+
+  function handleChange(event) {
+    if (event.target.matches("[data-trait-value]")) {
+      setAllocation(Number(event.target.dataset.traitValue), event.target.value);
+    }
+  }
+
+  async function downloadReport() {
+    const apiBase = (state.apiBase || window.LeerpretAuth?.getSession?.().apiBase || "").replace(/\/+$/, "");
+    try {
+      const response = await fetch(`${apiBase}${PROFILE_ENDPOINT}/report.pdf`, {
+        credentials: "include",
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error(`Rapportservice antwoordde met status ${response.status}.`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "gedragsstijlrapport-lo-game.pdf";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      state.submitError = error.message || "Het PDF-rapport kon niet worden gemaakt.";
+      state.phase = "submitting";
+      state.submitting = false;
+      render();
     }
   }
 
@@ -693,6 +913,7 @@
     restoreDraft();
     mount.addEventListener("click", handleClick);
     mount.addEventListener("input", handleInput);
+    mount.addEventListener("change", handleChange);
     editButton()?.addEventListener("click", edit);
     window.addEventListener("leerpret-auth-changed", event => start(event.detail || {}));
     const session = window.LeerpretAuth?.getSession?.();

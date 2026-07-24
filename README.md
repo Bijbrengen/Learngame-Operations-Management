@@ -37,6 +37,14 @@ dat geval legt de game vriendelijk uit dat de antwoorden te weinig onderscheid
 geven voor een passende rol en vraagt zij beide scans opnieuw in te vullen. Dit
 is nadrukkelijk geen psychologische beoordeling of leugendetector.
 
+De game meet daarnaast de actieve invultijd per categorie. Zeer snel invullen
+blokkeert de speler niet automatisch, maar verlaagt de betrouwbaarheid van de
+rolmatch. Na de twintig categorieën verschijnt een overzichtstabel waarin alle
+waarden nog aangepast kunnen worden. Daarna toont de game het herkenbare
+archetype, de best passende operationele rol, alternatieve matchpercentages en
+de betrouwbaarheid. Het pseudonieme resultaat kan rechtstreeks als PDF worden
+gedownload.
+
 Na beide scans verstuurt de game het profiel met de beperkte LO-gamesessie naar:
 
 ```text
@@ -91,6 +99,22 @@ Cloud. Het client secret hoort uitsluitend in de genegeerde `backend/.env`.
 - Fysiek en digitaal horen bij elkaar: dezelfde spelkern moet later naar een webinterface, IoT-opstelling of adapter zoals Minecraft kunnen worden gekoppeld.
 - De interface is een meetopstelling, geen eindgame. Zij maakt de logistieke stroom zichtbaar en schrijft kale interactie-events weg.
 - Rollen, voorraad, productie, verkoop, geldstromen, winst/verlies, opportunity costs, rolvrijheid en het aantal torensoorten zijn instelbaar.
+
+## Wachttijd is kijktijd
+
+Na het verwerken van een digitaal formulier schakelt de vrije game kort
+automatisch naar het isometrische systeemperspectief. De speler ziet dan de
+volledige goederen- en informatiestroom. Zodra de volgende processtap klaarstaat,
+verschijnt een attentie-alert met rol, formulierhandeling en processtap en keert
+de interface terug naar het werkperspectief. Beide wisselingen worden als kale
+interactie-events vastgelegd.
+
+Een echte gedeelde multiplayerlobby met Game Master-codes, uitnodigingen,
+unanieme consensus en handelende AI-rollen vereist daarnaast synchronisatie van
+orders, formulieren en rolhandelingen tussen browsers. De huidige standalone
+runtime heeft alleen lokale spelstate. Daarom is dit onderdeel nog niet als
+lokale schijnlobby toegevoegd; het wordt een afzonderlijk gedeeld
+sessiecontract met backendopslag.
 
 Belangrijkste bronnen voor deze versie:
 

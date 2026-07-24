@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leerpret.nl/contracts/game-session-consensus-v1.schema.json",
+  "title": "LEARNGame OM game session and consensus v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "session_id", "join_code", "status", "game_master_member_id", "members", "role_vacancies", "consensus"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "join_code": {"type": "string", "pattern": "^[A-Z0-9]{6,10}$"},
+    "status": {"enum": ["lobby", "ready", "running", "finished"]},
+    "game_master_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["member_id", "present", "assigned_role_id", "match_percent", "reliability"],
+        "properties": {
+          "member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+          "present": {"type": "boolean"},
+          "assigned_role_id": {"type": ["string", "null"], "maxLength": 80},
+          "match_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+          "reliability": {"type": ["integer", "null"], "minimum": 0, "maximum": 100}
+        }
+      }
+    },
+    "role_vacancies": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 80},
+      "uniqueItems": true
+    },
+    "consensus": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["proposal_id", "proposal", "required_member_ids", "approved_member_ids", "status"],
+      "properties": {
+        "proposal_id": {"type": "string", "minLength": 8, "maxLength": 120},
+        "proposal": {"const": "fill_vacant_roles_with_virtual_agents"},
+        "required_member_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 8, "maxLength": 120},
+          "uniqueItems": true
+        },
+        "approved_member_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 8, "maxLength": 120},
+          "uniqueItems": true
+        },
+        "status": {"enum": ["open", "accepted", "rejected", "withdrawn"]}
+      }
+    },
+    "virtual_agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["agent_id", "role_id", "activated_by_proposal_id"],
+        "properties": {
+          "agent_id": {"type": "string", "minLength": 8, "maxLength": 120},
+          "role_id": {"type": "string", "minLength": 1, "maxLength": 80},
+          "activated_by_proposal_id": {"type": "string", "minLength": 8, "maxLength": 120}
+        }
+      }
+    }
+  }
+}

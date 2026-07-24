@@ -662,6 +662,12 @@
     finishedGoods: {},
     purchaseCost: 0,
     opportunityCost: 0,
+    assignedRoleId: null,
+    attention: {
+      mode: "task",
+      timer: null,
+      autoOpenedProcess: false
+    },
     interactionBuffer: [],
     contractEventBuffer: [],
     tutorialDismissed: false,
@@ -750,7 +756,11 @@
     roleFreedomToggle: document.getElementById("roleFreedomToggle"),
     priceModeSelect: document.getElementById("priceModeSelect"),
     logisticsOrganizationSelect: document.getElementById("logisticsOrganizationSelect"),
-    productTypeCountInput: document.getElementById("productTypeCountInput")
+    productTypeCountInput: document.getElementById("productTypeCountInput"),
+    attentionModeBanner: document.getElementById("attentionModeBanner"),
+    attentionModeIcon: document.getElementById("attentionModeIcon"),
+    attentionModeTitle: document.getElementById("attentionModeTitle"),
+    attentionModeMessage: document.getElementById("attentionModeMessage")
   };
 
   const appDisplayMode = window.matchMedia("(display-mode: standalone)");
@@ -975,6 +985,87 @@
     state.clockMinutes += Math.max(0, Math.round(minutes));
   }
 
+  function setAttentionBanner(title, message, icon = "◎", alert = false) {
+    if (!els.attentionModeBanner) return;
+    els.attentionModeTitle.textContent = title;
+    els.attentionModeMessage.textContent = message;
+    els.attentionModeIcon.textContent = icon;
+    els.attentionModeBanner.hidden = false;
+    els.attentionModeBanner.classList.toggle("is-alert", alert);
+  }
+
+  function showAssignment(order) {
+    if (state.attention.timer) {
+      clearTimeout(state.attention.timer);
+      state.attention.timer = null;
+    }
+    state.attention.mode = "task";
+    document.body.classList.remove("system-perspective");
+    if (state.attention.autoOpenedProcess) {
+      els.dataModelPanel.classList.remove("visible");
+      els.dataModelGrid.innerHTML = "";
+      state.attention.autoOpenedProcess = false;
+    }
+    if (!order || order.done) return;
+    const step = currentStep(order);
+    const roleId = step.roleId === "customer1" ? order.customerRoleId : step.roleId;
+    const role = roleById(roleId);
+    setAttentionBanner(
+      "Nieuw formulier beschikbaar",
+      `${role.token} · ${step.action}: ${step.label}`,
+      "!",
+      true
+    );
+    dispatchInteraction({
+      actionType: "assignment_attention_alert",
+      orderId: order.id,
+      stage: step.id,
+      role: role.title,
+      roleId: role.id,
+      result: "shown",
+      objectRole: "attention"
+    });
+    setTimeout(() => {
+      if (state.attention.mode === "task" && els.attentionModeBanner) {
+        els.attentionModeBanner.hidden = true;
+      }
+    }, 4200);
+    requestAnimationFrame(() => {
+      els.selectedOrderBox?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
+
+  function enterSystemPerspective(order) {
+    if (document.body.classList.contains("tutorial-focus")) return;
+    state.attention.mode = "system";
+    state.config.processView = "isometric";
+    document.body.classList.add("system-perspective");
+    els.dataModelPanel.classList.add("visible");
+    state.attention.autoOpenedProcess = true;
+    setAttentionBanner(
+      "Wachttijd = kijktijd",
+      "Je formulier is verwerkt. Volg live hoe goederen en informatie door de hele keten bewegen.",
+      "◎",
+      false
+    );
+    renderDataModel(true);
+    dispatchInteraction({
+      actionType: "enter_system_perspective",
+      orderId: order?.id,
+      result: "observing",
+      objectRole: "orientation",
+      role: "Lerende"
+    });
+    if (state.attention.timer) clearTimeout(state.attention.timer);
+    if (order && !order.done) {
+      state.attention.timer = setTimeout(() => {
+        state.attention.timer = null;
+        showAssignment(order);
+        renderAll();
+      }, 2400);
+    }
+  }
+
   function makeOrder(productId, quantity, unitPrice, dueMinutes) {
     state.orderCounter += 1;
     const customerNumber = ((state.orderCounter - 1) % 4) + 1;
@@ -1016,6 +1107,7 @@
     });
     addClock(1);
     renderAll();
+    showAssignment(order);
   }
 
   function missingMaterials(order, stageNumber) {
@@ -1178,6 +1270,7 @@
     maybeRoleDeviation(order, step, role);
     maybeAutomaticDisruption(order);
     renderAll();
+    enterSystemPerspective(order);
   }
 
   function applyDisruption(order, disruption, automatic = false) {
@@ -3103,6 +3196,10 @@
   }
 
   function resetState() {
+    if (state.attention.timer) clearTimeout(state.attention.timer);
+    state.attention = { mode: "task", timer: null, autoOpenedProcess: false };
+    document.body.classList.remove("system-perspective");
+    if (els.attentionModeBanner) els.attentionModeBanner.hidden = true;
     rebuildProducts(state.config.productTypeCount);
     state.sessionId = `icg2-v2-${Date.now().toString(36)}`;
     state.clockMinutes = 600;
@@ -3134,6 +3231,21 @@
   }
 
   function wireEvents() {
+    window.addEventListener("behavior-profile-completed", event => {
+      const analysis = event.detail?.receipt?.analysis || {};
+      const recommendation = analysis.profile?.recommended_role || analysis.profile?.recommendedRole;
+      if (!recommendation?.id) return;
+      state.assignedRoleId = recommendation.id;
+      dispatchInteraction({
+        actionType: "assign_role_from_behavior_profile",
+        roleId: recommendation.id,
+        role: recommendation.title,
+        result: "matched",
+        objectRole: "role_assignment",
+        matchPercent: recommendation.match,
+        reliability: analysis.reliability
+      });
+    });
     els.orderForm.addEventListener("submit", event => {
       event.preventDefault();
       const productId = els.productSelect.value;
@@ -3314,6 +3426,8 @@
     getStateSnapshot: () => ({
       sessionId: state.sessionId,
       version: "ICG2-v2",
+      assignedRoleId: state.assignedRoleId,
+      attentionMode: state.attention.mode,
       clockMinutes: state.clockMinutes,
       config: { ...state.config },
       roles: ROLES.map(role => ({ ...role })),

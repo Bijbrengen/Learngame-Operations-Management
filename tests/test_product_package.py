@@ -58,6 +58,7 @@ class ProductPackageTests(unittest.TestCase):
         self.assertLess(html.index('src="character-creation.js"'), html.index('src="script.js"'))
         self.assertIn("basic_style", wizard)
         self.assertIn("response_style", wizard)
+        self.assertIn("Wat minder bij je past", wizard)
         trait_block = wizard.split("const TRAIT_GROUPS = [", 1)[1].split(
             "];\n\n  const freshAllocations",
             1,
@@ -77,6 +78,11 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("restoreDraft()", wizard)
         self.assertIn("BehaviorResponseQuality", wizard)
         self.assertIn("Nog een keer met aandacht", wizard)
+        self.assertIn("Bekijk en pas je verdeling aan", wizard)
+        self.assertIn("basic_style_category_ms", wizard)
+        self.assertIn("Download PDF-rapport", wizard)
+        self.assertIn("/report.pdf", wizard)
+        self.assertIn("recommended_role", (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
         self.assertIn("Houd jezelf een spiegel voor", wizard)
         self.assertIn("passende rol", wizard)
         self.assertNotIn("player_info", wizard)
@@ -103,7 +109,14 @@ const flat = quality.assess({
   basic_style: repeated([5, 5, 5, 5]),
   response_style: repeated([5, 7, 3, 5])
 });
-process.stdout.write(JSON.stringify({normal, identical, flat}));
+const fast = quality.assess({
+  basic_style: repeated([5, 3, 7, 5]),
+  response_style: repeated([5, 7, 3, 5])
+}, {
+  basic_style_category_ms: Array(10).fill(3000),
+  response_style_category_ms: Array(10).fill(3000)
+});
+process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
 """
         result = subprocess.run(
             ["node", "-e", script, str(quality_path)],
@@ -115,6 +128,23 @@ process.stdout.write(JSON.stringify({normal, identical, flat}));
         self.assertFalse(review["normal"]["doubtful"])
         self.assertTrue(review["identical"]["doubtful"])
         self.assertTrue(review["flat"]["doubtful"])
+        self.assertTrue(review["identical"]["rowIssues"]["basic_style"][0])
+        self.assertTrue(review["identical"]["rowIssues"]["response_style"][0])
+        self.assertTrue(review["flat"]["rowIssues"]["basic_style"][0])
+        self.assertFalse(review["normal"]["rowIssues"]["basic_style"][0])
+        self.assertFalse(review["fast"]["doubtful"])
+        self.assertLess(review["fast"]["reliability"], review["normal"]["reliability"])
+
+    def test_waiting_time_switches_to_system_perspective(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn('id="attentionModeBanner"', html)
+        self.assertIn("enterSystemPerspective(order)", game)
+        self.assertIn("showAssignment(order)", game)
+        self.assertIn('"enter_system_perspective"', game)
+        self.assertIn('"assignment_attention_alert"', game)
+        self.assertIn(".system-perspective .data-model-panel", styles)
 
     def test_isometric_logistics_view_is_separate_and_configurable(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
@@ -402,6 +432,18 @@ process.stdout.write(JSON.stringify({normal, identical, flat}));
                 local_contract,
                 "Werk de contractsnapshot bij voordat het publieke contract wijzigt.",
             )
+
+    def test_game_session_contract_requires_unanimous_consensus_records(self) -> None:
+        contract = json.loads(
+            (PRODUCT_ROOT / "contracts/game-session-consensus-v1.schema.json").read_text(encoding="utf-8")
+        )
+        consensus = contract["properties"]["consensus"]
+        self.assertIn("required_member_ids", consensus["required"])
+        self.assertIn("approved_member_ids", consensus["required"])
+        self.assertEqual(
+            "fill_vacant_roles_with_virtual_agents",
+            consensus["properties"]["proposal"]["const"],
+        )
 
 
 if __name__ == "__main__":

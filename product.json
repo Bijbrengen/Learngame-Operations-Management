@@ -11,7 +11,8 @@
     "supported_delivery": ["file", "http", "https"]
   },
   "public_contracts": [
-    "contracts/events/leerpret-interaction-event-v1.schema.json"
+    "contracts/events/leerpret-interaction-event-v1.schema.json",
+    "contracts/game-session-consensus-v1.schema.json"
   ],
   "fixtures": [
     "fixtures/learngame-operations-management-capture.json",
@@ -23,7 +24,7 @@
     "auth": {
       "strategy": "google-and-leerpret-scoped-session-v1",
       "session_endpoint": "/api/auth/leerbox/session",
-      "google_session_endpoint": "/api/auth/leerbox/google",
+      "google_session_endpoint": "/api/auth/leerbox/google-code",
       "existing_session_exchange_endpoint": "/api/auth/leerbox/exchange",
       "logout_endpoint": "/api/auth/leerbox/logout",
       "cookie": "leerpret_leerbox_session",
