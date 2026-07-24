@@ -139,9 +139,14 @@
     if (els.gate) els.gate.hidden = true;
     if (els.statusButton) {
       const identity = state.user?.label || "Aangemeld";
-      els.statusButton.textContent = `${identity} · ${roleLabels().join(" + ") || "Lerende"}`;
+      const activeRoles = roleLabels().join(" + ") || "Lerende";
+      els.statusButton.textContent = "Uitloggen";
       els.statusButton.classList.add("is-authenticated");
-      els.statusButton.title = "Klik om af te melden";
+      els.statusButton.title = `Aangemeld: ${identity} · ${activeRoles}. Klik om uit te loggen.`;
+      els.statusButton.setAttribute(
+        "aria-label",
+        `Uitloggen. Aangemeld als ${identity} met rol ${activeRoles}.`
+      );
       els.statusButton.disabled = false;
     }
     announceSession();
@@ -159,6 +164,7 @@
     if (els.statusButton) {
       els.statusButton.textContent = online ? "Niet aangemeld" : "Service offline";
       els.statusButton.classList.remove("is-authenticated");
+      els.statusButton.removeAttribute("aria-label");
       els.statusButton.title = online ? "Meld je aan in dit venster" : "De Leerpret-service is niet bereikbaar";
       els.statusButton.disabled = true;
     }

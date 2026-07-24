@@ -121,6 +121,20 @@
           <strong data-tutorial-label>Tutorial hervatten</strong>
         </button>
       </nav>
+      <section id="playerSessionPanel"
+               class="game-session-panel"
+               aria-labelledby="playerSessionTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Gamecode &amp; lobby</p>
+            <h2 id="playerSessionTitle">Neem deel aan een gamesessie</h2>
+          </div>
+          <span id="playerSessionBadge" class="session-status-badge">Zoeken…</span>
+        </div>
+        <div id="playerSessionContent" class="game-session-content">
+          <p>Beschikbare gamesessies ophalen…</p>
+        </div>
+      </section>
       <section id="playerTaskPanel" class="player-task-panel">
         <header class="player-stage-header">
           <div id="playerRoleToken" class="player-role-token">--</div>
@@ -225,6 +239,12 @@
           <p>Kies links een werkvenster.</p>
         </div>
         <nav class="manager-tab-list" role="tablist" aria-orientation="vertical">
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="session">
+            <span aria-hidden="true">00</span>
+            <strong>Gamesessie</strong>
+            <small>Game Master &amp; codes</small>
+          </button>
           <button id="dataModelButton" type="button" role="tab" aria-selected="false"
                   data-manager-tab="process">
             <span aria-hidden="true">01</span>
@@ -257,6 +277,32 @@
           </button>
         </nav>
       </aside>
+
+      <section id="managerSessionPanel"
+               class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="session"
+               aria-labelledby="managerSessionTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Game Master &amp; codes</p>
+            <h2 id="managerSessionTitle">Gamesessie aanmaken</h2>
+          </div>
+          <span id="managerSessionBadge" class="session-status-badge">Geen sessie</span>
+        </div>
+        <div id="managerSessionContent" class="game-session-content">
+          <form id="gameSessionCreateForm" class="game-session-create-form">
+            <label>
+              <span>Toegang</span>
+              <select id="gameSessionType">
+                <option value="closed">Gesloten · alleen met gamecode</option>
+                <option value="open">Open · zichtbaar en direct deelnemen</option>
+                <option value="semi_closed">Semi-gesloten · zichtbaar, code vereist</option>
+              </select>
+            </label>
+            <button class="primary-button" type="submit">Sessie aanmaken</button>
+          </form>
+        </div>
+      </section>
 
       <section class="order-band manager-dashboard-panel is-active"
                data-manager-panel="core"
@@ -449,12 +495,30 @@
     </main>
   </div>
 
+  <section id="gameConsensusDialog"
+           class="game-consensus-dialog"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="gameConsensusTitle"
+           hidden>
+    <div class="game-consensus-card">
+      <p class="eyebrow">Consensus-check</p>
+      <h2 id="gameConsensusTitle">Wil je wachten op de rest of nu starten met gesimuleerde agents?</h2>
+      <p id="gameConsensusSummary"></p>
+      <div class="game-consensus-actions">
+        <button id="gameConsensusWaitButton" type="button">Wachten op de rest</button>
+        <button id="gameConsensusStartButton" class="primary-button" type="button">Nu starten met agents</button>
+      </div>
+    </div>
+  </section>
+
   <script src="lego-tower-renderer.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="leerpret-auth.js"></script>
   <script src="leerpret-theme.js"></script>
   <script src="behavior-quality.js"></script>
   <script src="character-creation.js"></script>
+  <script src="game-sessions.js"></script>
   <script src="lego-builder.js"></script>
   <script src="isometric-logistics-view.js"></script>
   <script src="script.js"></script>

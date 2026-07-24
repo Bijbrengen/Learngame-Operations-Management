@@ -439,15 +439,6 @@ h3,
   }
 }
 
-.auth-status-button {
-  max-width: 190px;
-}
-
-.auth-status-button.is-authenticated {
-  border-color: rgba(137, 219, 158, 0.7);
-  background: rgba(60, 143, 84, 0.32);
-}
-
 .character-edit-button {
   border: 1px solid rgba(244, 202, 95, 0.55);
   color: #fff4d2;
@@ -1509,6 +1500,379 @@ h3,
 body[data-app-view="player"] .metric-strip,
 body[data-app-view="player"] .manager-only {
   display: none;
+}
+
+.game-session-panel {
+  border: 1px solid rgba(83, 191, 174, 0.28);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(9, 28, 34, 0.96), rgba(8, 20, 25, 0.92));
+  padding: 20px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+}
+
+.player-workbench > .game-session-panel {
+  margin-bottom: 18px;
+}
+
+.game-session-heading,
+.session-facts,
+.game-consensus-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.game-session-heading h2,
+.game-session-heading p {
+  margin: 0;
+}
+
+.session-status-badge {
+  border: 1px solid rgba(92, 215, 190, 0.34);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #a6f3df;
+  background: rgba(35, 147, 127, 0.12);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.game-session-content {
+  margin-top: 18px;
+}
+
+.game-session-create-form,
+.game-code-join-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.game-session-create-form label,
+.game-code-join-form label {
+  display: grid;
+  gap: 7px;
+  color: #aac1c4;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.game-session-create-form select,
+.game-code-join-form input {
+  min-height: 46px;
+  border: 1px solid rgba(148, 189, 190, 0.24);
+  border-radius: 12px;
+  padding: 0 13px;
+  color: #f4fbfa;
+  background: rgba(3, 14, 18, 0.72);
+}
+
+.manager-create-note,
+.no-open-games,
+.session-vote-progress,
+.session-running-message {
+  color: #adc4c6;
+}
+
+.open-game-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.open-game-list > strong {
+  color: #d7e9e8;
+}
+
+.open-game-list button,
+.discoverable-game,
+.free-game-button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  width: 100%;
+  border: 1px solid rgba(125, 185, 181, 0.22);
+  border-radius: 13px;
+  padding: 13px 15px;
+  text-align: left;
+  color: #e9f7f4;
+  background: rgba(11, 39, 45, 0.68);
+  cursor: pointer;
+}
+
+.open-game-list button:hover,
+.free-game-button:hover {
+  border-color: rgba(92, 215, 190, 0.58);
+  transform: translateY(-1px);
+}
+
+.open-game-list small,
+.discoverable-game small,
+.free-game-button span {
+  grid-column: 1 / -1;
+  color: #91abad;
+}
+
+.free-game-button {
+  margin-top: 14px;
+  border-color: rgba(231, 176, 76, 0.4);
+}
+
+.game-code-block {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 15px;
+  padding: 14px 16px;
+  background: rgba(3, 16, 20, 0.75);
+}
+
+.game-code-block span {
+  color: #8fa9ab;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-code-block strong {
+  color: #f5cb72;
+  font-family: "Rajdhani", sans-serif;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  letter-spacing: 0.17em;
+}
+
+.game-code-block button {
+  border: 1px solid rgba(245, 203, 114, 0.35);
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: #f5cb72;
+  background: transparent;
+  cursor: pointer;
+}
+
+.session-facts {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin: 13px 0;
+}
+
+.session-facts span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #bad0d1;
+  background: rgba(110, 160, 158, 0.1);
+  font-size: 0.76rem;
+}
+
+.session-member-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.player-running-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+}
+
+.player-running-session > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.player-running-session strong {
+  color: #f4fbfa;
+}
+
+.player-running-session small {
+  color: #9db5b7;
+}
+
+.player-utility-actions .game-session-panel.is-utility-session {
+  min-width: 260px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.player-utility-actions .is-utility-session .game-session-heading {
+  display: none;
+}
+
+.player-utility-actions .is-utility-session .game-session-content {
+  margin: 0;
+}
+
+.player-utility-actions .is-utility-session .player-running-session {
+  min-height: 40px;
+  padding: 5px 11px;
+  border: 1px solid var(--lp-line);
+  border-radius: 8px;
+  background: var(--lp-surface-soft);
+}
+
+.player-utility-actions .is-utility-session .session-member-token {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+}
+
+.player-utility-actions .is-utility-session .player-running-session strong {
+  font-size: 0.78rem;
+}
+
+.player-utility-actions .is-utility-session .player-running-session small {
+  font-size: 0.66rem;
+}
+
+.session-member-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(134, 184, 183, 0.18);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(10, 31, 36, 0.62);
+}
+
+.session-member-list li.is-agent {
+  border-style: dashed;
+}
+
+.session-member-list li > span:last-child {
+  display: grid;
+}
+
+.session-member-list small {
+  color: #8ea7a9;
+}
+
+.session-member-token {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #07191b;
+  background: #66d7be;
+  font-weight: 900;
+}
+
+.is-agent .session-member-token {
+  color: #241900;
+  background: #f4c96d;
+}
+
+.session-vacancies {
+  margin: 13px 0;
+  padding: 12px 14px;
+  border-left: 3px solid #e6ad4d;
+  background: rgba(230, 173, 77, 0.08);
+}
+
+.session-vacancies p {
+  margin: 5px 0 0;
+  color: #b8c9ca;
+}
+
+.session-running-message {
+  color: #8ce5ce;
+  font-weight: 800;
+}
+
+.session-error {
+  color: #ff9b91;
+}
+
+.session-finish-button {
+  margin: 14px 10px 14px 0;
+  border: 1px solid rgba(255, 139, 125, 0.36);
+  border-radius: 10px;
+  padding: 10px 13px;
+  color: #ffaaa0;
+  background: rgba(157, 54, 44, 0.1);
+  cursor: pointer;
+}
+
+.game-consensus-dialog {
+  position: fixed;
+  z-index: 2500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(1, 9, 12, 0.82);
+  backdrop-filter: blur(9px);
+}
+
+.game-consensus-dialog[hidden] {
+  display: none;
+}
+
+.game-consensus-card {
+  width: min(620px, 100%);
+  border: 1px solid rgba(244, 201, 109, 0.44);
+  border-radius: 22px;
+  padding: clamp(22px, 5vw, 38px);
+  background: #0a2026;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+}
+
+.game-consensus-card h2 {
+  margin-top: 7px;
+  color: #f4fbfa;
+}
+
+.game-consensus-card > p:not(.eyebrow) {
+  color: #b9ced0;
+}
+
+.game-consensus-card .eyebrow {
+  color: #f4c96d;
+}
+
+.game-consensus-actions button:not(.primary-button) {
+  border: 1px solid rgba(185, 206, 208, 0.38);
+  border-radius: 10px;
+  padding: 11px 15px;
+  color: #e8f3f2;
+  background: rgba(185, 206, 208, 0.1);
+  cursor: pointer;
+}
+
+.game-consensus-actions button:not(.primary-button):hover,
+.game-consensus-actions button:not(.primary-button):focus-visible {
+  border-color: rgba(185, 206, 208, 0.7);
+  background: rgba(185, 206, 208, 0.18);
+}
+
+@media (max-width: 680px) {
+  .player-utility-actions .game-session-panel.is-utility-session {
+    min-width: min(100%, 260px);
+  }
+
+  .game-session-create-form,
+  .game-code-join-form,
+  .game-code-block {
+    grid-template-columns: 1fr;
+  }
+
+  .game-consensus-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 body[data-app-view="player"] .topbar {
@@ -4746,12 +5110,6 @@ select {
 .manager-utility-actions button {
   width: 100%;
   justify-content: flex-start;
-}
-
-.manager-utility-actions .auth-status-button.is-authenticated {
-  border-color: #2f806d;
-  color: #9af0c8;
-  background: #10332c;
 }
 
 .manager-utility-actions .danger-button {

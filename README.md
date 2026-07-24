@@ -137,12 +137,20 @@ verschijnt een attentie-alert met rol, formulierhandeling en processtap en keert
 de interface terug naar het werkperspectief. Beide wisselingen worden als kale
 interactie-events vastgelegd.
 
-Een echte gedeelde multiplayerlobby met Game Master-codes, uitnodigingen,
-unanieme consensus en handelende AI-rollen vereist daarnaast synchronisatie van
-orders, formulieren en rolhandelingen tussen browsers. De huidige standalone
-runtime heeft alleen lokale spelstate. Daarom is dit onderdeel nog niet als
-lokale schijnlobby toegevoegd; het wordt een afzonderlijk gedeeld
-sessiecontract met backendopslag.
+De game gebruikt een gedeelde, servergestuurde multiplayerlobby. Een Game
+Master maakt uitsluitend vanuit `Beheer > Gamesessie` een gesloten, open of
+semi-gesloten sessie aan en deelt de unieke gamecode. Spelers kunnen met een
+code deelnemen; open sessies met vrije plaatsen worden tevens in de
+spelersweergave aangeboden. Alleen wanneer geen open plek beschikbaar is,
+verschijnt `Vrije game starten`. De speler wordt dan automatisch Game Master
+van de nieuwe sessie.
+
+Wanneer rollen onbezet zijn, kan iedere aanwezige speler een startverzoek doen.
+Alle reeds aanwezige spelers kiezen vervolgens unaniem tussen wachten en
+starten met gesimuleerde agents. Eén wachtstem wijst het verzoek af. Pas wanneer
+iedereen instemt, vult de backend alle resterende rollen met virtuele agents en
+gaat de sessiestatus naar `running`. De gedeelde toestand volgt
+`contracts/game-session-consensus-v1.schema.json`.
 
 Belangrijkste bronnen voor deze versie:
 

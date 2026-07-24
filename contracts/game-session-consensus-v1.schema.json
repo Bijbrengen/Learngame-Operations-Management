@@ -4,25 +4,34 @@
   "title": "LEARNGame OM game session and consensus v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "session_id", "join_code", "status", "game_master_member_id", "members", "role_vacancies", "consensus"],
+  "required": ["contract_version", "session_id", "join_code", "session_type", "origin", "status", "game_master_member_id", "required_role_ids", "members", "role_vacancies", "consensus", "virtual_agents", "created_at", "updated_at"],
   "properties": {
     "contract_version": {"const": "1.0"},
     "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
     "join_code": {"type": "string", "pattern": "^[A-Z0-9]{6,10}$"},
+    "session_type": {"enum": ["closed", "open", "semi_closed"]},
+    "origin": {"enum": ["managed", "free_game"]},
     "status": {"enum": ["lobby", "ready", "running", "finished"]},
     "game_master_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "required_role_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 80},
+      "uniqueItems": true
+    },
     "members": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["member_id", "present", "assigned_role_id", "match_percent", "reliability"],
+        "required": ["member_id", "present", "assigned_role_id", "match_percent", "reliability", "joined_at", "last_seen_at"],
         "properties": {
           "member_id": {"type": "string", "minLength": 8, "maxLength": 120},
           "present": {"type": "boolean"},
           "assigned_role_id": {"type": ["string", "null"], "maxLength": 80},
           "match_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
-          "reliability": {"type": ["integer", "null"], "minimum": 0, "maximum": 100}
+          "reliability": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+          "joined_at": {"type": "string", "format": "date-time"},
+          "last_seen_at": {"type": "string", "format": "date-time"}
         }
       }
     },
@@ -34,10 +43,11 @@
     "consensus": {
       "type": ["object", "null"],
       "additionalProperties": false,
-      "required": ["proposal_id", "proposal", "required_member_ids", "approved_member_ids", "status"],
+      "required": ["proposal_id", "proposal", "requested_by_member_id", "required_member_ids", "approved_member_ids", "status", "created_at"],
       "properties": {
         "proposal_id": {"type": "string", "minLength": 8, "maxLength": 120},
         "proposal": {"const": "fill_vacant_roles_with_virtual_agents"},
+        "requested_by_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
         "required_member_ids": {
           "type": "array",
           "items": {"type": "string", "minLength": 8, "maxLength": 120},
@@ -48,7 +58,9 @@
           "items": {"type": "string", "minLength": 8, "maxLength": 120},
           "uniqueItems": true
         },
-        "status": {"enum": ["open", "accepted", "rejected", "withdrawn"]}
+        "status": {"enum": ["open", "accepted", "rejected", "withdrawn"]},
+        "created_at": {"type": "string", "format": "date-time"},
+        "rejected_by_member_id": {"type": "string", "minLength": 8, "maxLength": 120}
       }
     },
     "virtual_agents": {
@@ -63,6 +75,10 @@
           "activated_by_proposal_id": {"type": "string", "minLength": 8, "maxLength": 120}
         }
       }
-    }
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "current_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "is_game_master": {"type": "boolean"}
   }
 }

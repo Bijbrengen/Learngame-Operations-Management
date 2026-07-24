@@ -42,7 +42,7 @@ class ProductPackageTests(unittest.TestCase):
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
-        self.assertEqual(["process", "inventory", "core", "events", "settings"], tabs)
+        self.assertEqual(["session", "process", "inventory", "core", "events", "settings"], tabs)
 
     def test_runtime_exposes_versioned_events_without_dropping_legacy_events(self) -> None:
         script = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -490,6 +490,22 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
             "fill_vacant_roles_with_virtual_agents",
             consensus["properties"]["proposal"]["const"],
         )
+
+    def test_game_session_ui_separates_managed_creation_and_free_fallback(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        runtime = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        player = html.split('id="playerWorkbench"', 1)[1].split('id="managerWorkbench"', 1)[0]
+        manager = html.split('id="managerWorkbench"', 1)[1]
+        self.assertNotIn('id="gameSessionCreateForm"', player)
+        self.assertIn('id="gameSessionCreateForm"', manager)
+        self.assertIn("can_start_free_game", runtime)
+        self.assertIn("data-start-free-game", runtime)
+        self.assertIn('"wait"', runtime)
+        self.assertIn('"start_with_agents"', runtime)
+        self.assertIn('context === "player" && running', runtime)
+        self.assertIn("player-running-session", runtime)
+        self.assertIn("placePlayerSessionPanel", runtime)
+        self.assertIn("is-utility-session", runtime)
 
 
 if __name__ == "__main__":

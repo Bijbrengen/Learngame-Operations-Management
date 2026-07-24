@@ -977,7 +977,7 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["core", "settings", "inventory", "events", "process"]);
+    const allowed = new Set(["session", "core", "settings", "inventory", "events", "process"]);
     const nextTab = allowed.has(tab) ? tab : "core";
     state.managerTab = nextTab;
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
@@ -3526,6 +3526,21 @@
   }
 
   function wireEvents() {
+    window.addEventListener("learngame-session-started", event => {
+      const session = event.detail?.session;
+      if (!session?.session_id) return;
+      state.sessionId = session.session_id;
+      const member = session.members?.find(item => item.member_id === session.current_member_id);
+      if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
+      dispatchInteraction({
+        actionType: "start_game_session",
+        result: session.virtual_agents?.length ? "agents_activated" : "all_players_present",
+        objectRole: "game_session",
+        role: session.is_game_master ? "Game Master" : "Speler",
+        virtualAgentRoles: (session.virtual_agents || []).map(agent => agent.role_id)
+      });
+      renderAll();
+    });
     window.addEventListener("behavior-profile-completed", event => {
       const analysis = event.detail?.receipt?.analysis || {};
       const recommendation = analysis.profile?.recommended_role || analysis.profile?.recommendedRole;
