@@ -202,6 +202,37 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn('id="logisticsOrganizationSelect"', html)
         self.assertIn('setProcessView("isometric")', game)
 
+    def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="gameTypeSelect"', html)
+        self.assertIn('<option value="entrepreneurial">Entrepreneurial Game</option>', html)
+        for game_number in range(1, 8):
+            self.assertRegex(
+                html,
+                rf'<option value="lo{game_number}"(?: selected)?>LO Game {game_number}</option>',
+            )
+        self.assertIn("const GAME_TYPE_PRESETS", game)
+        self.assertIn("function applyGameTypePreset", game)
+        self.assertIn('gameType: "lo4"', game)
+        self.assertIn("applyGameTypePreset(els.gameTypeSelect.value, true)", game)
+        self.assertIn("const MIN_PRODUCT_TYPES = 1", game)
+
+    def test_role_actions_are_not_rendered_inside_settings(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        settings = html.split('data-manager-panel="settings"', 1)[1].split("</section>", 1)[0]
+        self.assertNotIn('id="selectedOrderBox"', settings)
+        self.assertNotIn('id="advanceButton"', settings)
+        self.assertNotIn('id="disruptionButton"', settings)
+        self.assertNotIn('id="purchaseForm"', settings)
+        self.assertIn('data-player-purchase-form', game)
+        self.assertIn('role.id === "srm"', game)
+        self.assertIn('data-player-disruption', game)
+        self.assertIn('role.id === "opr"', game)
+        self.assertIn("state.gameSessionRunning", game)
+        self.assertIn('window.addEventListener("learngame-session-state"', game)
+
     def test_interactive_lego_builder_uses_the_three_source_products(self) -> None:
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")

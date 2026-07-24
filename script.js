@@ -84,7 +84,7 @@
   ];
 
   const PRODUCT_IDS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  const MIN_PRODUCT_TYPES = 3;
+  const MIN_PRODUCT_TYPES = 1;
   const MAX_PRODUCT_TYPES = TOWER_BLUEPRINTS.length;
   let PRODUCTS = {};
 
@@ -490,6 +490,121 @@
     }
   };
 
+  const GAME_TYPE_PRESETS = Object.freeze({
+    entrepreneurial: {
+      label: "Entrepreneurial Game",
+      description: "Vrije ondernemersvariant met geld, resultaatmeting, vrije prijzen en veel rolvrijheid.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: true,
+        priceMode: "free",
+        logisticsOrganization: "functional",
+        productTypeCount: 3
+      }
+    },
+    lo1: {
+      label: "LO Game 1",
+      description: "Basisvariant met één product, een functionele keten en zonder financiële besturing.",
+      config: {
+        money: false,
+        pnl: false,
+        intermediateStock: false,
+        opportunityCosts: false,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "functional",
+        productTypeCount: 1
+      }
+    },
+    lo2: {
+      label: "LO Game 2",
+      description: "Meerproductvariant in een functionele keten, nog zonder financiële besturing.",
+      config: {
+        money: false,
+        pnl: false,
+        intermediateStock: true,
+        opportunityCosts: false,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "functional",
+        productTypeCount: 3
+      }
+    },
+    lo3: {
+      label: "LO Game 3",
+      description: "Productgerichte organisatie met drie torensoorten en zonder geldstroom.",
+      config: {
+        money: false,
+        pnl: false,
+        intermediateStock: true,
+        opportunityCosts: false,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "product",
+        productTypeCount: 3
+      }
+    },
+    lo4: {
+      label: "LO Game 4",
+      description: "Productgerichte variant met geld, resultaatmeting en opportunity costs.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "product",
+        productTypeCount: 3
+      }
+    },
+    lo5: {
+      label: "LO Game 5",
+      description: "Financiële variant in de functionele keten, gericht op programmatisch produceren.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "functional",
+        productTypeCount: 3
+      }
+    },
+    lo6: {
+      label: "LO Game 6",
+      description: "Flexibele functionele keten met negen torensoorten en meer vrijheid in de rolverdeling.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: true,
+        priceMode: "fixed",
+        logisticsOrganization: "functional",
+        productTypeCount: 9
+      }
+    },
+    lo7: {
+      label: "LO Game 7",
+      description: "Uitgebreide flexibele keten met negen torensoorten, vrije prijzen en rolvrijheid.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: true,
+        priceMode: "free",
+        logisticsOrganization: "functional",
+        productTypeCount: 9
+      }
+    }
+  });
+
   const LOGISTICS_TUTORIAL_REQUIREMENTS = Object.freeze({
     blue_8: 2,
     yellow_4: 1,
@@ -690,6 +805,7 @@
     purchaseCost: 0,
     opportunityCost: 0,
     assignedRoleId: null,
+    gameSessionRunning: false,
     customProducts: loadCustomProducts(),
     appView: "player",
     managerTab: "core",
@@ -729,6 +845,7 @@
       feedback: ""
     },
     config: {
+      gameType: "lo4",
       money: true,
       pnl: true,
       intermediateStock: true,
@@ -758,12 +875,6 @@
     orderPreview: document.getElementById("orderPreview"),
     legoBuilderMount: document.getElementById("legoBuilderMount"),
     laneGrid: document.getElementById("laneGrid"),
-    selectedOrderBox: document.getElementById("selectedOrderBox"),
-    advanceButton: document.getElementById("advanceButton"),
-    disruptionButton: document.getElementById("disruptionButton"),
-    purchaseForm: document.getElementById("purchaseForm"),
-    purchasePartSelect: document.getElementById("purchasePartSelect"),
-    purchaseQuantityInput: document.getElementById("purchaseQuantityInput"),
     inventoryGrid: document.getElementById("inventoryGrid"),
     stockSignal: document.getElementById("stockSignal"),
     eventLog: document.getElementById("eventLog"),
@@ -779,6 +890,8 @@
     resetButton: document.getElementById("resetButton"),
     tutorialExitButton: document.getElementById("tutorialExitButton"),
     tutorialResumeButton: document.getElementById("tutorialResumeButton"),
+    gameTypeSelect: document.getElementById("gameTypeSelect"),
+    gameTypeDescription: document.getElementById("gameTypeDescription"),
     moneyToggle: document.getElementById("moneyToggle"),
     pnlToggle: document.getElementById("pnlToggle"),
     intermediateToggle: document.getElementById("intermediateToggle"),
@@ -1293,7 +1406,7 @@
       }
     }, 4200);
     requestAnimationFrame(() => {
-      els.selectedOrderBox?.scrollIntoView({ block: "center", behavior: "smooth" });
+      els.playerTaskPanel?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
     renderPlayerView();
   }
@@ -1613,12 +1726,6 @@
     }
   }
 
-  function purchaseOptions() {
-    els.purchasePartSelect.innerHTML = PARTS
-      .map(part => `<option value="${part.id}">${part.name} - EUR ${part.price}</option>`)
-      .join("");
-  }
-
   function updatePriceInput() {
     const product = productById(els.productSelect.value);
     const fixed = state.config.priceMode === "fixed";
@@ -1763,30 +1870,6 @@
     });
   }
 
-  function renderSelectedOrder() {
-    const order = selectedOrder();
-    if (!order) {
-      els.selectedOrderBox.className = "selected-order ready";
-      els.selectedOrderBox.innerHTML =
-        `<strong>Klant 1</strong>\n` +
-        `Ik wil een order plaatsen.\n` +
-        `Kies product, aantal en levertijd bovenin.`;
-      els.advanceButton.disabled = true;
-      return;
-    }
-    const step = currentStep(order);
-    const roleId = step.roleId === "customer1" ? order.customerRoleId : step.roleId;
-    const role = roleById(roleId);
-    els.selectedOrderBox.className = `selected-order${order.status === "blocked" ? "" : " ready"}`;
-    els.selectedOrderBox.innerHTML =
-      `<strong>${escapeHtml(role.token)} | ${escapeHtml(role.title)}</strong>\n` +
-      `${escapeHtml(order.id)} | ${escapeHtml(productById(order.productId).name)} | ${order.quantity} stuks\n` +
-      `${escapeHtml(step.action)}\n` +
-      `${escapeHtml(step.label)}\n` +
-      `Levering ${formatClock(order.dueAt)}${order.lastIssue ? `\n${escapeHtml(order.lastIssue)}` : ""}`;
-    els.advanceButton.disabled = order.done;
-  }
-
   function playerFormType(step, role) {
     if (step.materialStage || role.id === "srm") return "Materiaaluitgifteformulier";
     if (role.id.startsWith("pd")) return "Productieorderformulier";
@@ -1805,6 +1888,45 @@
     els.playerFormTitle.textContent = formType;
     els.playerFormStatus.textContent = `${role.title} · actuele opdracht`;
     els.playerQueueSummary.textContent = `${activeOrders().length} actief`;
+    const roleTools = role.id === "srm"
+      ? `
+        <section class="player-role-tools" aria-label="Inkoop voor Magazijn Grondstoffen">
+          <div>
+            <p class="eyebrow">Rolhandeling</p>
+            <h3>Materiaal inkopen</h3>
+          </div>
+          <form class="purchase-form" data-player-purchase-form>
+            <label>
+              <span>Inkoop</span>
+              <select name="partId">
+                ${PARTS.map(part => `<option value="${part.id}">${part.name} - EUR ${part.price}</option>`).join("")}
+              </select>
+            </label>
+            <label>
+              <span>Aantal</span>
+              <input name="quantity" type="number" min="1" max="50" value="6">
+            </label>
+            <button class="secondary-button" type="submit">
+              <span class="button-icon">$</span>
+              <span>Koop</span>
+            </button>
+          </form>
+        </section>
+      `
+      : role.id === "opr"
+        ? `
+          <section class="player-role-tools" aria-label="Procesbesturing voor Operations Manager">
+            <div>
+              <p class="eyebrow">Rolhandeling</p>
+              <h3>Procesbesturing</h3>
+            </div>
+            <button class="danger-button" type="button" data-player-disruption>
+              <span class="button-icon">!</span>
+              <span>Verstoring toevoegen</span>
+            </button>
+          </section>
+        `
+        : "";
     els.playerFormMount.innerHTML = `
       <article class="digital-work-form" aria-label="${escapeHtml(formType)} voor ${escapeHtml(order.id)}">
         <header class="digital-form-heading">
@@ -1844,6 +1966,7 @@
             : "<span>Nog geen eerdere handelingen op dit formulier.</span>"}
         </footer>
       </article>
+      ${roleTools}
     `;
     els.playerFormConfirmation.hidden = false;
     els.playerFormConfirmInput.checked = false;
@@ -1855,7 +1978,9 @@
     const assignedRole = state.assignedRoleId ? roleById(state.assignedRoleId) : null;
     const openCount = activeOrders().length;
     els.playerWaitingClock.textContent = formatClock(state.clockMinutes);
-    els.playerWaitingMessage.textContent = assignedRole
+    els.playerWaitingMessage.textContent = !state.gameSessionRunning
+      ? "De rolhandelingen verschijnen hier zodra de gamesessie is gestart."
+      : assignedRole
       ? openCount
         ? `Er is nog geen formulier voor ${assignedRole.title}. Kijk live mee totdat jouw rol weer aan de beurt is.`
         : `Er is nog geen actieve order. Zodra er werk voor ${assignedRole.title} ontstaat, verschijnt het formulier vanzelf.`
@@ -1872,7 +1997,8 @@
   function renderPlayerView() {
     if (!els.playerWorkbench) return;
     const order = playerAssignment();
-    const taskVisible = Boolean(order) && state.attention.mode === "task";
+    const sessionAllowsRoleActions = state.gameSessionRunning || document.body.classList.contains("tutorial-focus");
+    const taskVisible = sessionAllowsRoleActions && Boolean(order) && state.attention.mode === "task";
     els.playerTaskPanel.hidden = !taskVisible;
     els.playerWaitingPanel.hidden = taskVisible;
     if (taskVisible) {
@@ -3513,7 +3639,6 @@
   function renderAll() {
     renderMetrics();
     renderLanes();
-    renderSelectedOrder();
     renderInventory();
     renderEvents();
     renderDataModel(false);
@@ -3584,6 +3709,50 @@
       onAdd: registerCustomProduct,
       onDelete: removeCustomProduct
     });
+  }
+
+  function syncConfigControls() {
+    els.gameTypeSelect.value = state.config.gameType;
+    els.moneyToggle.checked = state.config.money;
+    els.pnlToggle.checked = state.config.pnl;
+    els.intermediateToggle.checked = state.config.intermediateStock;
+    els.opportunityToggle.checked = state.config.opportunityCosts;
+    els.roleFreedomToggle.checked = state.config.roleFreedom;
+    els.priceModeSelect.value = state.config.priceMode;
+    els.logisticsOrganizationSelect.value = state.config.logisticsOrganization;
+    els.productTypeCountInput.value = String(state.config.productTypeCount);
+    els.gameTypeDescription.textContent = GAME_TYPE_PRESETS[state.config.gameType]?.description || "";
+  }
+
+  function applyGameTypePreset(gameType, dispatch = true) {
+    const preset = GAME_TYPE_PRESETS[gameType];
+    if (!preset) return false;
+
+    const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
+    Object.assign(state.config, preset.config, { gameType });
+    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];
+    state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
+    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
+    syncConfigControls();
+    if (productTypeCountChanged) {
+      applyProductTypeCount(false);
+    }
+
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "apply_game_type_preset",
+        learningObjectID: "configuration_game_type",
+        result: "success",
+        objectRole: "configuration",
+        role: "Game Master",
+        gameType,
+        gameTypeLabel: preset.label,
+        config: { ...state.config }
+      });
+    }
+    renderDataModel(true);
+    renderAll();
+    return true;
   }
 
   function syncConfigFromControls(dispatch = true) {
@@ -3703,9 +3872,15 @@
   }
 
   function wireEvents() {
+    window.addEventListener("learngame-session-state", event => {
+      state.gameSessionRunning = Boolean(event.detail?.running);
+      if (!state.gameSessionRunning) state.attention.mode = "task";
+      renderPlayerView();
+    });
     window.addEventListener("learngame-session-started", event => {
       const session = event.detail?.session;
       if (!session?.session_id) return;
+      state.gameSessionRunning = true;
       state.sessionId = session.session_id;
       const member = session.members?.find(item => item.member_id === session.current_member_id);
       if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
@@ -3745,6 +3920,7 @@
     });
     els.playerCompleteActionButton?.addEventListener("click", () => {
       if (!els.playerFormConfirmInput.checked) return;
+      if (!state.gameSessionRunning && !document.body.classList.contains("tutorial-focus")) return;
       advanceSelectedOrder();
     });
     els.orderForm.addEventListener("submit", event => {
@@ -3758,12 +3934,21 @@
       const dueMinutes = Math.max(2, Number(els.dueInput.value || 7));
       makeOrder(productId, quantity, unitPrice, dueMinutes);
     });
-    els.purchaseForm.addEventListener("submit", event => {
+    els.playerFormMount.addEventListener("submit", event => {
+      const purchaseForm = event.target.closest("[data-player-purchase-form]");
+      if (!purchaseForm || !state.gameSessionRunning || state.assignedRoleId !== "srm") return;
       event.preventDefault();
-      purchaseMaterials(els.purchasePartSelect.value, Math.max(1, Number(els.purchaseQuantityInput.value || 1)));
+      const formData = new FormData(purchaseForm);
+      purchaseMaterials(
+        String(formData.get("partId") || ""),
+        Math.max(1, Number(formData.get("quantity") || 1))
+      );
     });
-    els.advanceButton.addEventListener("click", advanceSelectedOrder);
-    els.disruptionButton.addEventListener("click", triggerDisruption);
+    els.playerFormMount.addEventListener("click", event => {
+      const disruptionButton = event.target.closest("[data-player-disruption]");
+      if (!disruptionButton || !state.gameSessionRunning || state.assignedRoleId !== "opr") return;
+      triggerDisruption();
+    });
     els.dataModelButton.addEventListener("click", () => {
       setAppView("manager", false);
       setManagerTab("process", false);
@@ -3786,6 +3971,9 @@
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
     els.tutorialExitButton?.addEventListener("click", pauseTutorial);
+    els.gameTypeSelect.addEventListener("change", () => {
+      applyGameTypePreset(els.gameTypeSelect.value, true);
+    });
     [
       els.moneyToggle,
       els.pnlToggle,
@@ -3839,9 +4027,9 @@
     if (!LOGISTICS_ORGANIZATION_VARIANTS[variantId]) return false;
     state.config.logisticsOrganization = variantId;
     els.logisticsOrganizationSelect.value = variantId;
-    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments.includes("inbound")
-      ? "inbound"
-      : state.config.visibleLogisticsDepartments[0] || null;
+    state.config.visibleLogisticsDepartments = LOGISTICS_ORGANIZATION_VARIANTS[variantId]
+      .departments.map(department => department.id);
+    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
     dispatchInteraction({
       actionType: "change_logistics_organization",
       learningObjectID: "configuration_logistics_organization",
@@ -3896,19 +4084,11 @@
   function initControls() {
     rebuildProducts(state.config.productTypeCount);
     productOptions();
-    purchaseOptions();
     els.quantityInput.value = "3";
     els.dueInput.value = "7";
-    els.moneyToggle.checked = state.config.money;
-    els.pnlToggle.checked = state.config.pnl;
-    els.intermediateToggle.checked = state.config.intermediateStock;
-    els.opportunityToggle.checked = state.config.opportunityCosts;
-    els.roleFreedomToggle.checked = state.config.roleFreedom;
-    els.priceModeSelect.value = state.config.priceMode;
-    els.logisticsOrganizationSelect.value = state.config.logisticsOrganization;
     els.productTypeCountInput.min = String(MIN_PRODUCT_TYPES);
     els.productTypeCountInput.max = String(MAX_PRODUCT_TYPES);
-    els.productTypeCountInput.value = String(state.config.productTypeCount);
+    syncConfigControls();
     state.managerTab = sessionStorage.getItem("learngame.om.managerTab") || "core";
     updatePriceInput();
   }
@@ -3999,6 +4179,7 @@
     setManagerTab,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
+    applyGameTypePreset,
     createOrder: makeOrder,
     advanceSelectedOrder,
     purchaseMaterials,

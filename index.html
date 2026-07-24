@@ -381,35 +381,22 @@
           </div>
         </div>
 
-        <div id="selectedOrderBox" class="selected-order">
-          Selecteer of maak een order.
-        </div>
-
-        <div class="button-row">
-          <button id="advanceButton" class="primary-button" type="button">
-            <span class="button-icon">&gt;</span>
-            <span>Nu bijwerken</span>
-          </button>
-          <button id="disruptionButton" class="danger-button" type="button">
-            <span class="button-icon">!</span>
-            <span>Verstoring</span>
-          </button>
-        </div>
-
-        <form id="purchaseForm" class="purchase-form">
-          <label>
-            <span>Inkoop</span>
-            <select id="purchasePartSelect"></select>
-          </label>
-          <label>
-            <span>Aantal</span>
-            <input id="purchaseQuantityInput" type="number" min="1" max="50" value="6">
-          </label>
-          <button class="secondary-button" type="submit">
-            <span class="button-icon">$</span>
-            <span>Koop</span>
-          </button>
-        </form>
+        <label class="game-type-field">
+          <span>Gametype</span>
+          <select id="gameTypeSelect">
+            <option value="entrepreneurial">Entrepreneurial Game</option>
+            <option value="lo1">LO Game 1</option>
+            <option value="lo2">LO Game 2</option>
+            <option value="lo3">LO Game 3</option>
+            <option value="lo4" selected>LO Game 4</option>
+            <option value="lo5">LO Game 5</option>
+            <option value="lo6">LO Game 6</option>
+            <option value="lo7">LO Game 7</option>
+          </select>
+          <small id="gameTypeDescription">
+            Productgerichte variant met geld, resultaatmeting en opportunity costs.
+          </small>
+        </label>
 
         <div class="toggle-grid">
           <label class="toggle-field">
@@ -448,7 +435,7 @@
           </label>
           <label class="select-field">
             <span>Torensoorten</span>
-            <input id="productTypeCountInput" type="number" min="3" max="9" step="1" value="3">
+            <input id="productTypeCountInput" type="number" min="1" max="9" step="1" value="3">
           </label>
         </div>
       </section>

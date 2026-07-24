@@ -2051,6 +2051,29 @@ body[data-app-view="player"] .topbar {
 .player-form-mount {
   display: grid;
   place-items: start center;
+  gap: 14px;
+}
+
+.player-role-tools {
+  width: min(100%, 940px);
+  display: grid;
+  grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.45fr);
+  gap: 18px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 12px;
+  color: var(--lp-ink);
+  background: var(--lp-accent-soft);
+}
+
+.player-role-tools h3,
+.player-role-tools p {
+  margin: 0;
+}
+
+.player-role-tools > .danger-button {
+  justify-self: end;
 }
 
 .digital-work-form {
@@ -3171,20 +3194,27 @@ select {
   background: linear-gradient(90deg, #1f8b81, var(--lp-accent));
 }
 
-.selected-order {
-  min-height: 132px;
+.game-type-field {
+  display: grid;
+  gap: 7px;
   padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f8f5ee;
-  white-space: pre-line;
-  line-height: 1.45;
+  border: 1px solid rgba(31, 139, 129, 0.32);
+  border-radius: 10px;
+  background: rgba(31, 139, 129, 0.08);
 }
 
-.selected-order.ready {
-  background: #fff;
-  border-color: rgba(47, 125, 86, 0.46);
-  box-shadow: inset 5px 0 0 var(--green);
+.game-type-field > span {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.game-type-field select {
+  width: 100%;
+}
+
+.game-type-field small {
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .toggle-grid {
@@ -4875,6 +4905,7 @@ select {
   .metric-strip,
   .order-form,
   .purchase-form,
+  .player-role-tools,
   .toggle-grid {
     grid-template-columns: 1fr;
   }
@@ -4957,10 +4988,6 @@ select {
   .order-card {
     min-height: 146px;
     padding: 12px;
-  }
-
-  .selected-order {
-    min-height: 108px;
   }
 
   .purchase-form {
@@ -5672,6 +5699,7 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 .manager-dashboard .order-form select,
 .manager-dashboard .purchase-form input,
 .manager-dashboard .purchase-form select,
+.manager-dashboard .game-type-field select,
 .manager-dashboard .select-field input,
 .manager-dashboard .select-field select {
   border-color: #315961;
@@ -5679,9 +5707,40 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   background: #071a21;
 }
 
+.manager-dashboard .game-type-field {
+  border-color: var(--lp-accent-border);
+  color: var(--lp-ink);
+  background:
+    linear-gradient(145deg, rgba(21, 54, 61, 0.96), rgba(8, 27, 33, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.manager-dashboard .game-type-field > span {
+  color: var(--lp-ink);
+  letter-spacing: 0.025em;
+}
+
+.manager-dashboard .game-type-field select {
+  color-scheme: dark;
+}
+
+.manager-dashboard .game-type-field select:focus {
+  border-color: var(--lp-accent);
+  outline: 2px solid rgba(74, 211, 194, 0.2);
+  outline-offset: 1px;
+}
+
+.manager-dashboard .game-type-field select option {
+  color: var(--lp-ink);
+  background: #071a21;
+}
+
+.manager-dashboard .game-type-field small {
+  color: var(--lp-muted);
+}
+
 .manager-dashboard .toggle-field,
 .manager-dashboard .select-field,
-.manager-dashboard .selected-order,
 .manager-dashboard .clock-pill,
 .manager-dashboard .stock-signal {
   border-color: var(--lp-line);

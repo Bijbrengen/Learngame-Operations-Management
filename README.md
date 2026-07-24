@@ -194,7 +194,8 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 ## Wat de proefopstelling nu doet
 
 - starten bij `Klant 1` met de echte ICG2-handeling `Ik wil een order plaatsen`;
-- orders aanmaken voor een configureerbare catalogus van 3 tot 9 torensoorten, standaard met het ICG2-v2 voorbeeld `3 torens` en `7 minuten`;
+- een gametype kiezen uit `Entrepreneurial Game` en `LO Game 1` tot en met `LO Game 7`, waarna de bijbehorende spelinstellingen als aanpasbare preset worden ingevuld;
+- orders aanmaken voor een configureerbare catalogus van 1 tot 9 torensoorten, standaard met het ICG2-v2 voorbeeld `3 torens` en `7 minuten`;
 - de gekozen order direct als LEGO-torenpreview zien, inclusief aantal en orderwaarde;
 - vóór het vrije spel een interactieve tutorial doorlopen waarin Toren A in
   drie stappen wordt gebouwd met een parametrische SVG-animatie;
