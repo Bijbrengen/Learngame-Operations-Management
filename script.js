@@ -87,6 +87,8 @@
   const MIN_PRODUCT_TYPES = 1;
   const MAX_PRODUCT_TYPES = TOWER_BLUEPRINTS.length;
   let PRODUCTS = {};
+  let logisticsGameController = null;
+  let standaloneSelectedDepartmentId = null;
 
   const LANES = [
     { id: "customer", title: "Klanten", subtitle: "4 mogelijke klanten" },
@@ -630,9 +632,7 @@
       openRoof: true,
       stockPart: { color: "blue", width: 4, depth: 2, label: "blauw 2×4-blok" },
       distractorParts: [
-        { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" },
-        { id: "red_8", color: "red", width: 4, depth: 2, label: "rood 2×4-blok" },
-        { id: "white_4", color: "white", width: 2, depth: 2, label: "wit 2×2-blok" }
+        { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" }
       ],
       layout: { x: 1, y: 4, width: 3.5, depth: 3.2, height: 58 }
     },
@@ -647,10 +647,7 @@
       openRoof: true,
       stockPart: { color: "yellow", width: 2, depth: 2, label: "geel 2×2-blok" },
       distractorParts: [
-        { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" },
-        { id: "red_4", color: "red", width: 2, depth: 2, label: "rood 2×2-blok" },
-        { id: "white_8", color: "white", width: 4, depth: 2, label: "wit 2×4-blok" },
-        { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" }
+        { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" }
       ],
       layout: { x: 1, y: 10, width: 3.5, depth: 3.2, height: 64 }
     },
@@ -665,10 +662,7 @@
       openRoof: true,
       stockPart: { color: "green", width: 2, depth: 2, label: "groen 2×2-blok" },
       distractorParts: [
-        { id: "green_8_wrong", color: "green", width: 4, depth: 2, label: "groen 2×4-blok" },
-        { id: "red_4", color: "red", width: 2, depth: 2, label: "rood 2×2-blok" },
-        { id: "white_4", color: "white", width: 2, depth: 2, label: "wit 2×2-blok" },
-        { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" }
+        { id: "green_8_wrong", color: "green", width: 4, depth: 2, label: "groen 2×4-blok" }
       ],
       layout: { x: 1, y: 16, width: 3.5, depth: 3.2, height: 70 }
     },
@@ -904,6 +898,7 @@
     managerViewButton: document.getElementById("managerViewButton"),
     playerWorkbench: document.getElementById("playerWorkbench"),
     managerWorkbench: document.getElementById("managerWorkbench"),
+    logisticsGameMount: document.getElementById("logisticsGameMount"),
     towerEditorMount: document.getElementById("towerEditorMount"),
     playerTaskPanel: document.getElementById("playerTaskPanel"),
     playerWaitingPanel: document.getElementById("playerWaitingPanel"),
@@ -1994,8 +1989,331 @@
     window.IsometricLogisticsView.mount(els.playerProcessMount, isometricScene());
   }
 
+  function simulationRoleId(roleId) {
+    if (!roleId) return null;
+    if (roleId.startsWith("customer")) return "customer";
+    return {
+      opr: "operations",
+      operations: "operations",
+      srm: "srm",
+      pd1: "pd1",
+      pd2: "pd2",
+      pd3: "pd3",
+      mfp: "ssf",
+      ssf: "ssf"
+    }[roleId] || null;
+  }
+
+  const STANDALONE_SIMULATION_DEPARTMENTS = [
+    {
+      id: "customer",
+      roleId: "customer",
+      title: "Klant",
+      shortTitle: "Klant",
+      description: "Genereert klantorders en bepaalt aantal en gevraagde levertijd.",
+      kind: "dispatch",
+      departmentColor: "customer",
+      layout: { x: 1, y: 5, width: 3.5, depth: 3.2, height: 54 }
+    },
+    {
+      id: "operations",
+      roleId: "operations",
+      title: "Operations",
+      shortTitle: "Operations",
+      description: "Registreert orders en geeft de werkzaamheden vrij aan de logistieke keten.",
+      kind: "production",
+      departmentColor: "blue",
+      layout: { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 }
+    },
+    {
+      id: "srm",
+      roleId: "srm",
+      title: "Magazijn Grondstoffen",
+      shortTitle: "Grondstoffen",
+      description: "Verzamelt en verstrekt de benodigde LEGO-onderdelen.",
+      kind: "warehouse",
+      departmentColor: "raw",
+      openRoof: true,
+      compactStock: true,
+      layout: { x: 11, y: 1, width: 3.8, depth: 3.4, height: 62 }
+    },
+    {
+      id: "pd1",
+      roleId: "pd1",
+      title: "Productie-afdeling 1",
+      shortTitle: "PD1",
+      description: "Bouwt de grondplaat en eerste torenlaag.",
+      kind: "production",
+      departmentColor: "production-a",
+      openRoof: true,
+      layout: { x: 5, y: 13, width: 3.8, depth: 3.4, height: 72 }
+    },
+    {
+      id: "pd2",
+      roleId: "pd2",
+      title: "Productie-afdeling 2",
+      shortTitle: "PD2",
+      description: "Bouwt de tweede laag en controleert Subassembly 1.",
+      kind: "production",
+      departmentColor: "production-b",
+      openRoof: true,
+      layout: { x: 11, y: 11, width: 3.8, depth: 3.4, height: 78 }
+    },
+    {
+      id: "pd3",
+      roleId: "pd3",
+      title: "Productie-afdeling 3",
+      shortTitle: "PD3",
+      description: "Bouwt de bovenste laag en meldt de toren gereed.",
+      kind: "production",
+      departmentColor: "production-c",
+      openRoof: true,
+      layout: { x: 17, y: 9, width: 3.8, depth: 3.4, height: 84 }
+    },
+    {
+      id: "ssf",
+      roleId: "ssf",
+      title: "Magazijn Gereed Product",
+      shortTitle: "SSF",
+      description: "Controleert, boekt en levert complete torens uit.",
+      kind: "warehouse",
+      departmentColor: "finished",
+      openRoof: true,
+      layout: { x: 23, y: 7, width: 3.8, depth: 3.4, height: 66 }
+    }
+  ];
+
+  const STANDALONE_SIMULATION_CONNECTIONS = [
+    { from: "customer", to: "operations", kind: "customer" },
+    { from: "operations", to: "srm", kind: "material" },
+    { from: "srm", to: "pd1", kind: "material" },
+    { from: "pd1", to: "pd2", kind: "material" },
+    { from: "pd2", to: "pd3", kind: "material" },
+    { from: "pd3", to: "ssf", kind: "material" }
+  ];
+
+  function simulationStateLabel(runtime) {
+    return {
+      IDLE: "Wacht op input",
+      PROCESSING: "Verwerkt order",
+      WAITING_FOR_NEXT: "Wacht op overdracht",
+      AWAITING_PLAYER: "Wacht op speler"
+    }[runtime?.state] || "Onbekend";
+  }
+
+  function simulationDepartmentStatus(runtime) {
+    if (runtime?.incident) return "blocked";
+    if (runtime?.state === "AWAITING_PLAYER") return "attention";
+    if (runtime?.state === "PROCESSING" || runtime?.state === "WAITING_FOR_NEXT") return "active";
+    if (runtime?.queue?.length) return "attention";
+    return "idle";
+  }
+
+  function simulationPartialSequence(product, roleId) {
+    if (!product?.stages) return product?.towerSequence || [];
+    const stageRoles = ["pd1", "pd2", "pd3"];
+    const stageIndex = stageRoles.indexOf(roleId);
+    if (roleId === "ssf") return [...(product.towerSequence || [])];
+    if (stageIndex < 0) return [];
+    return stageRoles.slice(0, stageIndex + 1).flatMap(stageRole => (
+      Object.entries(product.stages[stageRole] || {}).flatMap(([partId, amount]) => (
+        partId === "base_green" ? [] : Array(Number(amount) || 0).fill(partId)
+      ))
+    ));
+  }
+
+  function simulationStockVisuals(snapshot, order) {
+    const product = snapshot.products?.[order?.productId];
+    if (!product?.stages) return [];
+    const required = {};
+    Object.values(product.stages).forEach(recipe => {
+      Object.entries(recipe).forEach(([partId, amount]) => {
+        if (partId === "base_green") return;
+        required[partId] = (required[partId] || 0) + Number(amount || 0) * Number(order.quantity || 1);
+      });
+    });
+    return Object.entries(required).map(([partId, count]) => {
+      const part = partById(partId);
+      return {
+        partId,
+        count,
+        color: part.color,
+        width: part.width === "wide" ? 4 : 2,
+        depth: 2,
+        label: part.name
+      };
+    });
+  }
+
+  function standaloneLogisticsScene(snapshot) {
+    const orderById = new Map(snapshot.orders.map(order => [order.id, order]));
+    const activeRole = snapshot.roleFlow.find(roleId => (
+      snapshot.roleRuntime[roleId]?.state !== "IDLE"
+    ));
+    const knownIds = new Set(STANDALONE_SIMULATION_DEPARTMENTS.map(item => item.id));
+    if (!knownIds.has(standaloneSelectedDepartmentId)) {
+      standaloneSelectedDepartmentId = activeRole || snapshot.humanRoleId || "operations";
+    }
+    const departments = STANDALONE_SIMULATION_DEPARTMENTS.map(definition => {
+      const runtime = snapshot.roleRuntime[definition.roleId];
+      const orderIds = Array.from(new Set([
+        runtime.activeOrderId,
+        ...(runtime.queue || [])
+      ].filter(Boolean)));
+      const orders = orderIds.map(orderId => orderById.get(orderId)).filter(Boolean);
+      const activeOrder = orderById.get(runtime.activeOrderId);
+      const activeProduct = snapshot.products?.[activeOrder?.productId];
+      const latestEvent = snapshot.feed.find(item => (
+        !activeOrder || item.orderId === activeOrder.id
+      ));
+      const partialSequence = simulationPartialSequence(activeProduct, definition.roleId);
+      const showProduct = ["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId)
+        && partialSequence.length;
+      return {
+        ...definition,
+        status: simulationDepartmentStatus(runtime),
+        badgeValue: orders.length,
+        badgeLabel: `${orders.length} orders in behandeling`,
+        primaryMetric: `${simulationStateLabel(runtime)} · ${orders.length} order${orders.length === 1 ? "" : "s"}`,
+        orders: orders.map(order => ({
+          id: order.id,
+          product: `${order.quantity}× ${order.productName}`,
+          stage: simulationStateLabel(runtime)
+        })),
+        stockVisuals: definition.roleId === "srm"
+          ? simulationStockVisuals(snapshot, activeOrder)
+          : [],
+        cargoVisual: showProduct ? {
+          kind: "tower",
+          cargoId: activeOrder.id,
+          productId: activeOrder.productId,
+          label: `${activeOrder.productName} · ${activeOrder.id}`,
+          towerSequence: partialSequence,
+          draggable: false
+        } : null,
+        facts: [
+          { label: "Simulatiestatus", value: simulationStateLabel(runtime) },
+          { label: "Actieve order", value: runtime.activeOrderId || "Geen" },
+          { label: "Wachtrij", value: runtime.queue.length },
+          { label: "Laatste event", value: latestEvent?.message || "Nog geen event" }
+        ],
+        feedback: runtime.incident ? {
+          kind: "error",
+          text: `${runtime.incident.label}: ${runtime.incident.message}`
+        } : null
+      };
+    });
+    const connections = STANDALONE_SIMULATION_CONNECTIONS.map(connection => {
+      const sourceRuntime = snapshot.roleRuntime[connection.from];
+      const targetRuntime = snapshot.roleRuntime[connection.to];
+      return {
+        ...connection,
+        highlight: sourceRuntime?.state === "WAITING_FOR_NEXT"
+          || targetRuntime?.state === "PROCESSING"
+          || targetRuntime?.state === "AWAITING_PLAYER"
+      };
+    });
+    return {
+      title: "Live simulatie · Productiestroom",
+      selectedDepartmentId: standaloneSelectedDepartmentId,
+      legend: [
+        { color: "customer", label: "Klantorder" },
+        { color: "raw", label: "Grondstoffen" },
+        { color: "production-a", label: "Productie" },
+        { color: "finished", label: "Gereed product" }
+      ],
+      departments,
+      connections
+    };
+  }
+
+  function standaloneSimulationProducts() {
+    return Object.fromEntries(
+      Object.values(PRODUCTS).map(product => {
+        const blueprint = product.towerBlueprint || {};
+        return [product.id, {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          towerSequence: [...(product.towerSequence || [])],
+          colors: [
+            blueprint.lower || "yellow",
+            blueprint.middle || "red",
+            blueprint.upper || "white"
+          ],
+          stages: {
+            pd1: { ...(product.stages?.[0]?.recipe || {}) },
+            pd2: { ...(product.stages?.[1]?.recipe || {}) },
+            pd3: { ...(product.stages?.[2]?.recipe || {}) }
+          }
+        }];
+      })
+    );
+  }
+
+  function initStandaloneLogisticsGame() {
+    if (!window.LogisticsGameUI || !els.logisticsGameMount) return;
+    logisticsGameController = window.LogisticsGameUI.mount(els.logisticsGameMount, {
+      engineOptions: { products: standaloneSimulationProducts() },
+      renderProcessFlow: (target, snapshot) => {
+        if (!window.IsometricLogisticsView) return;
+        const renderScene = () => {
+          window.IsometricLogisticsView.mount(target, standaloneLogisticsScene(snapshot), {
+            onDepartmentSelect: departmentId => {
+              standaloneSelectedDepartmentId = departmentId;
+              renderScene();
+            }
+          });
+        };
+        renderScene();
+      }
+    });
+    logisticsGameController.engine.subscribe(event => {
+      const trackedEvents = new Set([
+        "order-created",
+        "incident",
+        "player-action-required",
+        "player-action-completed",
+        "order-delivered"
+      ]);
+      if (!trackedEvents.has(event.type)) return;
+      dispatchInteraction({
+        actionType: `simulation_${event.type.replace(/-/g, "_")}`,
+        result: "success",
+        objectRole: "standalone_logistics_engine",
+        role: state.assignedRoleId ? roleById(state.assignedRoleId).title : "Speler",
+        humanRoleId: event.snapshot.humanRoleId,
+        activeOrderCount: event.snapshot.orders.filter(order => order.status !== "DELIVERED").length
+      });
+    });
+  }
+
+  function startStandaloneLogisticsGame() {
+    if (!logisticsGameController) initStandaloneLogisticsGame();
+    if (!logisticsGameController) return;
+    logisticsGameController.engine.products = standaloneSimulationProducts();
+    const humanRoleId = simulationRoleId(state.assignedRoleId);
+    logisticsGameController.start({ humanRoleId });
+    if (document.body.classList.contains("tutorial-focus")) {
+      logisticsGameController.pause();
+    } else {
+      els.logisticsGameMount.hidden = false;
+    }
+  }
+
   function renderPlayerView() {
     if (!els.playerWorkbench) return;
+    const standaloneGameActive = Boolean(
+      state.gameSessionRunning
+      && logisticsGameController?.engine?.started
+      && !document.body.classList.contains("tutorial-focus")
+    );
+    if (els.logisticsGameMount) els.logisticsGameMount.hidden = !standaloneGameActive;
+    if (standaloneGameActive) {
+      els.playerTaskPanel.hidden = true;
+      els.playerWaitingPanel.hidden = true;
+      return;
+    }
     const order = playerAssignment();
     const sessionAllowsRoleActions = state.gameSessionRunning || document.body.classList.contains("tutorial-focus");
     const taskVisible = sessionAllowsRoleActions && Boolean(order) && state.attention.mode === "task";
@@ -2289,6 +2607,7 @@
 
   function setTutorialFocus(stage = "builder") {
     if (state.tutorialDismissed) return;
+    logisticsGameController?.pause();
     setAppView("player", false);
     setManagerTab(stage === "logistics" ? "process" : "core", false);
     // De herbruikbare tutorialpanelen staan technisch in de dashboardcontainer,
@@ -2313,6 +2632,7 @@
       "tutorial-stage-logistics"
     );
     setAppView("player", false);
+    if (state.gameSessionRunning) logisticsGameController?.resume();
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
   }
 
@@ -3874,7 +4194,10 @@
   function wireEvents() {
     window.addEventListener("learngame-session-state", event => {
       state.gameSessionRunning = Boolean(event.detail?.running);
-      if (!state.gameSessionRunning) state.attention.mode = "task";
+      if (!state.gameSessionRunning) {
+        state.attention.mode = "task";
+        logisticsGameController?.stop();
+      }
       renderPlayerView();
     });
     window.addEventListener("learngame-session-started", event => {
@@ -3884,6 +4207,7 @@
       state.sessionId = session.session_id;
       const member = session.members?.find(item => item.member_id === session.current_member_id);
       if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
+      startStandaloneLogisticsGame();
       dispatchInteraction({
         actionType: "start_game_session",
         result: session.virtual_agents?.length ? "agents_activated" : "all_players_present",
@@ -4111,6 +4435,7 @@
       attentionMode: state.attention.mode,
       clockMinutes: state.clockMinutes,
       config: { ...state.config },
+      standaloneLogisticsGame: logisticsGameController?.engine?.snapshot() || null,
       roles: ROLES.map(role => ({ ...role })),
       dataModelLearningObjects: DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
       inventory: { ...state.inventory },
@@ -4198,6 +4523,7 @@
   initControls();
   initLegoBuilder();
   initTowerEditor();
+  initStandaloneLogisticsGame();
   wireEvents();
   registerServiceWorker();
   resetState();

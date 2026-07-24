@@ -233,6 +233,171 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("state.gameSessionRunning", game)
         self.assertIn('window.addEventListener("learngame-session-state"', game)
 
+    def test_standalone_logistics_engine_runs_role_state_machines_without_network(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        engine_source = engine_path.read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        self.assertIn('src="logistics-game-engine.js"', html)
+        self.assertIn('src="logistics-game-ui.js"', html)
+        self.assertIn('id="logisticsGameMount"', html)
+        self.assertNotIn("fetch(", engine_source)
+        self.assertNotIn("XMLHttpRequest", engine_source)
+        self.assertNotIn("WebSocket", engine_source)
+        self.assertIn("class GameLoop", engine_source)
+        self.assertIn("class LogisticsGameEngine", engine_source)
+        self.assertIn("towerSequence", engine_source)
+        self.assertIn(
+            "window.LegoTowerRenderer.renderAnimated",
+            (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"),
+        )
+        self.assertIn("towerSequence: [...(product.towerSequence || [])]", game)
+        for state_name in ("IDLE", "PROCESSING", "WAITING_FOR_NEXT", "AWAITING_PLAYER"):
+            self.assertIn(f'{state_name}: "{state_name}"', engine_source)
+        self.assertIn("startStandaloneLogisticsGame", game)
+        self.assertIn("standaloneSimulationProducts", game)
+
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+let now = 1000;
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+const engine = new Engine({{
+  now: () => now,
+  random: () => 0,
+  config: {{
+    initialOrderDelayMs: 999999999,
+    orderIntervalMinMs: 999999999,
+    orderIntervalMaxMs: 999999999,
+    transferDelayMinMs: 0,
+    transferDelayMaxMs: 0,
+    incidentChance: 0,
+    processingTimeScale: 1
+  }}
+}});
+engine.start({{humanRoleId: "pd1"}});
+const created = engine.generateOrder();
+for (let i = 0; i < 20 && !engine.playerTask(); i += 1) {{
+  now += 1000;
+  engine.update(now);
+}}
+const task = engine.playerTask();
+const rejected = engine.completePlayerAction({{
+  parts: task.requiredParts,
+  signed: true,
+  transferred: false
+}});
+const completed = engine.completePlayerAction({{
+  parts: task.requiredParts,
+  signed: true,
+  transferred: true
+}});
+for (let i = 0; i < 30; i += 1) {{
+  now += 1000;
+  engine.update(now);
+}}
+const delivered = engine.snapshot().orders.find(order => order.id === created.id);
+process.stdout.write(JSON.stringify({{
+  taskRole: task.role.id,
+  requiredParts: task.requiredParts,
+  rejected,
+  completed,
+  delivered: delivered.status,
+  roleStates: Object.keys(window.LogisticsGameEngine.ROLE_STATES)
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual("pd1", result["taskRole"])
+        self.assertEqual({"base_green": 1, "yellow_8": 2}, result["requiredParts"])
+        self.assertFalse(result["rejected"]["ok"])
+        self.assertTrue(result["completed"]["ok"])
+        self.assertEqual("DELIVERED", result["delivered"])
+        self.assertEqual(
+            ["IDLE", "PROCESSING", "WAITING_FOR_NEXT", "AWAITING_PLAYER"],
+            result["roleStates"],
+        )
+
+    def test_standalone_engine_generates_hardcoded_incidents_and_peak_flow(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+let now = 0;
+const engine = new window.LogisticsGameEngine.LogisticsGameEngine({{
+  now: () => now,
+  random: () => 0,
+  config: {{
+    initialOrderDelayMs: 0,
+    orderIntervalMinMs: 999999999,
+    orderIntervalMaxMs: 999999999,
+    transferDelayMinMs: 0,
+    transferDelayMaxMs: 0,
+    incidentChance: 1,
+    peakFlowChance: 1,
+    processingTimeScale: 1
+  }}
+}});
+engine.start({{humanRoleId: "pd1"}});
+for (let i = 0; i < 30 && !engine.playerTask(); i += 1) {{
+  now += 25000;
+  engine.update(now);
+}}
+const snapshot = engine.snapshot();
+process.stdout.write(JSON.stringify({{
+  orderCount: snapshot.orders.length,
+  hasRawDelay: snapshot.feed.some(item => item.message.includes("Grondstoffenvertraging")),
+  hasPeakFlow: snapshot.feed.some(item => item.message.includes("Peak Flow"))
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertGreaterEqual(result["orderCount"], 2)
+        self.assertTrue(result["hasRawDelay"])
+        self.assertTrue(result["hasPeakFlow"])
+
+    def test_waiting_player_can_switch_between_status_feed_and_process_flow(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn('data-sim-waiting-tab="departments"', ui)
+        self.assertIn('data-sim-waiting-tab="events"', ui)
+        self.assertIn('data-sim-waiting-tab="flow"', ui)
+        self.assertIn("Afdelingen", ui)
+        self.assertIn("Live gebeurtenissen", ui)
+        self.assertIn("Productiestroom", ui)
+        self.assertIn("mountProcessFlow", ui)
+        self.assertIn("renderProcessFlow: (target, snapshot) =>", game)
+        self.assertIn("standaloneLogisticsScene(snapshot)", game)
+        self.assertIn("window.IsometricLogisticsView.mount(target", game)
+        self.assertIn("processFlowSignature", ui)
+        self.assertIn("simulationStateLabel", game)
+        self.assertIn("simulationPartialSequence", game)
+        self.assertIn("cargoVisual: showProduct", game)
+        self.assertIn("stockVisuals: definition.roleId === \"srm\"", game)
+        self.assertIn("towerSequence: partialSequence", game)
+        self.assertIn("runtime.incident", game)
+        self.assertIn(".sim-waiting-tabs", styles)
+        self.assertIn(".sim-process-flow-mount", styles)
+
     def test_interactive_lego_builder_uses_the_three_source_products(self) -> None:
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
@@ -314,8 +479,9 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("openRoof: true", game)
         self.assertIn("stockVisuals", game)
         self.assertIn("distractorParts", game)
-        self.assertIn('id: "red_8", color: "red"', game)
-        self.assertIn('id: "white_8", color: "white"', game)
+        self.assertIn('id: "blue_4", color: "blue"', game)
+        self.assertIn('id: "yellow_8", color: "yellow"', game)
+        self.assertIn('id: "green_8_wrong", color: "green"', game)
         self.assertIn('reason: "wrong_brick_type"', game)
         self.assertIn("dropTutorialMaterial", game)
         self.assertIn("wrong_brick_type", game)
@@ -331,6 +497,26 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn(".iso-building-interior", styles)
         self.assertIn(".iso-stock-brick.is-draggable", styles)
         self.assertIn(".iso-department.is-drop-target.is-drag-over", styles)
+
+    def test_tutorial_warehouses_only_contain_their_own_color(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        tutorial_departments = game.split(
+            "const LOGISTICS_TUTORIAL_DEPARTMENTS = [",
+            1,
+        )[1].split("const LOGISTICS_TUTORIAL_CONNECTIONS", 1)[0]
+        warehouse_colors = {
+            "tutorial_warehouse_a": "blue",
+            "tutorial_warehouse_b": "yellow",
+            "tutorial_warehouse_c": "green",
+        }
+        for warehouse_id, expected_color in warehouse_colors.items():
+            warehouse = tutorial_departments.split(
+                f'id: "{warehouse_id}"',
+                1,
+            )[1].split("layout:", 1)[0]
+            colors = re.findall(r'color: "([^"]+)"', warehouse)
+            self.assertTrue(colors)
+            self.assertEqual({expected_color}, set(colors))
 
     def test_tutorial_step_three_transfers_the_semi_finished_product(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -418,6 +604,13 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("skipTutorial", builder)
         self.assertIn(".tutorial-focus.tutorial-stage-builder", styles)
         self.assertIn(".tutorial-focus.tutorial-stage-logistics", styles)
+        self.assertIn("logisticsGameController?.pause()", game)
+        self.assertIn("logisticsGameController?.resume()", game)
+        self.assertIn(".tutorial-focus .logistics-game-mount", styles)
+        self.assertIn(
+            "pause()",
+            (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"),
+        )
 
     def test_tutorial_uses_visual_drag_only_guidance(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
@@ -541,6 +734,10 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("player-running-session", runtime)
         self.assertIn("placePlayerSessionPanel", runtime)
         self.assertIn("is-utility-session", runtime)
+        self.assertIn("data-game-master-role-select", runtime)
+        self.assertIn("game-master-role", runtime)
+        self.assertIn("(rolruil)", runtime)
+        self.assertIn("mutationVersion", runtime)
 
     def test_tower_editor_adds_animated_products_to_the_assortment(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")

@@ -12,6 +12,11 @@
   --lp-coral: #ff7d62;
   --lp-amber: #e6ad43;
   --lp-violet: #8d83df;
+  --brick-yellow: #e7b72d;
+  --brick-red: #d84c3f;
+  --brick-white: #f0eee8;
+  --brick-blue: #3c7ec3;
+  --brick-green: #3b9467;
   --lp-font-heading: "Rajdhani", "Arial Narrow", sans-serif;
   --lp-font-body: "Plus Jakarta Sans", system-ui, sans-serif;
   --lp-radius-small: 8px;
@@ -1506,6 +1511,7 @@ body[data-app-view="player"] .manager-only {
   border: 1px solid rgba(83, 191, 174, 0.28);
   border-radius: 20px;
   background: linear-gradient(145deg, rgba(9, 28, 34, 0.96), rgba(8, 20, 25, 0.92));
+  color: var(--lp-ink);
   padding: 20px;
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
 }
@@ -1528,6 +1534,14 @@ body[data-app-view="player"] .manager-only {
   margin: 0;
 }
 
+.game-session-heading h2 {
+  color: var(--lp-ink);
+}
+
+.game-session-heading .eyebrow {
+  color: var(--lp-accent);
+}
+
 .session-status-badge {
   border: 1px solid rgba(92, 215, 190, 0.34);
   border-radius: 999px;
@@ -1541,6 +1555,11 @@ body[data-app-view="player"] .manager-only {
 
 .game-session-content {
   margin-top: 18px;
+  color: var(--lp-muted);
+}
+
+.game-session-content > p {
+  color: var(--lp-muted);
 }
 
 .game-session-create-form,
@@ -1658,6 +1677,39 @@ body[data-app-view="player"] .manager-only {
   justify-content: flex-start;
   flex-wrap: wrap;
   margin: 13px 0;
+}
+
+.game-master-role-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr);
+  align-items: end;
+  gap: 10px 12px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(50, 221, 210, 0.24);
+  border-radius: 12px;
+  background: rgba(14, 47, 45, 0.42);
+}
+
+.game-master-role-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--lp-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.game-master-role-form select {
+  min-height: 44px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--lp-ink);
+  background: #071b20;
+}
+
+.game-master-role-form small {
+  color: var(--lp-muted);
 }
 
 .session-facts span {
@@ -1865,6 +1917,7 @@ body[data-app-view="player"] .manager-only {
 
   .game-session-create-form,
   .game-code-join-form,
+  .game-master-role-form,
   .game-code-block {
     grid-template-columns: 1fr;
   }
@@ -2052,6 +2105,803 @@ body[data-app-view="player"] .topbar {
   display: grid;
   place-items: start center;
   gap: 14px;
+}
+
+.logistics-game-mount[hidden] {
+  display: none;
+}
+
+.tutorial-focus .logistics-game-mount {
+  display: none !important;
+}
+
+.logistics-game-mount {
+  min-width: 0;
+  color: var(--lp-ink);
+}
+
+.sim-player-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(330px, 0.75fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.sim-order-form,
+.sim-action-panel,
+.sim-factory-overview,
+.sim-role-picker {
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-panel);
+  overflow: hidden;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.sim-order-form {
+  color: #142127;
+  background:
+    linear-gradient(rgba(31, 139, 129, 0.035) 1px, transparent 1px),
+    #f6f3e9;
+  background-size: 100% 34px;
+}
+
+.sim-form-header {
+  min-height: 90px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  color: #f4fffe;
+  background: #091b21;
+}
+
+.sim-form-header p,
+.sim-form-header h2 {
+  margin: 0;
+}
+
+.sim-form-header p {
+  color: var(--lp-accent);
+  font-family: var(--lp-font-heading);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+}
+
+.sim-form-header h2 {
+  margin-top: 3px;
+  font-size: clamp(1.2rem, 2vw, 1.7rem);
+}
+
+.sim-form-header > span {
+  padding: 8px 10px;
+  border: 1px solid #496169;
+  border-radius: 7px;
+  color: #b8cdd1;
+  font-size: 0.72rem;
+}
+
+.sim-order-metadata {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 0.6fr;
+  border-bottom: 2px solid #142127;
+}
+
+.sim-order-metadata > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-right: 1px solid #b9c1bd;
+}
+
+.sim-order-metadata > div:last-child {
+  border-right: 0;
+}
+
+.sim-order-metadata span,
+.sim-work-code span {
+  color: #5d6a6e;
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sim-order-metadata strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-countdown {
+  color: #a92f28;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-work-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #aeb8b5;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.sim-work-code strong {
+  min-width: 70px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  color: #fff;
+  background: #142127;
+  text-align: center;
+  letter-spacing: 0.12em;
+}
+
+.sim-form-body {
+  min-height: 390px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(190px, 0.8fr);
+}
+
+.sim-form-body > div:first-child {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  padding: 24px;
+}
+
+.sim-form-body ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.sim-form-body li {
+  padding-left: 4px;
+  line-height: 1.45;
+}
+
+.sim-product-visual {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 20px;
+  border-left: 1px solid #b9c1bd;
+  background: rgba(220, 230, 225, 0.56);
+}
+
+.sim-product-visual small {
+  color: #5d6a6e;
+}
+
+.sim-tower {
+  width: 170px;
+  height: 210px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: center;
+  filter: drop-shadow(16px 20px 13px rgba(0, 0, 0, 0.2));
+  perspective: 500px;
+}
+
+.sim-tower-renderer {
+  width: min(100%, 270px);
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(16px 20px 13px rgba(0, 0, 0, 0.2));
+}
+
+.sim-tower-layer,
+.sim-tower-base {
+  position: relative;
+  width: 94px;
+  height: 43px;
+  display: block;
+  border: 2px solid rgba(5, 18, 22, 0.48);
+  border-radius: 4px;
+  background: var(--tower-color);
+  transform: skewY(-4deg);
+  box-shadow:
+    inset -13px -10px 0 rgba(0, 0, 0, 0.12),
+    inset 8px 6px 0 rgba(255, 255, 255, 0.14);
+}
+
+.sim-tower-layer::before {
+  content: "";
+  position: absolute;
+  inset: -8px 8px auto;
+  height: 10px;
+  border: 2px solid rgba(5, 18, 22, 0.4);
+  border-radius: 50%;
+  background: var(--tower-color);
+}
+
+.sim-tower-layer.is-wide {
+  width: 132px;
+}
+
+.sim-tower-layer.is-top {
+  width: 72px;
+}
+
+.sim-tower-base {
+  width: 156px;
+  height: 15px;
+  background: var(--brick-green);
+}
+
+.sim-route-progress {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-top: auto;
+}
+
+.sim-route-progress span {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border: 1px solid #9aa8a7;
+  border-radius: 5px;
+  color: #647174;
+  background: rgba(255, 255, 255, 0.55);
+  font-family: var(--lp-font-heading);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.sim-route-progress span.is-done {
+  color: #fff;
+  border-color: #2f7d56;
+  background: #2f7d56;
+}
+
+.sim-route-progress span.is-current {
+  color: #071014;
+  border-color: #169b91;
+  background: var(--lp-accent);
+  box-shadow: 0 0 0 3px rgba(50, 221, 210, 0.18);
+}
+
+.sim-action-panel {
+  display: grid;
+  align-content: start;
+  color: var(--lp-ink);
+  background: #0a191f;
+}
+
+.sim-action-panel > header {
+  padding: 18px;
+  border-bottom: 1px solid var(--lp-line);
+  background: linear-gradient(135deg, #102d34, #0a1b21);
+}
+
+.sim-action-panel h2,
+.sim-action-panel h3,
+.sim-action-panel p {
+  margin: 0;
+}
+
+.sim-action-panel > header > span {
+  display: block;
+  margin-top: 5px;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+}
+
+.sim-action-section {
+  display: grid;
+  gap: 11px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.sim-action-section h3 {
+  color: #cde3e5;
+  font-size: 0.88rem;
+}
+
+.sim-part-buttons {
+  display: grid;
+  gap: 8px;
+}
+
+.sim-part-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 7px;
+}
+
+.sim-part-control > button:first-child {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid #315961;
+  border-radius: 8px;
+  color: var(--lp-ink);
+  background: #102830;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-part-control > button:first-child:hover:not(:disabled) {
+  border-color: var(--lp-accent);
+  background: #15363d;
+}
+
+.sim-part-control > button:first-child:disabled {
+  border-color: #2f756f;
+  opacity: 0.78;
+}
+
+.sim-part-control > button:first-child > span {
+  color: var(--lp-accent);
+  font-size: 1.25rem;
+}
+
+.sim-part-control small {
+  color: var(--lp-muted);
+}
+
+.sim-part-reset {
+  border: 1px solid #594448;
+  border-radius: 8px;
+  color: #ff9c89;
+  background: #281a1d;
+  cursor: pointer;
+}
+
+.sim-transfer-button {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 13px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 9px;
+  color: #071014;
+  background: var(--lp-accent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-transfer-button:disabled {
+  color: #82979b;
+  border-color: #29434b;
+  background: #11252c;
+  cursor: not-allowed;
+}
+
+.sim-transfer-button.is-complete {
+  color: #cce9d8;
+  border-color: #327654;
+  background: #173b2b;
+}
+
+.sim-signature {
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  min-height: 48px;
+  padding: 9px 11px;
+  border: 1px dashed #537078;
+  border-radius: 8px;
+  color: #cde3e5;
+  background: #0d2229;
+}
+
+.sim-signature input {
+  width: 20px;
+  min-height: 20px;
+  accent-color: var(--lp-accent);
+}
+
+.sim-signature > span {
+  color: #cde3e5;
+}
+
+.sim-complete-button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  opacity: 0.42;
+}
+
+.sim-action-note,
+.sim-action-feedback {
+  padding: 10px;
+  border-left: 3px solid var(--lp-accent-border);
+  color: var(--lp-muted);
+  background: #0d2229;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.sim-role-picker,
+.sim-factory-overview {
+  padding: 20px;
+  background:
+    radial-gradient(circle at 85% 5%, rgba(50, 221, 210, 0.09), transparent 28%),
+    #0a191f;
+}
+
+.sim-role-picker h2,
+.sim-role-picker p,
+.sim-factory-overview h2,
+.sim-factory-overview p {
+  margin-top: 0;
+}
+
+.sim-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sim-role-grid button {
+  min-height: 116px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 5px 10px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+  color: var(--lp-ink);
+  background: var(--lp-surface-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-role-grid button:hover {
+  border-color: var(--lp-accent);
+  transform: translateY(-2px);
+}
+
+.sim-role-grid button > span {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  color: #061414;
+  background: var(--lp-accent);
+  font-family: var(--lp-font-heading);
+  font-weight: 900;
+}
+
+.sim-role-grid small {
+  color: var(--lp-muted);
+}
+
+.sim-factory-overview > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+
+.sim-waiting-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+  padding: 6px;
+  border: 1px solid var(--lp-line);
+  border-radius: 11px;
+  background: #071419;
+}
+
+.sim-waiting-tabs button {
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--lp-muted);
+  background: transparent;
+  font-family: var(--lp-font-heading);
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-waiting-tabs button:hover,
+.sim-waiting-tabs button:focus-visible {
+  color: var(--lp-ink);
+  border-color: #315961;
+  outline: none;
+}
+
+.sim-waiting-tabs button.is-active {
+  color: #061414;
+  border-color: var(--lp-accent);
+  background: var(--lp-accent);
+  box-shadow: 0 6px 16px rgba(50, 221, 210, 0.16);
+}
+
+.sim-waiting-tabs button strong {
+  min-width: 25px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: inherit;
+  background: rgba(140, 164, 170, 0.16);
+  text-align: center;
+  font-size: 0.7rem;
+}
+
+.sim-waiting-tabs button.is-active strong {
+  background: rgba(6, 20, 20, 0.14);
+}
+
+.sim-waiting-panel {
+  min-height: 430px;
+  margin-top: 12px;
+}
+
+.sim-waiting-panel .sim-role-status-grid {
+  margin-top: 0;
+}
+
+.sim-process-flow-mount {
+  min-width: 0;
+  min-height: 620px;
+  overflow: auto;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  background: #07161c;
+}
+
+.sim-process-flow-mount .iso-logistics-view {
+  min-height: 620px;
+  grid-template-columns: minmax(760px, 1fr) minmax(260px, 330px);
+}
+
+.sim-fallback-flow {
+  min-width: 760px;
+  min-height: 430px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 25px;
+}
+
+.sim-fallback-flow article {
+  width: 100px;
+  min-height: 95px;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid var(--lp-line);
+  border-radius: 9px;
+  background: var(--lp-surface-soft);
+  text-align: center;
+}
+
+.sim-fallback-flow article span {
+  color: var(--lp-accent);
+  font-family: var(--lp-font-heading);
+  font-weight: 900;
+}
+
+.sim-fallback-flow article strong {
+  font-size: 0.67rem;
+}
+
+.sim-fallback-flow > i {
+  color: var(--lp-accent);
+  font-style: normal;
+  font-size: 1.3rem;
+}
+
+.sim-live-indicator {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid #2e6950;
+  border-radius: 999px;
+  color: #a9e5c0;
+  background: #123125;
+  font-weight: 800;
+}
+
+.sim-live-indicator i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5ee48d;
+  box-shadow: 0 0 0 5px rgba(94, 228, 141, 0.12);
+  animation: sim-live-pulse 1.4s infinite;
+}
+
+@keyframes sim-live-pulse {
+  50% { opacity: 0.38; }
+}
+
+.sim-role-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 9px;
+  margin: 18px 0;
+}
+
+.sim-role-status {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 10px;
+  gap: 9px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--lp-line);
+  border-radius: 9px;
+  background: #102830;
+}
+
+.sim-role-status > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 7px;
+  color: #071014;
+  background: #8ca4aa;
+  font-family: var(--lp-font-heading);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.sim-role-status > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.sim-role-status strong,
+.sim-role-status small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-role-status small {
+  color: var(--lp-muted);
+}
+
+.sim-role-status > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #61767b;
+}
+
+.sim-role-status.is-processing > i,
+.sim-role-status.is-waiting_for_next > i {
+  background: var(--lp-amber);
+}
+
+.sim-role-status.is-awaiting_player > i,
+.sim-role-status.is-human > span {
+  background: var(--lp-accent);
+}
+
+.sim-live-feed {
+  max-height: 410px;
+  overflow: auto;
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+  background: #061116;
+}
+
+.sim-feed-item {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1d343b;
+  color: #c8dadd;
+  font-size: 0.83rem;
+  line-height: 1.4;
+}
+
+.sim-feed-item:last-child {
+  border-bottom: 0;
+}
+
+.sim-feed-item time {
+  color: var(--lp-accent);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-feed-item.is-incident {
+  color: #ffc2b6;
+  background: rgba(191, 63, 50, 0.1);
+}
+
+.sim-feed-item.is-success {
+  color: #b9ebcc;
+  background: rgba(47, 125, 86, 0.1);
+}
+
+@media (max-width: 980px) {
+  .sim-player-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-action-panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sim-action-panel > header {
+    grid-column: 1 / -1;
+  }
+
+  .sim-action-section {
+    border-right: 1px solid var(--lp-line);
+  }
+}
+
+@media (max-width: 680px) {
+  .sim-action-panel,
+  .sim-form-body,
+  .sim-order-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-action-panel > header {
+    grid-column: auto;
+  }
+
+  .sim-order-metadata > div {
+    grid-template-columns: 110px minmax(0, 1fr);
+    align-items: center;
+    border-right: 0;
+    border-bottom: 1px solid #c4ccca;
+  }
+
+  .sim-product-visual {
+    min-height: 280px;
+    border-top: 1px solid #b9c1bd;
+    border-left: 0;
+  }
+
+  .sim-form-header,
+  .sim-factory-overview > header {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-route-progress {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .sim-feed-item {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .sim-waiting-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-waiting-panel {
+    min-height: 360px;
+  }
 }
 
 .player-role-tools {

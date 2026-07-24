@@ -24,6 +24,7 @@
     availability: null,
     session: null,
     busy: false,
+    mutationVersion: 0,
     pollTimer: null,
     startedSessionId: null
   };
@@ -106,6 +107,32 @@
     return cards.join("");
   }
 
+  function gameMasterRoleMarkup(session) {
+    if (!session.is_game_master || session.status === "running") return "";
+    const currentMember = session.members.find(
+      member => member.member_id === session.current_member_id
+    );
+    const occupiedRoles = new Map(
+      session.members.map(member => [member.assigned_role_id, member.member_id])
+    );
+    const options = session.required_role_ids.map(roleId => {
+      const isCurrent = roleId === currentMember?.assigned_role_id;
+      const isOccupiedByOther = occupiedRoles.has(roleId)
+        && occupiedRoles.get(roleId) !== session.current_member_id;
+      const suffix = isCurrent ? " (jouw huidige rol)" : isOccupiedByOther ? " (rolruil)" : "";
+      return `<option value="${escapeHtml(roleId)}"${isCurrent ? " selected" : ""}>${escapeHtml(roleLabel(roleId) + suffix)}</option>`;
+    }).join("");
+    return `
+      <div class="game-master-role-form">
+        <label>
+          <span>Jouw spelersrol</span>
+          <select name="role_id" data-game-master-role-select>${options}</select>
+        </label>
+        <small>De keuze wordt direct opgeslagen. Kies je een bezette rol, dan krijgt die speler automatisch jouw huidige rol.</small>
+      </div>
+    `;
+  }
+
   function sessionMarkup(session, context) {
     const vacancies = session.role_vacancies || [];
     const running = session.status === "running";
@@ -137,6 +164,7 @@
           <span>${session.members.length}/${session.required_role_ids.length} spelers</span>
           <span>${session.is_game_master ? "Jij bent Game Master" : "Game Master aanwezig"}</span>
         </div>
+        ${gameMasterRoleMarkup(session)}
         <ul class="session-member-list">${memberCards(session)}</ul>
         ${vacancies.length ? `
           <div class="session-vacancies">
@@ -275,8 +303,10 @@
 
   async function refresh() {
     if (!state.authenticated || state.busy) return;
+    const refreshVersion = state.mutationVersion;
     try {
       const availability = await request("/v1/game-sessions/availability");
+      if (refreshVersion !== state.mutationVersion) return;
       state.availability = availability;
       state.session = availability.current_session;
       render();
@@ -292,6 +322,7 @@
   async function mutate(path, body) {
     if (state.busy) return;
     state.busy = true;
+    state.mutationVersion += 1;
     try {
       state.session = await request(path, {
         method: "POST",
@@ -333,6 +364,13 @@
         const code = new FormData(event.target).get("join_code");
         mutate("/v1/game-sessions/join", { join_code: String(code || "").toUpperCase() });
       }
+    });
+    document.addEventListener("change", event => {
+      if (!event.target.matches("[data-game-master-role-select]") || !state.session) return;
+      mutate(
+        `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/game-master-role`,
+        { role_id: String(event.target.value || "") }
+      );
     });
     document.addEventListener("click", event => {
       const target = event.target.closest("button");

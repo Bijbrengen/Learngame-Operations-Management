@@ -240,12 +240,20 @@
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "tower" || !window.LegoTowerRenderer) return "";
     const scale = 0.56;
+    const sequence = Array.isArray(cargo.towerSequence) ? cargo.towerSequence : [];
+    const blocks = sequence.length
+      ? window.LegoTowerRenderer.layoutSequence(sequence)
+      : window.LegoTowerRenderer.layoutSequence(["blue_8", "blue_8", "yellow_4", "green_4"]);
     const tower = [
       window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green"),
-      window.LegoTowerRenderer.brick(1, 1, 0.22, 2, 4, "blue"),
-      window.LegoTowerRenderer.brick(3, 1, 0.22, 2, 4, "blue"),
-      window.LegoTowerRenderer.brick(2, 2, 1, 2, 2, "yellow"),
-      window.LegoTowerRenderer.brick(2, 2, 1.78, 2, 2, "green")
+      ...blocks.map(block => window.LegoTowerRenderer.brick(
+        block.x,
+        block.y,
+        block.z,
+        block.width,
+        block.depth,
+        block.color
+      ))
     ].join("");
     return `
       <g class="iso-cargo-tower${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
