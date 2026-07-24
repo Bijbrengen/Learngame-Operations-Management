@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v70";
+const CACHE_VERSION = "learngame-om-v75";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,12 +12,6 @@ const APP_SHELL = [
   "./lego-builder.js",
   "./isometric-logistics-view.js",
   "./assets/brand/learn-games-logo.svg",
-  "./assets/lego/tutorial-step-1.gif",
-  "./assets/lego/tutorial-step-2.gif",
-  "./assets/lego/tutorial-step-3.gif",
-  "./assets/lego/tower-a.png",
-  "./assets/lego/tower-b.png",
-  "./assets/lego/tower-c.png",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

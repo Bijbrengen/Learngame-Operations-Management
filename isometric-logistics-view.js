@@ -176,15 +176,17 @@
           instanceId: `${visual.partId || visualIndex}-${itemIndex}`
         })
       )
-    )).slice(0, 6);
-    const scale = 0.34;
+    )).slice(0, 8);
+    const scale = department.compactStock ? 0.3 : 0.34;
     const offsets = [
       { x: -49, y: 14 },
       { x: -17, y: 1 },
       { x: 18, y: 14 },
       { x: 49, y: 1 },
       { x: -16, y: -17 },
-      { x: 20, y: -17 }
+      { x: 20, y: -17 },
+      { x: -47, y: -12 },
+      { x: 49, y: -15 }
     ];
     const bricks = window.LegoTowerRenderer
       ? items.map((visual, index) => {
@@ -202,7 +204,7 @@
              data-stock-instance-id="${escapeHtml(visual.instanceId)}"
              role="img"
              aria-label="${escapeHtml(visual.draggable
-               ? `Sleep ${visual.label || "blok"} naar de Bouwvoorraad`
+               ? `Sleep ${visual.label || "blok"} naar ${department.dragTargetLabel || "de Bouwvoorraad"}`
                : `${visual.label || "Blok"} in ${department.title}`)}">
             ${window.LegoTowerRenderer.brick(
               brickX,
@@ -404,9 +406,15 @@
       return `
         <section class="iso-tutorial-banner is-visual-only" aria-label="${escapeHtml(tutorial.title || "Tutorial")}">
           <p class="iso-visual-step">${escapeHtml(tutorial.stepLabel || "")}</p>
-          ${tutorial.image
-            ? `<img class="iso-tutorial-visual" src="${escapeHtml(tutorial.image)}" alt="">`
-            : ""}
+          ${tutorial.towerSequence && window.LegoTowerRenderer
+            ? window.LegoTowerRenderer.renderAnimated(
+                tutorial.towerSequence,
+                "Geanimeerde bouw van Toren B",
+                "iso-tutorial-visual"
+              )
+            : tutorial.image
+              ? `<img class="iso-tutorial-visual" src="${escapeHtml(tutorial.image)}" alt="">`
+              : ""}
           <div class="iso-tutorial-progress" aria-label="${progress}% voltooid">
             <span>${collected}/${required}</span>
             <div><i style="width:${progress}%"></i></div>
@@ -557,6 +565,7 @@
                role="img"
                aria-label="Isometrische kaart van de logistieke afdelingen">
             <defs>
+              ${window.LegoTowerRenderer ? window.LegoTowerRenderer.definitions() : ""}
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#123039"></stop>
                 <stop offset="100%" stop-color="#08161c"></stop>

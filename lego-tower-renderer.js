@@ -1,10 +1,37 @@
 class LegoTowerRenderer {
+  static animationId = 0;
+
   static palette = {
-    green: { top: "#31a75a", left: "#1f7b41", right: "#278c4b", stud: "#48bd70" },
-    blue: { top: "#276fd0", left: "#1d4f99", right: "#235fb4", stud: "#4a91e5" },
-    red: { top: "#d33e32", left: "#9d2b25", right: "#b8332b", stud: "#e25b50" },
-    yellow: { top: "#f0c92f", left: "#b89218", right: "#d4aa20", stud: "#f7db61" },
-    white: { top: "#f8f6ef", left: "#d4d0c8", right: "#e7e3dc", stud: "#ffffff" }
+    green: {
+      top: ["#38be72", "#288b52"],
+      left: ["#217a46", "#15542e"],
+      right: ["#1b6339", "#103e23"],
+      stroke: "#6be39e"
+    },
+    blue: {
+      top: ["#4c8df2", "#2a68cf"],
+      left: ["#235abf", "#163c85"],
+      right: ["#1a4596", "#0e2a61"],
+      stroke: "#8bb8ff"
+    },
+    red: {
+      top: ["#e33b3b", "#be1e1e"],
+      left: ["#ab1818", "#730e0e"],
+      right: ["#8a1313", "#540a0a"],
+      stroke: "#ff8c8c"
+    },
+    yellow: {
+      top: ["#fadd5c", "#f2c91a"],
+      left: ["#d9b30d", "#a6890a"],
+      right: ["#bf9e0b", "#8c7408"],
+      stroke: "#ffee8c"
+    },
+    white: {
+      top: ["#ffffff", "#e0e0e0"],
+      left: ["#d0d0d0", "#b0b0b0"],
+      right: ["#c0c0c0", "#a0a0a0"],
+      stroke: "#ffffff"
+    }
   };
 
   static blueprints = {
@@ -12,6 +39,35 @@ class LegoTowerRenderer {
     B: { lower: "blue", middle: "yellow", upper: "green", middleSize: "2x2" },
     C: { lower: "white", middle: "blue", upper: "red", middleSize: "2x2" }
   };
+
+  static pieces = {
+    yellow_8: { color: "yellow", width: 2, depth: 4 },
+    red_8: { color: "red", width: 2, depth: 4 },
+    white_4: { color: "white", width: 2, depth: 2 },
+    blue_8: { color: "blue", width: 2, depth: 4 },
+    yellow_4: { color: "yellow", width: 2, depth: 2 },
+    green_4: { color: "green", width: 2, depth: 2 },
+    white_8: { color: "white", width: 2, depth: 4 },
+    blue_4: { color: "blue", width: 2, depth: 2 },
+    red_4: { color: "red", width: 2, depth: 2 }
+  };
+
+  static definitions() {
+    return Object.entries(this.palette).map(([color, shades]) => `
+      <linearGradient id="lego-${color}-top" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${shades.top[0]}"></stop>
+        <stop offset="100%" stop-color="${shades.top[1]}"></stop>
+      </linearGradient>
+      <linearGradient id="lego-${color}-left" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="${shades.left[0]}"></stop>
+        <stop offset="100%" stop-color="${shades.left[1]}"></stop>
+      </linearGradient>
+      <linearGradient id="lego-${color}-right" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="${shades.right[0]}"></stop>
+        <stop offset="100%" stop-color="${shades.right[1]}"></stop>
+      </linearGradient>
+    `).join("");
+  }
 
   static render(productId, label = "LEGO toren", blueprintOverride = null, className = "tower-large") {
     const blueprint = blueprintOverride || this.blueprints[productId] || this.blueprints.A;
@@ -27,8 +83,108 @@ class LegoTowerRenderer {
 
     return `
       <svg class="${this.escape(className)}" viewBox="0 0 180 150" role="img" aria-label="${this.escape(label)}">
+        <defs>${this.definitions()}</defs>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,0.14)"></ellipse>
         ${bricks.join("")}
+      </svg>
+    `;
+  }
+
+  /**
+   * Bouwt een complete toren uit alleen de blokvolgorde.
+   * De eerste twee 2x4-blokken komen naast elkaar, volgende blokken worden
+   * automatisch gecentreerd en telkens een laag hoger geplaatst.
+   */
+  static layoutSequence(sequence) {
+    if (!Array.isArray(sequence) || sequence.length < 1) return [];
+
+    return sequence.map((pieceId, index) => {
+      const piece = this.pieces[pieceId];
+      if (!piece) throw new Error(`Onbekend LEGO-blok: ${pieceId}`);
+
+      if (index === 0) return { ...piece, pieceId, x: 1, y: 1, z: 0.22 };
+      if (index === 1) return { ...piece, pieceId, x: 3, y: 1, z: 0.22 };
+
+      const isLong = piece.width === 2 && piece.depth === 4;
+      return {
+        ...piece,
+        pieceId,
+        x: isLong ? 1 : 2,
+        y: 2,
+        width: isLong ? 4 : piece.width,
+        depth: isLong ? 2 : piece.depth,
+        z: 0.22 + (index - 1) * 0.78
+      };
+    });
+  }
+
+  static renderAnimated(
+    sequence,
+    label = "Geanimeerde bouw van een LEGO-toren",
+    className = "tower-animated"
+  ) {
+    const blocks = this.layoutSequence(sequence);
+    const animationId = `lego-tower-build-${this.animationId += 1}`;
+    const duration = Math.max(5.5, blocks.length * 1.25 + 1.5);
+    const settleAt = Math.min(88, 22 + blocks.length * 15);
+    const animationCss = blocks.map((block, index) => {
+      const start = (index * 1.25 / duration) * 100;
+      const land = ((index * 1.25 + 0.9) / duration) * 100;
+      const bounce = ((index * 1.25 + 1.05) / duration) * 100;
+      return `
+        @keyframes ${animationId}-drop-${index} {
+          0%, ${start.toFixed(1)}% { transform: translateY(-105px); opacity: 0; }
+          ${(start + 0.1).toFixed(1)}% { opacity: 1; }
+          ${land.toFixed(1)}% { transform: translateY(0); opacity: 1; }
+          ${bounce.toFixed(1)}% { transform: translateY(-2.5px); opacity: 1; }
+          ${(bounce + 2.2).toFixed(1)}%, ${settleAt}% { transform: translateY(0); opacity: 1; }
+          96%, 100% { transform: translateY(-105px); opacity: 0; }
+        }
+        @keyframes ${animationId}-shadow-${index} {
+          0%, ${start.toFixed(1)}% { opacity: 0; transform: scale(.45); }
+          ${land.toFixed(1)}%, ${settleAt}% { opacity: .16; transform: scale(1); }
+          96%, 100% { opacity: 0; transform: scale(.45); }
+        }
+        #${animationId} .animated-tower-block-${index} {
+          animation: ${animationId}-drop-${index} ${duration}s cubic-bezier(.25,1,.5,1) infinite;
+        }
+        #${animationId} .animated-tower-shadow-${index} {
+          animation: ${animationId}-shadow-${index} ${duration}s cubic-bezier(.25,1,.5,1) infinite;
+          transform-box: fill-box;
+          transform-origin: center;
+        }`;
+    }).join("");
+
+    const blockMarkup = blocks.map((block, index) => {
+      const [shadowX, shadowY] = this.iso(
+        block.x + block.width / 2,
+        block.y + block.depth / 2,
+        block.z
+      );
+      return `
+        <ellipse class="animated-tower-shadow-${index}"
+                 cx="${shadowX}" cy="${shadowY + 4}"
+                 rx="${Math.max(10, (block.width + block.depth) * 3.2)}" ry="4"></ellipse>
+        <g class="animated-tower-block-${index}">
+          ${this.brick(block.x, block.y, block.z, block.width, block.depth, block.color)}
+        </g>`;
+    }).join("");
+
+    return `
+      <svg id="${animationId}" class="${this.escape(className)}" viewBox="0 0 180 150"
+           role="img" aria-label="${this.escape(label)}">
+        <defs>${this.definitions()}</defs>
+        <style>
+          ${animationCss}
+          #${animationId} [class^="animated-tower-shadow-"] { fill: #06140c; }
+          @media (prefers-reduced-motion: reduce) {
+            #${animationId} [class^="animated-tower-block-"],
+            #${animationId} [class^="animated-tower-shadow-"] { animation: none !important; }
+          }
+        </style>
+        <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,.14)"></ellipse>
+        ${this.plate(0, 0, 0, 6, 6, "green")}
+        ${blockMarkup}
       </svg>
     `;
   }
@@ -45,6 +201,7 @@ class LegoTowerRenderer {
 
     return `
       <svg class="lego-part-3d${part.id === "base_green" ? " base-plate" : ""}" viewBox="0 0 180 150" role="img" aria-label="${this.escape(label)}">
+        <defs>${this.definitions()}</defs>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,0.12)"></ellipse>
         ${bricks.join("")}
       </svg>
@@ -74,9 +231,11 @@ class LegoTowerRenderer {
 
     return `
       <g class="iso-brick">
-        <polygon points="${this.points([p3, p2, b2, b3])}" fill="${shade.left}"></polygon>
-        <polygon points="${this.points([p1, p2, b2, b1])}" fill="${shade.right}"></polygon>
-        <polygon points="${this.points([p0, p1, p2, p3])}" fill="${shade.top}" stroke="rgba(0,0,0,0.22)" stroke-width="1"></polygon>
+        <polygon points="${this.points([p3, p2, b2, b3])}" fill="url(#lego-${color}-left)"></polygon>
+        <polygon points="${this.points([p1, p2, b2, b1])}" fill="url(#lego-${color}-right)"></polygon>
+        <polygon points="${this.points([p0, p1, p2, p3])}"
+                 fill="url(#lego-${color}-top)"
+                 stroke="${shade.stroke}" stroke-opacity="0.42" stroke-width="0.65"></polygon>
         ${studMarkup}
       </g>
     `;
@@ -95,9 +254,23 @@ class LegoTowerRenderer {
 
   static stud(cx, cy, color, scale) {
     const shade = this.palette[color] || this.palette.green;
+    const radiusX = 4.8 * scale;
+    const radiusY = 2.45 * scale;
+    const topY = cy - 2.5 * scale;
+    const bottomY = cy - 0.3 * scale;
     return `
-      <ellipse cx="${cx}" cy="${cy - 1.8 * scale}" rx="${4.8 * scale}" ry="${2.7 * scale}" fill="${shade.stud}" stroke="rgba(0,0,0,0.18)" stroke-width="0.7"></ellipse>
-      <ellipse cx="${cx}" cy="${cy - 3.0 * scale}" rx="${3.5 * scale}" ry="${1.5 * scale}" fill="rgba(255,255,255,0.34)"></ellipse>
+      <path d="M ${cx - radiusX},${topY}
+               L ${cx - radiusX},${bottomY}
+               A ${radiusX} ${radiusY} 0 0 0 ${cx + radiusX},${bottomY}
+               L ${cx + radiusX},${topY}
+               A ${radiusX} ${radiusY} 0 0 1 ${cx - radiusX},${topY} Z"
+            fill="url(#lego-${color}-right)"></path>
+      <ellipse cx="${cx}" cy="${topY}" rx="${radiusX}" ry="${radiusY}"
+               fill="url(#lego-${color}-top)"
+               stroke="${shade.stroke}" stroke-opacity="0.62" stroke-width="0.55"></ellipse>
+      <ellipse cx="${cx - radiusX * 0.2}" cy="${topY - radiusY * 0.25}"
+               rx="${radiusX * 0.55}" ry="${radiusY * 0.38}"
+               fill="rgba(255,255,255,0.22)"></ellipse>
     `;
   }
 

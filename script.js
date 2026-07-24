@@ -492,6 +492,13 @@
     green_4: 1
   });
 
+  const FINANCIAL_TUTORIAL_DISTRACTORS = Object.freeze([
+    { partId: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" },
+    { partId: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" },
+    { partId: "red_8", color: "red", width: 4, depth: 2, label: "rood 2×4-blok" },
+    { partId: "white_4", color: "white", width: 2, depth: 2, label: "wit 2×2-blok" }
+  ]);
+
   const LOGISTICS_TUTORIAL_DEPARTMENTS = [
     {
       id: "tutorial_warehouse_a",
@@ -503,7 +510,11 @@
       materialId: "blue_8",
       openRoof: true,
       stockPart: { color: "blue", width: 4, depth: 2, label: "blauw 2×4-blok" },
-      distractorPart: { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" },
+      distractorParts: [
+        { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" },
+        { id: "red_8", color: "red", width: 4, depth: 2, label: "rood 2×4-blok" },
+        { id: "white_4", color: "white", width: 2, depth: 2, label: "wit 2×2-blok" }
+      ],
       layout: { x: 1, y: 4, width: 3.5, depth: 3.2, height: 58 }
     },
     {
@@ -516,7 +527,12 @@
       materialId: "yellow_4",
       openRoof: true,
       stockPart: { color: "yellow", width: 2, depth: 2, label: "geel 2×2-blok" },
-      distractorPart: { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" },
+      distractorParts: [
+        { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" },
+        { id: "red_4", color: "red", width: 2, depth: 2, label: "rood 2×2-blok" },
+        { id: "white_8", color: "white", width: 4, depth: 2, label: "wit 2×4-blok" },
+        { id: "blue_4", color: "blue", width: 2, depth: 2, label: "blauw 2×2-blok" }
+      ],
       layout: { x: 1, y: 10, width: 3.5, depth: 3.2, height: 64 }
     },
     {
@@ -529,7 +545,12 @@
       materialId: "green_4",
       openRoof: true,
       stockPart: { color: "green", width: 2, depth: 2, label: "groen 2×2-blok" },
-      distractorPart: { id: "green_8_wrong", color: "green", width: 4, depth: 2, label: "groen 2×4-blok" },
+      distractorParts: [
+        { id: "green_8_wrong", color: "green", width: 4, depth: 2, label: "groen 2×4-blok" },
+        { id: "red_4", color: "red", width: 2, depth: 2, label: "rood 2×2-blok" },
+        { id: "white_4", color: "white", width: 2, depth: 2, label: "wit 2×2-blok" },
+        { id: "yellow_8", color: "yellow", width: 4, depth: 2, label: "geel 2×4-blok" }
+      ],
       layout: { x: 1, y: 16, width: 3.5, depth: 3.2, height: 70 }
     },
     {
@@ -606,6 +627,8 @@
       kind: "warehouse",
       departmentColor: "raw",
       openRoof: true,
+      compactStock: true,
+      dragTargetLabel: "Gereed Product",
       emptyLabel: "materialen uitgegeven",
       layout: { x: 3, y: 13, width: 4.1, depth: 3.7, height: 70 }
     },
@@ -2233,10 +2256,11 @@
     if (!definition?.materialId) return false;
     state.selectedLogisticsDepartmentId = sourceDepartmentId;
     if (partId !== definition.materialId) {
-      const wrongPart = definition.distractorPart?.id === partId
-        ? definition.distractorPart.label
+      const distractor = definition.distractorParts?.find(part => part.id === partId);
+      const wrongPart = distractor
+        ? distractor.label
         : "dit blok";
-      state.logisticsTutorial.feedback = `${wrongPart} heeft niet het gevraagde formaat. Leg het terug en kijk goed naar de noppen.`;
+      state.logisticsTutorial.feedback = `${wrongPart} hoort niet bij deze ophaalopdracht. Leg het terug en vergelijk kleur én aantal noppen met Toren B.`;
       dispatchInteraction({
         actionType: "reject_tutorial_material_drop",
         learningObjectID: `tutorial_stock_${partId}`,
@@ -2246,7 +2270,7 @@
         sourceDepartmentId,
         targetDepartmentId,
         partId,
-        reason: "wrong_brick_format"
+        reason: "wrong_brick_type"
       });
       return false;
     }
@@ -2454,8 +2478,22 @@
       tutorial.phase !== "financial_purchase"
       || sourceDepartmentId !== "tutorial_finance_warehouse"
       || targetDepartmentId !== "tutorial_finance_finished"
-      || !(partId in LOGISTICS_TUTORIAL_REQUIREMENTS)
     ) return false;
+    if (!(partId in LOGISTICS_TUTORIAL_REQUIREMENTS)) {
+      const distractor = FINANCIAL_TUTORIAL_DISTRACTORS.find(part => part.partId === partId);
+      tutorial.feedback = `${distractor?.label || "Dit blok"} staat niet op de stuklijst van Toren B en wordt daarom niet financieel geboekt.`;
+      dispatchInteraction({
+        actionType: "reject_financial_tutorial_material",
+        learningObjectID: `tutorial_finance_${partId}`,
+        objectRole: "financial_material_selection",
+        role: "Lerende",
+        result: "incorrect",
+        step: 4,
+        partId,
+        reason: "not_in_tower_b_bill_of_materials"
+      });
+      return false;
+    }
 
     const required = LOGISTICS_TUTORIAL_REQUIREMENTS[partId];
     const picked = finance.picked[partId] || 0;
@@ -2568,12 +2606,19 @@
         return {
           ...definition,
           orders: [],
-          stockVisuals: Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).map(([partId, required]) => ({
-            ...partVisuals[partId],
-            partId,
-            count: Math.max(0, required - (finance.picked[partId] || 0)),
-            draggable: tutorial.phase === "financial_purchase"
-          })),
+          stockVisuals: [
+            ...Object.entries(LOGISTICS_TUTORIAL_REQUIREMENTS).map(([partId, required]) => ({
+              ...partVisuals[partId],
+              partId,
+              count: Math.max(0, required - (finance.picked[partId] || 0)),
+              draggable: tutorial.phase === "financial_purchase"
+            })),
+            ...FINANCIAL_TUTORIAL_DISTRACTORS.map(part => ({
+              ...part,
+              count: 1,
+              draggable: tutorial.phase === "financial_purchase"
+            }))
+          ],
           status: remainingTotal ? "active" : "complete",
           badgeValue: remainingTotal,
           badgeLabel: `${remainingTotal} onderdelen nog uit te geven`,
@@ -2678,8 +2723,8 @@
         eyebrow: "Self-starting tutorial · stap 4",
         title: "Financieel & Transactie",
         instruction: finance.moneyEnabled
-          ? "Voltooi de order en let op de financiële mutaties bij inkoop en verkoop."
-          : "Voltooi de order. De Game Master heeft spelen met geld uitgeschakeld.",
+          ? "Kies in het magazijn alleen de vier onderdelen van Toren B. Alleen juiste uitgiftes worden geboekt; volg daarna inkoop, verkoop en marge."
+          : "Kies in het magazijn alleen de vier onderdelen van Toren B. De Game Master heeft spelen met geld uitgeschakeld.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
         collected: delivered ? 2 : materialsComplete ? 1 : 0,
@@ -2769,7 +2814,7 @@
         active: true,
         visualOnly: true,
         stepLabel: "3 / 5",
-        image: "assets/lego/tower-b.png",
+        towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
         eyebrow: "Self-starting tutorial · stap 3",
         title: "Interne Logistiek",
         instruction: "Pak de gebouwde Toren B in het open dak van Productie vast en sleep hem naar het open ontvangstvak van de volgende afdeling.",
@@ -2815,12 +2860,12 @@
               count: Math.max(0, required - picked),
               draggable: picked < required && tutorial.phase === "collecting"
             },
-            {
-              ...definition.distractorPart,
-              partId: definition.distractorPart.id,
-              count: 2,
+            ...definition.distractorParts.map(distractor => ({
+              ...distractor,
+              partId: distractor.id,
+              count: 1,
               draggable: tutorial.phase === "collecting"
-            }
+            }))
           ],
           badgeValue: remaining,
           badgeLabel: `${remaining} op voorraad`,
@@ -2832,7 +2877,7 @@
           ],
           feedback: picked >= required
             ? { kind: "success", text: "Benodigde hoeveelheid is opgehaald." }
-            : { kind: "info", text: `Sleep alleen het juiste formaat (${partLabel.action}) naar de Bouwvoorraad.` }
+            : { kind: "info", text: `Zoek tussen de verschillende kleuren en formaten naar ${partLabel.action}.` }
         };
       }
       if (definition.id === "tutorial_player_stock") {
@@ -2934,10 +2979,10 @@
         active: true,
         visualOnly: true,
         stepLabel: "2 / 5",
-        image: "assets/lego/tower-b.png",
+        towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
         eyebrow: "Self-starting tutorial · stap 2",
         title: "Magazijn & Voorraad (Logistieke basis)",
-        instruction: "Sleep naar de Bouwafdeling: 2× blauw 2×4 uit A, 1× geel 2×2 uit B en 1× groen 2×2 uit C. Er liggen ook blokken met een verkeerd formaat.",
+        instruction: "Sleep naar de Bouwafdeling: 2× blauw 2×4 uit A, 1× geel 2×2 uit B en 1× groen 2×2 uit C. Sorteer goed: de magazijnen bevatten ook andere kleuren en formaten.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
         collected: tutorialCollectedCount(),

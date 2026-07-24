@@ -189,7 +189,7 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 - orders aanmaken voor een configureerbare catalogus van 3 tot 9 torensoorten, standaard met het ICG2-v2 voorbeeld `3 torens` en `7 minuten`;
 - de gekozen order direct als LEGO-torenpreview zien, inclusief aantal en orderwaarde;
 - vóór het vrije spel een interactieve tutorial doorlopen waarin Toren A in
-  drie stappen wordt gebouwd met de drie GIF-voorbeelden uit `source_docs`;
+  drie stappen wordt gebouwd met een parametrische SVG-animatie;
 - LEGO-blokken uit het bestaande SVG-palet aanklikken of slepen, 90 graden
   draaien en in een isometrische 3D-view op een groene 6x6-grondplaat laten
   vastklikken;
@@ -263,7 +263,8 @@ De PDF is gebruikt om de volledige orderstroom te controleren. De HTML bevatte b
 Deze digital twin kiest bewust voor een kleine, testbare kern:
 
 - `script.js` bevat de speldata, configuratie, engine-acties en eventdispatch;
-- `lego-tower-renderer.js` bevat de vaste isometrische LEGO-torenrenderer voor 6x6 grondplaat, 2x4- en 2x2-blokken;
+- `lego-tower-renderer.js` bevat de vaste en geanimeerde isometrische
+  LEGO-torenrenderer voor 6x6 grondplaat, 2x4- en 2x2-blokken;
 - `lego-builder.js` bevat de tutorialstate, het herbruikte blokkenpalet,
   klik/drag-and-drop, grid-snapping, steuncontrole en levervalidatie;
 - `index.html` bevat alleen de statische werkbank;
@@ -283,15 +284,22 @@ handmatig draaien zijn uitgeschakeld. Een onjuist blok of een onjuiste positie
 geeft geen tekstmelding, maar laat het blok en de grondplaat kort trillen.
 Terugdraaien en wissen gebruiken alleen een terugpijl en prullenbakpictogram.
 
+De animatie heeft alleen de blokvolgorde nodig. Bijvoorbeeld
+`LegoTowerRenderer.renderAnimated(["yellow_8", "yellow_8", "red_8", "white_4"])`
+tekent en animeert Toren A. De renderer leidt plaats, oriëntatie, hoogte,
+valtijd en schaduw zelf af. Dezelfde compacte invoer wordt gebruikt voor
+Toren B in de magazijn- en logistieke tutorial.
+
 Na deze bedieningsoefening verschijnt een nieuwe klantbestelling voor Toren B,
 maar het blokkenpalet is leeg. Via `Ga naar de magazijnen` opent Stap 2,
 `Magazijn & Voorraad`. De speler haalt in de isometrische logistieke kaart
 twee blauwe 2x4-blokken uit Magazijn A, één geel 2x2-blok uit Magazijn B en
 één groen 2x2-blok uit Magazijn C. De magazijnen hebben een open dak met een
-zichtbaar ophaalvak. Daarin liggen kleine, isometrische LEGO-blokken van het
-juiste én een misleidend formaat. De speler moet goed naar het aantal noppen
-kijken en de juiste blokken naar het ontvangstvak van de Bouwafdeling slepen.
-Een verkeerd formaat wordt geweigerd en teruggelegd. Een juist blok verdwijnt
+zichtbaar ophaalvak. Daarin liggen kleine, isometrische LEGO-blokken in meerdere
+kleuren en formaten: per magazijn één benodigd type tussen drie of vier
+afleiders. De speler moet kleur en aantal noppen vergelijken en de juiste
+blokken naar het ontvangstvak van de Bouwafdeling slepen. Een verkeerd type
+wordt geweigerd en teruggelegd. Een juist blok verdwijnt
 uit het magazijn en verschijnt zichtbaar in het open ontvangstvak van de
 Bouwafdeling. De magazijnbadge neemt af en de ontvangstteller neemt toe. Zodra
 alle vier blokken zichtbaar zijn aangekomen, kiest de speler daar
@@ -312,7 +320,10 @@ Stap 4.
 
 Stap 4, `Financieel & Transactie`, herhaalt de orderoverdracht vanuit financieel
 perspectief. De speler sleept de onderdelen uit het open Magazijn naar Gereed
-Product. Iedere materiaaluitgifte boekt de actuele onderdeelprijs af en toont
+Product. Tussen de vier benodigde onderdelen liggen vier afleiders die niet op
+de stuklijst van Toren B staan. Ze kunnen worden versleept, maar worden
+geweigerd en niet financieel geboekt. Iedere juiste materiaaluitgifte boekt de
+actuele onderdeelprijs af en toont
 een rode min-mutatie bij het magazijn. Zodra de materiaalset compleet is,
 verschijnt Toren B. De speler sleept die naar Expeditie; daar wordt de actuele
 verkoopprijs bijgeschreven met een groene plus-mutatie. Een zwevende

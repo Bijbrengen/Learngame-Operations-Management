@@ -16,7 +16,7 @@
   const GOALS = {
     A: {
       name: "Toren A",
-      image: "assets/lego/tower-a.png",
+      sequence: ["yellow_8", "yellow_8", "red_8", "white_4"],
       request: "Bouw twee gele 2×4-blokken, een rood 2×4-blok en een wit 2×2-blok.",
       bricks: [
         { type: "yellow_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
@@ -27,7 +27,7 @@
     },
     B: {
       name: "Toren B",
-      image: "assets/lego/tower-b.png",
+      sequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
       request: "Bouw twee blauwe 2×4-blokken met daarop geel 2×2 en groen 2×2.",
       bricks: [
         { type: "blue_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
@@ -38,7 +38,7 @@
     },
     C: {
       name: "Toren C",
-      image: "assets/lego/tower-c.png",
+      sequence: ["white_8", "white_8", "blue_4", "red_4"],
       request: "Bouw twee witte 2×4-blokken met daarop blauw 2×2 en rood 2×2.",
       bricks: [
         { type: "white_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
@@ -51,16 +51,16 @@
 
   const TUTORIAL = [
     {
-      image: "assets/lego/tutorial-step-1.gif",
-      expectedCount: 2
+      expectedCount: 2,
+      sequence: ["yellow_8", "yellow_8"]
     },
     {
-      image: "assets/lego/tutorial-step-2.gif",
-      expectedCount: 3
+      expectedCount: 3,
+      sequence: ["yellow_8", "yellow_8", "red_8"]
     },
     {
-      image: "assets/lego/tutorial-step-3.gif",
-      expectedCount: 4
+      expectedCount: 4,
+      sequence: ["yellow_8", "yellow_8", "red_8", "white_4"]
     }
   ];
 
@@ -513,6 +513,7 @@
            role="application"
            aria-label="Isometrische groene 6 bij 6 LEGO-grondplaat">
         <defs>
+          ${window.LegoTowerRenderer.definitions()}
           <filter id="builderBoardShadow" x="-30%" y="-30%" width="170%" height="190%">
             <feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#173d26" flood-opacity="0.25"></feDropShadow>
           </filter>
@@ -580,9 +581,19 @@
   function render() {
     if (!container) return;
     const goal = GOALS[state.productId];
-    const image = state.mode === "tutorial"
-      ? TUTORIAL[state.tutorialStep].image
-      : goal.image;
+    const orderSequence = state.mode === "tutorial"
+      ? TUTORIAL[state.tutorialStep].sequence
+      : goal.sequence;
+    const orderVisual = window.LegoTowerRenderer
+      ? window.LegoTowerRenderer.renderAnimated(
+          orderSequence,
+          state.mode === "tutorial"
+            ? `Bouwvoorbeeld ${state.tutorialStep + 1} van Toren A`
+            : `Geanimeerde bouw van ${goal.name}`,
+          "builder-order-animation"
+        )
+      : `<span class="builder-order-visual-fallback" role="img"
+               aria-label="${escapeHtml(goal.name)}"></span>`;
     const firstTowerComplete = state.mode === "tutorial" && state.tutorialComplete;
     const warehouseNext = state.mode === "stock_waiting";
     const deliverLabel = firstTowerComplete
@@ -648,7 +659,7 @@
             <h3>Je bent leverancier van LEGO-torens.</h3>
             <p class="builder-customer-request">Een klant wil deze toren.</p>
           </div>
-          <img src="${escapeHtml(image)}" alt="Gewenste LEGO-toren">
+          ${orderVisual}
         </header>
         ${completion}
         ${catalog}
