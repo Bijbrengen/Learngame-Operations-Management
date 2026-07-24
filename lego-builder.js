@@ -81,6 +81,7 @@
     selectedType: "yellow_8",
     rotated: false,
     bricks: [],
+    stockHintOpen: false,
     feedback: { kind: "info", text: "Lees de klantvraag en kies het eerste blokje." }
   };
 
@@ -537,14 +538,15 @@
       .filter(piece => !allowedTypes || allowedTypes.has(piece.id))
       .map(piece => {
         const available = state.mode === "stock_build" ? (state.availableStock[piece.id] || 0) : 0;
-        const disabled = stockBound && (state.mode === "stock_waiting" || available <= 0);
+        const outOfStock = stockBound && (state.mode === "stock_waiting" || available <= 0);
         return `
       <button type="button"
-              class="builder-palette-item brick-${piece.color}${state.selectedType === piece.id ? " is-selected" : ""}"
+              class="builder-palette-item brick-${piece.color}${state.selectedType === piece.id ? " is-selected" : ""}${outOfStock ? " is-out-of-stock" : ""}"
               data-piece-type="${piece.id}"
-              draggable="${disabled ? "false" : "true"}"
-              ${disabled ? "disabled" : ""}
-              aria-label="${escapeHtml(piece.label)}${stockBound ? `, ${available} beschikbaar` : ""}"
+              ${outOfStock ? 'data-out-of-stock data-tooltip="Geen blokjes meer in voorraad"' : ""}
+              draggable="${outOfStock ? "false" : "true"}"
+              aria-disabled="${outOfStock}"
+              aria-label="${escapeHtml(piece.label)}${outOfStock ? ", geen blokjes meer in voorraad" : stockBound ? `, ${available} beschikbaar` : ""}"
               aria-pressed="${state.selectedType === piece.id}">
         ${window.LegoTowerRenderer
           ? window.LegoTowerRenderer.renderPart(
@@ -558,24 +560,50 @@
       }).join("");
   }
 
+  function stockHintMarkup() {
+    if (!state.stockHintOpen) return "";
+    return `
+      <div class="builder-stock-hint-backdrop" role="presentation">
+        <section class="builder-stock-hint" role="dialog" aria-modal="true"
+                 aria-labelledby="builderStockHintTitle"
+                 aria-describedby="builderStockHintText">
+          <div class="builder-stock-hint-icon" aria-hidden="true">0</div>
+          <p class="eyebrow">Voorraadmelding</p>
+          <h3 id="builderStockHintTitle">Geen blokjes meer in voorraad</h3>
+          <p id="builderStockHintText">Hint: haal voorraad uit het magazijn.</p>
+          <button type="button" class="primary-button" data-close-stock-hint>Begrepen</button>
+        </section>
+      </div>
+    `;
+  }
+
   function render() {
     if (!container) return;
     const goal = GOALS[state.productId];
     const image = state.mode === "tutorial"
       ? TUTORIAL[state.tutorialStep].image
       : goal.image;
-    const deliverLabel = state.mode === "stock_waiting"
+    const firstTowerComplete = state.mode === "tutorial" && state.tutorialComplete;
+    const warehouseNext = state.mode === "stock_waiting";
+    const deliverLabel = firstTowerComplete
+      ? "Volgende stap"
+      : warehouseNext
       ? "Naar de magazijnen"
       : state.mode === "stock_build" && state.stockTutorialComplete && !state.internalLogisticsComplete
         ? "Ga verder"
         : state.mode === "stock_build" && state.stockTutorialComplete
           ? "Naar de volgende opdracht"
           : "Lever de toren";
-    const deliverIcon = state.mode === "stock_waiting"
-      || state.tutorialComplete
-      || state.stockTutorialComplete
+    const deliverIcon = firstTowerComplete
       ? "→"
-      : "✓";
+      : warehouseNext
+      ? `<svg class="builder-warehouse-icon" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M3 14 16 5l13 9v14H3V14Z"></path>
+          <path d="M8 14h16M9 18h5v10H9V18Zm9 0h5v4h-5v-4Zm0 7h5v3h-5v-3Z"></path>
+        </svg>`
+      : state.stockTutorialComplete
+        ? "→"
+        : "✓";
     const catalog = state.mode === "free"
       ? `
         <div class="builder-catalog" aria-label="Productcatalogus">
@@ -613,6 +641,7 @@
       : "";
     container.innerHTML = `
       <div class="lego-builder-shell">
+        ${stockHintMarkup()}
         <header class="builder-order-card">
           <div>
             <p class="eyebrow">Klantbestelling</p>
@@ -654,12 +683,28 @@
 
   function wire() {
     container.querySelectorAll("[data-piece-type]").forEach(button => {
+      button.addEventListener("click", event => {
+        if (!button.hasAttribute("data-out-of-stock")) return;
+        event.preventDefault();
+        state.stockHintOpen = true;
+        render();
+        container.querySelector("[data-close-stock-hint]")?.focus();
+      });
       button.addEventListener("dragstart", event => {
+        if (button.hasAttribute("data-out-of-stock")) {
+          event.preventDefault();
+          return;
+        }
         state.selectedType = button.dataset.pieceType;
         state.rotated = tutorialRotationForPiece(state.selectedType);
         event.dataTransfer.setData("text/plain", state.selectedType);
         event.dataTransfer.effectAllowed = "copy";
       });
+    });
+    container.querySelector("[data-close-stock-hint]")?.addEventListener("click", () => {
+      state.stockHintOpen = false;
+      render();
+      container.querySelector("[data-out-of-stock]")?.focus();
     });
     container.querySelectorAll("[data-product-id]").forEach(button => {
       button.addEventListener("click", () => startFreeBuild(button.dataset.productId));

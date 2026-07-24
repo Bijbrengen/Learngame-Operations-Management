@@ -663,6 +663,8 @@
     purchaseCost: 0,
     opportunityCost: 0,
     assignedRoleId: null,
+    appView: "player",
+    managerTab: "core",
     attention: {
       mode: "task",
       timer: null,
@@ -757,6 +759,23 @@
     priceModeSelect: document.getElementById("priceModeSelect"),
     logisticsOrganizationSelect: document.getElementById("logisticsOrganizationSelect"),
     productTypeCountInput: document.getElementById("productTypeCountInput"),
+    playerViewButton: document.getElementById("playerViewButton"),
+    managerViewButton: document.getElementById("managerViewButton"),
+    playerWorkbench: document.getElementById("playerWorkbench"),
+    managerWorkbench: document.getElementById("managerWorkbench"),
+    playerTaskPanel: document.getElementById("playerTaskPanel"),
+    playerWaitingPanel: document.getElementById("playerWaitingPanel"),
+    playerRoleToken: document.getElementById("playerRoleToken"),
+    playerFormTitle: document.getElementById("playerFormTitle"),
+    playerFormStatus: document.getElementById("playerFormStatus"),
+    playerQueueSummary: document.getElementById("playerQueueSummary"),
+    playerFormMount: document.getElementById("playerFormMount"),
+    playerFormConfirmation: document.getElementById("playerFormConfirmation"),
+    playerFormConfirmInput: document.getElementById("playerFormConfirmInput"),
+    playerCompleteActionButton: document.getElementById("playerCompleteActionButton"),
+    playerWaitingMessage: document.getElementById("playerWaitingMessage"),
+    playerWaitingClock: document.getElementById("playerWaitingClock"),
+    playerProcessMount: document.getElementById("playerProcessMount"),
     attentionModeBanner: document.getElementById("attentionModeBanner"),
     attentionModeIcon: document.getElementById("attentionModeIcon"),
     attentionModeTitle: document.getElementById("attentionModeTitle"),
@@ -890,6 +909,75 @@
 
   function selectedOrder() {
     return state.orders.find(order => order.id === state.selectedOrderId) || null;
+  }
+
+  function stepRole(order) {
+    if (!order) return null;
+    const step = currentStep(order);
+    return roleById(step.roleId === "customer1" ? order.customerRoleId : step.roleId);
+  }
+
+  function playerAssignment() {
+    const openOrders = activeOrders();
+    if (!openOrders.length) return null;
+    const selected = selectedOrder();
+    if (!state.assignedRoleId) return selected && !selected.done ? selected : openOrders[0];
+    if (selected && !selected.done && stepRole(selected)?.id === state.assignedRoleId) return selected;
+    return openOrders.find(order => stepRole(order)?.id === state.assignedRoleId) || null;
+  }
+
+  function setAppView(view, dispatch = true) {
+    const nextView = view === "manager" ? "manager" : "player";
+    state.appView = nextView;
+    document.body.dataset.appView = nextView;
+    if (els.playerWorkbench) els.playerWorkbench.hidden = nextView !== "player";
+    if (els.managerWorkbench) els.managerWorkbench.hidden = nextView !== "manager";
+    document.querySelectorAll("[data-app-view]").forEach(button => {
+      if (!button) return;
+      const active = button.dataset.appView === nextView;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    sessionStorage.setItem("learngame.om.appView", nextView);
+    if (nextView === "player") renderPlayerView();
+    if (nextView === "manager") setManagerTab(state.managerTab, false);
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "change_game_view",
+        result: nextView,
+        objectRole: "navigation",
+        role: nextView === "manager" ? "Game Master" : "Speler"
+      });
+      renderMetrics();
+      renderEvents();
+    }
+  }
+
+  function setManagerTab(tab, dispatch = true) {
+    const allowed = new Set(["core", "settings", "inventory", "events", "process"]);
+    const nextTab = allowed.has(tab) ? tab : "core";
+    state.managerTab = nextTab;
+    document.querySelectorAll("[data-manager-tab]").forEach(button => {
+      const active = button.dataset.managerTab === nextTab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll("[data-manager-panel]").forEach(panel => {
+      const active = panel.dataset.managerPanel === nextTab;
+      panel.classList.toggle("is-active", active);
+      panel.hidden = !active;
+    });
+    sessionStorage.setItem("learngame.om.managerTab", nextTab);
+    if (nextTab === "process") renderDataModel(true);
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "change_manager_dashboard_tab",
+        result: nextTab,
+        objectRole: "navigation",
+        role: "Game Master"
+      });
+    }
   }
 
   function activeOrders() {
@@ -1033,6 +1121,7 @@
     requestAnimationFrame(() => {
       els.selectedOrderBox?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
+    renderPlayerView();
   }
 
   function enterSystemPerspective(order) {
@@ -1049,6 +1138,7 @@
       false
     );
     renderDataModel(true);
+    renderPlayerView();
     dispatchInteraction({
       actionType: "enter_system_perspective",
       orderId: order?.id,
@@ -1509,6 +1599,102 @@
     els.advanceButton.disabled = order.done;
   }
 
+  function playerFormType(step, role) {
+    if (step.materialStage || role.id === "srm") return "Materiaaluitgifteformulier";
+    if (role.id.startsWith("pd")) return "Productieorderformulier";
+    if (role.id.startsWith("customer")) return "Klantenorderformulier";
+    if (role.id === "mfp") return "Ontvangst gereed product";
+    return "Orderbegeleidingsformulier";
+  }
+
+  function renderPlayerForm(order) {
+    const step = currentStep(order);
+    const role = stepRole(order);
+    const product = productById(order.productId);
+    const history = order.history.slice(-4);
+    const formType = playerFormType(step, role);
+    els.playerRoleToken.textContent = role.token;
+    els.playerFormTitle.textContent = formType;
+    els.playerFormStatus.textContent = `${role.title} · actuele opdracht`;
+    els.playerQueueSummary.textContent = `${activeOrders().length} actief`;
+    els.playerFormMount.innerHTML = `
+      <article class="digital-work-form" aria-label="${escapeHtml(formType)} voor ${escapeHtml(order.id)}">
+        <header class="digital-form-heading">
+          <div>
+            <span>Ordernr.</span>
+            <strong>${escapeHtml(order.id)}</strong>
+          </div>
+          <div class="digital-form-version">digitale versie 4</div>
+        </header>
+        <div class="digital-form-facts">
+          <div><span>Producttype</span><strong>${escapeHtml(product.id)}</strong></div>
+          <div><span>Hoeveelheid</span><strong>${order.quantity}</strong></div>
+          <div><span>Prijs</span><strong>${state.config.money ? formatMoney(order.unitPrice) : "—"}</strong></div>
+          <div><span>Totaalbedrag</span><strong>${state.config.money ? formatMoney(order.totalAmount) : "—"}</strong></div>
+          <div><span>Order geaccepteerd</span><strong>${formatClock(order.acceptedAt)}</strong></div>
+          <div><span>Afgesproken levering</span><strong>${formatClock(order.dueAt)}</strong></div>
+        </div>
+        <section class="digital-form-action">
+          <span class="digital-form-step">${order.stepIndex + 1}</span>
+          <div>
+            <small>${escapeHtml(step.action)}</small>
+            <h3>${escapeHtml(step.label)}</h3>
+            <p>Uit te voeren door <strong>${escapeHtml(role.title)}</strong>.</p>
+            ${order.lastIssue ? `<p class="digital-form-issue">${escapeHtml(order.lastIssue)}</p>` : ""}
+          </div>
+          <div class="digital-form-product">${renderTowerLarge(product.id)}</div>
+        </section>
+        <footer class="digital-form-history">
+          <strong>Procesparaaf</strong>
+          ${history.length
+            ? history.map(item => {
+                const moment = Number.isFinite(Number(item.minute))
+                  ? Number(item.minute)
+                  : Number(item.at || state.clockMinutes);
+                return `<span><b>${formatClock(moment)}</b>${escapeHtml(item.label || item.step || "Handeling verwerkt")}</span>`;
+              }).join("")
+            : "<span>Nog geen eerdere handelingen op dit formulier.</span>"}
+        </footer>
+      </article>
+    `;
+    els.playerFormConfirmation.hidden = false;
+    els.playerFormConfirmInput.checked = false;
+    els.playerCompleteActionButton.disabled = true;
+    els.playerCompleteActionButton.textContent = `${step.action} en stuur door`;
+  }
+
+  function renderPlayerWaiting() {
+    const assignedRole = state.assignedRoleId ? roleById(state.assignedRoleId) : null;
+    const openCount = activeOrders().length;
+    els.playerWaitingClock.textContent = formatClock(state.clockMinutes);
+    els.playerWaitingMessage.textContent = assignedRole
+      ? openCount
+        ? `Er is nog geen formulier voor ${assignedRole.title}. Kijk live mee totdat jouw rol weer aan de beurt is.`
+        : `Er is nog geen actieve order. Zodra er werk voor ${assignedRole.title} ontstaat, verschijnt het formulier vanzelf.`
+      : openCount
+        ? "Het volgende formulier wordt voorbereid. Volg intussen de goederen- en informatiestroom."
+        : "Er is nog geen actieve order. Vanuit Beheer kan voorlopig een spelsessie worden klaargezet.";
+    if (!window.IsometricLogisticsView) {
+      els.playerProcessMount.innerHTML = "<p>De processimulatie kon niet worden geladen.</p>";
+      return;
+    }
+    window.IsometricLogisticsView.mount(els.playerProcessMount, isometricScene());
+  }
+
+  function renderPlayerView() {
+    if (!els.playerWorkbench) return;
+    const order = playerAssignment();
+    const taskVisible = Boolean(order) && state.attention.mode === "task";
+    els.playerTaskPanel.hidden = !taskVisible;
+    els.playerWaitingPanel.hidden = taskVisible;
+    if (taskVisible) {
+      if (state.selectedOrderId !== order.id) state.selectedOrderId = order.id;
+      renderPlayerForm(order);
+      return;
+    }
+    renderPlayerWaiting();
+  }
+
   function renderInventory() {
     const items = PARTS.map(part => {
       const count = state.inventory[part.id] || 0;
@@ -1595,6 +1781,29 @@
     els.dataModelGrid.innerHTML = renderOrderProcessView();
 
     els.dataModelGrid.querySelectorAll(".data-model-node").forEach(node => {
+      const canvas = node.closest(".data-model-canvas");
+      const emphasizeConnectedEdges = () => {
+        if (!canvas?.classList.contains("swimlane-canvas")) return;
+        canvas.classList.add("has-edge-focus");
+        canvas.querySelectorAll(".swimlane-edge").forEach(edge => {
+          edge.classList.toggle(
+            "is-related",
+            edge.dataset.edgeSource === node.dataset.modelObjectId
+              || edge.dataset.edgeTarget === node.dataset.modelObjectId
+          );
+        });
+      };
+      const clearConnectedEdges = () => {
+        if (!canvas?.classList.contains("swimlane-canvas")) return;
+        canvas.classList.remove("has-edge-focus");
+        canvas.querySelectorAll(".swimlane-edge.is-related").forEach(edge => {
+          edge.classList.remove("is-related");
+        });
+      };
+      node.addEventListener("mouseenter", emphasizeConnectedEdges);
+      node.addEventListener("mouseleave", clearConnectedEdges);
+      node.addEventListener("focus", emphasizeConnectedEdges);
+      node.addEventListener("blur", clearConnectedEdges);
       node.addEventListener("click", () => {
         dispatchInteraction({
           learningObjectID: node.dataset.modelObjectId,
@@ -1766,13 +1975,21 @@
 
   function setTutorialFocus(stage = "builder") {
     if (state.tutorialDismissed) return;
+    setAppView("player", false);
+    setManagerTab(stage === "logistics" ? "process" : "core", false);
+    // De herbruikbare tutorialpanelen staan technisch in de dashboardcontainer,
+    // maar de actieve gebruikersweergave blijft altijd het spelersperspectief.
+    // De schermvullende tutorialstijl verbergt alle overige beheeronderdelen.
+    if (els.managerWorkbench) els.managerWorkbench.hidden = false;
     state.tutorialStage = stage;
     state.tutorialPaused = false;
     document.body.classList.add("tutorial-focus");
     document.body.classList.toggle("tutorial-stage-builder", stage === "builder");
     document.body.classList.toggle("tutorial-stage-logistics", stage === "logistics");
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = false;
-    if (els.tutorialResumeButton) els.tutorialResumeButton.hidden = true;
+    document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
+      button.hidden = true;
+    });
   }
 
   function leaveTutorialFocus() {
@@ -1781,17 +1998,38 @@
       "tutorial-stage-builder",
       "tutorial-stage-logistics"
     );
+    setAppView("player", false);
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
   }
 
   function updateTutorialResumeButton() {
-    if (!els.tutorialResumeButton) return;
-    els.tutorialResumeButton.hidden = false;
     const label = state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten";
-    els.tutorialResumeButton.querySelector("span:last-child").textContent = label;
-    els.tutorialResumeButton.title = state.tutorialCompleted
-      ? "Tutorial opnieuw starten vanaf Stap 1"
-      : "Tutorial hervatten waar je bent gestopt";
+    document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
+      button.hidden = false;
+      const labelNode = button.querySelector("[data-tutorial-label]")
+        || button.querySelector("span:last-child");
+      if (labelNode) labelNode.textContent = label;
+      button.title = state.tutorialCompleted
+        ? "Tutorial opnieuw starten vanaf Stap 1"
+        : "Tutorial hervatten waar je bent gestopt";
+    });
+  }
+
+  function launchTutorial() {
+    if (document.body.classList.contains("tutorial-focus")) {
+      setAppView("manager");
+      return true;
+    }
+    if (state.tutorialPaused || state.tutorialCompleted) return resumeTutorial();
+    state.tutorialDismissed = false;
+    state.tutorialCompleted = false;
+    state.tutorialPaused = false;
+    resetLogisticsTutorial();
+    window.LegoBuilder?.restartTutorial();
+    setTutorialFocus("builder");
+    renderAll();
+    els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
   }
 
   function pauseTutorial() {
@@ -2969,7 +3207,8 @@
     const nodeHeight = 82;
     const laneGap = 26;
     const rowGap = 32;
-    const topOffset = 50;
+    const headerHeight = 42;
+    const topOffset = 8;
     const laneIndex = Object.fromEntries(DATA_MODEL_GROUPS.map((group, index) => [group.id, index]));
     const positions = {};
     const orderedItems = ORDER_PROCESS_SEQUENCE.map(dataModelObjectById).filter(Boolean);
@@ -2991,27 +3230,33 @@
     }).join("");
     const laneBands = DATA_MODEL_GROUPS.map(group => {
       const x = laneIndex[group.id] * (laneWidth + laneGap);
-      return `<div class="swimlane-band" style="left:${x}px;top:${topOffset - 8}px;width:${laneWidth}px;height:${swimlaneHeight - topOffset + 8}px"></div>`;
+      return `<div class="swimlane-band" style="left:${x}px;top:0;width:${laneWidth}px;height:${swimlaneHeight}px"></div>`;
     }).join("");
     const edges = orderedItems.slice(0, -1).map((item, index) => {
       const next = orderedItems[index + 1];
       const source = positions[item.id];
       const target = positions[next.id];
       const sameLane = Math.abs(source.x - target.x) < 4;
-      const sx = sameLane ? source.x + source.width / 2 : (source.x < target.x ? source.x + source.width : source.x);
+      const sx = source.x + source.width / 2;
       const sy = source.y + source.height;
-      const tx = sameLane ? target.x + target.width / 2 : (source.x < target.x ? target.x : target.x + target.width);
+      const tx = target.x + target.width / 2;
       const ty = target.y;
+      const routeY = sy + (ty - sy) / 2;
       const path = sameLane
         ? `M ${sx} ${sy} L ${tx} ${ty}`
-        : `M ${sx} ${sy} C ${sx} ${sy + rowGap}, ${tx} ${ty - rowGap}, ${tx} ${ty}`;
-      return `<path class="data-model-edge swimlane-edge" d="${path}"></path>`;
+        : `M ${sx} ${sy} V ${routeY} H ${tx} V ${ty}`;
+      return `<path class="data-model-edge swimlane-edge"
+                    data-edge-source="${escapeHtml(item.id)}"
+                    data-edge-target="${escapeHtml(next.id)}"
+                    d="${path}"></path>`;
     }).join("");
     const nodes = orderedItems.map((item, index) => {
       const position = positions[item.id];
       const colorClass = `source-${dataModelColor(item)}`;
       return `
-        <article class="data-model-node swimlane-node ${colorClass}" data-model-object-id="${escapeHtml(item.id)}" style="left:${position.x}px;top:${position.y}px;width:${laneWidth}px;height:${nodeHeight}px">
+        <article class="data-model-node swimlane-node ${colorClass}" data-model-object-id="${escapeHtml(item.id)}"
+                 tabindex="0"
+                 style="left:${position.x}px;top:${position.y}px;width:${laneWidth}px;height:${nodeHeight}px">
           <div class="data-model-number">${escapeHtml(item.modelNumber)}</div>
           <div>
             <h3>${String(index + 1).padStart(2, "0")} | ${escapeHtml(item.label)}</h3>
@@ -3022,18 +3267,22 @@
     }).join("");
 
     return `
-      <div class="data-model-canvas swimlane-canvas" style="width:${swimlaneWidth}px;height:${swimlaneHeight}px">
-        ${laneBands}
-        ${headers}
-        <svg class="data-model-edges" viewBox="0 0 ${swimlaneWidth} ${swimlaneHeight}" aria-hidden="true">
-          <defs>
-            <marker id="dataModelArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
-          ${edges}
-        </svg>
-        ${nodes}
+      <div class="swimlane-scroll-content" style="width:${swimlaneWidth}px">
+        <div class="swimlane-sticky-header" style="width:${swimlaneWidth}px;height:${headerHeight}px">
+          ${headers}
+        </div>
+        <div class="data-model-canvas swimlane-canvas" style="width:${swimlaneWidth}px;height:${swimlaneHeight}px">
+          ${laneBands}
+          <svg class="data-model-edges" viewBox="0 0 ${swimlaneWidth} ${swimlaneHeight}" aria-hidden="true">
+            <defs>
+              <marker id="dataModelArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z"></path>
+              </marker>
+            </defs>
+            ${edges}
+          </svg>
+          ${nodes}
+        </div>
       </div>
     `;
   }
@@ -3060,6 +3309,7 @@
     renderDataModel(false);
     updatePriceInput();
     renderOrderPreview();
+    renderPlayerView();
   }
 
   function initLegoBuilder() {
@@ -3245,6 +3495,20 @@
         matchPercent: recommendation.match,
         reliability: analysis.reliability
       });
+      renderAll();
+    });
+    document.querySelectorAll("[data-app-view]").forEach(button => {
+      button.addEventListener("click", () => setAppView(button.dataset.appView));
+    });
+    document.querySelectorAll("[data-manager-tab]").forEach(button => {
+      button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
+    });
+    els.playerFormConfirmInput?.addEventListener("change", () => {
+      els.playerCompleteActionButton.disabled = !els.playerFormConfirmInput.checked;
+    });
+    els.playerCompleteActionButton?.addEventListener("click", () => {
+      if (!els.playerFormConfirmInput.checked) return;
+      advanceSelectedOrder();
     });
     els.orderForm.addEventListener("submit", event => {
       event.preventDefault();
@@ -3264,16 +3528,14 @@
     els.advanceButton.addEventListener("click", advanceSelectedOrder);
     els.disruptionButton.addEventListener("click", triggerDisruption);
     els.dataModelButton.addEventListener("click", () => {
-      els.dataModelPanel.classList.toggle("visible");
-      if (els.dataModelPanel.classList.contains("visible")) {
-        renderDataModel(true);
-      } else {
-        els.dataModelGrid.innerHTML = "";
-      }
+      setAppView("manager", false);
+      setManagerTab("process", false);
+      els.dataModelPanel.classList.add("visible");
+      renderDataModel(true);
       dispatchInteraction({
         actionType: "toggle_order_process_model_view",
         learningObjectID: "orderproces_datamodel_eerste_concept",
-        result: els.dataModelPanel.classList.contains("visible") ? "opened" : "closed",
+        result: "opened",
         objectRole: "orientation",
         role: "Spelkern"
       });
@@ -3287,7 +3549,6 @@
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
     els.tutorialExitButton?.addEventListener("click", pauseTutorial);
-    els.tutorialResumeButton?.addEventListener("click", resumeTutorial);
     [
       els.moneyToggle,
       els.pnlToggle,
@@ -3411,6 +3672,7 @@
     els.productTypeCountInput.min = String(MIN_PRODUCT_TYPES);
     els.productTypeCountInput.max = String(MAX_PRODUCT_TYPES);
     els.productTypeCountInput.value = String(state.config.productTypeCount);
+    state.managerTab = sessionStorage.getItem("learngame.om.managerTab") || "core";
     updatePriceInput();
   }
 
@@ -3426,6 +3688,8 @@
     getStateSnapshot: () => ({
       sessionId: state.sessionId,
       version: "ICG2-v2",
+      appView: state.appView,
+      managerTab: state.managerTab,
       assignedRoleId: state.assignedRoleId,
       attentionMode: state.attention.mode,
       clockMinutes: state.clockMinutes,
@@ -3492,7 +3756,10 @@
     finishFinancialTutorial,
     pauseTutorial,
     resumeTutorial,
+    launchTutorial,
     endTutorial,
+    setAppView,
+    setManagerTab,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
     createOrder: makeOrder,
@@ -3500,6 +3767,15 @@
     purchaseMaterials,
     triggerDisruption
   };
+
+  // Bind this essential escape/restart action before initializing the heavier
+  // game views. It must remain usable even if a renderer fails during startup.
+  document.addEventListener("click", event => {
+    const button = event.target.closest("[data-tutorial-launch]");
+    if (!button || button.disabled) return;
+    event.preventDefault();
+    launchTutorial();
+  });
 
   initControls();
   initLegoBuilder();

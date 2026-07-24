@@ -100,6 +100,34 @@ Cloud. Het client secret hoort uitsluitend in de genegeerde `backend/.env`.
 - De interface is een meetopstelling, geen eindgame. Zij maakt de logistieke stroom zichtbaar en schrijft kale interactie-events weg.
 - Rollen, voorraad, productie, verkoop, geldstromen, winst/verlies, opportunity costs, rolvrijheid en het aantal torensoorten zijn instelbaar.
 
+## Spelersview en beheerdersview
+
+De runtime heeft twee afzonderlijke werkoppervlakken op dezelfde game-state:
+
+- `Speler` toont alleen het actuele rolgebonden formulier. De digitale
+  formulieren zijn afgeleid van de orderbegeleidings-, productie-, inkoop- en
+  registratieformulieren in `source_docs/`.
+- `Beheer` bevat de volledige cockpit met orderinvoer, instellingen, voorraad,
+  events en de verschillende procesweergaven.
+
+De schakelaar bovenin maakt het tijdens de ontwikkeling mogelijk om direct
+tussen beide perspectieven te springen. Tijdens de self-starting tutorial is
+de schakelaar verborgen. Na een bevestigde formulierhandeling gaat de
+Spelersview automatisch naar de isometrische systeemsimulatie. Alleen wanneer
+de volgende processtap bij de toegewezen rol hoort, verschijnt opnieuw een
+formulier.
+
+De visuele basistokens komen, wanneer beschikbaar, uit:
+
+```text
+GET /api/ui/theme-tokens?surface=learngame-om
+```
+
+`leerpret-theme.js` vertaalt dat contract naar lokale CSS-variabelen. Dezelfde
+waarden zijn als offline fallback meegebouwd, zodat de standalone game niet
+afhankelijk wordt van de bereikbaarheid van de Leerpret-backend. LEGO-kleuren
+en afdelingskleuren blijven producteigen tokens.
+
 ## Wachttijd is kijktijd
 
 Na het verwerken van een digitaal formulier schakelt de vrije game kort

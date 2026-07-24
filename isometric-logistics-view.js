@@ -3,6 +3,29 @@
 
   const VIEWBOX = { width: 1320, height: 900 };
   const PROJECTION = { originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 };
+  const TUTORIAL_WAREHOUSE_PALETTES = Object.freeze({
+    "tutorial-blue": {
+      floor: "rgba(53, 139, 255, 0.34)",
+      left: "#155b89",
+      right: "#1d73aa",
+      interior: "#0c2e49",
+      rim: "#63c7f5"
+    },
+    "tutorial-yellow": {
+      floor: "rgba(242, 193, 54, 0.34)",
+      left: "#967a21",
+      right: "#b99a2f",
+      interior: "#3b3010",
+      rim: "#f1d66d"
+    },
+    green: {
+      floor: "rgba(43, 169, 121, 0.34)",
+      left: "#1f543a",
+      right: "#286847",
+      interior: "#0d3020",
+      rim: "#75df98"
+    }
+  });
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -137,6 +160,9 @@
 
   function openWarehouseMarkup(department, geometry) {
     const center = geometry.center;
+    const palette = department.materialId
+      ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
+      : null;
     const opening = geometry.roof.map(point => ({
       x: point.x + (center.x - point.x) * 0.12,
       y: point.y + (center.y - point.y) * 0.12 + 3
@@ -198,8 +224,12 @@
                text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
       : "";
     return `
-      <polygon class="iso-building-interior" points="${points(opening)}"></polygon>
-      <polyline class="iso-building-rim" points="${points([...geometry.roof, geometry.roof[0]])}"></polyline>
+      <polygon class="iso-building-interior"
+               points="${points(opening)}"
+               ${palette ? `style="fill:${palette.interior};stroke:${palette.rim};stroke-width:3"` : ""}></polygon>
+      <polyline class="iso-building-rim"
+                points="${points([...geometry.roof, geometry.roof[0]])}"
+                ${palette ? `style="fill:none;stroke:${palette.rim};stroke-width:5"` : ""}></polyline>
       <g class="iso-visible-stock">${bricks}${cargo}${empty}</g>
     `;
   }
@@ -246,22 +276,32 @@
     const geometry = zoneGeometry(department);
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
+    const palette = department.materialId
+      ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
+      : null;
+    const selectedRenderState = selected || Boolean(palette) || department.forceSelectedRender;
     return `
-      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${selected ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
+      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
          data-department-id="${escapeHtml(department.id)}"
          data-accepts-drag-kind="${department.acceptsCargoDrop ? "cargo" : department.acceptsStockDrop ? "stock" : ""}"
          role="button"
          tabindex="0"
          aria-disabled="${department.locked ? "true" : "false"}"
-         aria-label="${escapeHtml(`${department.title}: ${statusText(department.status)}, ${department.badgeLabel || `${orderCount} lopende orders`}`)}">
+        aria-label="${escapeHtml(`${department.title}: ${statusText(department.status)}, ${department.badgeLabel || `${orderCount} lopende orders`}`)}">
         <g class="iso-building">
-          <polygon class="iso-zone-floor" points="${points(geometry.floor)}"></polygon>
-          <polygon class="iso-building-left" points="${points([
+          <polygon class="iso-zone-floor"
+                   points="${points(geometry.floor)}"
+                   ${palette ? `style="fill:${palette.floor};stroke:${palette.rim};stroke-width:4"` : ""}></polygon>
+          <polygon class="iso-building-left"
+                   points="${points([
             geometry.floor[3], geometry.floor[2], geometry.roof[2], geometry.roof[3]
-          ])}"></polygon>
-          <polygon class="iso-building-right" points="${points([
+          ])}"
+                   ${palette ? `style="fill:${palette.left};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>
+          <polygon class="iso-building-right"
+                   points="${points([
             geometry.floor[1], geometry.floor[2], geometry.roof[2], geometry.roof[1]
-          ])}"></polygon>
+          ])}"
+                   ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>
           ${department.openRoof
             ? openWarehouseMarkup(department, geometry)
             : `
@@ -277,13 +317,17 @@
   function departmentOverlayMarkup(department, selectedId) {
     const geometry = zoneGeometry(department);
     const selected = department.id === selectedId;
+    const selectedRenderState = selected || department.forceSelectedRender || Boolean(
+      department.materialId
+      && TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
+    );
     const orderCount = department.orders?.length || 0;
     const badgeValue = department.badgeValue ?? orderCount;
     const title = department.shortTitle || department.title;
     const labelWidth = title.length > 18 ? 230 : 194;
     const hideMetric = Boolean(department.hideMetric);
     return `
-      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selected ? " is-selected" : ""}" aria-hidden="true">
+      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selectedRenderState ? " is-selected" : ""}" aria-hidden="true">
         <g class="iso-status-badge" transform="translate(${geometry.badge.x} ${geometry.badge.y})">
           <circle r="13"></circle>
           <text text-anchor="middle" dominant-baseline="central">${escapeHtml(badgeValue)}</text>
@@ -455,7 +499,13 @@
 
   function mount(container, scene, options = {}) {
     if (!container) return;
-    const departments = (scene.departments || []).filter(department => department.visible !== false);
+    const departments = (scene.departments || [])
+      .filter(department => department.visible !== false)
+      .map(department => (
+        scene.tutorial?.active
+          ? { ...department, forceSelectedRender: true }
+          : department
+      ));
     const departmentById = new Map(departments.map(department => [department.id, department]));
     const selected = departmentById.get(scene.selectedDepartmentId) || null;
     const minX = Math.min(...departments.map(department => department.layout.x), 0) - 2;
@@ -501,14 +551,18 @@
           </div>
           ${tutorialMarkup(scene.tutorial)}
           ${financeHudMarkup(scene.finance)}
-          <svg class="iso-map" viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}" role="img" aria-label="Isometrische kaart van de logistieke afdelingen">
+          <svg class="iso-map"
+               viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}"
+               preserveAspectRatio="xMidYMid meet"
+               role="img"
+               aria-label="Isometrische kaart van de logistieke afdelingen">
             <defs>
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#edf4ec"></stop>
-                <stop offset="100%" stop-color="#dfe8dc"></stop>
+                <stop offset="0%" stop-color="#123039"></stop>
+                <stop offset="100%" stop-color="#08161c"></stop>
               </linearGradient>
               <filter id="isoDepartmentShadow" x="-30%" y="-30%" width="160%" height="180%">
-                <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#24332e" flood-opacity="0.18"></feDropShadow>
+                <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity="0.42"></feDropShadow>
               </filter>
               <marker id="isoFlowArrowMaterial" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
                 <path d="M 0 0 L 10 5 L 0 10 z"></path>

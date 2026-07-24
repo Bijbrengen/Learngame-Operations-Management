@@ -87,6 +87,7 @@
     submitError: "",
     checking: false,
     lookupError: "",
+    recoveryCandidate: null,
     qualityReview: null,
     timing: freshTiming(),
     result: null,
@@ -100,13 +101,14 @@
   let mount = null;
   let gate = null;
 
-  function editButton() {
-    return document.getElementById("characterEditButton");
+  function editButtons() {
+    return [...document.querySelectorAll("[data-character-edit]")];
   }
 
   function setEditButtonVisible(visible) {
-    const button = editButton();
-    if (button) button.hidden = !visible;
+    editButtons().forEach(button => {
+      button.hidden = !visible;
+    });
   }
 
   function scanKey() {
@@ -550,6 +552,13 @@
   }
 
   function lookupMarkup() {
+    const recovery = state.recoveryCandidate?.exists
+      ? `<div class="profile-recovery-note">
+          <strong>Je eerdere lokale profiel is nog gevonden</strong>
+          <p>Dit profiel raakte losgekoppeld door de wisselende ontwikkelsleutel. Herstel de laatst opgeslagen versie${state.recoveryCandidate.stored_at ? ` van ${escapeHtml(new Date(state.recoveryCandidate.stored_at).toLocaleString("nl-NL"))}` : ""}.</p>
+          <button class="character-secondary" type="button" data-action="recover-local-profile">Herstel mijn waarden</button>
+        </div>`
+      : "";
     return `
       <div class="character-stage completion-stage">
         <div class="completion-sigil" aria-hidden="true">${state.lookupError ? "!" : "…"}</div>
@@ -558,13 +567,15 @@
         <p>${escapeHtml(state.lookupError || "We controleren of je deze gedragsstijlscan al hebt voltooid.")}</p>
         ${state.lookupError
           ? '<button class="character-primary" type="button" data-action="retry-lookup">Opnieuw controleren</button>'
-          : '<div class="profile-loader" aria-label="Bezig"></div>'}
+          : state.checking
+            ? '<div class="profile-loader" aria-label="Bezig"></div>'
+            : recovery}
       </div>`;
   }
 
   function render() {
     if (!mount) return;
-    if (state.checking || state.lookupError) {
+    if (state.checking || state.lookupError || state.recoveryCandidate?.exists) {
       mount.innerHTML = `<div class="character-creation-shell">${lookupMarkup()}</div>`;
       return;
     }
@@ -769,6 +780,7 @@
     if (action === "retry-lookup") {
       checkAccountProfile(window.LeerpretAuth?.getSession?.() || {});
     }
+    if (action === "recover-local-profile") recoverLocalProfile();
     if (action === "back-to-response") {
       state.phase = "response";
       state.category = 9;
@@ -846,6 +858,7 @@
     state.entryMode = forceEdit ? "edit" : "onboarding";
     state.checking = true;
     state.lookupError = "";
+    state.recoveryCandidate = null;
     showGate();
     render();
     try {
@@ -871,13 +884,28 @@
         applyExistingProfile(result.profile);
         setEditButtonVisible(true);
         sessionStorage.removeItem(DRAFT_KEY);
+        window.dispatchEvent(new CustomEvent("behavior-profile-completed", {
+          detail: { payload: result.profile, receipt: result }
+        }));
         if (!forceEdit) {
           finish();
           return;
         }
       } else {
         state.existingProfile = null;
-        setEditButtonVisible(false);
+        setEditButtonVisible(true);
+        try {
+          const recoveryResponse = await fetch(`${apiBase}${PROFILE_ENDPOINT}/local-recovery`, {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store"
+          });
+          if (recoveryResponse.ok) {
+            state.recoveryCandidate = await recoveryResponse.json();
+          }
+        } catch {
+          state.recoveryCandidate = null;
+        }
       }
       state.phase = "intro";
       state.category = 0;
@@ -888,6 +916,35 @@
       state.lookupError = error.message || "Het accountprofiel kon niet worden gecontroleerd.";
       render();
       if (error.status === 401) window.LeerpretAuth?.checkSession?.();
+    }
+  }
+
+  async function recoverLocalProfile() {
+    const apiBase = state.apiBase.replace(/\/+$/, "");
+    state.checking = true;
+    state.lookupError = "";
+    render();
+    try {
+      const response = await fetch(`${apiBase}${PROFILE_ENDPOINT}/local-recovery`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Requested-With": "XmlHttpRequest" }
+      });
+      if (!response.ok) throw new Error(`Herstelservice antwoordde met status ${response.status}.`);
+      const result = await response.json();
+      if (!result.exists || !result.profile) throw new Error("Er is geen herstelbaar lokaal profiel gevonden.");
+      state.checking = false;
+      applyExistingProfile(result.profile);
+      setEditButtonVisible(true);
+      sessionStorage.removeItem(DRAFT_KEY);
+      window.dispatchEvent(new CustomEvent("behavior-profile-completed", {
+        detail: { payload: result.profile, receipt: result }
+      }));
+      finish();
+    } catch (error) {
+      state.checking = false;
+      state.lookupError = error.message || "De eerdere waarden konden niet worden hersteld.";
+      render();
     }
   }
 
@@ -914,7 +971,7 @@
     mount.addEventListener("click", handleClick);
     mount.addEventListener("input", handleInput);
     mount.addEventListener("change", handleChange);
-    editButton()?.addEventListener("click", edit);
+    editButtons().forEach(button => button.addEventListener("click", edit));
     window.addEventListener("leerpret-auth-changed", event => start(event.detail || {}));
     const session = window.LeerpretAuth?.getSession?.();
     if (session?.authenticated) start(session);

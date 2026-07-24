@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#242424">
+  <meta name="theme-color" content="#071014">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="LEARNGame OM">
@@ -13,6 +13,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="auth-pending">
@@ -49,8 +52,22 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
-        <p class="eyebrow">Leerbox</p>
-        <h1>LEARNGame OM</h1>
+        <div class="learn-games-brand">
+          <img
+            src="assets/brand/learn-games-logo.svg"
+            alt="Learn Games Operations Management"
+            width="2048"
+            height="1536"
+          >
+        </div>
+        <nav class="app-view-switcher" aria-label="Kies gameweergave">
+          <button id="playerViewButton" type="button" data-app-view="player" aria-pressed="true">
+            Speler
+          </button>
+          <button id="managerViewButton" type="button" data-app-view="manager" aria-pressed="false">
+            Beheer
+          </button>
+        </nav>
       </div>
 
       <section class="metric-strip" aria-label="Spelstatus">
@@ -76,51 +93,174 @@
         </div>
       </section>
 
-      <div class="top-actions">
-        <button id="leerpretAuthStatus" class="tool-button auth-status-button" type="button" disabled>
-          Sessie controleren…
-        </button>
-        <button id="characterEditButton"
-                class="tool-button character-edit-button"
-                type="button"
-                title="Gedragsstijl en karakter aanpassen"
-                hidden>
-          <span class="button-icon" aria-hidden="true">KA</span>
-          <span>Karakter aanpassen</span>
-        </button>
-        <button id="tutorialResumeButton"
-                class="tool-button tutorial-resume-button"
-                type="button"
-                title="Tutorial hervatten of opnieuw starten"
-                hidden>
-          <span class="button-icon" aria-hidden="true">▶</span>
-          <span>Tutorial hervatten</span>
-        </button>
-        <button id="tutorialExitButton"
-                class="tool-button tutorial-exit-button"
-                type="button"
-                aria-label="Tutorial beëindigen"
-                title="Tutorial beëindigen"
-                hidden>
-          ×
-        </button>
-        <button id="dataModelButton" class="tool-button" type="button" title="Orderproces en datamodel uit eerste conceptschema bekijken">
-          <span class="button-icon">OP</span>
-          <span>Orderproces</span>
-        </button>
-        <button id="exportButton" class="tool-button" type="button" title="Eventbuffer naar klembord">
-          <span class="button-icon">{ }</span>
-          <span>Events</span>
-        </button>
-        <button id="resetButton" class="tool-button" type="button" title="Proefopstelling opnieuw starten">
-          <span class="button-icon">R</span>
-          <span>Reset</span>
-        </button>
-      </div>
+      <button id="tutorialExitButton"
+              class="tool-button tutorial-exit-button"
+              type="button"
+              aria-label="Tutorial beëindigen"
+              title="Tutorial beëindigen"
+              hidden>
+        ×
+      </button>
     </header>
 
-    <main class="workbench">
-      <section class="order-band" aria-label="Klantorder">
+    <main id="playerWorkbench"
+          class="player-workbench app-view-panel"
+          data-app-view-panel="player"
+          aria-label="Spelerswerkplek">
+      <nav class="player-utility-actions" aria-label="Profiel en begeleiding">
+        <span>Profiel &amp; begeleiding</span>
+        <button type="button" data-character-edit>
+          <span aria-hidden="true">KA</span>
+          <strong>Karakter aanpassen</strong>
+        </button>
+        <button id="tutorialResumeButton"
+                type="button"
+                data-tutorial-launch
+                title="Tutorial hervatten of opnieuw starten">
+          <span aria-hidden="true">▶</span>
+          <strong data-tutorial-label>Tutorial hervatten</strong>
+        </button>
+      </nav>
+      <section id="playerTaskPanel" class="player-task-panel">
+        <header class="player-stage-header">
+          <div id="playerRoleToken" class="player-role-token">--</div>
+          <div>
+            <p class="eyebrow">Jouw werkplek</p>
+            <h2 id="playerFormTitle">Wachten op een formulier</h2>
+            <p id="playerFormStatus">Zodra er werk voor jouw rol is, verschijnt het hier.</p>
+          </div>
+          <div class="player-header-actions">
+            <span id="playerQueueSummary" class="player-queue-summary">0 actief</span>
+            <button type="button"
+                    class="player-perspective-button"
+                    data-app-view="manager"
+                    aria-pressed="false">
+              Naar Beheer <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </header>
+        <div id="playerFormMount" class="player-form-mount"></div>
+        <label id="playerFormConfirmation" class="player-form-confirmation" hidden>
+          <input id="playerFormConfirmInput" type="checkbox">
+          <span>Ik heb dit formulier gecontroleerd en voer de aangegeven handeling uit.</span>
+        </label>
+        <button id="playerCompleteActionButton"
+                class="primary-button player-complete-action"
+                type="button"
+                disabled>
+          Bevestig en stuur door
+        </button>
+      </section>
+
+      <section id="playerWaitingPanel" class="player-waiting-panel" hidden>
+        <header class="player-stage-header">
+          <div class="player-role-token is-watching" aria-hidden="true">◎</div>
+          <div>
+            <p class="eyebrow">Wachttijd = kijktijd</p>
+            <h2>Volg wat jouw vorige handeling in de keten doet</h2>
+            <p id="playerWaitingMessage">Je volgende formulier is nog onderweg.</p>
+          </div>
+          <div class="player-header-actions">
+            <span id="playerWaitingClock" class="player-queue-summary">00:00</span>
+            <button type="button"
+                    class="player-perspective-button"
+                    data-app-view="manager"
+                    aria-pressed="false">
+              Naar Beheer <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </header>
+        <div id="playerProcessMount" class="player-process-mount" aria-label="Live simulatie van het productieproces"></div>
+      </section>
+    </main>
+
+    <main id="managerWorkbench"
+          class="manager-dashboard app-view-panel"
+          data-app-view-panel="manager"
+          aria-label="Beheerdersdashboard"
+          hidden>
+      <aside class="manager-dashboard-menu" aria-label="Onderdelen beheerdersdashboard">
+        <div class="manager-perspective-switcher" aria-label="Wissel van perspectief">
+          <span>Perspectief</span>
+          <div>
+            <button type="button" data-app-view="player" aria-pressed="false">
+              Speler
+            </button>
+            <button type="button" class="is-active" data-app-view="manager" aria-pressed="true">
+              Beheer
+            </button>
+          </div>
+        </div>
+        <div class="manager-utility-actions" aria-label="Profiel en begeleiding">
+          <span>Profiel &amp; begeleiding</span>
+          <button id="leerpretAuthStatus"
+                  class="auth-status-button"
+                  type="button"
+                  disabled>
+            Sessie controleren…
+          </button>
+          <button id="characterEditButton"
+                  class="character-edit-button"
+                  type="button"
+                  data-character-edit
+                  hidden>
+            <span aria-hidden="true">KA</span>
+            <strong>Karakter aanpassen</strong>
+          </button>
+        </div>
+        <div class="manager-utility-actions" aria-label="Beheeracties">
+          <span>Beheeracties</span>
+          <button id="exportButton" type="button" title="Eventbuffer naar klembord">
+            <span aria-hidden="true">{ }</span>
+            <strong>Events exporteren</strong>
+          </button>
+          <button id="resetButton" class="danger-button" type="button" title="Proefopstelling opnieuw starten">
+            <span aria-hidden="true">R</span>
+            <strong>Spel opnieuw starten</strong>
+          </button>
+        </div>
+        <div class="manager-menu-heading">
+          <p class="eyebrow">Game Master</p>
+          <h2>Dashboard</h2>
+          <p>Kies links een werkvenster.</p>
+        </div>
+        <nav class="manager-tab-list" role="tablist" aria-orientation="vertical">
+          <button id="dataModelButton" type="button" role="tab" aria-selected="false"
+                  data-manager-tab="process">
+            <span aria-hidden="true">01</span>
+            <strong>Procesmodel</strong>
+            <small>Graph, route en kaart</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="inventory">
+            <span aria-hidden="true">02</span>
+            <strong>Voorraad</strong>
+            <small>Materiaal en WIP</small>
+          </button>
+          <button type="button" class="is-active" role="tab" aria-selected="true"
+                  data-manager-tab="core">
+            <span aria-hidden="true">03</span>
+            <strong>Spelkern</strong>
+            <small>Orders, bouw en keten</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="events">
+            <span aria-hidden="true">04</span>
+            <strong>Events</strong>
+            <small>Acties en meetlijn</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="settings">
+            <span aria-hidden="true">05</span>
+            <strong>Instellingen</strong>
+            <small>Spelregels en varianten</small>
+          </button>
+        </nav>
+      </aside>
+
+      <section class="order-band manager-dashboard-panel is-active"
+               data-manager-panel="core"
+               aria-label="Klantorder">
         <div class="role-card active-role-card">
           <div class="role-token">K1</div>
           <div>
@@ -153,7 +293,9 @@
         </form>
       </section>
 
-      <section class="lego-builder-panel" aria-labelledby="legoBuilderTitle">
+      <section class="lego-builder-panel manager-dashboard-panel is-active"
+               data-manager-panel="core"
+               aria-labelledby="legoBuilderTitle">
         <div class="section-head">
           <div>
             <p class="eyebrow">Interactieve productie</p>
@@ -164,7 +306,9 @@
         <div id="legoBuilderMount"></div>
       </section>
 
-      <section class="process-panel" aria-label="Orderstroom">
+      <section class="process-panel manager-dashboard-panel is-active"
+               data-manager-panel="core"
+               aria-label="Orderstroom">
         <div class="section-head">
           <div>
             <p class="eyebrow">Digital twin</p>
@@ -175,7 +319,9 @@
         <div id="laneGrid" class="lane-grid"></div>
       </section>
 
-      <aside class="control-panel" aria-label="Besturing">
+      <section class="control-panel manager-dashboard-panel"
+               data-manager-panel="settings"
+               aria-label="Besturing">
         <div class="section-head">
           <div>
             <p class="eyebrow">Proefopstelling</p>
@@ -253,9 +399,11 @@
             <input id="productTypeCountInput" type="number" min="3" max="9" step="1" value="3">
           </label>
         </div>
-      </aside>
+      </section>
 
-      <section class="inventory-panel" aria-label="Voorraad">
+      <section class="inventory-panel manager-dashboard-panel"
+               data-manager-panel="inventory"
+               aria-label="Voorraad">
         <div class="section-head">
           <div>
             <p class="eyebrow">LEGO-stroom</p>
@@ -266,7 +414,9 @@
         <div id="inventoryGrid" class="inventory-grid"></div>
       </section>
 
-      <section class="ledger-panel" aria-label="Meetlog">
+      <section class="ledger-panel manager-dashboard-panel"
+               data-manager-panel="events"
+               aria-label="Meetlog">
         <div class="section-head">
           <div>
             <p class="eyebrow">Events</p>
@@ -277,7 +427,10 @@
         <div id="eventLog" class="event-log"></div>
       </section>
 
-      <section id="dataModelPanel" class="data-model-panel" aria-label="Orderproces en datamodel">
+      <section id="dataModelPanel"
+               class="data-model-panel manager-dashboard-panel"
+               data-manager-panel="process"
+               aria-label="Orderproces en datamodel">
         <div class="section-head">
           <div>
             <p class="eyebrow">Procesmodel</p>
@@ -299,6 +452,7 @@
   <script src="lego-tower-renderer.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="leerpret-auth.js"></script>
+  <script src="leerpret-theme.js"></script>
   <script src="behavior-quality.js"></script>
   <script src="character-creation.js"></script>
   <script src="lego-builder.js"></script>
