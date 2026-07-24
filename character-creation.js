@@ -78,6 +78,7 @@
     submitError: "",
     checking: false,
     lookupError: "",
+    qualityReview: null,
     entryMode: "onboarding",
     existingProfile: null,
     lookupSequence: 0,
@@ -382,6 +383,27 @@
       </div>`;
   }
 
+  function qualityWarningMarkup() {
+    const metrics = state.qualityReview?.metrics || {};
+    return `
+      <div class="character-stage completion-stage quality-warning-stage">
+        <div class="completion-sigil" aria-hidden="true">?</div>
+        <span class="behavior-kicker">Even opnieuw in de spiegel kijken</span>
+        <h2>Het systeem twijfelt of deze invulling genoeg onderscheid geeft</h2>
+        <p>Dat zegt niets over jou. De antwoorden lijken alleen te weinig verschil te bevatten om met vertrouwen een passende rol en game-ervaring te kiezen.</p>
+        <ul class="quality-reasons">
+          ${(state.qualityReview?.reasons || []).map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}
+        </ul>
+        <div class="quality-statistics" aria-label="Statistische controle">
+          <span><strong>${metrics.basicFlatCategories ?? 0}/10</strong> vlakke basisverdelingen</span>
+          <span><strong>${metrics.responseFlatCategories ?? 0}/10</strong> vlakke drukverdelingen</span>
+          <span><strong>${metrics.identicalCategories ?? 0}/10</strong> identieke categorieën</span>
+        </div>
+        <p>Wil je de twee scans daarom nog een keer met wat meer aandacht invullen? Kies per categorie bewust welke kenmerken meer en minder bij je passen.</p>
+        <button class="character-primary" type="button" data-action="retry-quality">Nog een keer met aandacht <span aria-hidden="true">↻</span></button>
+      </div>`;
+  }
+
   function lookupMarkup() {
     return `
       <div class="character-stage completion-stage">
@@ -404,7 +426,13 @@
     mount.innerHTML = `
       <div class="character-creation-shell">
         ${phaseHeader()}
-        ${state.phase === "intro" ? introMarkup() : state.phase === "submitting" ? submittingMarkup() : scanMarkup()}
+        ${state.phase === "intro"
+          ? introMarkup()
+          : state.phase === "submitting"
+            ? submittingMarkup()
+            : state.phase === "quality_warning"
+              ? qualityWarningMarkup()
+              : scanMarkup()}
       </div>`;
   }
 
@@ -532,6 +560,13 @@
       render();
       return;
     }
+    const review = window.BehaviorResponseQuality?.assess(state.allocations);
+    if (review?.doubtful) {
+      state.qualityReview = review;
+      state.phase = "quality_warning";
+      render();
+      return;
+    }
     submitProfile();
   }
 
@@ -559,6 +594,14 @@
       render();
     }
     if (action === "retry") submitProfile();
+    if (action === "retry-quality") {
+      state.allocations = { basic_style: freshAllocations(), response_style: freshAllocations() };
+      state.qualityReview = null;
+      state.phase = "basic";
+      state.category = 0;
+      saveDraft();
+      render();
+    }
     if (action === "retry-lookup") {
       checkAccountProfile(window.LeerpretAuth?.getSession?.() || {});
     }

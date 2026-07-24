@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -53,6 +54,7 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('id="characterEditButton"', html)
         self.assertIn("Karakter aanpassen", html)
         self.assertIn('src="character-creation.js"', html)
+        self.assertIn('src="behavior-quality.js"', html)
         self.assertLess(html.index('src="character-creation.js"'), html.index('src="script.js"'))
         self.assertIn("basic_style", wizard)
         self.assertIn("response_style", wizard)
@@ -73,6 +75,8 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("behavior-profile-completed", wizard)
         self.assertIn("sessionStorage.setItem(DRAFT_KEY", wizard)
         self.assertIn("restoreDraft()", wizard)
+        self.assertIn("BehaviorResponseQuality", wizard)
+        self.assertIn("Nog een keer met aandacht", wizard)
         self.assertIn("Houd jezelf een spiegel voor", wizard)
         self.assertIn("passende rol", wizard)
         self.assertNotIn("player_info", wizard)
@@ -80,6 +84,37 @@ class ProductPackageTests(unittest.TestCase):
         self.assertNotIn('name="first_name"', wizard)
         self.assertIn(".character-creation-active .app-shell", stylesheet)
         self.assertIn('"./character-creation.js"', service_worker)
+        self.assertIn('"./behavior-quality.js"', service_worker)
+
+    def test_behavior_quality_flags_only_strong_response_patterns(self) -> None:
+        quality_path = PRODUCT_ROOT / "behavior-quality.js"
+        script = """
+const quality = require(process.argv[1]);
+const repeated = values => Array.from({length: 10}, () => [...values]);
+const normal = quality.assess({
+  basic_style: repeated([5, 3, 7, 5]),
+  response_style: repeated([5, 7, 3, 5])
+});
+const identical = quality.assess({
+  basic_style: repeated([5, 3, 7, 5]),
+  response_style: repeated([5, 3, 7, 5])
+});
+const flat = quality.assess({
+  basic_style: repeated([5, 5, 5, 5]),
+  response_style: repeated([5, 7, 3, 5])
+});
+process.stdout.write(JSON.stringify({normal, identical, flat}));
+"""
+        result = subprocess.run(
+            ["node", "-e", script, str(quality_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        review = json.loads(result.stdout)
+        self.assertFalse(review["normal"]["doubtful"])
+        self.assertTrue(review["identical"]["doubtful"])
+        self.assertTrue(review["flat"]["doubtful"])
 
     def test_isometric_logistics_view_is_separate_and_configurable(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")

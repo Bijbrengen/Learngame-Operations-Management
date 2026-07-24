@@ -154,6 +154,47 @@ button {
   box-shadow: 0 0 0 3px rgba(49, 132, 78, 0.14);
 }
 
+.quality-warning-stage {
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.quality-warning-stage .completion-sigil {
+  background: #f4c95d;
+  color: #33280c;
+}
+
+.quality-reasons {
+  width: min(100%, 650px);
+  margin: 0;
+  padding: 16px 20px 16px 40px;
+  border: 1px solid rgba(244, 201, 93, 0.42);
+  border-radius: 14px;
+  background: rgba(244, 201, 93, 0.09);
+  text-align: left;
+}
+
+.quality-statistics {
+  width: min(100%, 650px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quality-statistics span {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+}
+
+.quality-statistics strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
 .auth-status-button {
   max-width: 190px;
 }

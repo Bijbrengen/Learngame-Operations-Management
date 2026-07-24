@@ -29,6 +29,14 @@ De brondocumenten gebruiken niet dezelfde scoringsrichting: in
 past; in `Behavior Response style.pdf` gaan de meeste punten naar het kenmerk
 dat onder druk het best past. De wizard vermeldt dit per fase.
 
+Voor het opslaan voert de game een terughoudende statistische
+plausibiliteitscontrole uit. Zij signaleert alleen zeer sterke patronen:
+vrijwel overal gelijke punten of bijna identieke Basis- en Responsstijlscans,
+terwijl hoge punten in die scans juist een tegengestelde betekenis hebben. In
+dat geval legt de game vriendelijk uit dat de antwoorden te weinig onderscheid
+geven voor een passende rol en vraagt zij beide scans opnieuw in te vullen. Dit
+is nadrukkelijk geen psychologische beoordeling of leugendetector.
+
 Na beide scans verstuurt de game het profiel met de beperkte LO-gamesessie naar:
 
 ```text
