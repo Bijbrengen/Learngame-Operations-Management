@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v94";
+const CACHE_VERSION = "learngame-om-v101";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const APP_SHELL = [
   "./behavior-quality.js",
   "./character-creation.js",
   "./game-sessions.js",
+  "./data/agent-behavior/entrepreneurship-human-patterns.v1.js",
   "./logistics-game-engine.js",
   "./logistics-game-ui.js",
   "./lego-tower-renderer.js",

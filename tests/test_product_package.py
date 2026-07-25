@@ -40,10 +40,15 @@ class ProductPackageTests(unittest.TestCase):
 
     def test_manager_navigation_uses_requested_workflow_order(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        manager_menu = html.split('<aside class="manager-dashboard-menu"', 1)[1].split("</aside>", 1)[0]
+        self.assertLess(
+            manager_menu.index('<p class="eyebrow">Game Master</p>'),
+            manager_menu.index('class="manager-perspective-switcher"'),
+        )
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
         self.assertEqual(
-            ["session", "process", "inventory", "core", "events", "tower-editor", "settings"],
+            ["session", "process", "inventory", "core", "events", "tower-editor"],
             tabs,
         )
 
@@ -221,7 +226,8 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
     def test_role_actions_are_not_rendered_inside_settings(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
-        settings = html.split('data-manager-panel="settings"', 1)[1].split("</section>", 1)[0]
+        settings = html.split('aria-label="Interne configuratiespiegel"', 1)[1].split("</section>", 1)[0]
+        self.assertIn("hidden", settings)
         self.assertNotIn('id="selectedOrderBox"', settings)
         self.assertNotIn('id="advanceButton"', settings)
         self.assertNotIn('id="disruptionButton"', settings)
@@ -326,6 +332,80 @@ process.stdout.write(JSON.stringify({{
             ["IDLE", "PROCESSING", "WAITING_FOR_NEXT", "AWAITING_PLAYER"],
             result["roleStates"],
         )
+
+    def test_entrepreneurship_agents_use_anonymous_historical_patterns(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        pattern_path = (
+            PRODUCT_ROOT
+            / "data/agent-behavior/entrepreneurship-human-patterns.v1.json"
+        )
+        pattern_script_path = pattern_path.with_suffix(".js")
+        patterns = json.loads(pattern_path.read_text(encoding="utf-8"))
+        serialized = json.dumps(patterns)
+
+        self.assertEqual(
+            "entrepreneurship-human-agent-patterns-v1",
+            patterns["schemaVersion"],
+        )
+        self.assertEqual(7170, patterns["sourceSummary"]["transactions"])
+        self.assertEqual(695, patterns["sourceSummary"]["playerSeriesUsed"])
+        self.assertNotIn("@", serialized)
+        self.assertFalse(patterns["privacy"]["containsEmailAddresses"])
+        self.assertFalse(patterns["privacy"]["containsGameCodes"])
+        for family in ("supplier", "producer", "trader"):
+            self.assertEqual(
+                {"proactive", "steady", "deliberate"},
+                {
+                    profile["id"]
+                    for profile in patterns["roleFamilies"][family]["profiles"]
+                },
+            )
+
+        data_script = 'src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"'
+        self.assertIn(data_script, html)
+        self.assertLess(html.index(data_script), html.index('src="logistics-game-engine.js"'))
+        self.assertIn('state.config.gameType === "entrepreneurial"', game)
+        self.assertIn("setBehaviorPatterns", game)
+
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(pattern_script_path))}, "utf8"));
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+const engine = new window.LogisticsGameEngine.LogisticsGameEngine({{
+  random: () => 0.99
+}});
+engine.setBehaviorPatterns(window.EntrepreneurshipAgentPatterns);
+engine.start({{humanRoleId: "pd1"}});
+const snapshot = engine.snapshot();
+process.stdout.write(JSON.stringify({{
+  schemaVersion: snapshot.behaviorSource.schemaVersion,
+  sourceTransactions: snapshot.behaviorSource.sourceSummary.transactions,
+  supplierProfile: snapshot.roleRuntime.srm.agentBehavior.profileId,
+  producerFamily: snapshot.roleRuntime.pd2.agentBehavior.familyId,
+  traderFamily: snapshot.roleRuntime.operations.agentBehavior.familyId
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual(
+            "entrepreneurship-human-agent-patterns-v1",
+            result["schemaVersion"],
+        )
+        self.assertEqual(7170, result["sourceTransactions"])
+        self.assertEqual("deliberate", result["supplierProfile"])
+        self.assertEqual("producer", result["producerFamily"])
+        self.assertEqual("trader", result["traderFamily"])
 
     def test_standalone_engine_generates_hardcoded_incidents_and_peak_flow(self) -> None:
         engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
@@ -712,6 +792,11 @@ process.stdout.write(JSON.stringify({{
             (PRODUCT_ROOT / "contracts/game-session-consensus-v1.schema.json").read_text(encoding="utf-8")
         )
         consensus = contract["properties"]["consensus"]
+        self.assertIn("difficulty_level", contract["required"])
+        self.assertEqual(
+            ["easy", "normal", "hard"],
+            contract["properties"]["difficulty_level"]["enum"],
+        )
         self.assertIn("required_member_ids", consensus["required"])
         self.assertIn("approved_member_ids", consensus["required"])
         self.assertEqual(
@@ -738,6 +823,158 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("game-master-role", runtime)
         self.assertIn("(rolruil)", runtime)
         self.assertIn("mutationVersion", runtime)
+        self.assertIn("gameSessionDifficulty", html)
+        self.assertIn("data-create-difficulty-select", runtime)
+        self.assertIn("data-game-difficulty-select", runtime)
+        self.assertIn("difficulty_level", runtime)
+        self.assertIn("Systeemdruk &amp; Ruis", runtime)
+        self.assertIn("data-active-game-config", runtime)
+        self.assertIn("customer_order_mode", runtime)
+        self.assertIn("game_config: gameConfig", runtime)
+        self.assertIn("/configuration", runtime)
+        self.assertIn("queueGameConfigSave", runtime)
+        self.assertIn("pendingConfigOverlay", runtime)
+        self.assertIn("mutationQueue", runtime)
+        self.assertIn("createSessionDraft", runtime)
+        self.assertIn("state.createSessionDraft.game_config = collectGameConfig(form)", runtime)
+
+    def test_customer_places_tower_order_without_selecting_bricks(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
+        self.assertIn("customerOrderPanelMarkup", ui)
+        self.assertIn("data-customer-order-form", ui)
+        self.assertIn("Order plaatsen en naar Operations sturen", ui)
+        self.assertIn('role.id === "customer"', ui)
+        self.assertIn("customerOrderDraft", ui)
+        self.assertIn("displayProduct", ui)
+        self.assertIn("selectedProductId", ui)
+
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+let now = 1000;
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+const engine = new Engine({{
+  now: () => now,
+  random: () => 0,
+  config: {{transferDelayMinMs: 0, transferDelayMaxMs: 0}}
+}});
+engine.start({{humanRoleId: "customer", customerOrderMode: "free"}});
+engine.generateOrder();
+engine.update(now);
+const task = engine.playerTask();
+const result = engine.completePlayerAction({{
+  customerOrder: {{productId: "B", quantity: 4, dueMinutes: 15}}
+}});
+const order = engine.snapshot().orders[0];
+const requiredEngine = new Engine({{
+  now: () => now,
+  random: () => 0,
+  config: {{transferDelayMinMs: 0, transferDelayMaxMs: 0}}
+}});
+requiredEngine.start({{humanRoleId: "customer", customerOrderMode: "required"}});
+requiredEngine.generateOrder();
+requiredEngine.update(now);
+const requiredResult = requiredEngine.completePlayerAction({{
+  customerOrder: {{productId: "B", quantity: 12, dueMinutes: 120}}
+}});
+const requiredOrder = requiredEngine.snapshot().orders[0];
+process.stdout.write(JSON.stringify({{
+  role: task.role.id,
+  requiredParts: task.requiredParts,
+  mode: task.customerOrderMode,
+  availableProducts: task.availableProducts.length,
+  ok: result.ok,
+  productId: order.productId,
+  quantity: order.quantity,
+  status: order.status,
+  requiredOk: requiredResult.ok,
+  requiredProductId: requiredOrder.productId,
+  requiredQuantity: requiredOrder.quantity
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual("customer", result["role"])
+        self.assertEqual({}, result["requiredParts"])
+        self.assertEqual("free", result["mode"])
+        self.assertGreaterEqual(result["availableProducts"], 1)
+        self.assertTrue(result["ok"])
+        self.assertEqual("B", result["productId"])
+        self.assertEqual(4, result["quantity"])
+        self.assertEqual("ACTIVE", result["status"])
+        self.assertTrue(result["requiredOk"])
+        self.assertEqual("A", result["requiredProductId"])
+        self.assertEqual(1, result["requiredQuantity"])
+
+    def test_session_difficulty_controls_agent_pressure_and_noise(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        engine_source = engine_path.read_text(encoding="utf-8")
+        self.assertIn("DIFFICULTY_PRESETS", engine_source)
+        self.assertIn("Typefout in overdracht", engine_source)
+        self.assertIn("Verkeerde levering", engine_source)
+        self.assertIn("setDifficulty(difficultyLevel)", game)
+        self.assertIn("session.difficulty_level", game)
+
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+const easy = new Engine();
+easy.setDifficulty("easy");
+const normal = new Engine();
+normal.setDifficulty("normal");
+const hard = new Engine();
+hard.setDifficulty("hard");
+process.stdout.write(JSON.stringify({{
+  easy: easy.snapshot(),
+  normal: normal.snapshot(),
+  hard: hard.snapshot()
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertGreater(
+            result["easy"]["config"]["orderIntervalMinMs"],
+            result["normal"]["config"]["orderIntervalMinMs"],
+        )
+        self.assertGreater(
+            result["normal"]["config"]["orderIntervalMinMs"],
+            result["hard"]["config"]["orderIntervalMinMs"],
+        )
+        self.assertLess(
+            result["easy"]["config"]["incidentChance"],
+            result["normal"]["config"]["incidentChance"],
+        )
+        self.assertLess(
+            result["normal"]["config"]["incidentChance"],
+            result["hard"]["config"]["incidentChance"],
+        )
+        self.assertGreater(
+            result["hard"]["difficulty"]["reactionJitter"][1]
+            - result["hard"]["difficulty"]["reactionJitter"][0],
+            result["easy"]["difficulty"]["reactionJitter"][1]
+            - result["easy"]["difficulty"]["reactionJitter"][0],
+        )
 
     def test_tower_editor_adds_animated_products_to_the_assortment(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")

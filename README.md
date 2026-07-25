@@ -152,6 +152,40 @@ iedereen instemt, vult de backend alle resterende rollen met virtuele agents en
 gaat de sessiestatus naar `running`. De gedeelde toestand volgt
 `contracts/game-session-consensus-v1.schema.json`.
 
+Iedere gamesessie bewaart daarnaast een eigen moeilijkheidsgraad. De Game
+Master kiest in de lobby `Makkelijk`, `Gemiddeld` of `Moeilijk`. De preset
+stuurt de aanvraagfrequentie, incidentkans en spreiding in reactietijden van
+de lokale agents. Op `Moeilijk` voegt de engine ook expliciete dataruis toe,
+zoals typefouten en onderschepte verkeerde leveringen. Na de sessiestart staat
+de keuze vast.
+
+## Menselijker agentgedrag zonder LLM
+
+Bij het gametype `Entrepreneurial Game` gebruikt de lokale simulatie
+geaggregeerde timingpatronen uit 7.170 historische transacties, verdeeld over
+53 gespeelde games. Hieruit zijn 695 bruikbare spelersreeksen samengevat per
+rolfamilie: leverancier, producent en handelaar.
+
+Iedere virtuele rol krijgt bij de start willekeurig een gewogen profiel
+`Proactief`, `Gestaag` of `Bedachtzaam`. Dat profiel varieert lokaal:
+
+- verwerkingstempo en overdrachtstempo;
+- de kans op een korte actieburst;
+- incidentele langere aarzel- of wachtpauzes;
+- de activiteit in de vroege, middelste en late spelfase.
+
+De afgeleide bestanden staan in `data/agent-behavior/`. Ze bevatten geen
+e-mailadressen, gamecodes of individuele tijdlijnen. De dataset schrijft geen
+foutkansen, persoonlijkheid of productvoorkeuren aan historische spelers toe,
+omdat de transactiedump daarvoor geen betrouwbare basis biedt. De LO Game
+1–7-presets blijven de bestaande vaste simulatietiming gebruiken.
+
+De patronen kunnen reproduceerbaar opnieuw worden gebouwd met:
+
+```powershell
+python scripts\build_entrepreneurship_agent_patterns.py
+```
+
 Belangrijkste bronnen voor deze versie:
 
 ```text

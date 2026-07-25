@@ -4,12 +4,30 @@
   "title": "LEARNGame OM game session and consensus v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "session_id", "join_code", "session_type", "origin", "status", "game_master_member_id", "required_role_ids", "members", "role_vacancies", "consensus", "virtual_agents", "created_at", "updated_at"],
+  "required": ["contract_version", "session_id", "join_code", "session_type", "difficulty_level", "game_config", "origin", "status", "game_master_member_id", "required_role_ids", "members", "role_vacancies", "consensus", "virtual_agents", "created_at", "updated_at"],
   "properties": {
     "contract_version": {"const": "1.0"},
     "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
     "join_code": {"type": "string", "pattern": "^[A-Z0-9]{6,10}$"},
     "session_type": {"enum": ["closed", "open", "semi_closed"]},
+    "difficulty_level": {"enum": ["easy", "normal", "hard"]},
+    "game_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
+      "properties": {
+        "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"]},
+        "money": {"type": "boolean"},
+        "pnl": {"type": "boolean"},
+        "intermediate_stock": {"type": "boolean"},
+        "opportunity_costs": {"type": "boolean"},
+        "role_freedom": {"type": "boolean"},
+        "price_mode": {"enum": ["fixed", "free"]},
+        "logistics_organization": {"enum": ["product", "functional"]},
+        "product_type_count": {"type": "integer", "minimum": 1, "maximum": 9},
+        "customer_order_mode": {"enum": ["free", "required"]}
+      }
+    },
     "origin": {"enum": ["managed", "free_game"]},
     "status": {"enum": ["lobby", "ready", "running", "finished"]},
     "game_master_member_id": {"type": "string", "minLength": 8, "maxLength": 120},

@@ -61,6 +61,7 @@
       this.waitingTab = "departments";
       this.lastFlowSignature = "";
       this.taskKey = null;
+      this.customerOrderDraft = null;
       this.feedback = "";
       this.renderProcessFlow = typeof options.renderProcessFlow === "function"
         ? options.renderProcessFlow
@@ -93,8 +94,10 @@
       });
       this.handleClick = this.handleClick.bind(this);
       this.handleChange = this.handleChange.bind(this);
+      this.handleSubmit = this.handleSubmit.bind(this);
       this.mount.addEventListener("click", this.handleClick);
       this.mount.addEventListener("change", this.handleChange);
+      this.mount.addEventListener("submit", this.handleSubmit);
       this.render();
     }
 
@@ -129,6 +132,7 @@
       this.engine.stop();
       this.mount.removeEventListener("click", this.handleClick);
       this.mount.removeEventListener("change", this.handleChange);
+      this.mount.removeEventListener("submit", this.handleSubmit);
       this.mount.innerHTML = "";
     }
 
@@ -138,6 +142,7 @@
       this.transferred = false;
       this.feedback = "";
       this.taskKey = null;
+      this.customerOrderDraft = null;
     }
 
     handleClick(event) {
@@ -196,9 +201,38 @@
     }
 
     handleChange(event) {
-      if (!event.target.matches("[data-sim-signature]")) return;
-      this.signed = event.target.checked;
-      this.feedback = "";
+      const customerOrderForm = event.target.closest("[data-customer-order-form]");
+      if (customerOrderForm) {
+        const values = new FormData(customerOrderForm);
+        this.customerOrderDraft = {
+          productId: String(values.get("product_id") || ""),
+          quantity: Math.max(1, Number(values.get("quantity")) || 1),
+          dueMinutes: Math.max(2, Number(values.get("due_minutes")) || 2)
+        };
+        this.feedback = "";
+        this.render();
+        return;
+      }
+      if (event.target.matches("[data-sim-signature]")) {
+        this.signed = event.target.checked;
+        this.feedback = "";
+        this.render();
+      }
+    }
+
+    handleSubmit(event) {
+      if (!event.target.matches("[data-customer-order-form]")) return;
+      event.preventDefault();
+      const values = new FormData(event.target);
+      const result = this.engine.completePlayerAction({
+        customerOrder: {
+          productId: String(values.get("product_id") || ""),
+          quantity: Number(values.get("quantity")),
+          dueMinutes: Number(values.get("due_minutes"))
+        }
+      });
+      this.feedback = result.ok ? "Order geplaatst en doorgestuurd naar Operations." : result.errors.join(" · ");
+      if (result.ok) this.resetPlayerInput();
       this.render();
     }
 
@@ -293,6 +327,15 @@
 
     taskDashboardMarkup(snapshot, task) {
       const { role, order, product } = task;
+      const selectedProductId = role.id === "customer"
+        ? (this.customerOrderDraft?.productId || order.productId)
+        : order.productId;
+      const displayProduct = role.id === "customer"
+        ? (task.availableProducts || []).find(item => item.id === selectedProductId) || product
+        : product;
+      const displayQuantity = role.id === "customer"
+        ? (this.customerOrderDraft?.quantity || order.quantity)
+        : order.quantity;
       const tasks = role.form.tasks.map(item => `<li>${escapeHtml(item)}</li>`).join("");
       return `
         <section class="sim-player-dashboard" aria-label="Actieve handeling voor ${escapeHtml(role.title)}">
@@ -308,7 +351,7 @@
               <div><span>Klant</span><strong>${escapeHtml(order.customer)}</strong></div>
               <div><span>Order #</span><strong>${escapeHtml(order.id)}</strong></div>
               <div><span>Levertijd</span><strong class="sim-countdown">${formatCountdown(order.dueAt)}</strong></div>
-              <div><span>Aantal</span><strong>${order.quantity}</strong></div>
+              <div><span>Aantal</span><strong>${displayQuantity}</strong></div>
             </div>
             <div class="sim-work-code">
               <span>Werkzaamheden</span>
@@ -327,14 +370,63 @@
                 </div>
               </div>
               <div class="sim-product-visual">
-                ${towerMarkup(product)}
-                <strong>${escapeHtml(product.name)}</strong>
-                <small>${order.quantity} exempl${order.quantity === 1 ? "aar" : "aren"}</small>
+                ${towerMarkup(displayProduct)}
+                <strong>${escapeHtml(displayProduct.name)}</strong>
+                <small>${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}</small>
               </div>
             </div>
           </article>
-          ${this.actionPanelMarkup(task)}
+          ${role.id === "customer" ? this.customerOrderPanelMarkup(task) : this.actionPanelMarkup(task)}
         </section>
+      `;
+    }
+
+    customerOrderPanelMarkup(task) {
+      const free = task.customerOrderMode === "free";
+      const selectedProductId = this.customerOrderDraft?.productId || task.order.productId;
+      const selectedQuantity = this.customerOrderDraft?.quantity || task.order.quantity;
+      const dueMinutes = this.customerOrderDraft?.dueMinutes
+        || Math.max(2, Math.round((task.order.dueAt - Date.now()) / 60000));
+      const productOptions = (task.availableProducts || []).map(product => `
+        <option value="${escapeHtml(product.id)}"${product.id === selectedProductId ? " selected" : ""}>
+          ${escapeHtml(product.name)}
+        </option>
+      `).join("");
+      return `
+        <aside class="sim-action-panel sim-customer-order-panel">
+          <header>
+            <p class="eyebrow">Klantactie</p>
+            <h2>Plaats een torenbestelling</h2>
+            <span>${free ? "Vrije bestelling" : "Verplichte bestelling vanuit de spelvariant"}</span>
+          </header>
+          <form class="sim-customer-order-form" data-customer-order-form>
+            <label>
+              <span>Toren</span>
+              ${free
+                ? `<select name="product_id" required>${productOptions}</select>`
+                : `<strong>${escapeHtml(task.product.name)}</strong><input type="hidden" name="product_id" value="${escapeHtml(task.product.id)}">`}
+            </label>
+            <label>
+              <span>Aantal</span>
+              ${free
+                ? `<input type="number" name="quantity" min="1" max="12" value="${selectedQuantity}" required>`
+                : `<strong>${task.order.quantity}</strong><input type="hidden" name="quantity" value="${task.order.quantity}">`}
+            </label>
+            <label>
+              <span>Gewenste levertijd</span>
+              ${free
+                ? `<input type="number" name="due_minutes" min="2" max="120" value="${dueMinutes}" required><small>minuten</small>`
+                : `<strong>${dueMinutes} minuten</strong><input type="hidden" name="due_minutes" value="${dueMinutes}">`}
+            </label>
+            <button class="primary-button sim-customer-order-submit" type="submit">
+              Order plaatsen en naar Operations sturen
+            </button>
+            <p class="sim-action-note">
+              Jij bestelt het eindproduct. Bouwstenen verzamelen en stapelen gebeurt pas bij magazijn en productie.
+            </p>
+            ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
+          </form>
+        </aside>
       `;
     }
 

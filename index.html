@@ -198,45 +198,6 @@
           aria-label="Beheerdersdashboard"
           hidden>
       <aside class="manager-dashboard-menu" aria-label="Onderdelen beheerdersdashboard">
-        <div class="manager-perspective-switcher" aria-label="Wissel van perspectief">
-          <span>Perspectief</span>
-          <div>
-            <button type="button" data-app-view="player" aria-pressed="false">
-              Speler
-            </button>
-            <button type="button" class="is-active" data-app-view="manager" aria-pressed="true">
-              Beheer
-            </button>
-          </div>
-        </div>
-        <div class="manager-utility-actions" aria-label="Profiel en begeleiding">
-          <span>Profiel &amp; begeleiding</span>
-          <button id="leerpretAuthStatus"
-                  class="auth-status-button"
-                  type="button"
-                  disabled>
-            Sessie controleren…
-          </button>
-          <button id="characterEditButton"
-                  class="character-edit-button"
-                  type="button"
-                  data-character-edit
-                  hidden>
-            <span aria-hidden="true">KA</span>
-            <strong>Karakter aanpassen</strong>
-          </button>
-        </div>
-        <div class="manager-utility-actions" aria-label="Beheeracties">
-          <span>Beheeracties</span>
-          <button id="exportButton" type="button" title="Eventbuffer naar klembord">
-            <span aria-hidden="true">{ }</span>
-            <strong>Events exporteren</strong>
-          </button>
-          <button id="resetButton" class="danger-button" type="button" title="Proefopstelling opnieuw starten">
-            <span aria-hidden="true">R</span>
-            <strong>Spel opnieuw starten</strong>
-          </button>
-        </div>
         <div class="manager-menu-heading">
           <p class="eyebrow">Game Master</p>
           <h2>Dashboard</h2>
@@ -279,13 +240,46 @@
             <strong>Toreneditor</strong>
             <small>Productassortiment</small>
           </button>
-          <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="settings">
-            <span aria-hidden="true">06</span>
-            <strong>Instellingen</strong>
-            <small>Spelregels en varianten</small>
-          </button>
         </nav>
+        <div class="manager-perspective-switcher" aria-label="Wissel van perspectief">
+          <span>Perspectief</span>
+          <div>
+            <button type="button" data-app-view="player" aria-pressed="false">
+              Speler
+            </button>
+            <button type="button" class="is-active" data-app-view="manager" aria-pressed="true">
+              Beheer
+            </button>
+          </div>
+        </div>
+        <div class="manager-utility-actions" aria-label="Profiel en begeleiding">
+          <span>Profiel &amp; begeleiding</span>
+          <button id="leerpretAuthStatus"
+                  class="auth-status-button"
+                  type="button"
+                  disabled>
+            Sessie controleren…
+          </button>
+          <button id="characterEditButton"
+                  class="character-edit-button"
+                  type="button"
+                  data-character-edit
+                  hidden>
+            <span aria-hidden="true">KA</span>
+            <strong>Karakter aanpassen</strong>
+          </button>
+        </div>
+        <div class="manager-utility-actions" aria-label="Beheeracties">
+          <span>Beheeracties</span>
+          <button id="exportButton" type="button" title="Eventbuffer naar klembord">
+            <span aria-hidden="true">{ }</span>
+            <strong>Events exporteren</strong>
+          </button>
+          <button id="resetButton" class="danger-button" type="button" title="Proefopstelling opnieuw starten">
+            <span aria-hidden="true">R</span>
+            <strong>Spel opnieuw starten</strong>
+          </button>
+        </div>
       </aside>
 
       <section id="managerSessionPanel"
@@ -309,7 +303,68 @@
                 <option value="semi_closed">Semi-gesloten · zichtbaar, code vereist</option>
               </select>
             </label>
+            <label>
+              <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
+              <select id="gameSessionDifficulty" data-create-difficulty-select>
+                <option value="easy">Makkelijk</option>
+                <option value="normal" selected>Gemiddeld</option>
+                <option value="hard">Moeilijk</option>
+              </select>
+            </label>
             <button class="primary-button" type="submit">Sessie aanmaken</button>
+            <div class="difficulty-axis-summary" data-difficulty-summary>
+              <span><strong>Aanvragen</strong><small>Normale aanvraagdruk</small></span>
+              <span><strong>Foutmarge</strong><small>Incidentele fouten</small></span>
+              <span><strong>Reactietijd</strong><small>Wisselende reactietijd</small></span>
+            </div>
+            <fieldset class="session-game-config">
+              <legend>Spelvariant en spelregels</legend>
+              <label class="session-config-field is-wide">
+                <span>Gametype</span>
+                <select name="game_type" data-session-game-type data-game-config-control>
+                  <option value="entrepreneurial">Entrepreneurial Game</option>
+                  <option value="lo1">LO Game 1</option>
+                  <option value="lo2">LO Game 2</option>
+                  <option value="lo3">LO Game 3</option>
+                  <option value="lo4" selected>LO Game 4</option>
+                  <option value="lo5">LO Game 5</option>
+                  <option value="lo6">LO Game 6</option>
+                  <option value="lo7">LO Game 7</option>
+                </select>
+              </label>
+              <div class="session-config-toggles">
+                <label class="session-config-toggle"><input type="checkbox" name="money" data-game-config-control checked><span>Geld</span></label>
+                <label class="session-config-toggle"><input type="checkbox" name="pnl" data-game-config-control checked><span>Winst/verlies</span></label>
+                <label class="session-config-toggle"><input type="checkbox" name="intermediate_stock" data-game-config-control checked><span>Tussenvoorraad</span></label>
+                <label class="session-config-toggle"><input type="checkbox" name="opportunity_costs" data-game-config-control checked><span>Opportunity costs</span></label>
+                <label class="session-config-toggle"><input type="checkbox" name="role_freedom" data-game-config-control><span>Rolvrijheid</span></label>
+              </div>
+              <label class="session-config-field">
+                <span>Klantorder</span>
+                <select name="customer_order_mode" data-game-config-control>
+                  <option value="free">Vrij · klant kiest toren en aantal</option>
+                  <option value="required" selected>Verplicht · variant bepaalt de order</option>
+                </select>
+              </label>
+              <label class="session-config-field">
+                <span>Prijs</span>
+                <select name="price_mode" data-game-config-control>
+                  <option value="fixed" selected>Vast</option>
+                  <option value="free">Vrij</option>
+                </select>
+              </label>
+              <label class="session-config-field">
+                <span>Organisatie</span>
+                <select name="logistics_organization" data-game-config-control>
+                  <option value="product" selected>Productgericht</option>
+                  <option value="functional">Functionele keten</option>
+                </select>
+              </label>
+              <label class="session-config-field">
+                <span>Torensoorten</span>
+                <input name="product_type_count" type="number" min="1" max="9" value="3" data-game-config-control>
+              </label>
+            </fieldset>
           </form>
         </div>
       </section>
@@ -376,8 +431,9 @@
       </section>
 
       <section class="control-panel manager-dashboard-panel"
-               data-manager-panel="settings"
-               aria-label="Besturing">
+               aria-label="Interne configuratiespiegel"
+               aria-hidden="true"
+               hidden>
         <div class="section-head">
           <div>
             <p class="eyebrow">Proefopstelling</p>
@@ -531,6 +587,7 @@
   <script src="behavior-quality.js"></script>
   <script src="character-creation.js"></script>
   <script src="game-sessions.js"></script>
+  <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>
   <script src="logistics-game-ui.js"></script>
   <script src="lego-builder.js"></script>

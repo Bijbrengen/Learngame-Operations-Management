@@ -1,0 +1,282 @@
+{
+  "schemaVersion": "entrepreneurship-human-agent-patterns-v1",
+  "generatedFrom": "20260724_TEG_SST.sql",
+  "sourceSummary": {
+    "gamesWithTransactions": 53,
+    "participants": 914,
+    "transactions": 7170,
+    "transactionsUsed": 7170,
+    "playerSeriesUsed": 695,
+    "period": {
+      "from": "2022-05-10",
+      "through": "2026-06-18"
+    }
+  },
+  "privacy": {
+    "aggregationOnly": true,
+    "containsEmailAddresses": false,
+    "containsGameCodes": false,
+    "containsIndividualTimelines": false,
+    "minimumOutputUnit": "role-family profile"
+  },
+  "interpretation": {
+    "purpose": "Lokale agentvariatie zonder LLM- of API-aanroepen.",
+    "supportedSignals": [
+      "relative processing pace",
+      "transfer pace",
+      "short action bursts",
+      "long hesitation pauses",
+      "activity over early, middle and late game phases"
+    ],
+    "unsupportedInferences": [
+      "logistics error probability",
+      "product quantity preference",
+      "individual personality or identity"
+    ]
+  },
+  "roleMapping": {
+    "customer": "trader",
+    "operations": "trader",
+    "srm": "supplier",
+    "pd1": "producer",
+    "pd2": "producer",
+    "pd3": "producer",
+    "ssf": "trader"
+  },
+  "roleFamilies": {
+    "supplier": {
+      "samplePlayers": 216,
+      "observedActions": 4636,
+      "firstActionOffsetSeconds": {
+        "p10": 0.0,
+        "p25": 89.25,
+        "median": 302.0,
+        "p75": 528.0,
+        "p90": 889.0
+      },
+      "interActionSeconds": {
+        "p10": 20.0,
+        "p25": 38.0,
+        "median": 78.0,
+        "p75": 148.0,
+        "p90": 248.0
+      },
+      "actionsPerPlayer": {
+        "p10": 6.0,
+        "p25": 14.0,
+        "median": 21.0,
+        "p75": 29.0,
+        "p90": 35.0
+      },
+      "burstThresholdSeconds": 30,
+      "burstRate": 0.1638,
+      "longPauseThresholdSeconds": 120,
+      "longPauseRate": 0.3714,
+      "activityByPhase": {
+        "early": 0.2757,
+        "middle": 0.3904,
+        "late": 0.3339
+      },
+      "profiles": [
+        {
+          "id": "proactive",
+          "label": "Proactief",
+          "weight": 0.338,
+          "samplePlayers": 73,
+          "processingMultiplier": 0.834,
+          "transferMultiplier": 0.881,
+          "hesitationChance": 0.2155,
+          "hesitationMultiplier": [
+            1.35,
+            3.5
+          ],
+          "burstChance": 0.234
+        },
+        {
+          "id": "steady",
+          "label": "Gestaag",
+          "weight": 0.3287,
+          "samplePlayers": 71,
+          "processingMultiplier": 1.002,
+          "transferMultiplier": 1.001,
+          "hesitationChance": 0.3144,
+          "hesitationMultiplier": [
+            1.35,
+            2.86
+          ],
+          "burstChance": 0.1639
+        },
+        {
+          "id": "deliberate",
+          "label": "Bedachtzaam",
+          "weight": 0.3333,
+          "samplePlayers": 72,
+          "processingMultiplier": 1.299,
+          "transferMultiplier": 1.201,
+          "hesitationChance": 0.35,
+          "hesitationMultiplier": [
+            1.35,
+            2.78
+          ],
+          "burstChance": 0.0926
+        }
+      ]
+    },
+    "producer": {
+      "samplePlayers": 243,
+      "observedActions": 3783,
+      "firstActionOffsetSeconds": {
+        "p10": 0.0,
+        "p25": 157.5,
+        "median": 366.0,
+        "p75": 634.5,
+        "p90": 1046.0
+      },
+      "interActionSeconds": {
+        "p10": 29.0,
+        "p25": 55.0,
+        "median": 104.0,
+        "p75": 196.0,
+        "p90": 343.0
+      },
+      "actionsPerPlayer": {
+        "p10": 4.2,
+        "p25": 10.0,
+        "median": 15.0,
+        "p75": 20.0,
+        "p90": 26.0
+      },
+      "burstThresholdSeconds": 30,
+      "burstRate": 0.0956,
+      "longPauseThresholdSeconds": 120,
+      "longPauseRate": 0.5112,
+      "activityByPhase": {
+        "early": 0.2789,
+        "middle": 0.3793,
+        "late": 0.3418
+      },
+      "profiles": [
+        {
+          "id": "proactive",
+          "label": "Proactief",
+          "weight": 0.3333,
+          "samplePlayers": 81,
+          "processingMultiplier": 0.784,
+          "transferMultiplier": 0.844,
+          "hesitationChance": 0.2787,
+          "hesitationMultiplier": [
+            1.35,
+            3.11
+          ],
+          "burstChance": 0.168
+        },
+        {
+          "id": "steady",
+          "label": "Gestaag",
+          "weight": 0.3333,
+          "samplePlayers": 81,
+          "processingMultiplier": 1.0,
+          "transferMultiplier": 1.0,
+          "hesitationChance": 0.35,
+          "hesitationMultiplier": [
+            1.35,
+            2.97
+          ],
+          "burstChance": 0.0827
+        },
+        {
+          "id": "deliberate",
+          "label": "Bedachtzaam",
+          "weight": 0.3333,
+          "samplePlayers": 81,
+          "processingMultiplier": 1.298,
+          "transferMultiplier": 1.2,
+          "hesitationChance": 0.35,
+          "hesitationMultiplier": [
+            1.35,
+            2.7
+          ],
+          "burstChance": 0.04
+        }
+      ]
+    },
+    "trader": {
+      "samplePlayers": 236,
+      "observedActions": 3484,
+      "firstActionOffsetSeconds": {
+        "p10": 0.0,
+        "p25": 179.25,
+        "median": 378.5,
+        "p75": 678.25,
+        "p90": 1183.5
+      },
+      "interActionSeconds": {
+        "p10": 31.0,
+        "p25": 56.0,
+        "median": 102.0,
+        "p75": 197.0,
+        "p90": 366.3
+      },
+      "actionsPerPlayer": {
+        "p10": 5.0,
+        "p25": 8.0,
+        "median": 14.0,
+        "p75": 19.0,
+        "p90": 26.5
+      },
+      "burstThresholdSeconds": 30,
+      "burstRate": 0.0863,
+      "longPauseThresholdSeconds": 120,
+      "longPauseRate": 0.5227,
+      "activityByPhase": {
+        "early": 0.2902,
+        "middle": 0.3866,
+        "late": 0.3232
+      },
+      "profiles": [
+        {
+          "id": "proactive",
+          "label": "Proactief",
+          "weight": 0.3432,
+          "samplePlayers": 81,
+          "processingMultiplier": 0.806,
+          "transferMultiplier": 0.86,
+          "hesitationChance": 0.3177,
+          "hesitationMultiplier": [
+            1.35,
+            3.37
+          ],
+          "burstChance": 0.1484
+        },
+        {
+          "id": "steady",
+          "label": "Gestaag",
+          "weight": 0.322,
+          "samplePlayers": 76,
+          "processingMultiplier": 1.01,
+          "transferMultiplier": 1.007,
+          "hesitationChance": 0.35,
+          "hesitationMultiplier": [
+            1.35,
+            2.97
+          ],
+          "burstChance": 0.0719
+        },
+        {
+          "id": "deliberate",
+          "label": "Bedachtzaam",
+          "weight": 0.3347,
+          "samplePlayers": 79,
+          "processingMultiplier": 1.325,
+          "transferMultiplier": 1.218,
+          "hesitationChance": 0.35,
+          "hesitationMultiplier": [
+            1.35,
+            3.02
+          ],
+          "burstChance": 0.04
+        }
+      ]
+    }
+  }
+}

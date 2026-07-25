@@ -1570,6 +1570,10 @@ body[data-app-view="player"] .manager-only {
   gap: 12px;
 }
 
+.game-session-create-form {
+  grid-template-columns: repeat(2, minmax(210px, 1fr)) auto;
+}
+
 .game-session-create-form label,
 .game-code-join-form label {
   display: grid;
@@ -1691,7 +1695,18 @@ body[data-app-view="player"] .manager-only {
   background: rgba(14, 47, 45, 0.42);
 }
 
-.game-master-role-form label {
+.game-master-difficulty-form {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(230, 173, 67, 0.3);
+  border-radius: 12px;
+  background: rgba(64, 45, 15, 0.32);
+}
+
+.game-master-role-form label,
+.game-master-difficulty-form label {
   display: grid;
   gap: 7px;
   color: var(--lp-accent);
@@ -1699,7 +1714,8 @@ body[data-app-view="player"] .manager-only {
   font-weight: 800;
 }
 
-.game-master-role-form select {
+.game-master-role-form select,
+.game-master-difficulty-form select {
   min-height: 44px;
   border: 1px solid var(--lp-accent-border);
   border-radius: 9px;
@@ -1708,8 +1724,121 @@ body[data-app-view="player"] .manager-only {
   background: #071b20;
 }
 
-.game-master-role-form small {
+.game-master-role-form small,
+.game-master-difficulty-form > small {
   color: var(--lp-muted);
+}
+
+.game-session-config-form {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(92, 215, 190, 0.28);
+  border-radius: 12px;
+  background: rgba(8, 38, 43, 0.52);
+}
+
+.game-session-config-form > small {
+  color: var(--lp-muted);
+}
+
+.session-game-config {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  min-width: 0;
+  margin: 4px 0 0;
+  padding: 14px;
+  border: 1px solid rgba(92, 215, 190, 0.24);
+  border-radius: 12px;
+  color: var(--lp-ink);
+  background: rgba(3, 16, 20, 0.58);
+}
+
+.session-game-config legend {
+  padding: 0 7px;
+  color: var(--lp-accent);
+  font-weight: 900;
+}
+
+.session-config-field {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  color: #c5dcdd;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.session-config-field.is-wide,
+.session-config-toggles {
+  grid-column: 1 / -1;
+}
+
+.session-config-field select,
+.session-config-field input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(92, 215, 190, 0.3);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: #f4fbfa;
+  background: #071b20;
+}
+
+.session-config-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.session-config-toggle {
+  display: grid;
+  grid-template-columns: 20px auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid rgba(148, 189, 190, 0.18);
+  border-radius: 9px;
+  color: #d7e9e8;
+  background: rgba(11, 39, 45, 0.68);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.session-config-toggle input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--lp-accent);
+}
+
+.difficulty-axis-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.difficulty-axis-summary > span {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 189, 190, 0.16);
+  border-radius: 9px;
+  background: rgba(3, 14, 18, 0.48);
+}
+
+.difficulty-axis-summary strong {
+  color: var(--lp-ink);
+  font-size: 0.74rem;
+}
+
+.difficulty-axis-summary small {
+  color: var(--lp-muted);
+  font-size: 0.68rem;
 }
 
 .session-facts span {
@@ -1919,6 +2048,10 @@ body[data-app-view="player"] .manager-only {
   .game-code-join-form,
   .game-master-role-form,
   .game-code-block {
+    grid-template-columns: 1fr;
+  }
+
+  .difficulty-axis-summary {
     grid-template-columns: 1fr;
   }
 
@@ -2840,6 +2973,51 @@ body[data-app-view="player"] .topbar {
   background: rgba(47, 125, 86, 0.1);
 }
 
+.sim-customer-order-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.sim-customer-order-form label {
+  display: grid;
+  gap: 7px;
+  color: #cde3e5;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.sim-customer-order-form select,
+.sim-customer-order-form input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--lp-ink);
+  background: #102830;
+}
+
+.sim-customer-order-form label > strong {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid #315961;
+  border-radius: 9px;
+  color: #f4fbfa;
+  background: #102830;
+}
+
+.sim-customer-order-form small,
+.sim-customer-order-form .sim-action-note {
+  color: var(--lp-muted);
+}
+
+.sim-customer-order-submit {
+  min-height: 52px;
+}
+
 @media (max-width: 980px) {
   .sim-player-dashboard {
     grid-template-columns: 1fr;
@@ -2853,12 +3031,20 @@ body[data-app-view="player"] .topbar {
     grid-column: 1 / -1;
   }
 
+  .sim-customer-order-panel {
+    grid-template-columns: 1fr;
+  }
+
   .sim-action-section {
     border-right: 1px solid var(--lp-line);
   }
 }
 
 @media (max-width: 680px) {
+  .session-game-config {
+    grid-template-columns: 1fr;
+  }
+
   .sim-action-panel,
   .sim-form-body,
   .sim-order-metadata {

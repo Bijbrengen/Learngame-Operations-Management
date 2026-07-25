@@ -188,7 +188,50 @@
     dueTimeMaxMs: 480000,
     maxOrdersInSystem: 12,
     feedLimit: 120,
-    processingTimeScale: 1000
+    processingTimeScale: 1000,
+    behaviorCycleMs: 720000
+  });
+
+  const DIFFICULTY_PRESETS = Object.freeze({
+    easy: Object.freeze({
+      id: "easy",
+      label: "Makkelijk",
+      initialOrderDelayMs: 5000,
+      orderIntervalMinMs: 5000,
+      orderIntervalMaxMs: 7000,
+      transferDelayMinMs: 900,
+      transferDelayMaxMs: 1500,
+      incidentChance: 0.02,
+      peakFlowChance: 0.02,
+      maxOrdersInSystem: 5,
+      reactionJitter: [0.9, 1.1]
+    }),
+    normal: Object.freeze({
+      id: "normal",
+      label: "Gemiddeld",
+      initialOrderDelayMs: 2500,
+      orderIntervalMinMs: 2500,
+      orderIntervalMaxMs: 4500,
+      transferDelayMinMs: 800,
+      transferDelayMaxMs: 3000,
+      incidentChance: 0.12,
+      peakFlowChance: 0.1,
+      maxOrdersInSystem: 10,
+      reactionJitter: [0.65, 1.4]
+    }),
+    hard: Object.freeze({
+      id: "hard",
+      label: "Moeilijk",
+      initialOrderDelayMs: 250,
+      orderIntervalMinMs: 250,
+      orderIntervalMaxMs: 900,
+      transferDelayMinMs: 150,
+      transferDelayMaxMs: 5000,
+      incidentChance: 0.35,
+      peakFlowChance: 0.42,
+      maxOrdersInSystem: 18,
+      reactionJitter: [0.2, 2.6]
+    })
   });
 
   function deepClone(value) {
@@ -230,6 +273,10 @@
       this.roles = deepClone(options.roles || ROLE_DEFINITIONS);
       this.products = deepClone(options.products || PRODUCT_DEFINITIONS);
       this.parts = deepClone(options.parts || PART_DEFINITIONS);
+      this.behaviorPatterns = options.behaviorPatterns || null;
+      this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
+      this.difficultyLevel = "normal";
+      this.difficulty = DIFFICULTY_PRESETS.normal;
       this.random = typeof options.random === "function" ? options.random : Math.random;
       this.now = typeof options.now === "function" ? options.now : Date.now;
       this.listeners = new Set();
@@ -260,7 +307,9 @@
           stateSince: null,
           completesAt: null,
           transfersAt: null,
-          incident: null
+          incident: null,
+          hesitation: false,
+          agentBehavior: null
         }])
       );
       this.emit("reset");
@@ -281,21 +330,88 @@
       return minimum + this.random() * Math.max(0, maximum - minimum);
     }
 
-    start({ humanRoleId = null } = {}) {
+    setBehaviorPatterns(patterns) {
+      const valid = patterns?.schemaVersion === "entrepreneurship-human-agent-patterns-v1";
+      this.behaviorPatterns = valid ? patterns : null;
+      return Boolean(this.behaviorPatterns);
+    }
+
+    setDifficulty(level) {
+      const preset = DIFFICULTY_PRESETS[level] || DIFFICULTY_PRESETS.normal;
+      this.difficultyLevel = preset.id;
+      this.difficulty = preset;
+      Object.assign(this.config, {
+        initialOrderDelayMs: preset.initialOrderDelayMs,
+        orderIntervalMinMs: preset.orderIntervalMinMs,
+        orderIntervalMaxMs: preset.orderIntervalMaxMs,
+        transferDelayMinMs: preset.transferDelayMinMs,
+        transferDelayMaxMs: preset.transferDelayMaxMs,
+        incidentChance: preset.incidentChance,
+        peakFlowChance: preset.peakFlowChance,
+        maxOrdersInSystem: preset.maxOrdersInSystem
+      });
+      return this.difficultyLevel;
+    }
+
+    setCustomerOrderMode(mode) {
+      this.customerOrderMode = mode === "free" ? "free" : "required";
+      return this.customerOrderMode;
+    }
+
+    pickWeightedProfile(profiles) {
+      if (!Array.isArray(profiles) || !profiles.length) return null;
+      const totalWeight = profiles.reduce(
+        (sum, profile) => sum + Math.max(0, Number(profile.weight) || 0),
+        0
+      );
+      if (totalWeight <= 0) return profiles[0];
+      let cursor = this.random() * totalWeight;
+      for (const profile of profiles) {
+        cursor -= Math.max(0, Number(profile.weight) || 0);
+        if (cursor <= 0) return profile;
+      }
+      return profiles[profiles.length - 1];
+    }
+
+    assignAgentBehaviors() {
+      const mapping = this.behaviorPatterns?.roleMapping || {};
+      const families = this.behaviorPatterns?.roleFamilies || {};
+      ROLE_FLOW.forEach(roleId => {
+        const familyId = mapping[roleId];
+        const family = families[familyId];
+        const profile = this.pickWeightedProfile(family?.profiles);
+        this.roleRuntime[roleId].agentBehavior = profile ? {
+          familyId,
+          profileId: profile.id,
+          label: profile.label,
+          processingMultiplier: Number(profile.processingMultiplier) || 1,
+          transferMultiplier: Number(profile.transferMultiplier) || 1,
+          hesitationChance: clamp(Number(profile.hesitationChance) || 0, 0, 1),
+          hesitationMultiplier: Array.isArray(profile.hesitationMultiplier)
+            ? profile.hesitationMultiplier.map(Number)
+            : [1, 1],
+          burstChance: clamp(Number(profile.burstChance) || 0, 0, 1)
+        } : null;
+      });
+    }
+
+    start({ humanRoleId = null, customerOrderMode = this.customerOrderMode } = {}) {
       if (humanRoleId && !this.roles[humanRoleId]) {
         throw new Error(`Onbekende spelersrol: ${humanRoleId}`);
       }
       if (this.started) this.stop();
+      this.setCustomerOrderMode(customerOrderMode);
       this.reset();
       const now = this.now();
       this.started = true;
       this.startedAt = now;
       this.humanRoleId = humanRoleId;
+      this.assignAgentBehaviors();
       this.nextOrderAt = now + this.config.initialOrderDelayMs;
       this.addFeed(
         "system",
         humanRoleId
-          ? `${this.roles[humanRoleId].title} wordt door de speler uitgevoerd; de overige zes rollen zijn gesimuleerd.`
+          ? `${this.roles[humanRoleId].title} wordt door de speler uitgevoerd; de overige zes rollen zijn gesimuleerd. Moeilijkheid: ${this.difficulty.label}.${this.behaviorPatterns ? " Agenttempo is gebaseerd op geaggregeerde Entrepreneurship-spelpatronen." : ""}`
           : "Kies een menselijke rol om de logistieke simulatie te starten.",
         null,
         now
@@ -322,10 +438,26 @@
     }
 
     scheduleNextOrder(now) {
-      this.nextOrderAt = now + this.randomBetween(
+      const customerBehavior = this.roleRuntime.customer?.agentBehavior;
+      const phaseIntensity = this.activityIntensity("trader", now);
+      const paceMultiplier = customerBehavior?.processingMultiplier || 1;
+      const interval = this.randomBetween(
         this.config.orderIntervalMinMs,
         this.config.orderIntervalMaxMs
       );
+      this.nextOrderAt = now + interval * paceMultiplier / phaseIntensity;
+    }
+
+    activityIntensity(familyId, now = this.now()) {
+      const phases = this.behaviorPatterns?.roleFamilies?.[familyId]?.activityByPhase;
+      if (!phases || !this.startedAt) return 1;
+      const progress = clamp(
+        (now - this.startedAt) / Math.max(1, this.config.behaviorCycleMs),
+        0,
+        0.999
+      );
+      const phaseKey = progress < 1 / 3 ? "early" : progress < 2 / 3 ? "middle" : "late";
+      return clamp((Number(phases[phaseKey]) || 1 / 3) / (1 / 3), 0.7, 1.35);
     }
 
     activeOrderCount() {
@@ -351,13 +483,20 @@
         dueAt: now + this.randomBetween(this.config.dueTimeMinMs, this.config.dueTimeMaxMs),
         routeIndex: 0,
         currentRoleId: ROLE_FLOW[0],
-        status: "ACTIVE",
+        status: this.humanRoleId === "customer" ? "DRAFT" : "ACTIVE",
         qualityRetries: 0,
         history: []
       };
       this.orders.set(id, order);
       this.enqueue(ROLE_FLOW[0], id);
-      this.addFeed("order", `${order.customer} heeft ${id} geplaatst: ${quantity}× ${product.name}.`, id, now);
+      this.addFeed(
+        "order",
+        this.humanRoleId === "customer"
+          ? `${order.customer} kan ${id} nu als torenbestelling plaatsen.`
+          : `${order.customer} heeft ${id} geplaatst: ${quantity}× ${product.name}.`,
+        id,
+        now
+      );
       if (peak) this.addFeed("incident", `Peak Flow: ${id} kwam kort na de vorige order binnen.`, id, now);
       this.emit("order-created", { order: deepClone(order), peak });
       return deepClone(order);
@@ -383,7 +522,11 @@
       }
       if (this.nextOrderAt === null || now < this.nextOrderAt) return;
       this.generateOrder();
-      if (this.random() < this.config.peakFlowChance) {
+      const customerBurstChance = this.roleRuntime.customer?.agentBehavior?.burstChance;
+      const peakFlowChance = customerBurstChance === undefined
+        ? this.config.peakFlowChance
+        : (this.config.peakFlowChance + customerBurstChance) / 2;
+      if (this.random() < clamp(peakFlowChance, 0, 1)) {
         this.pendingPeakOrderAt = now + this.randomBetween(1500, 4000);
         this.addFeed("incident", "Peak Flow gedetecteerd: een extra klantorder volgt direct.");
       }
@@ -401,7 +544,7 @@
         runtime.transfersAt = now + this.randomBetween(
           this.config.transferDelayMinMs,
           this.config.transferDelayMaxMs
-        );
+        ) * (runtime.agentBehavior?.transferMultiplier || 1);
         const order = this.orders.get(runtime.activeOrderId);
         this.addFeed("state", `${this.roles[roleId].token} heeft ${order.id} verwerkt en bereidt de overdracht voor.`, order.id, now);
       }
@@ -426,23 +569,68 @@
         this.emit("player-action-required", { roleId, order: deepClone(order) });
         return;
       }
-      const duration = this.processingDuration(roleId, order);
+      const timing = this.processingTiming(roleId, order);
       const incident = this.rollIncident(roleId, order);
       runtime.state = ROLE_STATES.PROCESSING;
       runtime.incident = incident;
-      runtime.completesAt = now + duration + (incident?.delayMs || 0);
-      this.addFeed("state", `${this.roles[roleId].token} verwerkt ${order.id}.`, order.id, now);
+      runtime.hesitation = timing.hesitation;
+      runtime.completesAt = now + timing.durationMs + (incident?.delayMs || 0);
+      this.addFeed(
+        "state",
+        `${this.roles[roleId].token} verwerkt ${order.id}.${timing.hesitation ? ` Agentprofiel ${runtime.agentBehavior.label} neemt extra controletijd.` : ""}`,
+        order.id,
+        now
+      );
       if (incident) this.recordIncident(incident, order, roleId, now);
     }
 
     processingDuration(roleId, order) {
+      return this.processingTiming(roleId, order).durationMs;
+    }
+
+    processingTiming(roleId, order) {
       const [minimum, maximum] = this.roles[roleId].processingSeconds;
       const seconds = this.randomBetween(minimum, maximum) + Math.max(0, order.quantity - 1) * 1.5;
-      return seconds * this.config.processingTimeScale;
+      const behavior = this.roleRuntime[roleId]?.agentBehavior;
+      const [reactionMinimum, reactionMaximum] = this.difficulty.reactionJitter;
+      let multiplier = (behavior?.processingMultiplier || 1)
+        * this.randomBetween(reactionMinimum, reactionMaximum);
+      let hesitation = false;
+      if (behavior && this.random() < behavior.hesitationChance) {
+        const [hesitationMin, hesitationMax] = behavior.hesitationMultiplier;
+        multiplier *= this.randomBetween(
+          Number(hesitationMin) || 1,
+          Number(hesitationMax) || Number(hesitationMin) || 1
+        );
+        hesitation = true;
+      }
+      return {
+        durationMs: seconds * this.config.processingTimeScale * multiplier,
+        hesitation
+      };
     }
 
     rollIncident(roleId, order) {
       if (this.random() >= clamp(this.config.incidentChance, 0, 1)) return null;
+      if (this.difficultyLevel === "hard" && roleId !== this.humanRoleId) {
+        const noiseRoll = this.random();
+        if (noiseRoll < 0.34) {
+          return {
+            id: "data_typo",
+            label: "Typefout in overdracht",
+            message: `${this.roles[roleId].token} moet inconsistente ordergegevens opnieuw controleren.`,
+            delayMs: 8000
+          };
+        }
+        if (noiseRoll < 0.68) {
+          return {
+            id: "wrong_delivery",
+            label: "Verkeerde levering",
+            message: `${this.roles[roleId].token} onderschepte een levering voor de verkeerde order.`,
+            delayMs: 15000
+          };
+        }
+      }
       if (roleId === "srm") {
         return {
           id: "raw_material_delay",
@@ -526,6 +714,7 @@
       runtime.completesAt = null;
       runtime.transfersAt = null;
       runtime.incident = null;
+      runtime.hesitation = false;
     }
 
     requiredParts(order, roleId) {
@@ -556,13 +745,18 @@
         role: deepClone(this.roles[this.humanRoleId]),
         order: deepClone(order),
         product: deepClone(this.products[order.productId]),
-        requiredParts: this.requiredParts(order, this.humanRoleId)
+        requiredParts: this.requiredParts(order, this.humanRoleId),
+        customerOrderMode: this.customerOrderMode,
+        availableProducts: this.humanRoleId === "customer"
+          ? deepClone(Object.values(this.products))
+          : []
       };
     }
 
     completePlayerAction(payload = {}) {
       const task = this.playerTask();
       if (!task) return { ok: false, errors: ["Er staat geen handeling voor jouw rol klaar."] };
+      if (task.role.id === "customer") return this.completeCustomerOrder(task, payload);
       const errors = [];
       const selectedParts = payload.parts && typeof payload.parts === "object" ? payload.parts : {};
       Object.entries(task.requiredParts).forEach(([partId, required]) => {
@@ -606,6 +800,60 @@
       return { ok: true, errors: [] };
     }
 
+    completeCustomerOrder(task, payload = {}) {
+      const choice = payload.customerOrder && typeof payload.customerOrder === "object"
+        ? payload.customerOrder
+        : {};
+      const order = this.orders.get(task.order.id);
+      if (!order) return { ok: false, errors: ["De klantorder bestaat niet meer."] };
+      const errors = [];
+
+      if (this.customerOrderMode === "free") {
+        const product = this.products[String(choice.productId || "")];
+        const quantity = Math.floor(Number(choice.quantity));
+        const dueMinutes = Number(choice.dueMinutes);
+        if (!product) errors.push("Kies een geldige toren.");
+        if (!Number.isFinite(quantity) || quantity < 1 || quantity > 12) {
+          errors.push("Kies een aantal van 1 tot en met 12.");
+        }
+        if (!Number.isFinite(dueMinutes) || dueMinutes < 2 || dueMinutes > 120) {
+          errors.push("Kies een levertijd van 2 tot en met 120 minuten.");
+        }
+        if (errors.length) {
+          this.emit("player-action-rejected", { errors });
+          return { ok: false, errors };
+        }
+        order.productId = product.id;
+        order.productName = product.name;
+        order.quantity = quantity;
+        order.dueAt = this.now() + dueMinutes * 60 * 1000;
+      }
+
+      const now = this.now();
+      const runtime = this.roleRuntime.customer;
+      order.status = "ACTIVE";
+      order.history.push({
+        at: now,
+        roleId: "customer",
+        type: "completed",
+        label: "Klantorder geplaatst"
+      });
+      this.addFeed(
+        "player",
+        `Klant heeft ${order.id} geplaatst: ${order.quantity}× ${order.productName}.`,
+        order.id,
+        now
+      );
+      runtime.state = ROLE_STATES.WAITING_FOR_NEXT;
+      runtime.stateSince = now;
+      runtime.transfersAt = now + this.randomBetween(
+        this.config.transferDelayMinMs,
+        this.config.transferDelayMaxMs
+      );
+      this.emit("player-action-completed", { order: deepClone(order), roleId: "customer" });
+      return { ok: true, errors: [] };
+    }
+
     addFeed(kind, message, orderId = null, at = this.now()) {
       this.feed.unshift({
         id: `${at}-${this.feed.length + 1}`,
@@ -622,6 +870,7 @@
         started: Boolean(this.started),
         startedAt: this.startedAt,
         humanRoleId: this.humanRoleId,
+        customerOrderMode: this.customerOrderMode,
         nextOrderAt: this.nextOrderAt,
         roles: deepClone(this.roles),
         products: deepClone(this.products),
@@ -631,7 +880,16 @@
         orders: deepClone([...this.orders.values()]),
         feed: deepClone(this.feed),
         playerTask: this.playerTask ? this.playerTask() : null,
-        config: { ...this.config }
+        config: { ...this.config },
+        difficulty: {
+          id: this.difficulty.id,
+          label: this.difficulty.label,
+          reactionJitter: [...this.difficulty.reactionJitter]
+        },
+        behaviorSource: this.behaviorPatterns ? {
+          schemaVersion: this.behaviorPatterns.schemaVersion,
+          sourceSummary: deepClone(this.behaviorPatterns.sourceSummary)
+        } : null
       };
     }
   }
@@ -644,6 +902,7 @@
     ROLE_FLOW,
     PRODUCT_DEFINITIONS,
     PART_DEFINITIONS,
-    DEFAULT_CONFIG
+    DEFAULT_CONFIG,
+    DIFFICULTY_PRESETS
   });
 })();

@@ -18,6 +18,82 @@
     open: "Open",
     semi_closed: "Semi-gesloten"
   };
+  const DIFFICULTY_LEVELS = {
+    easy: {
+      label: "Makkelijk",
+      requestRate: "Lage aanvraagdruk",
+      failureRate: "Zeldzame fouten",
+      reactionTime: "Rustig en voorspelbaar"
+    },
+    normal: {
+      label: "Gemiddeld",
+      requestRate: "Normale aanvraagdruk",
+      failureRate: "Incidentele fouten",
+      reactionTime: "Wisselende reactietijd"
+    },
+    hard: {
+      label: "Moeilijk",
+      requestRate: "Hoge piekbelasting",
+      failureRate: "Veel ruis en fouten",
+      reactionTime: "Agressieve piekmomenten"
+    }
+  };
+  const GAME_CONFIG_PRESETS = {
+    entrepreneurial: {
+      label: "Entrepreneurial Game",
+      money: true,
+      pnl: true,
+      intermediate_stock: true,
+      opportunity_costs: true,
+      role_freedom: true,
+      price_mode: "free",
+      logistics_organization: "functional",
+      product_type_count: 3,
+      customer_order_mode: "free"
+    },
+    lo1: {
+      label: "LO Game 1",
+      money: false, pnl: false, intermediate_stock: false, opportunity_costs: false,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "functional",
+      product_type_count: 1, customer_order_mode: "required"
+    },
+    lo2: {
+      label: "LO Game 2",
+      money: false, pnl: false, intermediate_stock: true, opportunity_costs: false,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "functional",
+      product_type_count: 3, customer_order_mode: "required"
+    },
+    lo3: {
+      label: "LO Game 3",
+      money: false, pnl: false, intermediate_stock: true, opportunity_costs: false,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "product",
+      product_type_count: 3, customer_order_mode: "required"
+    },
+    lo4: {
+      label: "LO Game 4",
+      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "product",
+      product_type_count: 3, customer_order_mode: "required"
+    },
+    lo5: {
+      label: "LO Game 5",
+      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "functional",
+      product_type_count: 3, customer_order_mode: "required"
+    },
+    lo6: {
+      label: "LO Game 6",
+      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      role_freedom: true, price_mode: "fixed", logistics_organization: "functional",
+      product_type_count: 9, customer_order_mode: "required"
+    },
+    lo7: {
+      label: "LO Game 7",
+      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      role_freedom: true, price_mode: "free", logistics_organization: "functional",
+      product_type_count: 9, customer_order_mode: "free"
+    }
+  };
   const state = {
     authenticated: false,
     apiBase: "",
@@ -25,6 +101,17 @@
     session: null,
     busy: false,
     mutationVersion: 0,
+    mutationQueue: Promise.resolve(),
+    pendingGameConfig: null,
+    savingGameConfig: false,
+    createSessionDraft: {
+      session_type: "closed",
+      difficulty_level: "normal",
+      game_config: {
+        ...GAME_CONFIG_PRESETS.lo4,
+        game_type: "lo4"
+      }
+    },
     pollTimer: null,
     startedSessionId: null
   };
@@ -86,6 +173,115 @@
     return ROLE_LABELS[roleId] || roleId || "Geen actieve rol";
   }
 
+  function difficultyLevel(level) {
+    return DIFFICULTY_LEVELS[level] || DIFFICULTY_LEVELS.normal;
+  }
+
+  function difficultyOptions(selectedLevel = "normal") {
+    return Object.entries(DIFFICULTY_LEVELS).map(([level, definition]) => `
+      <option value="${level}"${level === selectedLevel ? " selected" : ""}>${definition.label}</option>
+    `).join("");
+  }
+
+  function difficultyAxesMarkup(level = "normal") {
+    const definition = difficultyLevel(level);
+    return `
+      <span><strong>Aanvragen</strong><small>${escapeHtml(definition.requestRate)}</small></span>
+      <span><strong>Foutmarge</strong><small>${escapeHtml(definition.failureRate)}</small></span>
+      <span><strong>Reactietijd</strong><small>${escapeHtml(definition.reactionTime)}</small></span>
+    `;
+  }
+
+  function normalizedGameConfig(config = {}) {
+    const gameType = GAME_CONFIG_PRESETS[config.game_type] ? config.game_type : "lo4";
+    return {
+      ...GAME_CONFIG_PRESETS[gameType],
+      ...config,
+      game_type: gameType
+    };
+  }
+
+  function gameConfigFieldsMarkup(config = {}) {
+    const value = normalizedGameConfig(config);
+    const gameTypeOptions = Object.entries(GAME_CONFIG_PRESETS).map(([id, preset]) => `
+      <option value="${id}"${value.game_type === id ? " selected" : ""}>${preset.label}</option>
+    `).join("");
+    const toggle = (name, label) => `
+      <label class="session-config-toggle">
+        <input type="checkbox" name="${name}" data-game-config-control ${value[name] ? "checked" : ""}>
+        <span>${label}</span>
+      </label>
+    `;
+    return `
+      <fieldset class="session-game-config">
+        <legend>Spelvariant en spelregels</legend>
+        <label class="session-config-field is-wide">
+          <span>Gametype</span>
+          <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
+        </label>
+        <div class="session-config-toggles">
+          ${toggle("money", "Geld")}
+          ${toggle("pnl", "Winst/verlies")}
+          ${toggle("intermediate_stock", "Tussenvoorraad")}
+          ${toggle("opportunity_costs", "Opportunity costs")}
+          ${toggle("role_freedom", "Rolvrijheid")}
+        </div>
+        <label class="session-config-field">
+          <span>Klantorder</span>
+          <select name="customer_order_mode" data-game-config-control>
+            <option value="free"${value.customer_order_mode === "free" ? " selected" : ""}>Vrij · klant kiest toren en aantal</option>
+            <option value="required"${value.customer_order_mode === "required" ? " selected" : ""}>Verplicht · variant bepaalt de order</option>
+          </select>
+        </label>
+        <label class="session-config-field">
+          <span>Prijs</span>
+          <select name="price_mode" data-game-config-control>
+            <option value="fixed"${value.price_mode === "fixed" ? " selected" : ""}>Vast</option>
+            <option value="free"${value.price_mode === "free" ? " selected" : ""}>Vrij</option>
+          </select>
+        </label>
+        <label class="session-config-field">
+          <span>Organisatie</span>
+          <select name="logistics_organization" data-game-config-control>
+            <option value="product"${value.logistics_organization === "product" ? " selected" : ""}>Productgericht</option>
+            <option value="functional"${value.logistics_organization === "functional" ? " selected" : ""}>Functionele keten</option>
+          </select>
+        </label>
+        <label class="session-config-field">
+          <span>Torensoorten</span>
+          <input name="product_type_count" type="number" min="1" max="9" value="${value.product_type_count}" data-game-config-control>
+        </label>
+      </fieldset>
+    `;
+  }
+
+  function applyGameConfigPreset(form, gameType) {
+    const preset = GAME_CONFIG_PRESETS[gameType];
+    if (!form || !preset) return;
+    Object.entries(preset).forEach(([name, value]) => {
+      const control = form.elements.namedItem(name);
+      if (!control) return;
+      if (control.type === "checkbox") control.checked = Boolean(value);
+      else control.value = String(value);
+    });
+  }
+
+  function collectGameConfig(form) {
+    const get = name => form.elements.namedItem(name);
+    return {
+      game_type: get("game_type")?.value || "lo4",
+      money: Boolean(get("money")?.checked),
+      pnl: Boolean(get("pnl")?.checked),
+      intermediate_stock: Boolean(get("intermediate_stock")?.checked),
+      opportunity_costs: Boolean(get("opportunity_costs")?.checked),
+      role_freedom: Boolean(get("role_freedom")?.checked),
+      price_mode: get("price_mode")?.value || "fixed",
+      logistics_organization: get("logistics_organization")?.value || "product",
+      product_type_count: Math.max(1, Math.min(9, Number(get("product_type_count")?.value) || 3)),
+      customer_order_mode: get("customer_order_mode")?.value || "required"
+    };
+  }
+
   function memberCards(session) {
     const cards = session.members.map(member => `
       <li>
@@ -133,6 +329,61 @@
     `;
   }
 
+  function gameMasterDifficultyMarkup(session) {
+    if (!session.is_game_master || session.status === "running") return "";
+    const level = session.difficulty_level || "normal";
+    return `
+      <div class="game-master-difficulty-form">
+        <label>
+          <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
+          <select data-game-difficulty-select>${difficultyOptions(level)}</select>
+        </label>
+        <div class="difficulty-axis-summary" data-difficulty-summary>
+          ${difficultyAxesMarkup(level)}
+        </div>
+        <small>Deze instelling geldt alleen voor deze gamesessie en wordt direct opgeslagen.</small>
+      </div>
+    `;
+  }
+
+  function gameMasterConfigMarkup(session) {
+    if (!session.is_game_master || session.status === "running") return "";
+    return `
+      <form class="game-session-config-form" data-active-game-config>
+        ${gameConfigFieldsMarkup(session.game_config)}
+        <small>Deze spelregels gelden alleen voor deze gamesessie en worden direct opgeslagen.</small>
+      </form>
+    `;
+  }
+
+  function createSessionMarkup() {
+    const draft = state.createSessionDraft;
+    return `
+      <form id="gameSessionCreateForm" class="game-session-create-form">
+        <label>
+          <span>Toegang</span>
+          <select id="gameSessionType">
+            <option value="closed"${draft.session_type === "closed" ? " selected" : ""}>Gesloten · alleen met gamecode</option>
+            <option value="open"${draft.session_type === "open" ? " selected" : ""}>Open · zichtbaar en direct deelnemen</option>
+            <option value="semi_closed"${draft.session_type === "semi_closed" ? " selected" : ""}>Semi-gesloten · zichtbaar, code vereist</option>
+          </select>
+        </label>
+        <label>
+          <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
+          <select id="gameSessionDifficulty" data-create-difficulty-select>
+            ${difficultyOptions(draft.difficulty_level)}
+          </select>
+        </label>
+        <button class="primary-button" type="submit">Sessie aanmaken</button>
+        <div class="difficulty-axis-summary" data-difficulty-summary>
+          ${difficultyAxesMarkup(draft.difficulty_level)}
+        </div>
+        ${gameConfigFieldsMarkup(draft.game_config)}
+      </form>
+      <p class="manager-create-note">Alleen hier, in Beheer, kan een reguliere gamesessie worden aangemaakt.</p>
+    `;
+  }
+
   function sessionMarkup(session, context) {
     const vacancies = session.role_vacancies || [];
     const running = session.status === "running";
@@ -141,12 +392,15 @@
         member => member.member_id === session.current_member_id
       );
       const assignedRole = roleLabel(currentMember?.assigned_role_id);
+      const customerOrderLabel = session.game_config?.customer_order_mode === "free"
+        ? "vrije klantorders"
+        : "verplichte klantorders";
       return `
         <div class="player-running-session">
           <span class="session-member-token">${escapeHtml(assignedRole.slice(0, 2).toUpperCase())}</span>
           <span>
             <strong>${escapeHtml(assignedRole)}</strong>
-            <small>Gamesessie gestart${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
+            <small>Gamesessie gestart · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
           </span>
         </div>
       `;
@@ -161,10 +415,15 @@
         </div>
         <div class="session-facts">
           <span>${escapeHtml(TYPE_LABELS[session.session_type])}</span>
+          <span>${escapeHtml(difficultyLevel(session.difficulty_level).label)}</span>
+          <span>${escapeHtml(GAME_CONFIG_PRESETS[session.game_config?.game_type]?.label || "LO Game 4")}</span>
+          <span>${session.game_config?.customer_order_mode === "free" ? "Vrije klantorders" : "Verplichte klantorders"}</span>
           <span>${session.members.length}/${session.required_role_ids.length} spelers</span>
           <span>${session.is_game_master ? "Jij bent Game Master" : "Game Master aanwezig"}</span>
         </div>
         ${gameMasterRoleMarkup(session)}
+        ${gameMasterDifficultyMarkup(session)}
+        ${gameMasterConfigMarkup(session)}
         <ul class="session-member-list">${memberCards(session)}</ul>
         ${vacancies.length ? `
           <div class="session-vacancies">
@@ -277,20 +536,7 @@
       els.playerBadge.textContent = "Geen sessie";
       els.managerBadge.textContent = "Geen sessie";
       els.playerContent.innerHTML = availableMarkup(state.availability);
-      els.managerContent.innerHTML = `
-        <form id="gameSessionCreateForm" class="game-session-create-form">
-          <label>
-            <span>Toegang</span>
-            <select id="gameSessionType">
-              <option value="closed">Gesloten · alleen met gamecode</option>
-              <option value="open">Open · zichtbaar en direct deelnemen</option>
-              <option value="semi_closed">Semi-gesloten · zichtbaar, code vereist</option>
-            </select>
-          </label>
-          <button class="primary-button" type="submit">Sessie aanmaken</button>
-        </form>
-        <p class="manager-create-note">Alleen hier, in Beheer, kan een reguliere gamesessie worden aangemaakt.</p>
-      `;
+      els.managerContent.innerHTML = createSessionMarkup();
     }
     renderConsensus();
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
@@ -319,8 +565,15 @@
     }
   }
 
-  async function mutate(path, body) {
-    if (state.busy) return;
+  function pendingConfigOverlay() {
+    if (!state.session || !state.pendingGameConfig) return;
+    state.session = {
+      ...state.session,
+      game_config: { ...state.pendingGameConfig }
+    };
+  }
+
+  async function performMutation(path, body) {
     state.busy = true;
     state.mutationVersion += 1;
     try {
@@ -331,9 +584,12 @@
       if (state.session.status === "finished") {
         state.session = null;
       }
+      pendingConfigOverlay();
       render();
       try {
         await refreshAfterMutation();
+        pendingConfigOverlay();
+        render();
       } catch (refreshError) {
         // De mutatie is al bevestigd door de server. Houd dat resultaat
         // zichtbaar en meld een mislukte naverfrissing niet als mislukte actie.
@@ -346,10 +602,36 @@
     }
   }
 
+  function mutate(path, body) {
+    const operation = () => performMutation(path, body);
+    state.mutationQueue = state.mutationQueue.then(operation, operation);
+    return state.mutationQueue;
+  }
+
+  async function queueGameConfigSave(gameConfig) {
+    state.pendingGameConfig = { ...gameConfig };
+    if (state.savingGameConfig || !state.session) return;
+    state.savingGameConfig = true;
+    try {
+      while (state.pendingGameConfig && state.session) {
+        const nextConfig = state.pendingGameConfig;
+        state.pendingGameConfig = null;
+        await mutate(
+          `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/configuration`,
+          { game_config: nextConfig }
+        );
+      }
+    } finally {
+      state.savingGameConfig = false;
+      if (state.pendingGameConfig && state.session) {
+        queueGameConfigSave(state.pendingGameConfig);
+      }
+    }
+  }
+
   async function refreshAfterMutation() {
     state.availability = await request("/v1/game-sessions/availability");
     state.session = state.availability.current_session;
-    render();
   }
 
   function wire() {
@@ -357,7 +639,18 @@
       if (event.target.matches("#gameSessionCreateForm")) {
         event.preventDefault();
         const type = event.target.querySelector("#gameSessionType")?.value || "closed";
-        mutate("/v1/game-sessions", { session_type: type });
+        const difficulty = event.target.querySelector("#gameSessionDifficulty")?.value || "normal";
+        const gameConfig = collectGameConfig(event.target);
+        state.createSessionDraft = {
+          session_type: type,
+          difficulty_level: difficulty,
+          game_config: { ...gameConfig }
+        };
+        mutate("/v1/game-sessions", {
+          session_type: type,
+          difficulty_level: difficulty,
+          game_config: gameConfig
+        });
       }
       if (event.target.matches("[data-game-code-join]")) {
         event.preventDefault();
@@ -365,12 +658,57 @@
         mutate("/v1/game-sessions/join", { join_code: String(code || "").toUpperCase() });
       }
     });
+    document.addEventListener("input", event => {
+      const createForm = event.target.closest("#gameSessionCreateForm");
+      if (!createForm) return;
+      if (
+        event.target.matches("[data-game-config-control]")
+        && !event.target.matches("[data-session-game-type]")
+      ) {
+        state.createSessionDraft.game_config = collectGameConfig(createForm);
+      } else if (event.target.matches("[data-create-difficulty-select]")) {
+        state.createSessionDraft.difficulty_level = String(event.target.value || "normal");
+      } else if (event.target.matches("#gameSessionType")) {
+        state.createSessionDraft.session_type = String(event.target.value || "closed");
+      }
+    });
     document.addEventListener("change", event => {
-      if (!event.target.matches("[data-game-master-role-select]") || !state.session) return;
-      mutate(
-        `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/game-master-role`,
-        { role_id: String(event.target.value || "") }
-      );
+      if (event.target.matches("[data-game-config-control]")) {
+        const form = event.target.closest("form");
+        if (event.target.matches("[data-session-game-type]")) {
+          applyGameConfigPreset(form, event.target.value);
+        }
+        if (form?.matches("#gameSessionCreateForm")) {
+          state.createSessionDraft.game_config = collectGameConfig(form);
+        }
+        if (form?.matches("[data-active-game-config]") && state.session) {
+          queueGameConfigSave(collectGameConfig(form));
+        }
+        return;
+      }
+      if (event.target.matches("[data-create-difficulty-select]")) {
+        state.createSessionDraft.difficulty_level = String(event.target.value || "normal");
+        const summary = event.target.closest("form")?.querySelector("[data-difficulty-summary]");
+        if (summary) summary.innerHTML = difficultyAxesMarkup(event.target.value);
+        return;
+      }
+      if (event.target.matches("#gameSessionType")) {
+        state.createSessionDraft.session_type = String(event.target.value || "closed");
+        return;
+      }
+      if (event.target.matches("[data-game-master-role-select]") && state.session) {
+        mutate(
+          `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/game-master-role`,
+          { role_id: String(event.target.value || "") }
+        );
+        return;
+      }
+      if (event.target.matches("[data-game-difficulty-select]") && state.session) {
+        mutate(
+          `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/difficulty`,
+          { difficulty_level: String(event.target.value || "normal") }
+        );
+      }
     });
     document.addEventListener("click", event => {
       const target = event.target.closest("button");

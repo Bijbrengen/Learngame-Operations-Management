@@ -800,6 +800,7 @@
     opportunityCost: 0,
     assignedRoleId: null,
     gameSessionRunning: false,
+    gameSessionDifficulty: "normal",
     customProducts: loadCustomProducts(),
     appView: "player",
     managerTab: "core",
@@ -845,6 +846,7 @@
       intermediateStock: true,
       opportunityCosts: true,
       roleFreedom: false,
+      customerOrderMode: "required",
       priceMode: "fixed",
       logisticsOrganization: "product",
       productTypeCount: MIN_PRODUCT_TYPES,
@@ -1236,7 +1238,7 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["session", "core", "tower-editor", "settings", "inventory", "events", "process"]);
+    const allowed = new Set(["session", "core", "tower-editor", "inventory", "events", "process"]);
     const nextTab = allowed.has(tab) ? tab : "core";
     state.managerTab = nextTab;
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
@@ -2288,12 +2290,26 @@
     });
   }
 
-  function startStandaloneLogisticsGame() {
+  function startStandaloneLogisticsGame(
+    difficultyLevel = state.gameSessionDifficulty,
+    sessionGameConfig = null
+  ) {
     if (!logisticsGameController) initStandaloneLogisticsGame();
     if (!logisticsGameController) return;
     logisticsGameController.engine.products = standaloneSimulationProducts();
+    logisticsGameController.engine.setBehaviorPatterns(
+      state.config.gameType === "entrepreneurial"
+        ? window.EntrepreneurshipAgentPatterns
+        : null
+    );
+    logisticsGameController.engine.setDifficulty(difficultyLevel);
+    const customerOrderMode = sessionGameConfig
+      ? (sessionGameConfig.customer_order_mode === "free" ? "free" : "required")
+      : state.config.customerOrderMode;
+    state.config.customerOrderMode = customerOrderMode;
+    logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
-    logisticsGameController.start({ humanRoleId });
+    logisticsGameController.start({ humanRoleId, customerOrderMode });
     if (document.body.classList.contains("tutorial-focus")) {
       logisticsGameController.pause();
     } else {
@@ -4049,7 +4065,10 @@
     if (!preset) return false;
 
     const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
-    Object.assign(state.config, preset.config, { gameType });
+    Object.assign(state.config, preset.config, {
+      gameType,
+      customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" ? "free" : "required"
+    });
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
@@ -4073,6 +4092,36 @@
     renderDataModel(true);
     renderAll();
     return true;
+  }
+
+  function applyGameSessionConfig(config = {}) {
+    const gameType = GAME_TYPE_PRESETS[config.game_type] ? config.game_type : "lo4";
+    const preset = GAME_TYPE_PRESETS[gameType];
+    const productTypeCount = Math.max(
+      MIN_PRODUCT_TYPES,
+      Math.min(MAX_PRODUCT_TYPES, Number(config.product_type_count) || preset.config.productTypeCount)
+    );
+    const productTypeCountChanged = state.config.productTypeCount !== productTypeCount;
+    Object.assign(state.config, preset.config, {
+      gameType,
+      money: config.money ?? preset.config.money,
+      pnl: config.pnl ?? preset.config.pnl,
+      intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
+      opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
+      roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
+      customerOrderMode: config.customer_order_mode === "free" ? "free" : "required",
+      priceMode: config.price_mode || preset.config.priceMode,
+      logisticsOrganization: config.logistics_organization || preset.config.logisticsOrganization,
+      productTypeCount
+    });
+    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
+      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
+    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
+    syncConfigControls();
+    if (productTypeCountChanged) applyProductTypeCount(false);
+    logisticsGameController?.engine?.setCustomerOrderMode(state.config.customerOrderMode);
+    renderDataModel(true);
   }
 
   function syncConfigFromControls(dispatch = true) {
@@ -4194,6 +4243,10 @@
   function wireEvents() {
     window.addEventListener("learngame-session-state", event => {
       state.gameSessionRunning = Boolean(event.detail?.running);
+      state.gameSessionDifficulty = event.detail?.session?.difficulty_level || "normal";
+      if (event.detail?.session?.game_config) {
+        applyGameSessionConfig(event.detail.session.game_config);
+      }
       if (!state.gameSessionRunning) {
         state.attention.mode = "task";
         logisticsGameController?.stop();
@@ -4207,12 +4260,15 @@
       state.sessionId = session.session_id;
       const member = session.members?.find(item => item.member_id === session.current_member_id);
       if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
-      startStandaloneLogisticsGame();
+      state.gameSessionDifficulty = session.difficulty_level || "normal";
+      if (session.game_config) applyGameSessionConfig(session.game_config);
+      startStandaloneLogisticsGame(state.gameSessionDifficulty, session.game_config);
       dispatchInteraction({
         actionType: "start_game_session",
         result: session.virtual_agents?.length ? "agents_activated" : "all_players_present",
         objectRole: "game_session",
         role: session.is_game_master ? "Game Master" : "Speler",
+        difficultyLevel: state.gameSessionDifficulty,
         virtualAgentRoles: (session.virtual_agents || []).map(agent => agent.role_id)
       });
       renderAll();
