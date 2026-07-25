@@ -129,10 +129,10 @@
             <p class="eyebrow">Gamecode &amp; lobby</p>
             <h2 id="playerSessionTitle">Neem deel aan een gamesessie</h2>
           </div>
-          <span id="playerSessionBadge" class="session-status-badge">Zoeken…</span>
+          <span id="playerSessionBadge" class="session-status-badge">Geen sessie</span>
         </div>
         <div id="playerSessionContent" class="game-session-content">
-          <p>Beschikbare gamesessies ophalen…</p>
+          <p class="no-open-games">Er zijn momenteel geen beschikbare gamesessies.</p>
         </div>
       </section>
       <section id="logisticsGameMount"
@@ -319,6 +319,14 @@
             </div>
             <fieldset class="session-game-config">
               <legend>Spelvariant en spelregels</legend>
+              <label class="session-config-field session-play-mode is-wide">
+                <span>Spelmodus</span>
+                <select name="play_mode" data-game-config-control>
+                  <option value="physical" selected>Fysiek · echte LEGO en administratief dashboard</option>
+                  <option value="digital">Digitaal · volledig bouwen en verplaatsen op het scherm</option>
+                </select>
+                <small>Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie.</small>
+              </label>
               <label class="session-config-field is-wide">
                 <span>Gametype</span>
                 <select name="game_type" data-session-game-type data-game-config-control>

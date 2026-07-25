@@ -30,7 +30,11 @@
     if (!value || !loopbackHost(location.hostname)) return value;
     try {
       const url = new URL(String(value), location.origin);
-      if (!loopbackHost(url.hostname) || url.hostname === location.hostname) return value;
+      if (!loopbackHost(url.hostname)) return value;
+      if (!location.pathname.startsWith("/tools/leerbox/")) {
+        return localApiForCurrentPage();
+      }
+      if (url.hostname === location.hostname) return value;
       url.hostname = location.hostname;
       return url.toString().replace(/\/+$/, "");
     } catch {

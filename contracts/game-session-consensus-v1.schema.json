@@ -14,8 +14,9 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
+      "required": ["play_mode", "game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
       "properties": {
+        "play_mode": {"enum": ["physical", "digital"]},
         "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"]},
         "money": {"type": "boolean"},
         "pnl": {"type": "boolean"},

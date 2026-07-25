@@ -840,6 +840,7 @@
       feedback: ""
     },
     config: {
+      playMode: "physical",
       gameType: "lo4",
       money: true,
       pnl: true,
@@ -2306,10 +2307,13 @@
     const customerOrderMode = sessionGameConfig
       ? (sessionGameConfig.customer_order_mode === "free" ? "free" : "required")
       : state.config.customerOrderMode;
+    const playMode = sessionGameConfig?.play_mode === "digital" ? "digital" : "physical";
     state.config.customerOrderMode = customerOrderMode;
+    state.config.playMode = playMode;
     logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
+    logisticsGameController.engine.setPlayMode(playMode);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
-    logisticsGameController.start({ humanRoleId, customerOrderMode });
+    logisticsGameController.start({ humanRoleId, customerOrderMode, playMode });
     if (document.body.classList.contains("tutorial-focus")) {
       logisticsGameController.pause();
     } else {
@@ -2332,6 +2336,11 @@
     }
     const order = playerAssignment();
     const sessionAllowsRoleActions = state.gameSessionRunning || document.body.classList.contains("tutorial-focus");
+    if (!sessionAllowsRoleActions) {
+      els.playerTaskPanel.hidden = true;
+      els.playerWaitingPanel.hidden = true;
+      return;
+    }
     const taskVisible = sessionAllowsRoleActions && Boolean(order) && state.attention.mode === "task";
     els.playerTaskPanel.hidden = !taskVisible;
     els.playerWaitingPanel.hidden = taskVisible;
@@ -4103,6 +4112,7 @@
     );
     const productTypeCountChanged = state.config.productTypeCount !== productTypeCount;
     Object.assign(state.config, preset.config, {
+      playMode: config.play_mode === "digital" ? "digital" : "physical",
       gameType,
       money: config.money ?? preset.config.money,
       pnl: config.pnl ?? preset.config.pnl,

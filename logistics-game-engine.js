@@ -275,6 +275,7 @@
       this.parts = deepClone(options.parts || PART_DEFINITIONS);
       this.behaviorPatterns = options.behaviorPatterns || null;
       this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
+      this.playMode = options.playMode === "digital" ? "digital" : "physical";
       this.difficultyLevel = "normal";
       this.difficulty = DIFFICULTY_PRESETS.normal;
       this.random = typeof options.random === "function" ? options.random : Math.random;
@@ -358,6 +359,11 @@
       return this.customerOrderMode;
     }
 
+    setPlayMode(mode) {
+      this.playMode = mode === "digital" ? "digital" : "physical";
+      return this.playMode;
+    }
+
     pickWeightedProfile(profiles) {
       if (!Array.isArray(profiles) || !profiles.length) return null;
       const totalWeight = profiles.reduce(
@@ -395,12 +401,17 @@
       });
     }
 
-    start({ humanRoleId = null, customerOrderMode = this.customerOrderMode } = {}) {
+    start({
+      humanRoleId = null,
+      customerOrderMode = this.customerOrderMode,
+      playMode = this.playMode
+    } = {}) {
       if (humanRoleId && !this.roles[humanRoleId]) {
         throw new Error(`Onbekende spelersrol: ${humanRoleId}`);
       }
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
+      this.setPlayMode(playMode);
       this.reset();
       const now = this.now();
       this.started = true;
@@ -746,6 +757,7 @@
         order: deepClone(order),
         product: deepClone(this.products[order.productId]),
         requiredParts: this.requiredParts(order, this.humanRoleId),
+        playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
         availableProducts: this.humanRoleId === "customer"
           ? deepClone(Object.values(this.products))
@@ -765,7 +777,13 @@
           errors.push(`${this.parts[partId]?.label || partId}: ${selected}/${required}`);
         }
       });
-      if (!payload.transferred) errors.push("Bevestig de logistieke overdracht.");
+      if (!payload.transferred) {
+        errors.push(
+          this.playMode === "digital"
+            ? "Voer de virtuele logistieke overdracht uit."
+            : "Bevestig de fysieke logistieke overdracht op het formulier."
+        );
+      }
       if (!payload.signed) errors.push("Parafeer het formulier.");
       if (errors.length) {
         this.emit("player-action-rejected", { errors });
@@ -775,6 +793,15 @@
       const now = this.now();
       const runtime = this.roleRuntime[this.humanRoleId];
       const order = this.orders.get(runtime.activeOrderId);
+      const handlingTimeMs = Math.max(0, now - Number(runtime.stateSince || now));
+      order.history.push({
+        at: now,
+        roleId: this.humanRoleId,
+        type: "player_handling",
+        label: this.playMode === "digital" ? "Digitale handeling" : "Fysieke handling",
+        handlingTimeMs,
+        playMode: this.playMode
+      });
       const incident = this.rollIncident(this.humanRoleId, order);
       this.addFeed(
         "player",
@@ -796,7 +823,12 @@
           this.config.transferDelayMaxMs
         );
       }
-      this.emit("player-action-completed", { order: deepClone(order), roleId: this.humanRoleId });
+      this.emit("player-action-completed", {
+        order: deepClone(order),
+        roleId: this.humanRoleId,
+        playMode: this.playMode,
+        handlingTimeMs
+      });
       return { ok: true, errors: [] };
     }
 
@@ -870,6 +902,7 @@
         started: Boolean(this.started),
         startedAt: this.startedAt,
         humanRoleId: this.humanRoleId,
+        playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
         nextOrderAt: this.nextOrderAt,
         roles: deepClone(this.roles),

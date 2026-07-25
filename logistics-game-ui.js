@@ -26,6 +26,12 @@
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
 
+  function eventTargetClosest(event, selector) {
+    const target = event?.target;
+    const element = typeof target?.closest === "function" ? target : target?.parentElement;
+    return typeof element?.closest === "function" ? element.closest(selector) : null;
+  }
+
   function towerMarkup(product) {
     if (
       window.LegoTowerRenderer
@@ -58,10 +64,11 @@
       this.selectedParts = {};
       this.signed = false;
       this.transferred = false;
-      this.waitingTab = "departments";
+      this.waitingTab = "flow";
       this.lastFlowSignature = "";
       this.taskKey = null;
       this.customerOrderDraft = null;
+      this.digitalSelectedPartId = null;
       this.feedback = "";
       this.renderProcessFlow = typeof options.renderProcessFlow === "function"
         ? options.renderProcessFlow
@@ -95,14 +102,21 @@
       this.handleClick = this.handleClick.bind(this);
       this.handleChange = this.handleChange.bind(this);
       this.handleSubmit = this.handleSubmit.bind(this);
+      this.handleDragStart = this.handleDragStart.bind(this);
+      this.handleDragOver = this.handleDragOver.bind(this);
+      this.handleDrop = this.handleDrop.bind(this);
       this.mount.addEventListener("click", this.handleClick);
       this.mount.addEventListener("change", this.handleChange);
       this.mount.addEventListener("submit", this.handleSubmit);
+      this.mount.addEventListener("dragstart", this.handleDragStart);
+      this.mount.addEventListener("dragover", this.handleDragOver);
+      this.mount.addEventListener("drop", this.handleDrop);
       this.render();
     }
 
     start(options = {}) {
       this.resetPlayerInput();
+      this.waitingTab = "flow";
       this.mount.hidden = false;
       this.engine.start(options);
       this.render();
@@ -133,6 +147,9 @@
       this.mount.removeEventListener("click", this.handleClick);
       this.mount.removeEventListener("change", this.handleChange);
       this.mount.removeEventListener("submit", this.handleSubmit);
+      this.mount.removeEventListener("dragstart", this.handleDragStart);
+      this.mount.removeEventListener("dragover", this.handleDragOver);
+      this.mount.removeEventListener("drop", this.handleDrop);
       this.mount.innerHTML = "";
     }
 
@@ -143,17 +160,38 @@
       this.feedback = "";
       this.taskKey = null;
       this.customerOrderDraft = null;
+      this.digitalSelectedPartId = null;
     }
 
     handleClick(event) {
-      const roleButton = event.target.closest("[data-sim-role]");
+      const roleButton = eventTargetClosest(event, "[data-sim-role]");
       if (roleButton) {
         this.engine.setHumanRole(roleButton.dataset.simRole);
         this.render();
         return;
       }
 
-      const partButton = event.target.closest("[data-sim-part]");
+      const digitalPart = eventTargetClosest(event, "[data-sim-drag-part]");
+      if (digitalPart) {
+        this.digitalSelectedPartId = digitalPart.dataset.simDragPart;
+        this.feedback = "";
+        this.render();
+        return;
+      }
+
+      const digitalBoard = eventTargetClosest(event, "[data-sim-builder-board]");
+      if (digitalBoard && this.digitalSelectedPartId) {
+        this.placeDigitalBoardPart(this.digitalSelectedPartId, event, digitalBoard);
+        return;
+      }
+
+      const transferCargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
+      if (transferCargo && !transferCargo.disabled) {
+        this.completeDigitalTransfer();
+        return;
+      }
+
+      const partButton = eventTargetClosest(event, "[data-sim-part]");
       if (partButton) {
         const partId = partButton.dataset.simPart;
         const task = this.engine.playerTask();
@@ -164,7 +202,7 @@
         return;
       }
 
-      const resetPartButton = event.target.closest("[data-sim-part-reset]");
+      const resetPartButton = eventTargetClosest(event, "[data-sim-part-reset]");
       if (resetPartButton) {
         this.selectedParts[resetPartButton.dataset.simPartReset] = 0;
         this.transferred = false;
@@ -172,7 +210,7 @@
         return;
       }
 
-      const transferButton = event.target.closest("[data-sim-transfer]");
+      const transferButton = eventTargetClosest(event, "[data-sim-transfer]");
       if (transferButton && !transferButton.disabled) {
         this.transferred = true;
         this.feedback = "Overdracht staat gereed. Parafeer het formulier en rond de handeling af.";
@@ -180,14 +218,14 @@
         return;
       }
 
-      const waitingTabButton = event.target.closest("[data-sim-waiting-tab]");
+      const waitingTabButton = eventTargetClosest(event, "[data-sim-waiting-tab]");
       if (waitingTabButton) {
         this.waitingTab = waitingTabButton.dataset.simWaitingTab;
         this.render();
         return;
       }
 
-      const completeButton = event.target.closest("[data-sim-complete]");
+      const completeButton = eventTargetClosest(event, "[data-sim-complete]");
       if (completeButton && !completeButton.disabled) {
         const result = this.engine.completePlayerAction({
           parts: { ...this.selectedParts },
@@ -197,6 +235,84 @@
         this.feedback = result.ok ? "Handeling verwerkt en doorgestuurd." : result.errors.join(" · ");
         if (result.ok) this.resetPlayerInput();
         this.render();
+      }
+    }
+
+    addDigitalPart(partId) {
+      const task = this.engine.playerTask();
+      const required = Number(task?.requiredParts?.[partId] || 0);
+      if (!required) {
+        const part = this.engine.parts[partId];
+        this.feedback = `${part?.label || "Dit onderdeel"} staat niet op de stuklijst.`;
+        this.render();
+        return false;
+      }
+      const selected = Number(this.selectedParts[partId] || 0);
+      if (selected >= required) {
+        this.feedback = "De benodigde hoeveelheid van dit onderdeel ligt al klaar.";
+        this.render();
+        return false;
+      }
+      this.selectedParts[partId] = selected + 1;
+      this.transferred = false;
+      this.feedback = "";
+      this.render();
+      return true;
+    }
+
+    completeDigitalTransfer() {
+      const task = this.engine.playerTask();
+      if (!this.partsComplete(task)) return false;
+      this.transferred = true;
+      this.feedback = "";
+      this.render();
+      return true;
+    }
+
+    handleDragStart(event) {
+      const part = eventTargetClosest(event, "[data-sim-drag-part]");
+      if (part) {
+        this.digitalSelectedPartId = part.dataset.simDragPart;
+        event.dataTransfer?.setData("application/x-learngame-part", part.dataset.simDragPart);
+        event.dataTransfer?.setData("text/plain", part.dataset.simDragPart);
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+        return;
+      }
+      const cargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
+      if (cargo && !cargo.disabled) {
+        event.dataTransfer?.setData("application/x-learngame-transfer", "ready");
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      }
+    }
+
+    handleDragOver(event) {
+      if (eventTargetClosest(event, "[data-sim-part-dropzone]")) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        return;
+      }
+      if (eventTargetClosest(event, "[data-sim-transfer-dropzone]")) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      }
+    }
+
+    handleDrop(event) {
+      const partTarget = eventTargetClosest(event, "[data-sim-part-dropzone]");
+      if (partTarget) {
+        event.preventDefault();
+        const partId = event.dataTransfer?.getData("application/x-learngame-part")
+          || event.dataTransfer?.getData("text/plain");
+        const board = eventTargetClosest(event, "[data-sim-builder-board]");
+        if (partId && board) this.placeDigitalBoardPart(partId, event, board);
+        else if (partId) this.addDigitalPart(partId);
+        return;
+      }
+      const transferTarget = eventTargetClosest(event, "[data-sim-transfer-dropzone]");
+      if (transferTarget) {
+        event.preventDefault();
+        const ready = event.dataTransfer?.getData("application/x-learngame-transfer");
+        if (ready === "ready") this.completeDigitalTransfer();
       }
     }
 
@@ -431,6 +547,12 @@
     }
 
     actionPanelMarkup(task) {
+      return task.playMode === "digital"
+        ? this.digitalActionPanelMarkup(task)
+        : this.physicalActionPanelMarkup(task);
+    }
+
+    physicalActionPanelMarkup(task) {
       const partEntries = Object.entries(task.requiredParts || {});
       const partsComplete = this.partsComplete(task);
       const canComplete = partsComplete && this.transferred && this.signed;
@@ -442,7 +564,7 @@
             <span>${escapeHtml(task.role.form.actionLabel)}</span>
           </header>
           <section class="sim-action-section">
-            <h3>${partEntries.length ? "1. Selecteer en stapel onderdelen" : "1. Controleer de opdracht"}</h3>
+            <h3>${partEntries.length ? "1. Selecteer de fysiek gebruikte onderdelen" : "1. Controleer de opdracht"}</h3>
             ${partEntries.length
               ? `<div class="sim-part-buttons">
                   ${partEntries.map(([partId, required]) => {
@@ -495,6 +617,382 @@
       `;
     }
 
+    digitalSourceParts(task) {
+      const requiredIds = Object.keys(task.requiredParts || {})
+        .filter(partId => task.role.id === "srm" || partId !== "base_green");
+      const distractorIds = Object.keys(this.engine.parts)
+        .filter(partId => !requiredIds.includes(partId) && partId !== "base_green")
+        .slice(0, 3);
+      return [...requiredIds, ...distractorIds].map(partId => {
+        const part = this.engine.parts[partId] || { label: partId, color: "white", size: "" };
+        const required = Number(task.requiredParts?.[partId] || 0);
+        const selected = Number(this.selectedParts[partId] || 0);
+        const complete = required > 0 && selected >= required;
+        const dimensions = this.digitalPartDimensions(partId);
+        const selectedClass = this.digitalSelectedPartId === partId ? " is-selected" : "";
+        const partVisual = window.LegoTowerRenderer
+          ? window.LegoTowerRenderer.renderPart(
+              {
+                id: partId,
+                color: part.color,
+                width: dimensions.width === dimensions.depth ? "narrow" : "wide"
+              },
+              part.label
+            )
+          : `<i aria-hidden="true"><span></span><span></span></i>`;
+        return `
+          <button type="button"
+                  class="builder-palette-item brick-${escapeHtml(part.color)} sim-material-brick ${required ? "is-required" : "is-distractor"}${selectedClass}"
+                  style="--sim-brick-color: var(--brick-${escapeHtml(part.color)})"
+                  data-sim-drag-part="${escapeHtml(partId)}"
+                  draggable="${complete ? "false" : "true"}"
+                  aria-pressed="${this.digitalSelectedPartId === partId}"
+                  ${complete ? "disabled" : ""}>
+            ${partVisual}
+            <strong>${escapeHtml(part.label)}</strong>
+            <small>${escapeHtml(part.size)}${required ? ` · nog ${Math.max(0, required - selected)}` : ""}</small>
+          </button>
+        `;
+      }).join("");
+    }
+
+    digitalPartDimensions(partId) {
+      const size = String(this.engine.parts[partId]?.size || "");
+      const dimensions = size.match(/(\d+)\D+(\d+)/);
+      return {
+        width: Number(dimensions?.[1] || 2),
+        depth: Number(dimensions?.[2] || 2)
+      };
+    }
+
+    digitalLayerBricks(task, roleId, z) {
+      const recipe = Object.entries(task.product?.stages?.[roleId] || {})
+        .filter(([partId]) => partId !== "base_green")
+        .flatMap(([partId, amount]) => Array.from(
+          { length: Math.max(0, Number(amount) || 0) },
+          () => ({ type: partId, ...this.digitalPartDimensions(partId) })
+        ));
+      if (!recipe.length) return [];
+      if (recipe.length === 1) {
+        const brick = recipe[0];
+        if (brick.width !== brick.depth && z === 1) {
+          return [{ ...brick, x: 1, y: 2, width: 4, depth: 2, z }];
+        }
+        return [{ ...brick, x: 2, y: brick.depth === 4 ? 1 : 2, z }];
+      }
+      if (recipe.length === 2 && recipe.every(brick => brick.width === 2 && brick.depth === 4)) {
+        return recipe.map((brick, index) => ({ ...brick, x: 1 + index * 2, y: 1, z }));
+      }
+      if (recipe.every(brick => brick.width === 2 && brick.depth === 2)) {
+        const positions = [[1, 1], [3, 1], [1, 3], [3, 3]];
+        return recipe.map((brick, index) => ({
+          ...brick,
+          x: positions[index % positions.length][0],
+          y: positions[index % positions.length][1],
+          z
+        }));
+      }
+      return recipe.map((brick, index) => ({
+        ...brick,
+        x: Math.max(0, Math.min(6 - brick.width, 1 + (index * 2) % 4)),
+        y: Math.max(0, Math.min(6 - brick.depth, 1 + Math.floor(index / 2) * 2)),
+        z
+      }));
+    }
+
+    digitalBuildState(task) {
+      const stageOrder = ["pd1", "pd2", "pd3"];
+      const currentIndex = stageOrder.indexOf(task.role.id);
+      const previous = stageOrder
+        .slice(0, Math.max(0, currentIndex))
+        .flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index));
+      const targets = currentIndex >= 0 ? this.digitalLayerBricks(task, task.role.id, currentIndex) : [];
+      const selectedCount = [...new Set(targets.map(target => target.type))].reduce(
+        (total, partId) => total + Number(this.selectedParts[partId] || 0),
+        0
+      );
+      const quantity = Math.max(1, Number(task.order?.quantity || 1));
+      const perTower = Math.max(1, targets.length);
+      const completedTowers = Math.min(quantity, Math.floor(selectedCount / perTower));
+      const complete = completedTowers >= quantity;
+      const placedCount = complete ? targets.length : selectedCount % perTower;
+      return {
+        previous,
+        targets,
+        placed: targets.slice(0, placedCount),
+        nextTarget: complete ? null : targets[placedCount],
+        quantity,
+        completedTowers,
+        currentTower: complete ? quantity : Math.min(quantity, completedTowers + 1),
+        complete
+      };
+    }
+
+    digitalBuilderBoardMarkup(task) {
+      if (!window.LegoTowerRenderer) {
+        return `
+          <div class="sim-digital-workbench is-building"
+               data-sim-builder-board
+               data-sim-part-dropzone>
+            <p class="builder-feedback is-error">De isometrische LEGO-renderer kon niet worden geladen.</p>
+          </div>
+        `;
+      }
+      const state = this.digitalBuildState(task);
+      const rendererScope = "sim-builder";
+      const bricks = [...state.previous, ...state.placed].sort((left, right) => (
+        left.z - right.z
+        || (left.x + left.y) - (right.x + right.y)
+        || left.x - right.x
+      ));
+      const brickMarkup = brick => {
+        const color = this.engine.parts[brick.type]?.color || "white";
+        return window.LegoTowerRenderer.brick(
+          brick.x,
+          brick.y,
+          0.22 + brick.z * 0.78,
+          brick.width,
+          brick.depth,
+          color,
+          rendererScope
+        );
+      };
+      let targetMarkup = "";
+      if (state.nextTarget) {
+        const target = state.nextTarget;
+        const height = 0.27 + target.z * 0.78;
+        const corners = [
+          window.LegoTowerRenderer.iso(target.x, target.y, height),
+          window.LegoTowerRenderer.iso(target.x + target.width, target.y, height),
+          window.LegoTowerRenderer.iso(target.x + target.width, target.y + target.depth, height),
+          window.LegoTowerRenderer.iso(target.x, target.y + target.depth, height)
+        ];
+        targetMarkup = `
+          <g class="sim-builder-target" aria-hidden="true">
+            <polygon points="${corners.map(point => point.join(",")).join(" ")}"></polygon>
+          </g>
+        `;
+      }
+      return `
+        <div class="sim-inline-builder">
+          <div class="sim-inline-builder-status">
+            <span>${escapeHtml(task.product.name)}</span>
+            <strong>${state.complete
+              ? `${state.quantity} van ${state.quantity} torens gebouwd`
+              : `Bouw toren ${state.currentTower} van ${state.quantity}`}</strong>
+          </div>
+          <svg class="sim-inline-builder-board"
+               viewBox="0 0 520 420"
+               role="application"
+               tabindex="0"
+               data-sim-builder-board
+               data-sim-part-dropzone
+               aria-label="Bouw ${escapeHtml(task.product.name)} op de isometrische groene 6 bij 6 grondplaat">
+            <defs>
+              ${window.LegoTowerRenderer.definitions(rendererScope)}
+              <filter id="simBuilderBoardShadow" x="-30%" y="-30%" width="170%" height="190%">
+                <feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#173d26" flood-opacity="0.25"></feDropShadow>
+              </filter>
+            </defs>
+            <ellipse cx="350" cy="357" rx="150" ry="30" fill="rgba(28, 54, 39, 0.16)"></ellipse>
+            <g class="builder-isometric-scene"
+               transform="translate(170 62) scale(2)"
+               filter="url(#simBuilderBoardShadow)">
+              ${window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green", rendererScope)}
+              ${bricks.map(brickMarkup).join("")}
+              ${targetMarkup}
+            </g>
+          </svg>
+          <small>Kies of sleep een blok en klik op het gemarkeerde bouwvlak.</small>
+        </div>
+      `;
+    }
+
+    placeDigitalBoardPart(partId, event, board) {
+      const task = this.engine.playerTask();
+      if (!task || !["pd1", "pd2", "pd3"].includes(task.role.id)) return false;
+      const state = this.digitalBuildState(task);
+      const target = state.nextTarget;
+      if (!target) {
+        this.feedback = "Alle torens voor deze order zijn al opgebouwd.";
+        this.render();
+        return false;
+      }
+      if (partId !== target.type) {
+        this.feedback = `${this.engine.parts[partId]?.label || "Dit onderdeel"} hoort niet op het gemarkeerde bouwvlak.`;
+        this.render();
+        return false;
+      }
+      const rect = board.getBoundingClientRect?.();
+      if (rect?.width && rect?.height && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+        const pointerX = ((event.clientX - rect.left) / rect.width) * 520;
+        const pointerY = ((event.clientY - rect.top) / rect.height) * 420;
+        const projected = window.LegoTowerRenderer.iso(
+          target.x + target.width / 2,
+          target.y + target.depth / 2,
+          0.27 + target.z * 0.78
+        );
+        const targetX = 170 + projected[0] * 2;
+        const targetY = 62 + projected[1] * 2;
+        if (Math.hypot(targetX - pointerX, targetY - pointerY) > 90) {
+          this.feedback = "Plaats het blok op het gemarkeerde bouwvlak.";
+          this.render();
+          return false;
+        }
+      }
+      this.digitalSelectedPartId = null;
+      return this.addDigitalPart(partId);
+    }
+
+    digitalPartStageMarkup(task) {
+      const selected = Object.entries(task.requiredParts || {}).flatMap(([partId, required]) => {
+        const part = this.engine.parts[partId] || { label: partId, color: "white", size: "" };
+        const amount = Math.min(required, Number(this.selectedParts[partId] || 0));
+        return Array.from({ length: amount }, (_, index) => `
+          <span class="sim-staged-brick"
+                style="--sim-brick-color: var(--brick-${escapeHtml(part.color)})"
+                title="${escapeHtml(part.label)} ${index + 1}">
+            ${escapeHtml(part.size)}
+          </span>
+        `);
+      });
+      if (["pd1", "pd2", "pd3"].includes(task.role.id)) {
+        return this.digitalBuilderBoardMarkup(task);
+      }
+      return `
+        <div class="sim-digital-workbench is-staging"
+             data-sim-virtual-stage
+             data-sim-part-dropzone
+             role="region"
+             aria-label="Klaarlegvlak voor magazijnonderdelen">
+          <div>
+            <span>Klaarlegvlak</span>
+            <strong>${selected.length} ${selected.length === 1 ? "onderdeel" : "onderdelen"} klaargelegd</strong>
+          </div>
+          <div class="sim-staged-bricks">${selected.length ? selected.join("") : "<small>Sleep de juiste blokken hierheen.</small>"}</div>
+        </div>
+      `;
+    }
+
+    digitalMaterialActionMarkup(task) {
+      const hasParts = Object.keys(task.requiredParts || {}).length > 0;
+      if (!hasParts) {
+        return `
+          <div class="sim-digital-check is-complete">
+            <span aria-hidden="true">✓</span>
+            <strong>Digitale opdracht gereed voor overdracht</strong>
+          </div>
+        `;
+      }
+      return `
+        <div class="sim-material-action">
+          <div class="sim-material-source" aria-label="Beschikbare LEGO-onderdelen">
+            <span>${task.role.id === "srm" ? "Magazijnstelling" : "Onderdelenbak"}</span>
+            <div>${this.digitalSourceParts(task)}</div>
+          </div>
+          <span class="sim-drag-route" aria-hidden="true">⇢</span>
+          ${this.digitalPartStageMarkup(task)}
+        </div>
+      `;
+    }
+
+    digitalTransportMarkup(task, partsComplete) {
+      return `
+        <div class="sim-digital-transport ${partsComplete ? "is-ready" : "is-locked"}">
+          <button type="button"
+                  class="sim-transfer-cargo"
+                  data-sim-transfer-cargo
+                  draggable="${partsComplete ? "true" : "false"}"
+                  ${partsComplete ? "" : "disabled"}>
+            <span aria-hidden="true">${task.role.id === "srm" ? "▦" : "▤"}</span>
+            <strong>${task.role.id === "srm" ? "Klaargelegde materiaalset" : task.product.name}</strong>
+          </button>
+          <span aria-hidden="true">⇢</span>
+          <div class="sim-transfer-destination"
+               data-sim-transfer-dropzone
+               aria-label="${escapeHtml(task.role.form.transferLabel)}">
+            <span aria-hidden="true">⌂</span>
+            <strong>${escapeHtml(task.role.form.transferLabel)}</strong>
+          </div>
+        </div>
+      `;
+    }
+
+    digitalFormSummaryMarkup(task) {
+      const rows = Object.entries(task.requiredParts || {}).map(([partId, required]) => {
+        const part = this.engine.parts[partId] || { label: partId };
+        return `<li><span>${escapeHtml(part.label)}</span><strong>${required}/${required}</strong></li>`;
+      }).join("");
+      return `
+        <div class="sim-auto-form-summary" data-sim-form-parts>
+          <strong>Automatisch overgenomen uit de virtuele handeling</strong>
+          ${rows ? `<ul>${rows}</ul>` : "<p>Digitale opdracht gecontroleerd.</p>"}
+          <small>Transport naar de volgende afdeling is geregistreerd.</small>
+        </div>
+      `;
+    }
+
+    digitalActionPanelMarkup(task) {
+      if (
+        ["pd1", "pd2", "pd3"].includes(task.role.id)
+        && Number(task.requiredParts?.base_green || 0) > 0
+      ) {
+        this.selectedParts.base_green = Number(task.requiredParts.base_green);
+      }
+      const partEntries = Object.entries(task.requiredParts || {});
+      const partsComplete = this.partsComplete(task);
+      const canComplete = partsComplete && this.transferred && this.signed;
+      const partActionTitle = task.role.id === "srm"
+        ? "1. Haal onderdelen uit het magazijn en leg ze klaar"
+        : partEntries.length
+          ? "1. Selecteer onderdelen en zet ze op de toren"
+          : "1. Controleer de digitale opdracht";
+      return `
+        <aside class="sim-action-panel sim-digital-action-panel">
+          <header>
+            <div>
+              <p class="eyebrow">Digitale spelmodus</p>
+              <h2>Virtuele handeling</h2>
+              <span>${escapeHtml(task.role.form.actionLabel)}</span>
+            </div>
+            <details class="sim-action-help">
+              <summary aria-label="Help bij deze handeling">i</summary>
+              <div>
+                <strong>Hulp</strong>
+                <p>Sleep de juiste blokken vanuit de materiaalbak naar het klaarlegvlak of de toren. Sleep daarna de materiaalset of toren naar de volgende afdeling.</p>
+              </div>
+            </details>
+          </header>
+          <section class="sim-action-section sim-digital-stage-section" aria-label="${partActionTitle}">
+            ${this.digitalMaterialActionMarkup(task)}
+            ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
+          </section>
+          ${this.transferred ? "" : `
+            <section class="sim-action-section sim-digital-transfer-section" aria-label="Virtuele logistieke overdracht">
+              ${this.digitalTransportMarkup(task, partsComplete)}
+            </section>
+          `}
+          ${this.transferred ? `
+            <section class="sim-action-section">
+              <h3>3. Administratief afronden</h3>
+              ${this.digitalFormSummaryMarkup(task)}
+              <label class="sim-signature">
+                <input type="checkbox" data-sim-signature ${this.signed ? "checked" : ""}>
+                <span>Parafeer formulier</span>
+              </label>
+              <button type="button"
+                      class="primary-button sim-complete-button"
+                      data-sim-complete
+                      ${canComplete ? "" : "disabled"}>
+                Uitgevoerd
+              </button>
+              ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
+            </section>
+          ` : ""}
+        </aside>
+      `;
+    }
+
     factoryOverviewMarkup(snapshot) {
       const humanRole = snapshot.roles[snapshot.humanRoleId];
       const openOrders = snapshot.orders.filter(order => order.status !== "DELIVERED").length;
@@ -511,6 +1009,14 @@
           <nav class="sim-waiting-tabs" aria-label="Fabrieksoverzicht" role="tablist">
             <button type="button"
                     role="tab"
+                    data-sim-waiting-tab="flow"
+                    aria-selected="${this.waitingTab === "flow"}"
+                    class="${this.waitingTab === "flow" ? "is-active" : ""}">
+              <span>Productiestroom</span>
+              <strong>${openOrders}</strong>
+            </button>
+            <button type="button"
+                    role="tab"
                     data-sim-waiting-tab="departments"
                     aria-selected="${this.waitingTab === "departments"}"
                     class="${this.waitingTab === "departments" ? "is-active" : ""}">
@@ -524,14 +1030,6 @@
                     class="${this.waitingTab === "events" ? "is-active" : ""}">
               <span>Live gebeurtenissen</span>
               <strong>${snapshot.feed.length}</strong>
-            </button>
-            <button type="button"
-                    role="tab"
-                    data-sim-waiting-tab="flow"
-                    aria-selected="${this.waitingTab === "flow"}"
-                    class="${this.waitingTab === "flow" ? "is-active" : ""}">
-              <span>Productiestroom</span>
-              <strong>${openOrders}</strong>
             </button>
           </nav>
           <div class="sim-waiting-panel" role="tabpanel">

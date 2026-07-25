@@ -1744,6 +1744,7 @@ body[data-app-view="player"] .manager-only {
 }
 
 .session-game-config {
+  order: -1;
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -1775,6 +1776,25 @@ body[data-app-view="player"] .manager-only {
 .session-config-field.is-wide,
 .session-config-toggles {
   grid-column: 1 / -1;
+}
+
+.session-play-mode {
+  padding: 13px;
+  border: 1px solid rgba(245, 203, 114, 0.38);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(89, 60, 16, 0.42), rgba(7, 27, 32, 0.72));
+}
+
+.session-play-mode > span {
+  color: #f5cb72;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.session-play-mode > small {
+  color: #c8d9d9;
+  font-weight: 600;
 }
 
 .session-config-field select,
@@ -2255,7 +2275,7 @@ body[data-app-view="player"] .topbar {
 
 .sim-player-dashboard {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(330px, 0.75fr);
+  grid-template-columns: minmax(330px, 0.78fr) minmax(520px, 1.22fr);
   gap: 16px;
   align-items: stretch;
 }
@@ -2542,6 +2562,442 @@ body[data-app-view="player"] .topbar {
 .sim-part-buttons {
   display: grid;
   gap: 8px;
+}
+
+.sim-digital-workbench {
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px dashed #557780;
+  border-radius: 9px;
+  background:
+    linear-gradient(rgba(50, 221, 210, 0.04), rgba(50, 221, 210, 0.04)),
+    repeating-linear-gradient(90deg, #0c2229 0 20px, #102830 20px 21px);
+}
+
+.sim-digital-action-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.sim-digital-action-panel > header > div > span {
+  display: block;
+  margin-top: 5px;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+}
+
+.sim-action-help {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.sim-action-help summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 50%;
+  color: var(--lp-accent);
+  background: #0a2026;
+  font-family: Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sim-action-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.sim-action-help > div {
+  position: absolute;
+  z-index: 5;
+  top: 42px;
+  right: 0;
+  width: min(300px, 72vw);
+  padding: 12px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 9px;
+  color: #dbeaea;
+  background: #07191f;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.38);
+}
+
+.sim-action-help p {
+  margin-top: 6px;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.sim-digital-stage-section,
+.sim-digital-transfer-section {
+  padding: 14px;
+}
+
+.sim-material-action {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.62fr) 24px minmax(340px, 1.38fr);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.sim-material-source {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid #315961;
+  border-radius: 9px;
+  background: #0c2229;
+}
+
+.sim-material-source > span {
+  color: #9db8bb;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.sim-material-source > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sim-material-brick {
+  min-height: 108px;
+  padding: 5px;
+  border: 1px solid var(--lp-line);
+  color: var(--lp-ink);
+  background: #071014;
+  box-shadow: none;
+  text-align: center;
+  cursor: grab;
+}
+
+.sim-material-brick:active {
+  cursor: grabbing;
+}
+
+.sim-material-brick:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.sim-material-brick .lego-part-3d {
+  width: 72px;
+  height: 58px;
+}
+
+.sim-material-brick strong {
+  margin-top: -2px;
+  font-size: 0.72rem;
+}
+
+.sim-material-brick small {
+  color: var(--lp-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.sim-material-brick.is-distractor {
+  filter: saturate(0.86);
+}
+
+.sim-drag-route {
+  display: grid;
+  place-items: center;
+  color: var(--lp-accent);
+  font-size: 1.4rem;
+}
+
+.sim-digital-workbench {
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.sim-digital-workbench:hover {
+  border-color: var(--lp-accent);
+  background-color: rgba(50, 221, 210, 0.08);
+}
+
+.sim-inline-builder {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sim-inline-builder-status {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9db8bb;
+  font-size: 0.72rem;
+}
+
+.sim-inline-builder-status strong {
+  color: var(--lp-ink);
+}
+
+.sim-inline-builder-board {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 520 / 420;
+  overflow: hidden;
+  border: 1px solid #315961;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 38%, #173840 0, #0b2027 55%, #071014 100%);
+  box-shadow: inset 0 0 0 1px rgba(50, 221, 210, 0.08), 0 12px 24px rgba(0, 0, 0, 0.28);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.sim-inline-builder-board .iso-brick,
+.sim-builder-target {
+  pointer-events: none;
+}
+
+.sim-builder-target polygon {
+  fill: rgba(140, 236, 229, 0.16);
+  stroke: #62b6b7;
+  stroke-width: 2.4;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  animation: sim-builder-target-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes sim-builder-target-pulse {
+  to {
+    fill: rgba(140, 236, 229, 0.3);
+    stroke: var(--lp-accent);
+  }
+}
+
+.sim-inline-builder > small {
+  color: var(--lp-muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.sim-build-tower {
+  display: grid;
+  place-items: center;
+  min-height: 170px;
+  overflow: hidden;
+}
+
+.sim-build-tower .sim-tower-renderer {
+  transform: scale(0.72);
+  transform-origin: center;
+}
+
+.sim-empty-tower {
+  display: grid;
+  grid-template-columns: repeat(2, 18px);
+  grid-template-rows: repeat(2, 18px);
+  gap: 3px;
+  padding: 15px;
+  border-radius: 50%;
+  background: #16353d;
+  box-shadow: inset 0 0 0 2px #315961;
+}
+
+.sim-empty-tower span {
+  border-radius: 50%;
+  background: #557780;
+}
+
+.sim-digital-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 14px;
+  border: 1px solid #327654;
+  border-radius: 9px;
+  color: #cce9d8;
+  background: #102d23;
+}
+
+.sim-digital-check > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2f7d56;
+}
+
+.sim-digital-transport {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) 28px minmax(150px, 1.2fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-digital-transport > span {
+  color: var(--lp-accent);
+  text-align: center;
+  font-size: 1.35rem;
+}
+
+.sim-transfer-cargo,
+.sim-transfer-destination {
+  min-height: 92px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 9px;
+  text-align: center;
+}
+
+.sim-transfer-cargo {
+  border: 1px solid #9d762e;
+  color: #1b1507;
+  background: #e4b95b;
+  cursor: grab;
+}
+
+.sim-transfer-cargo > span {
+  font-size: 1.8rem;
+}
+
+.sim-transfer-cargo:disabled {
+  color: #82979b;
+  border-color: #29434b;
+  background: #11252c;
+  cursor: not-allowed;
+}
+
+.sim-transfer-destination {
+  border: 2px dashed #4e858b;
+  color: #cde3e5;
+  background: #0c252c;
+}
+
+.sim-transfer-destination:hover {
+  border-color: var(--lp-accent);
+  background: #11333a;
+}
+
+.sim-transfer-destination > span {
+  color: var(--lp-accent);
+  font-size: 1.7rem;
+}
+
+.sim-digital-workbench > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cde3e5;
+  font-size: 0.72rem;
+}
+
+.sim-digital-workbench > div:first-child > span {
+  color: var(--lp-accent);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sim-staged-bricks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 7px;
+  min-height: 40px;
+}
+
+.sim-staged-bricks > small {
+  color: var(--lp-muted);
+}
+
+.sim-staged-brick {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 54px;
+  min-height: 30px;
+  border: 2px solid color-mix(in srgb, var(--sim-brick-color), #061014 42%);
+  border-radius: 5px;
+  color: #071014;
+  background: var(--sim-brick-color);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.13), 0 4px 8px rgba(0, 0, 0, 0.25);
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.sim-staged-brick::before,
+.sim-staged-brick::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  width: 12px;
+  height: 7px;
+  border-radius: 50% 50% 20% 20%;
+  background: var(--sim-brick-color);
+}
+
+.sim-staged-brick::before {
+  left: 8px;
+}
+
+.sim-staged-brick::after {
+  right: 8px;
+}
+
+.sim-auto-form-summary {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid #327654;
+  border-radius: 8px;
+  color: #cce9d8;
+  background: #102d23;
+}
+
+.sim-auto-form-summary ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sim-auto-form-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sim-auto-form-summary small {
+  color: #9fc9af;
+}
+
+.sim-admin-locked {
+  color: #82979b;
+  background: #0b1b21;
+}
+
+.sim-admin-locked p,
+.sim-physical-guidance p {
+  color: var(--lp-muted);
+}
+
+.sim-physical-action-panel {
+  grid-template-rows: auto auto auto;
 }
 
 .sim-part-control {
@@ -3027,6 +3483,10 @@ body[data-app-view="player"] .topbar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .sim-digital-action-panel {
+    grid-template-columns: 1fr;
+  }
+
   .sim-action-panel > header {
     grid-column: 1 / -1;
   }
@@ -3043,6 +3503,16 @@ body[data-app-view="player"] .topbar {
 @media (max-width: 680px) {
   .session-game-config {
     grid-template-columns: 1fr;
+  }
+
+  .sim-material-action,
+  .sim-digital-transport {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-drag-route,
+  .sim-digital-transport > span {
+    transform: rotate(90deg);
   }
 
   .sim-action-panel,

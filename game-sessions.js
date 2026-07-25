@@ -109,6 +109,7 @@
       difficulty_level: "normal",
       game_config: {
         ...GAME_CONFIG_PRESETS.lo4,
+        play_mode: "physical",
         game_type: "lo4"
       }
     },
@@ -141,15 +142,35 @@
       .replaceAll("'", "&#39;");
   }
 
-  async function request(path, options = {}) {
-    const response = await fetch(`${state.apiBase}${path}`, {
+  function recoverLocalApiBase() {
+    const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+    if (!loopbackHosts.has(String(location.hostname || "").toLowerCase())) return null;
+    if (location.pathname.startsWith("/tools/leerbox/")) return null;
+    const hostname = location.hostname.includes(":") && !location.hostname.startsWith("[")
+      ? `[${location.hostname}]`
+      : location.hostname;
+    return `${location.protocol === "https:" ? "https:" : "http:"}//${hostname}:8011/api`;
+  }
+
+  async function request(path, options = {}, allowLocalRecovery = true) {
+    const requestUrl = `${state.apiBase}${path}`;
+    const response = await fetch(requestUrl, {
       cache: "no-store",
       credentials: "include",
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
       ...options
     });
+    if (response.status === 501 && allowLocalRecovery) {
+      const recoveredApiBase = recoverLocalApiBase();
+      if (recoveredApiBase && recoveredApiBase !== state.apiBase) {
+        state.apiBase = recoveredApiBase;
+        localStorage.setItem("api_base", recoveredApiBase);
+        localStorage.setItem("leerpret.apiBase", recoveredApiBase);
+        return request(path, options, false);
+      }
+    }
     if (!response.ok) {
-      const fallback = `De gamesessie kon niet worden bijgewerkt (${response.status}).`;
+      const fallback = `De gamesessie kon niet worden bijgewerkt (${response.status}, ${requestUrl}).`;
       let message = fallback;
       try {
         const raw = await response.text();
@@ -164,7 +185,9 @@
       } catch {
         // Keep the status-bearing fallback.
       }
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
     return response.json();
   }
@@ -197,6 +220,7 @@
     return {
       ...GAME_CONFIG_PRESETS[gameType],
       ...config,
+      play_mode: config.play_mode === "digital" ? "digital" : "physical",
       game_type: gameType
     };
   }
@@ -215,6 +239,16 @@
     return `
       <fieldset class="session-game-config">
         <legend>Spelvariant en spelregels</legend>
+        <label class="session-config-field session-play-mode is-wide">
+          <span>Spelmodus</span>
+          <select name="play_mode" data-game-config-control>
+            <option value="physical"${value.play_mode === "physical" ? " selected" : ""}>Fysiek · echte LEGO en administratief dashboard</option>
+            <option value="digital"${value.play_mode === "digital" ? " selected" : ""}>Digitaal · volledig bouwen en verplaatsen op het scherm</option>
+          </select>
+          <small>${value.play_mode === "digital"
+            ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
+            : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
+        </label>
         <label class="session-config-field is-wide">
           <span>Gametype</span>
           <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
@@ -269,6 +303,7 @@
   function collectGameConfig(form) {
     const get = name => form.elements.namedItem(name);
     return {
+      play_mode: get("play_mode")?.value === "digital" ? "digital" : "physical",
       game_type: get("game_type")?.value || "lo4",
       money: Boolean(get("money")?.checked),
       pnl: Boolean(get("pnl")?.checked),
@@ -395,12 +430,13 @@
       const customerOrderLabel = session.game_config?.customer_order_mode === "free"
         ? "vrije klantorders"
         : "verplichte klantorders";
+      const playModeLabel = session.game_config?.play_mode === "digital" ? "digitaal" : "fysiek";
       return `
         <div class="player-running-session">
           <span class="session-member-token">${escapeHtml(assignedRole.slice(0, 2).toUpperCase())}</span>
           <span>
             <strong>${escapeHtml(assignedRole)}</strong>
-            <small>Gamesessie gestart · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
+            <small>Gamesessie gestart · ${playModeLabel} · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
           </span>
         </div>
       `;
@@ -414,6 +450,7 @@
           <button type="button" data-copy-game-code="${escapeHtml(session.join_code)}">Kopieer code</button>
         </div>
         <div class="session-facts">
+          <span>${session.game_config?.play_mode === "digital" ? "Digitaal" : "Fysiek"}</span>
           <span>${escapeHtml(TYPE_LABELS[session.session_type])}</span>
           <span>${escapeHtml(difficultyLevel(session.difficulty_level).label)}</span>
           <span>${escapeHtml(GAME_CONFIG_PRESETS[session.game_config?.game_type]?.label || "LO Game 4")}</span>
@@ -421,9 +458,9 @@
           <span>${session.members.length}/${session.required_role_ids.length} spelers</span>
           <span>${session.is_game_master ? "Jij bent Game Master" : "Game Master aanwezig"}</span>
         </div>
-        ${gameMasterRoleMarkup(session)}
-        ${gameMasterDifficultyMarkup(session)}
         ${gameMasterConfigMarkup(session)}
+        ${gameMasterDifficultyMarkup(session)}
+        ${gameMasterRoleMarkup(session)}
         <ul class="session-member-list">${memberCards(session)}</ul>
         ${vacancies.length ? `
           <div class="session-vacancies">
@@ -596,6 +633,21 @@
         console.warn("Gamesessie is bijgewerkt, maar verversen mislukte:", refreshError);
       }
     } catch (error) {
+      if (
+        error.status === 409
+        && new Set([
+          "Je neemt al deel aan een actieve gamesessie.",
+          "Je neemt al deel aan een lobby of actieve gamesessie."
+        ]).has(error.message)
+      ) {
+        try {
+          await refreshAfterMutation();
+          render();
+          if (state.session) return;
+        } catch (refreshError) {
+          console.warn("De bestaande gamesessie kon niet worden opgehaald:", refreshError);
+        }
+      }
       window.alert(error.message);
     } finally {
       state.busy = false;

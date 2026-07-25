@@ -113,6 +113,8 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('"./behavior-quality.js"', service_worker)
         self.assertIn('"./leerpret-theme.js"', service_worker)
         self.assertIn("function renderPlayerView()", game)
+        self.assertIn("if (!sessionAllowsRoleActions)", game)
+        self.assertIn("els.playerWaitingPanel.hidden = true", game)
         self.assertIn("function setAppView(", game)
 
     def test_behavior_quality_flags_only_strong_response_patterns(self) -> None:
@@ -284,7 +286,7 @@ const engine = new Engine({{
     processingTimeScale: 1
   }}
 }});
-engine.start({{humanRoleId: "pd1"}});
+engine.start({{humanRoleId: "pd1", playMode: "digital"}});
 const created = engine.generateOrder();
 for (let i = 0; i < 20 && !engine.playerTask(); i += 1) {{
   now += 1000;
@@ -458,6 +460,11 @@ process.stdout.write(JSON.stringify({{
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn('this.waitingTab = "flow"', ui)
+        self.assertLess(
+            ui.index('data-sim-waiting-tab="flow"'),
+            ui.index('data-sim-waiting-tab="departments"'),
+        )
         self.assertIn('data-sim-waiting-tab="departments"', ui)
         self.assertIn('data-sim-waiting-tab="events"', ui)
         self.assertIn('data-sim-waiting-tab="flow"', ui)
@@ -749,6 +756,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('credentials: "include"', auth)
         self.assertIn("localApiForCurrentPage", auth)
         self.assertIn("alignStoredLoopbackHost", auth)
+        self.assertIn("return localApiForCurrentPage();", auth)
         self.assertIn("url.hostname = location.hostname", auth)
         self.assertIn("/auth/leerbox/session?leerbox_id=", auth)
         self.assertIn("/auth/leerbox/exchange?leerbox_id=", auth)
@@ -793,6 +801,11 @@ process.stdout.write(JSON.stringify({{
         )
         consensus = contract["properties"]["consensus"]
         self.assertIn("difficulty_level", contract["required"])
+        self.assertIn("play_mode", contract["properties"]["game_config"]["required"])
+        self.assertEqual(
+            ["physical", "digital"],
+            contract["properties"]["game_config"]["properties"]["play_mode"]["enum"],
+        )
         self.assertEqual(
             ["easy", "normal", "hard"],
             contract["properties"]["difficulty_level"]["enum"],
@@ -830,11 +843,19 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("Systeemdruk &amp; Ruis", runtime)
         self.assertIn("data-active-game-config", runtime)
         self.assertIn("customer_order_mode", runtime)
+        self.assertIn("play_mode", runtime)
+        self.assertIn("Spelmodus", runtime)
         self.assertIn("game_config: gameConfig", runtime)
         self.assertIn("/configuration", runtime)
         self.assertIn("queueGameConfigSave", runtime)
         self.assertIn("pendingConfigOverlay", runtime)
         self.assertIn("mutationQueue", runtime)
+        self.assertIn("recoverLocalApiBase", runtime)
+        self.assertIn("response.status === 501", runtime)
+        self.assertIn("error.status = response.status", runtime)
+        self.assertIn("Je neemt al deel aan een lobby of actieve gamesessie.", runtime)
+        self.assertIn("await refreshAfterMutation()", runtime)
+        self.assertIn('localStorage.setItem("leerpret.apiBase"', runtime)
         self.assertIn("createSessionDraft", runtime)
         self.assertIn("state.createSessionDraft.game_config = collectGameConfig(form)", runtime)
 
@@ -848,6 +869,142 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("customerOrderDraft", ui)
         self.assertIn("displayProduct", ui)
         self.assertIn("selectedProductId", ui)
+
+    def test_physical_and_digital_modes_require_different_player_actions(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        ui_path = PRODUCT_ROOT / "logistics-game-ui.js"
+        renderer_path = PRODUCT_ROOT / "lego-tower-renderer.js"
+        ui = ui_path.read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn("physicalActionPanelMarkup", ui)
+        self.assertIn("digitalActionPanelMarkup", ui)
+        self.assertIn("digitalPartStageMarkup", ui)
+        self.assertIn("digitalBuilderBoardMarkup", ui)
+        self.assertIn("placeDigitalBoardPart", ui)
+        self.assertIn("data-sim-builder-board", ui)
+        self.assertIn("eventTargetClosest", ui)
+        self.assertIn('event.dataTransfer.dropEffect = "copy"', ui)
+        self.assertIn('event.dataTransfer.dropEffect = "move"', ui)
+        self.assertIn("data-sim-virtual-stage", ui)
+        self.assertIn("data-sim-drag-part", ui)
+        self.assertIn("data-sim-part-dropzone", ui)
+        self.assertIn("data-sim-transfer-cargo", ui)
+        self.assertIn("data-sim-transfer-dropzone", ui)
+        self.assertIn("sim-action-help", ui)
+        self.assertIn("data-sim-form-parts", ui)
+        self.assertIn("Automatisch overgenomen", ui)
+        self.assertIn(".sim-digital-workbench", styles)
+        self.assertIn(".sim-inline-builder-board", styles)
+        self.assertIn(
+            "grid-template-columns: minmax(330px, 0.78fr) minmax(520px, 1.22fr)",
+            styles,
+        )
+        self.assertIn(".sim-auto-form-summary", styles)
+
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+let now = 1000;
+eval(fs.readFileSync({json.dumps(str(renderer_path))}, "utf8"));
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+eval(fs.readFileSync({json.dumps(str(ui_path))}, "utf8"));
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+function taskFor(playMode) {{
+  const engine = new Engine({{
+    now: () => now,
+    random: () => 0,
+    config: {{
+      initialOrderDelayMs: 999999999,
+      transferDelayMinMs: 0,
+      transferDelayMaxMs: 0,
+      incidentChance: 0
+    }}
+  }});
+  engine.start({{humanRoleId: "pd1", playMode}});
+  engine.generateOrder();
+  for (let i = 0; i < 20 && !engine.playerTask(); i += 1) {{
+    now += 1000;
+    engine.update(now);
+  }}
+  return engine;
+}}
+const physical = taskFor("physical");
+const physicalTask = physical.playerTask();
+const physicalRejected = physical.completePlayerAction({{signed: true}});
+const physicalResult = physical.completePlayerAction({{
+  parts: physicalTask.requiredParts,
+  transferred: true,
+  signed: true
+}});
+const digital = taskFor("digital");
+const digitalTask = digital.playerTask();
+const digitalRejected = digital.completePlayerAction({{signed: true}});
+const digitalCompleted = digital.completePlayerAction({{
+  parts: digitalTask.requiredParts,
+  transferred: true,
+  signed: true
+}});
+const UIController = window.LogisticsGameUI.LogisticsGameUIController;
+const uiController = Object.create(UIController.prototype);
+uiController.engine = digital;
+uiController.selectedParts = {{}};
+uiController.transferred = false;
+uiController.signed = false;
+uiController.feedback = "";
+const digitalBefore = uiController.digitalActionPanelMarkup(digitalTask);
+uiController.selectedParts = {{...digitalTask.requiredParts}};
+const digitalBuilt = uiController.digitalActionPanelMarkup(digitalTask);
+uiController.transferred = true;
+const digitalAfterTransfer = uiController.digitalActionPanelMarkup(digitalTask);
+uiController.engine = physical;
+uiController.selectedParts = {{}};
+uiController.transferred = false;
+const physicalMarkup = uiController.physicalActionPanelMarkup(physicalTask);
+process.stdout.write(JSON.stringify({{
+  physicalMode: physicalTask.playMode,
+  physicalRejected,
+  physicalResult,
+  physicalHistory: physical.snapshot().orders[0].history,
+  digitalMode: digitalTask.playMode,
+  digitalRejected,
+  digitalCompleted,
+  digitalUsesDragParts: digitalBefore.includes("data-sim-drag-part"),
+  digitalUsesTutorialBoard: digitalBefore.includes('class="sim-inline-builder-board"'),
+  digitalShowsPlacementTarget: digitalBefore.includes("sim-builder-target"),
+  digitalHasNoLegacyPartButton: !digitalBefore.includes('data-sim-part="'),
+  digitalHasTowerDropzone: digitalBuilt.includes("data-sim-part-dropzone"),
+  digitalHidesSignatureBeforeTransfer: !digitalBuilt.includes("data-sim-signature"),
+  digitalShowsSignatureAfterTransfer: digitalAfterTransfer.includes("data-sim-signature"),
+  physicalKeepsLegacyPartButton: physicalMarkup.includes('data-sim-part="')
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual("physical", result["physicalMode"])
+        self.assertFalse(result["physicalRejected"]["ok"])
+        self.assertTrue(result["physicalResult"]["ok"])
+        self.assertTrue(
+            any(item.get("playMode") == "physical" for item in result["physicalHistory"])
+        )
+        self.assertEqual("digital", result["digitalMode"])
+        self.assertFalse(result["digitalRejected"]["ok"])
+        self.assertTrue(result["digitalCompleted"]["ok"])
+        self.assertTrue(result["digitalUsesDragParts"])
+        self.assertTrue(result["digitalUsesTutorialBoard"])
+        self.assertTrue(result["digitalShowsPlacementTarget"])
+        self.assertTrue(result["digitalHasNoLegacyPartButton"])
+        self.assertTrue(result["digitalHasTowerDropzone"])
+        self.assertTrue(result["digitalHidesSignatureBeforeTransfer"])
+        self.assertTrue(result["digitalShowsSignatureAfterTransfer"])
+        self.assertTrue(result["physicalKeepsLegacyPartButton"])
 
         node_program = f"""
 const fs = require("fs");
