@@ -222,7 +222,7 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("const GAME_TYPE_PRESETS", game)
         self.assertIn("function applyGameTypePreset", game)
         self.assertIn('gameType: "lo4"', game)
-        self.assertIn("applyGameTypePreset(els.gameTypeSelect.value, true)", game)
+        self.assertIn("loadGameConfiguration(val, true)", game)
         self.assertIn("const MIN_PRODUCT_TYPES = 1", game)
 
     def test_role_actions_are_not_rendered_inside_settings(self) -> None:
@@ -1159,5 +1159,40 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("unregisterProduct", builder)
 
 
+    def test_game_configuration_store_and_schema(self) -> None:
+        schema_path = PRODUCT_ROOT / "contracts" / "game-configuration-v1.schema.json"
+        store_path = PRODUCT_ROOT / "game-configuration-store.js"
+        html_path = PRODUCT_ROOT / "index.html"
+        script_path = PRODUCT_ROOT / "script.js"
+
+        self.assertTrue(schema_path.is_file())
+        self.assertTrue(store_path.is_file())
+
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual("LEARNGame OM Game Configuration Schema v1", schema["title"])
+
+        store_code = store_path.read_text(encoding="utf-8")
+        self.assertIn("class GameConfigurationStore", store_code)
+        self.assertIn("BUILTIN_PRESETS", store_code)
+        self.assertIn("lo1", store_code)
+        self.assertIn("entrepreneurial", store_code)
+        self.assertIn("le_training", store_code)
+        self.assertIn("saveConfiguration", store_code)
+        self.assertIn("deleteCustomConfiguration", store_code)
+        self.assertIn("findMatchingConfiguration", store_code)
+
+        html = html_path.read_text(encoding="utf-8")
+        self.assertIn('src="game-configuration-store.js"', html)
+        self.assertIn('id="saveConfigDialog"', html)
+        self.assertIn('id="saveConfigButton"', html)
+
+        script = script_path.read_text(encoding="utf-8")
+        self.assertIn("loadGameConfiguration", script)
+        self.assertIn("populateGameTypeSelect", script)
+        self.assertIn("findMatchingConfiguration", script)
+        self.assertIn("is-highlighted", script)
+
+
 if __name__ == "__main__":
     unittest.main()
+

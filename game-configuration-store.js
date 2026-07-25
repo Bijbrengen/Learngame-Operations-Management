@@ -1,0 +1,355 @@
+/**
+ * LEARNGame OM - GameConfigurationStore
+ * Central repository for official built-in presets (Henk's standard configurations)
+ * and user-saved custom game configurations with localStorage persistence.
+ */
+(function (global) {
+  const STORAGE_KEY = "learngame_custom_configurations_v1";
+
+  const BUILTIN_PRESETS = [
+    {
+      config_id: "lo1",
+      name: "LO Game 1",
+      description: "Basisvariant met één product, functionele keten en zonder geldstroom.",
+      is_preset: true,
+      base_template: "lo1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo1",
+        money: false,
+        pnl: false,
+        intermediate_stock: false,
+        opportunity_costs: false,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "functional",
+        product_type_count: 1,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"]
+      }
+    },
+    {
+      config_id: "lo2",
+      name: "LO Game 2",
+      description: "Meerproductvariant in een functionele keten, nog zonder financiële besturing.",
+      is_preset: true,
+      base_template: "lo2",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo2",
+        money: false,
+        pnl: false,
+        intermediate_stock: true,
+        opportunity_costs: false,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "functional",
+        product_type_count: 3,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"]
+      }
+    },
+    {
+      config_id: "lo3",
+      name: "LO Game 3",
+      description: "Productgerichte organisatie met drie torensoorten en zonder geldstroom.",
+      is_preset: true,
+      base_template: "lo3",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo3",
+        money: false,
+        pnl: false,
+        intermediate_stock: false,
+        opportunity_costs: false,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "product",
+        product_type_count: 3,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "logistics_manager", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"]
+      }
+    },
+    {
+      config_id: "lo4",
+      name: "LO Game 4",
+      description: "Productgerichte variant met geld, resultaatmeting en opportunity costs.",
+      is_preset: true,
+      base_template: "lo4",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo4",
+        money: true,
+        pnl: true,
+        intermediate_stock: false,
+        opportunity_costs: true,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "product",
+        product_type_count: 3,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"]
+      }
+    },
+    {
+      config_id: "lo5",
+      name: "LO Game 5",
+      description: "Financiële variant in de functionele keten, gericht op programmatisch produceren.",
+      is_preset: true,
+      base_template: "lo5",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo5",
+        money: true,
+        pnl: true,
+        intermediate_stock: true,
+        opportunity_costs: true,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "functional",
+        product_type_count: 3,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier"]
+      }
+    },
+    {
+      config_id: "lo6",
+      name: "LO Game 6",
+      description: "Flexibele functionele keten met negen torensoorten en meer rolvrijheid.",
+      is_preset: true,
+      base_template: "lo6",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo6",
+        money: true,
+        pnl: true,
+        intermediate_stock: true,
+        opportunity_costs: true,
+        role_freedom: true,
+        price_mode: "fixed",
+        logistics_organization: "functional",
+        product_type_count: 9,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"]
+      }
+    },
+    {
+      config_id: "lo7",
+      name: "LO Game 7",
+      description: "Volledig vrije functionele keten met negen torensoorten en vrije orderinvoer.",
+      is_preset: true,
+      base_template: "lo7",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo7",
+        money: true,
+        pnl: true,
+        intermediate_stock: true,
+        opportunity_costs: true,
+        role_freedom: true,
+        price_mode: "free",
+        logistics_organization: "functional",
+        product_type_count: 9,
+        customer_order_mode: "free",
+        enabled_roles: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"]
+      }
+    },
+    {
+      config_id: "lo8",
+      name: "LO Game 8",
+      description: "Ketenintegratie en expediteursfunctie (Freight Forwarder) met digitale sturing.",
+      is_preset: true,
+      base_template: "lo8",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo8",
+        money: true,
+        pnl: true,
+        intermediate_stock: true,
+        opportunity_costs: true,
+        role_freedom: true,
+        price_mode: "free",
+        logistics_organization: "functional",
+        product_type_count: 9,
+        customer_order_mode: "free",
+        enabled_roles: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"]
+      }
+    },
+    {
+      config_id: "entrepreneurial",
+      name: "Entrepreneurial Game",
+      description: "Vrije markt/ondernemersvariant met geld, resultaatmeting, vrije prijzen en veel rolvrijheid.",
+      is_preset: true,
+      base_template: "entrepreneurial",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "entrepreneurial",
+        money: true,
+        pnl: true,
+        intermediate_stock: true,
+        opportunity_costs: true,
+        role_freedom: true,
+        price_mode: "free",
+        logistics_organization: "functional",
+        product_type_count: 3,
+        customer_order_mode: "free",
+        enabled_roles: ["customer", "sales", "supplier", "finance", "logistics_manager"]
+      }
+    },
+    {
+      config_id: "le_training",
+      name: "LE-Training",
+      description: "LEAN Operations management trainingsvariant met resultaatmeting en processturing.",
+      is_preset: true,
+      base_template: "lo4",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      settings: {
+        game_type: "lo4",
+        money: true,
+        pnl: true,
+        intermediate_stock: false,
+        opportunity_costs: true,
+        role_freedom: false,
+        price_mode: "fixed",
+        logistics_organization: "product",
+        product_type_count: 3,
+        customer_order_mode: "required",
+        enabled_roles: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"]
+      }
+    }
+  ];
+
+  function loadCustomConfigurations() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.warn("Failed to load custom game configurations from localStorage:", e);
+      return [];
+    }
+  }
+
+  function saveCustomConfigurations(configs) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
+    } catch (e) {
+      console.error("Failed to save custom game configurations to localStorage:", e);
+    }
+  }
+
+  class GameConfigurationStore {
+    getPresets() {
+      return BUILTIN_PRESETS;
+    }
+
+    getCustomConfigurations() {
+      return loadCustomConfigurations();
+    }
+
+    getAllConfigurations() {
+      return [...BUILTIN_PRESETS, ...this.getCustomConfigurations()];
+    }
+
+    getConfiguration(configId) {
+      if (configId === "custom_draft") return null;
+      const all = this.getAllConfigurations();
+      return all.find(c => c.config_id === configId) || BUILTIN_PRESETS.find(p => p.config_id === "lo4");
+    }
+
+    findMatchingConfiguration(currentSettings) {
+      if (!currentSettings) return null;
+      const all = this.getAllConfigurations();
+
+      const currentRolesSorted = Array.isArray(currentSettings.enabled_roles)
+        ? [...currentSettings.enabled_roles].sort().join(",")
+        : null;
+
+      for (const config of all) {
+        const s = config.settings;
+        if (!s) continue;
+
+        const moneyMatch = Boolean(s.money) === Boolean(currentSettings.money);
+        const pnlMatch = Boolean(s.pnl) === Boolean(currentSettings.pnl);
+        const intermediateStockMatch = Boolean(s.intermediate_stock) === Boolean(currentSettings.intermediate_stock);
+        const opportunityCostsMatch = Boolean(s.opportunity_costs) === Boolean(currentSettings.opportunity_costs);
+        const roleFreedomMatch = Boolean(s.role_freedom) === Boolean(currentSettings.role_freedom);
+        const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
+        const logisticsOrgMatch = (s.logistics_organization || "functional") === (currentSettings.logistics_organization || "functional");
+        const productTypeCountMatch = (Number(s.product_type_count) || 3) === (Number(currentSettings.product_type_count) || 3);
+
+        if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
+            !roleFreedomMatch || !priceModeMatch || !logisticsOrgMatch || !productTypeCountMatch) {
+          continue;
+        }
+
+        if (currentRolesSorted !== null && Array.isArray(s.enabled_roles)) {
+          const configRolesSorted = [...s.enabled_roles].sort().join(",");
+          if (configRolesSorted !== currentRolesSorted) {
+            continue;
+          }
+        }
+
+        return config;
+      }
+      return null;
+    }
+
+    saveConfiguration({ name, description = "", baseTemplate = "lo4", settings }) {
+      if (!name || typeof name !== "string" || !name.trim()) {
+        throw new Error("Configuratienaam is verplicht.");
+      }
+      const customConfigs = this.getCustomConfigurations();
+      const now = new Date().toISOString();
+      
+      // Ensure users cannot overwrite built-in presets
+      const isBuiltinName = BUILTIN_PRESETS.some(p => p.name.toLowerCase() === name.trim().toLowerCase());
+      const safeName = isBuiltinName ? `${name.trim()} (Aangepast)` : name.trim();
+
+      const existingIndex = customConfigs.findIndex(c => c.name.toLowerCase() === safeName.toLowerCase());
+
+      const configObj = {
+        config_id: existingIndex >= 0 ? customConfigs[existingIndex].config_id : "cfg_" + Date.now().toString(36),
+        name: safeName,
+        description: description.trim(),
+        is_preset: false,
+        base_template: baseTemplate,
+        created_at: existingIndex >= 0 ? customConfigs[existingIndex].created_at : now,
+        updated_at: now,
+        settings: { ...settings }
+      };
+
+      if (existingIndex >= 0) {
+        customConfigs[existingIndex] = configObj;
+      } else {
+        customConfigs.push(configObj);
+      }
+
+      saveCustomConfigurations(customConfigs);
+      return configObj;
+    }
+
+    deleteCustomConfiguration(configId) {
+      // Prevent deleting built-in presets
+      if (BUILTIN_PRESETS.some(p => p.config_id === configId)) {
+        return;
+      }
+      const customConfigs = this.getCustomConfigurations().filter(c => c.config_id !== configId);
+      saveCustomConfigurations(customConfigs);
+    }
+  }
+
+  const store = new GameConfigurationStore();
+  global.GameConfigurationStore = store;
+})(typeof window !== "undefined" ? window : globalThis);

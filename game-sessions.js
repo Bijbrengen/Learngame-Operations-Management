@@ -65,13 +65,13 @@
     },
     lo3: {
       label: "LO Game 3",
-      money: false, pnl: false, intermediate_stock: true, opportunity_costs: false,
+      money: false, pnl: false, intermediate_stock: false, opportunity_costs: false,
       role_freedom: false, price_mode: "fixed", logistics_organization: "product",
       product_type_count: 3, customer_order_mode: "required"
     },
     lo4: {
       label: "LO Game 4",
-      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      money: true, pnl: true, intermediate_stock: false, opportunity_costs: true,
       role_freedom: false, price_mode: "fixed", logistics_organization: "product",
       product_type_count: 3, customer_order_mode: "required"
     },
@@ -92,6 +92,18 @@
       money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
       role_freedom: true, price_mode: "free", logistics_organization: "functional",
       product_type_count: 9, customer_order_mode: "free"
+    },
+    lo8: {
+      label: "LO Game 8",
+      money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
+      role_freedom: true, price_mode: "free", logistics_organization: "functional",
+      product_type_count: 9, customer_order_mode: "free"
+    },
+    le_training: {
+      label: "LE-Training",
+      money: true, pnl: true, intermediate_stock: false, opportunity_costs: true,
+      role_freedom: false, price_mode: "fixed", logistics_organization: "product",
+      product_type_count: 3, customer_order_mode: "required"
     }
   };
   const state = {
@@ -227,9 +239,29 @@
 
   function gameConfigFieldsMarkup(config = {}) {
     const value = normalizedGameConfig(config);
-    const gameTypeOptions = Object.entries(GAME_CONFIG_PRESETS).map(([id, preset]) => `
-      <option value="${id}"${value.game_type === id ? " selected" : ""}>${preset.label}</option>
-    `).join("");
+    let gameTypeOptions = "";
+    if (typeof window !== "undefined" && window.GameConfigurationStore) {
+      const presets = window.GameConfigurationStore.getPresets();
+      const customConfigs = window.GameConfigurationStore.getCustomConfigurations();
+
+      gameTypeOptions += `<optgroup label="🔒 Ingebouwde Presets">`;
+      presets.forEach(p => {
+        gameTypeOptions += `<option value="${p.config_id}" ${value.game_type === p.config_id ? "selected" : ""}>${escapeHtml(p.name)}</option>`;
+      });
+      gameTypeOptions += `</optgroup>`;
+
+      if (customConfigs.length > 0) {
+        gameTypeOptions += `<optgroup label="💾 Mijn Opgeslagen Scenario's">`;
+        customConfigs.forEach(c => {
+          gameTypeOptions += `<option value="${c.config_id}" ${value.game_type === c.config_id ? "selected" : ""}>💾 ${escapeHtml(c.name)}</option>`;
+        });
+        gameTypeOptions += `</optgroup>`;
+      }
+    } else {
+      gameTypeOptions = Object.entries(GAME_CONFIG_PRESETS).map(([id, preset]) => `
+        <option value="${id}"${value.game_type === id ? " selected" : ""}>${preset.label}</option>
+      `).join("");
+    }
     const toggle = (name, label) => `
       <label class="session-config-toggle">
         <input type="checkbox" name="${name}" data-game-config-control ${value[name] ? "checked" : ""}>
@@ -285,6 +317,344 @@
           <span>Torensoorten</span>
           <input name="product_type_count" type="number" min="1" max="9" value="${value.product_type_count}" data-game-config-control>
         </label>
+        <details class="role-selector-details is-wide">
+          <summary class="role-selector-summary">⚙️ Rollen af- of aanvinken voor deze sessie (Afwijken van preset)</summary>
+          <div class="role-selector-grid">
+            ${[
+              { id: "customer", label: "Klant", category: "Extern" },
+              { id: "logistics_manager", label: "Logistiek Manager", category: "Management" },
+              { id: "raw_warehouse", label: "Magazijn Grondstoffen", category: "Magazijn" },
+              { id: "production_1", label: "Productie Afdeling 1 (Stap 1)", category: "F-org" },
+              { id: "production_2", label: "Productie Afdeling 2 (Stap 2)", category: "F-org" },
+              { id: "production_3", label: "Productie Afdeling 3 (Stap 3)", category: "F-org" },
+              { id: "production_a", label: "Afdeling Toren A", category: "P-org" },
+              { id: "production_b", label: "Afdeling Toren B", category: "P-org" },
+              { id: "production_c", label: "Afdeling Toren C", category: "P-org" },
+              { id: "finished_warehouse", label: "Magazijn Gereed Product", category: "Magazijn" },
+              { id: "sales", label: "Verkoop / Sales Director", category: "Commercie" },
+              { id: "finance", label: "Financiële Admin", category: "Financiën" },
+              { id: "supplier", label: "Leverancier Grondstoffen", category: "Extern" },
+              { id: "transporter", label: "Transporteur / Freight Forwarder", category: "Logistiek" }
+            ].map(role => {
+              const isChecked = !value.enabled_roles || value.enabled_roles.includes(role.id);
+              return `
+                <label class="role-option-field">
+                  <input type="checkbox" name="role_${role.id}" data-game-config-control ${isChecked ? 'checked' : ''}>
+                  <span>${role.label}</span>
+                  <span class="role-option-category">${role.category}</span>
+                </label>
+              `;
+            }).join("")}
+          </div>
+        </details>
+        <details class="game-matrix-details is-wide">
+          <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
+          <div class="game-matrix-wrapper">
+            <table class="game-matrix-table">
+              <thead>
+                <tr>
+                  <th>Spelvariant</th>
+                  <th>Logistieke Organisatie</th>
+                  <th>Tussenvoorraad</th>
+                  <th>Geldstroom</th>
+                  <th>Winst / Verlies</th>
+                  <th>Opportunity Costs</th>
+                  <th>Rolvrijheid</th>
+                  <th>Prijs</th>
+                  <th>Torensoorten</th>
+                  <th>Klantorder</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>LO Game 1</strong></td>
+                  <td>Functionele keten</td>
+                  <td><span class="badge-off">Optioneel / Uit</span></td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>Vast</td>
+                  <td>1</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 2</strong></td>
+                  <td>Functionele keten</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>Vast</td>
+                  <td>3</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 3</strong></td>
+                  <td>Productgericht (P-org)</td>
+                  <td><span class="badge-excluded">⛔ Uitgesloten</span></td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>❌ Nee</td>
+                  <td>Vast</td>
+                  <td>3</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 4</strong></td>
+                  <td>Productgericht (P-org)</td>
+                  <td><span class="badge-excluded">⛔ Uitgesloten</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>❌ Nee</td>
+                  <td>Vast</td>
+                  <td>3</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 5</strong></td>
+                  <td>Functionele keten (gepland)</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>❌ Nee</td>
+                  <td>Vast</td>
+                  <td>3</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 6</strong></td>
+                  <td>Functioneel (flexibel)</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>Vast</td>
+                  <td>9</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 7</strong></td>
+                  <td>Functioneel (vrije markt)</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>Vrij</td>
+                  <td>9</td>
+                  <td>Vrij</td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 8</strong></td>
+                  <td>Functioneel (ketensimulatie)</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>Vrij</td>
+                  <td>9</td>
+                  <td>Vrij</td>
+                </tr>
+                <tr>
+                  <td><strong>LE-Training</strong></td>
+                  <td>Productgericht (budget/lumpsum)</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td><span class="badge-excluded">❌ Geen</span></td>
+                  <td>✅ Ja</td>
+                  <td>Vast</td>
+                  <td>3</td>
+                  <td>Verplicht</td>
+                </tr>
+                <tr>
+                  <td><strong>Entrepreneurial</strong></td>
+                  <td>Vrije markt / Ondernemerschap</td>
+                  <td><span class="badge-on">✅ Actief</span></td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>✅ Ja</td>
+                  <td>Vrij</td>
+                  <td>3</td>
+                  <td>Vrij</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="game-matrix-details is-wide">
+          <summary class="game-matrix-summary">👥 Bekijk actieve rollen & deelnemersbezetting per LO-Game spelvariant</summary>
+          <div class="game-matrix-wrapper">
+            <table class="game-matrix-table">
+              <thead>
+                <tr>
+                  <th>Spelvariant</th>
+                  <th>Klant</th>
+                  <th>Logistiek Manager</th>
+                  <th>Magazijn Grondstoffen</th>
+                  <th>Prod 1, 2, 3 (F-org)</th>
+                  <th>Prod A, B, C (P-org)</th>
+                  <th>Magazijn Gereed</th>
+                  <th>Verkoop / Sales</th>
+                  <th>Financiën / Admin</th>
+                  <th>Leverancier</th>
+                  <th>Transporteur</th>
+                  <th>Deelnemers</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>LO Game 1</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>7 - 23</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 2</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>7 - 23</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 3</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>7 - 23</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 4</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>9 - 25</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 5</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-9)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>10 - 26</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 6</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><strong>11 - 28</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 7</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><strong>11 - 30</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LO Game 8</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-3)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><strong>11 - 32</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>LE-Training</strong></td>
+                  <td><span class="badge-on">✅ (1-4)</span></td>
+                  <td><span class="badge-on">✅ (1)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ (3-12)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-on">✅ (1-2)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>9 - 25</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Entrepreneurial</strong></td>
+                  <td><span class="badge-on">✅ Klant (1-6)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ Handelaar (2-8)</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><span class="badge-on">✅ Producent/Lev.</span></td>
+                  <td><span class="badge-excluded">❌</span></td>
+                  <td><strong>8 - 36</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
       </fieldset>
     `;
   }
@@ -552,6 +922,13 @@
   function render() {
     const els = elements();
     if (!state.authenticated) return;
+    const openPlayerIndices = Array.from(els.playerContent.querySelectorAll("details"))
+      .map((el, i) => el.hasAttribute("open") ? i : -1)
+      .filter(i => i !== -1);
+    const openManagerIndices = Array.from(els.managerContent.querySelectorAll("details"))
+      .map((el, i) => el.hasAttribute("open") ? i : -1)
+      .filter(i => i !== -1);
+
     if (state.session) {
       placePlayerSessionPanel(state.session.status === "running");
       els.playerTitle.textContent = state.session.status === "running"
@@ -575,6 +952,11 @@
       els.playerContent.innerHTML = availableMarkup(state.availability);
       els.managerContent.innerHTML = createSessionMarkup();
     }
+    const playerDetails = els.playerContent.querySelectorAll("details");
+    openPlayerIndices.forEach(i => playerDetails[i]?.setAttribute("open", ""));
+
+    const managerDetails = els.managerContent.querySelectorAll("details");
+    openManagerIndices.forEach(i => managerDetails[i]?.setAttribute("open", ""));
     renderConsensus();
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: {

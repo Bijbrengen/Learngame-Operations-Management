@@ -52,8 +52,11 @@
   }
 
   async function load(apiBase) {
-    const base = String(apiBase || "").replace(/\/+$/, "");
+    let base = String(apiBase || "").replace(/\/+$/, "");
     if (!base) return apply(FALLBACK);
+    if (base.endsWith("/api")) {
+      base = base.slice(0, -4);
+    }
     try {
       const response = await fetch(`${base}/api/ui/theme-tokens?surface=learngame-om`, {
         credentials: "include",

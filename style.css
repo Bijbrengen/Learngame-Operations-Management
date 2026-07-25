@@ -8045,3 +8045,352 @@ body.tutorial-focus {
   border-color: #1b343c;
   border-top-color: var(--lp-accent);
 }
+
+/* Game Matrix Details Component */
+.game-matrix-details {
+  margin-top: 14px;
+  border: 1px solid var(--lp-line, #29434b);
+  border-radius: 8px;
+  background: rgba(13, 29, 35, 0.6);
+  overflow: hidden;
+}
+
+.session-game-config > .game-matrix-details {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+.game-matrix-summary {
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--lp-accent, #32ddd2);
+  cursor: pointer;
+  user-select: none;
+  background: rgba(20, 44, 52, 0.8);
+  transition: background 0.2s ease;
+}
+
+.game-matrix-summary:hover {
+  background: rgba(30, 60, 70, 0.9);
+}
+
+.game-matrix-wrapper {
+  padding: 12px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.game-matrix-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.game-matrix-table th,
+.game-matrix-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(41, 67, 75, 0.5);
+  white-space: nowrap;
+}
+
+.game-matrix-table th {
+  background: rgba(10, 23, 28, 0.9);
+  color: var(--lp-muted, #8faab3);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.5px;
+}
+
+.game-matrix-table tr:hover td {
+  background: rgba(50, 221, 210, 0.05);
+}
+
+.badge-on {
+  color: #52e0a2;
+  font-weight: 600;
+}
+
+.badge-off {
+  color: #8faab3;
+}
+
+.badge-excluded {
+  color: #ff7878;
+  font-weight: 600;
+}
+
+/* Role Preview Box Component */
+.role-preview-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(10, 23, 28, 0.7);
+  border: 1px solid rgba(41, 67, 75, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--lp-muted, #8faab3);
+}
+
+.role-count-badge {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(50, 221, 210, 0.15);
+  color: var(--lp-accent, #32ddd2);
+  border: 1px solid rgba(50, 221, 210, 0.3);
+}
+
+.role-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role-chip {
+  font-size: 0.76rem;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(25, 48, 56, 0.9);
+  border: 1px solid rgba(49, 81, 90, 0.9);
+  color: var(--lp-ink, #d9f3f6);
+}
+
+.role-chip.is-inactive {
+  opacity: 0.4;
+  text-decoration: line-through;
+  background: rgba(15, 25, 30, 0.4);
+  border-color: rgba(30, 45, 50, 0.4);
+}
+
+/* Interactive Role Selector Component - Compact & Full Width */
+.role-preview-box {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(10, 23, 28, 0.75);
+  border: 1px solid rgba(41, 67, 75, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-selector-details {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--lp-line, #29434b);
+  border-radius: 6px;
+  background: rgba(8, 18, 22, 0.85);
+  overflow: hidden;
+}
+
+.session-game-config > .role-selector-details {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.role-selector-summary {
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--lp-accent, #32ddd2);
+  cursor: pointer;
+  user-select: none;
+  background: rgba(20, 44, 52, 0.7);
+  transition: background 0.15s ease;
+}
+
+.role-selector-summary:hover {
+  background: rgba(30, 60, 70, 0.9);
+}
+
+.role-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 4px 6px;
+  padding: 8px 10px;
+  background: rgba(6, 15, 18, 0.85);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.role-option-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(18, 38, 45, 0.75);
+  border: 1px solid rgba(41, 67, 75, 0.55);
+  font-size: 0.74rem;
+  color: var(--lp-ink, #d9f3f6);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.role-option-field:hover {
+  background: rgba(30, 60, 70, 0.85);
+  border-color: var(--lp-accent, #32ddd2);
+}
+
+.role-option-field input[type="checkbox"] {
+  accent-color: var(--lp-accent, #32ddd2);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.role-option-category {
+  font-size: 0.64rem;
+  color: var(--lp-muted, #8faab3);
+  margin-left: auto;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+/* Configuration Selector Header & Action Row */
+.game-type-header-row {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.game-type-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.game-type-select-wrapper select {
+  flex: 1;
+}
+
+.compact-button {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease-in-out;
+}
+
+.compact-button.is-highlighted {
+  background: linear-gradient(135deg, #32ddd2, #1b8a82) !important;
+  color: #060f12 !important;
+  font-weight: 700 !important;
+  border-color: #32ddd2 !important;
+  animation: pulseSaveButton 1.8s infinite ease-in-out;
+}
+
+@keyframes pulseSaveButton {
+  0% { box-shadow: 0 0 4px rgba(50, 221, 210, 0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 16px rgba(50, 221, 210, 0.9); transform: scale(1.05); }
+  100% { box-shadow: 0 0 4px rgba(50, 221, 210, 0.4); transform: scale(1); }
+}
+
+.danger-button {
+  background: rgba(220, 53, 69, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(220, 53, 69, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.danger-button:hover {
+  background: rgba(220, 53, 69, 0.4);
+}
+
+/* Save Configuration Modal Dialog */
+.config-modal-dialog {
+  border: 1px solid var(--lp-line, #29434b);
+  border-radius: 12px;
+  background: #0d1e24;
+  color: var(--lp-ink, #d9f3f6);
+  padding: 0;
+  max-width: 460px;
+  width: 90vw;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+}
+
+.config-modal-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.config-modal-form {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.config-modal-form h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--lp-accent, #32ddd2);
+}
+
+.config-modal-form p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--lp-muted, #8faab3);
+}
+
+.config-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.config-modal-field input,
+.config-modal-field textarea {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(18, 38, 45, 0.9);
+  border: 1px solid var(--lp-line, #29434b);
+  color: var(--lp-ink, #d9f3f6);
+  font-family: inherit;
+  font-size: 0.86rem;
+}
+
+.config-modal-field input:focus,
+.config-modal-field textarea:focus {
+  outline: none;
+  border-color: var(--lp-accent, #32ddd2);
+}
+
+.config-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+
+
+

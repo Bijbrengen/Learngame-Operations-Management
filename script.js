@@ -541,7 +541,7 @@
       config: {
         money: false,
         pnl: false,
-        intermediateStock: true,
+        intermediateStock: false,
         opportunityCosts: false,
         roleFreedom: false,
         priceMode: "fixed",
@@ -555,7 +555,7 @@
       config: {
         money: true,
         pnl: true,
-        intermediateStock: true,
+        intermediateStock: false,
         opportunityCosts: true,
         roleFreedom: false,
         priceMode: "fixed",
@@ -603,6 +603,34 @@
         priceMode: "free",
         logisticsOrganization: "functional",
         productTypeCount: 9
+      }
+    },
+    lo8: {
+      label: "LO Game 8",
+      description: "Ketenintegratie en expediteursfunctie (Freight Forwarder) met digitale sturing.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: true,
+        opportunityCosts: true,
+        roleFreedom: true,
+        priceMode: "free",
+        logisticsOrganization: "functional",
+        productTypeCount: 9
+      }
+    },
+    le_training: {
+      label: "LE-Training",
+      description: "LEAN Operations management trainingsvariant met resultaatmeting en processturing.",
+      config: {
+        money: true,
+        pnl: true,
+        intermediateStock: false,
+        opportunityCosts: true,
+        roleFreedom: false,
+        priceMode: "fixed",
+        logisticsOrganization: "product",
+        productTypeCount: 3
       }
     }
   });
@@ -1215,8 +1243,18 @@
     const nextView = view === "manager" ? "manager" : "player";
     state.appView = nextView;
     document.body.dataset.appView = nextView;
-    if (els.playerWorkbench) els.playerWorkbench.hidden = nextView !== "player";
-    if (els.managerWorkbench) els.managerWorkbench.hidden = nextView !== "manager";
+    if (nextView === "manager") {
+      document.body.classList.remove("tutorial-focus", "tutorial-stage-builder", "tutorial-stage-logistics");
+      if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
+    }
+    if (els.playerWorkbench) {
+      els.playerWorkbench.hidden = nextView !== "player";
+      els.playerWorkbench.style.display = "";
+    }
+    if (els.managerWorkbench) {
+      els.managerWorkbench.hidden = nextView !== "manager";
+      els.managerWorkbench.style.display = "";
+    }
     document.querySelectorAll("[data-app-view]").forEach(button => {
       if (!button) return;
       const active = button.dataset.appView === nextView;
@@ -1252,6 +1290,7 @@
       const active = panel.dataset.managerPanel === nextTab;
       panel.classList.toggle("is-active", active);
       panel.hidden = !active;
+      panel.style.display = "";
     });
     sessionStorage.setItem("learngame.om.managerTab", nextTab);
     if (nextTab === "process") renderDataModel(true);
@@ -2656,7 +2695,8 @@
       "tutorial-stage-builder",
       "tutorial-stage-logistics"
     );
-    setAppView("player", false);
+    const activeView = sessionStorage.getItem("learngame.om.appView") || state.appView || "player";
+    setAppView(activeView, false);
     if (state.gameSessionRunning) logisticsGameController?.resume();
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
   }
@@ -2691,12 +2731,57 @@
     return true;
   }
 
+  async function syncTutorialStateToBackend(completed, dismissed) {
+    const apiBase = (window.LeerpretAuth?.getSession?.().apiBase || "").replace(/\/+$/, "");
+    if (!apiBase) return;
+    try {
+      await fetch(`${apiBase}/v1/player/tutorial-state`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: Boolean(completed), dismissed: Boolean(dismissed) })
+      });
+    } catch (e) {
+      console.warn("Could not sync tutorial state to backend:", e);
+    }
+  }
+
+  async function checkBackendTutorialState() {
+    const apiBase = (window.LeerpretAuth?.getSession?.().apiBase || "").replace(/\/+$/, "");
+    if (!apiBase) return;
+    try {
+      const res = await fetch(`${apiBase}/v1/player/tutorial-state`, {
+        method: "GET",
+        credentials: "include"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.completed || data.dismissed) {
+          state.tutorialCompleted = Boolean(data.completed);
+          state.tutorialDismissed = Boolean(data.dismissed);
+          try {
+            if (data.completed) localStorage.setItem("learngame.om.tutorialCompleted", "true");
+            if (data.dismissed) localStorage.setItem("learngame.om.tutorialDismissed", "true");
+          } catch (e) {}
+          leaveTutorialFocus();
+          updateTutorialResumeButton();
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch tutorial state from backend:", e);
+    }
+  }
+
   function pauseTutorial() {
     if (state.tutorialDismissed || state.tutorialCompleted) return false;
     const phase = state.logisticsTutorial.phase;
     state.tutorialDismissed = true;
     state.tutorialPaused = true;
     state.logisticsTutorial.active = false;
+    try {
+      localStorage.setItem("learngame.om.tutorialDismissed", "true");
+    } catch (e) {}
+    syncTutorialStateToBackend(state.tutorialCompleted, true);
     leaveTutorialFocus();
     updateTutorialResumeButton();
     dispatchInteraction({
@@ -2714,10 +2799,17 @@
   }
 
   function resumeTutorial() {
-    if (state.tutorialCompleted) {
-      state.tutorialCompleted = false;
-      state.tutorialPaused = false;
-      state.tutorialDismissed = false;
+    try {
+      localStorage.removeItem("learngame.om.tutorialCompleted");
+      localStorage.removeItem("learngame.om.tutorialDismissed");
+    } catch (e) {}
+    syncTutorialStateToBackend(false, false);
+    const wasCompleted = state.tutorialCompleted;
+    state.tutorialCompleted = false;
+    state.tutorialDismissed = false;
+    state.tutorialPaused = false;
+
+    if (wasCompleted) {
       resetLogisticsTutorial();
       window.LegoBuilder?.restartTutorial();
       setTutorialFocus("builder");
@@ -2733,9 +2825,7 @@
       els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
       return true;
     }
-    if (!state.tutorialPaused) return false;
-    state.tutorialDismissed = false;
-    state.tutorialPaused = false;
+
     if (state.tutorialStage === "logistics") {
       state.logisticsTutorial.active = true;
       state.config.processView = "isometric";
@@ -2743,6 +2833,8 @@
       setTutorialFocus("logistics");
       renderAll();
       els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (state.tutorialStage === "finance") {
+      startFinancialTutorial();
     } else {
       setTutorialFocus("builder");
       renderAll();
@@ -2768,6 +2860,13 @@
     state.logisticsTutorial.active = false;
     state.logisticsTutorial.phase = completed ? "tutorial_complete" : "tutorial_skipped";
     state.selectedLogisticsDepartmentId = "inbound";
+    try {
+      localStorage.setItem("learngame.om.tutorialDismissed", "true");
+      if (completed) {
+        localStorage.setItem("learngame.om.tutorialCompleted", "true");
+      }
+    } catch (e) {}
+    syncTutorialStateToBackend(completed, true);
     els.dataModelPanel.classList.remove("visible");
     leaveTutorialFocus();
     updateTutorialResumeButton();
@@ -4056,17 +4155,212 @@
     });
   }
 
+  const ALL_LO_GAME_ROLES = [
+    { id: "customer", label: "Klant", category: "Extern" },
+    { id: "logistics_manager", label: "Logistiek Manager", category: "Management" },
+    { id: "raw_warehouse", label: "Magazijn Grondstoffen", category: "Magazijn" },
+    { id: "production_1", label: "Productie Afdeling 1 (Stap 1)", category: "F-org" },
+    { id: "production_2", label: "Productie Afdeling 2 (Stap 2)", category: "F-org" },
+    { id: "production_3", label: "Productie Afdeling 3 (Stap 3)", category: "F-org" },
+    { id: "production_a", label: "Afdeling Toren A", category: "P-org" },
+    { id: "production_b", label: "Afdeling Toren B", category: "P-org" },
+    { id: "production_c", label: "Afdeling Toren C", category: "P-org" },
+    { id: "finished_warehouse", label: "Magazijn Gereed Product", category: "Magazijn" },
+    { id: "sales", label: "Verkoop / Sales Director", category: "Commercie" },
+    { id: "finance", label: "Financiële Admin", category: "Financiën" },
+    { id: "supplier", label: "Leverancier Grondstoffen", category: "Extern" },
+    { id: "transporter", label: "Transporteur / Freight Forwarder", category: "Logistiek" }
+  ];
+
+  const PRESET_ROLE_IDS = {
+    lo1: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"],
+    lo2: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"],
+    lo3: ["customer", "logistics_manager", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
+    lo4: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
+    lo5: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier"],
+    lo6: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
+    lo7: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
+    lo8: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
+    le_training: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
+    entrepreneurial: ["customer", "sales", "supplier", "finance", "logistics_manager"]
+  };
+
+  function getActiveRoles(gameType) {
+    if (state.config.enabledRoles && Array.isArray(state.config.enabledRoles)) {
+      return state.config.enabledRoles;
+    }
+    return PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4;
+  }
+
+  function updateRolePreview(gameType) {
+    const roleBadgeList = document.getElementById("roleBadgeList");
+    const roleCountBadge = document.getElementById("roleCountBadge");
+    const roleSelectorGrid = document.getElementById("roleSelectorGrid");
+    if (!roleBadgeList || !roleCountBadge) return;
+
+    const activeRoleIds = getActiveRoles(gameType);
+    roleCountBadge.textContent = `👥 ${activeRoleIds.length} rollen actief`;
+
+    roleBadgeList.innerHTML = ALL_LO_GAME_ROLES.map(role => {
+      const isActive = activeRoleIds.includes(role.id);
+      return `<span class="role-chip ${isActive ? '' : 'is-inactive'}">${isActive ? '✅' : '❌'} ${role.label}</span>`;
+    }).join("");
+
+    if (roleSelectorGrid) {
+      roleSelectorGrid.innerHTML = ALL_LO_GAME_ROLES.map(role => {
+        const isChecked = activeRoleIds.includes(role.id);
+        return `
+          <label class="role-option-field">
+            <input type="checkbox" data-role-id="${role.id}" ${isChecked ? 'checked' : ''}>
+            <span>${role.label}</span>
+            <span class="role-option-category">${role.category}</span>
+          </label>
+        `;
+      }).join("");
+
+      roleSelectorGrid.querySelectorAll("input[data-role-id]").forEach(input => {
+        input.addEventListener("change", () => {
+          const roleId = input.dataset.roleId;
+          let currentRoles = [...getActiveRoles(state.config.gameType)];
+          if (input.checked) {
+            if (!currentRoles.includes(roleId)) currentRoles.push(roleId);
+          } else {
+            currentRoles = currentRoles.filter(r => r !== roleId);
+          }
+          state.config.enabledRoles = currentRoles;
+          updateRolePreview(state.config.gameType);
+          syncConfigFromControls(true);
+        });
+      });
+    }
+  }
+
+  function populateGameTypeSelect(selectedConfigId = "lo4") {
+    if (!els.gameTypeSelect) return;
+    if (!window.GameConfigurationStore) {
+      els.gameTypeSelect.value = selectedConfigId;
+      return;
+    }
+    const presets = window.GameConfigurationStore.getPresets();
+    const customConfigs = window.GameConfigurationStore.getCustomConfigurations();
+
+    let html = `<optgroup label="🔒 Ingebouwde Presets">`;
+    presets.forEach(p => {
+      html += `<option value="${p.config_id}" ${p.config_id === selectedConfigId ? "selected" : ""}>${escapeHtml(p.name)}</option>`;
+    });
+    html += `</optgroup>`;
+
+    if (customConfigs.length > 0) {
+      html += `<optgroup label="💾 Mijn Opgeslagen Scenario's">`;
+      customConfigs.forEach(c => {
+        html += `<option value="${c.config_id}" ${c.config_id === selectedConfigId ? "selected" : ""}>💾 ${escapeHtml(c.name)}</option>`;
+      });
+      html += `</optgroup>`;
+    }
+
+    if (selectedConfigId === "custom_draft") {
+      html += `<optgroup label="⚙️ Aangepast Scenario">`;
+      html += `<option value="custom_draft" selected>⚙️ Aangepast scenario (Nog niet opgeslagen)</option>`;
+      html += `</optgroup>`;
+    }
+
+    els.gameTypeSelect.innerHTML = html;
+
+    const deleteConfigButton = document.getElementById("deleteConfigButton");
+    const currentConfig = window.GameConfigurationStore.getConfiguration(selectedConfigId);
+    if (deleteConfigButton) {
+      deleteConfigButton.style.display = (currentConfig && !currentConfig.is_preset && selectedConfigId !== "custom_draft") ? "inline-flex" : "none";
+    }
+  }
+
+  function loadGameConfiguration(configId, dispatch = true) {
+    if (configId === "custom_draft") return true;
+    if (!window.GameConfigurationStore) {
+      return applyGameTypePreset(configId, dispatch);
+    }
+    const configObj = window.GameConfigurationStore.getConfiguration(configId);
+    if (!configObj) return false;
+
+    const settings = configObj.settings || {};
+    const productTypeCount = settings.product_type_count || 3;
+    const productTypeCountChanged = state.config.productTypeCount !== productTypeCount;
+
+    state.config.currentConfigId = configObj.config_id;
+    state.config.currentConfigName = configObj.name;
+    state.config.gameType = settings.game_type || configId;
+    state.config.money = Boolean(settings.money);
+    state.config.pnl = Boolean(settings.pnl);
+    state.config.intermediateStock = Boolean(settings.intermediate_stock);
+    state.config.opportunityCosts = Boolean(settings.opportunity_costs);
+    state.config.roleFreedom = Boolean(settings.role_freedom);
+    state.config.priceMode = settings.price_mode || "fixed";
+    state.config.logisticsOrganization = settings.logistics_organization || "product";
+    state.config.productTypeCount = productTypeCount;
+    state.config.customerOrderMode = settings.customer_order_mode || "required";
+    state.config.enabledRoles = Array.isArray(settings.enabled_roles)
+      ? [...settings.enabled_roles]
+      : [...(PRESET_ROLE_IDS[state.config.gameType] || PRESET_ROLE_IDS.lo4)];
+
+    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
+      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
+    state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
+
+    populateGameTypeSelect(configObj.config_id);
+    syncConfigControls();
+    if (productTypeCountChanged) {
+      applyProductTypeCount(false);
+    }
+
+    const saveConfigButton = document.getElementById("saveConfigButton");
+    if (saveConfigButton) {
+      saveConfigButton.classList.remove("is-highlighted");
+    }
+
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "load_game_configuration",
+        learningObjectID: "configuration_preset_or_custom",
+        result: "success",
+        objectRole: "configuration",
+        role: "Game Master",
+        configId: configObj.config_id,
+        configName: configObj.name,
+        isPreset: configObj.is_preset,
+        config: { ...state.config }
+      });
+    }
+    renderDataModel(true);
+    renderAll();
+    return true;
+  }
+
   function syncConfigControls() {
-    els.gameTypeSelect.value = state.config.gameType;
+    if (state.config.currentConfigId && els.gameTypeSelect) {
+      populateGameTypeSelect(state.config.currentConfigId);
+    } else if (els.gameTypeSelect) {
+      els.gameTypeSelect.value = state.config.gameType;
+    }
     els.moneyToggle.checked = state.config.money;
     els.pnlToggle.checked = state.config.pnl;
-    els.intermediateToggle.checked = state.config.intermediateStock;
+    const isProductOrg = state.config.logisticsOrganization === "product";
+    if (isProductOrg) {
+      state.config.intermediateStock = false;
+    }
+    if (els.intermediateToggle) {
+      els.intermediateToggle.checked = state.config.intermediateStock;
+      els.intermediateToggle.disabled = isProductOrg;
+    }
     els.opportunityToggle.checked = state.config.opportunityCosts;
     els.roleFreedomToggle.checked = state.config.roleFreedom;
     els.priceModeSelect.value = state.config.priceMode;
     els.logisticsOrganizationSelect.value = state.config.logisticsOrganization;
     els.productTypeCountInput.value = String(state.config.productTypeCount);
-    els.gameTypeDescription.textContent = GAME_TYPE_PRESETS[state.config.gameType]?.description || "";
+    const configDesc = window.GameConfigurationStore
+      ? window.GameConfigurationStore.getConfiguration(state.config.currentConfigId || state.config.gameType)?.description
+      : GAME_TYPE_PRESETS[state.config.gameType]?.description;
+    els.gameTypeDescription.textContent = configDesc || GAME_TYPE_PRESETS[state.config.gameType]?.description || "";
+    updateRolePreview(state.config.gameType);
   }
 
   function applyGameTypePreset(gameType, dispatch = true) {
@@ -4076,7 +4370,8 @@
     const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
     Object.assign(state.config, preset.config, {
       gameType,
-      customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" ? "free" : "required"
+      enabledRoles: [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
+      customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" || gameType === "lo8" ? "free" : "required"
     });
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
@@ -4137,11 +4432,71 @@
   function syncConfigFromControls(dispatch = true) {
     state.config.money = els.moneyToggle.checked;
     state.config.pnl = els.pnlToggle.checked;
-    state.config.intermediateStock = els.intermediateToggle.checked;
+    state.config.logisticsOrganization = els.logisticsOrganizationSelect.value;
+    const isProductOrg = state.config.logisticsOrganization === "product";
+    if (isProductOrg) {
+      state.config.intermediateStock = false;
+      if (els.intermediateToggle) {
+        els.intermediateToggle.checked = false;
+        els.intermediateToggle.disabled = true;
+      }
+    } else {
+      if (els.intermediateToggle) {
+        els.intermediateToggle.disabled = false;
+        state.config.intermediateStock = els.intermediateToggle.checked;
+      }
+    }
     state.config.opportunityCosts = els.opportunityToggle.checked;
     state.config.roleFreedom = els.roleFreedomToggle.checked;
     state.config.priceMode = els.priceModeSelect.value;
-    state.config.logisticsOrganization = els.logisticsOrganizationSelect.value;
+    state.config.productTypeCount = Math.max(
+      MIN_PRODUCT_TYPES,
+      Math.min(MAX_PRODUCT_TYPES, Number(els.productTypeCountInput.value) || 3)
+    );
+
+    const activeRoles = getActiveRoles(state.config.gameType);
+    const currentSettings = {
+      game_type: state.config.gameType,
+      money: state.config.money,
+      pnl: state.config.pnl,
+      intermediate_stock: state.config.intermediateStock,
+      opportunity_costs: state.config.opportunityCosts,
+      role_freedom: state.config.roleFreedom,
+      price_mode: state.config.priceMode,
+      logistics_organization: state.config.logisticsOrganization,
+      product_type_count: state.config.productTypeCount,
+      customer_order_mode: state.config.customerOrderMode || "required",
+      enabled_roles: activeRoles
+    };
+
+    const saveConfigButton = document.getElementById("saveConfigButton");
+
+    if (window.GameConfigurationStore) {
+      const match = window.GameConfigurationStore.findMatchingConfiguration(currentSettings);
+      if (match) {
+        state.config.currentConfigId = match.config_id;
+        state.config.currentConfigName = match.name;
+        state.config.gameType = match.settings.game_type || match.config_id;
+        populateGameTypeSelect(match.config_id);
+        if (els.gameTypeDescription) {
+          els.gameTypeDescription.textContent = match.description;
+        }
+        if (saveConfigButton) {
+          saveConfigButton.classList.remove("is-highlighted");
+        }
+      } else {
+        state.config.currentConfigId = "custom_draft";
+        state.config.currentConfigName = "Aangepast scenario";
+        populateGameTypeSelect("custom_draft");
+        if (els.gameTypeDescription) {
+          els.gameTypeDescription.textContent = "⚠️ Aangepast scenario op basis van jouw gekozen instellingen en rollen. Klik op 'Opslaan als...' om dit scenario op te slaan.";
+        }
+        if (saveConfigButton) {
+          saveConfigButton.classList.add("is-highlighted");
+        }
+      }
+    }
+
     if (dispatch) {
       dispatchInteraction({
         actionType: "change_configuration",
@@ -4231,14 +4586,29 @@
     state.opportunityCost = 0;
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
-    state.tutorialDismissed = false;
-    state.tutorialCompleted = false;
+
+    let isCompleted = false;
+    let isDismissed = false;
+    try {
+      isCompleted = localStorage.getItem("learngame.om.tutorialCompleted") === "true";
+      isDismissed = localStorage.getItem("learngame.om.tutorialDismissed") === "true";
+    } catch (e) {}
+
+    state.tutorialCompleted = isCompleted;
+    state.tutorialDismissed = isCompleted || isDismissed;
     state.tutorialPaused = false;
     state.tutorialStage = "builder";
     resetInventory();
     resetLogisticsTutorial();
-    window.LegoBuilder?.restartTutorial();
-    setTutorialFocus("builder");
+
+    if (state.tutorialCompleted || state.tutorialDismissed) {
+      leaveTutorialFocus();
+      updateTutorialResumeButton();
+    } else {
+      window.LegoBuilder?.restartTutorial();
+      setTutorialFocus("builder");
+    }
+
     dispatchInteraction({
       actionType: "setup_roles",
       result: "success",
@@ -4283,8 +4653,25 @@
       });
       renderAll();
     });
+    window.addEventListener("leerpret-auth-session", event => {
+      if (event.detail?.authenticated) {
+        checkBackendTutorialState();
+      }
+    });
     window.addEventListener("behavior-profile-completed", event => {
-      const analysis = event.detail?.receipt?.analysis || {};
+      const receipt = event.detail?.receipt || {};
+      const tutorialState = receipt.tutorial_state;
+      if (tutorialState && (tutorialState.completed || tutorialState.dismissed)) {
+        state.tutorialCompleted = Boolean(tutorialState.completed);
+        state.tutorialDismissed = Boolean(tutorialState.dismissed);
+        try {
+          if (tutorialState.completed) localStorage.setItem("learngame.om.tutorialCompleted", "true");
+          if (tutorialState.dismissed) localStorage.setItem("learngame.om.tutorialDismissed", "true");
+        } catch (e) {}
+        leaveTutorialFocus();
+        updateTutorialResumeButton();
+      }
+      const analysis = receipt.analysis || {};
       const recommendation = analysis.profile?.recommended_role || analysis.profile?.recommendedRole;
       if (!recommendation?.id) return;
       state.assignedRoleId = recommendation.id;
@@ -4362,8 +4749,74 @@
     els.resetButton.addEventListener("click", resetState);
     els.tutorialExitButton?.addEventListener("click", pauseTutorial);
     els.gameTypeSelect.addEventListener("change", () => {
-      applyGameTypePreset(els.gameTypeSelect.value, true);
+      const val = els.gameTypeSelect.value;
+      if (val === "custom_draft") return;
+      loadGameConfiguration(val, true);
     });
+
+    const saveConfigButton = document.getElementById("saveConfigButton");
+    const deleteConfigButton = document.getElementById("deleteConfigButton");
+    const saveConfigDialog = document.getElementById("saveConfigDialog");
+    const saveConfigForm = document.getElementById("saveConfigForm");
+    const cancelSaveConfigButton = document.getElementById("cancelSaveConfigButton");
+
+    saveConfigButton?.addEventListener("click", () => {
+      const defaultName = state.config.currentConfigName
+        ? `${state.config.currentConfigName} (Aangepast)`
+        : `Mijn Scenario ${new Date().toLocaleDateString()}`;
+      document.getElementById("configSaveNameInput").value = defaultName;
+      document.getElementById("configSaveDescInput").value = "";
+      saveConfigDialog?.showModal();
+    });
+
+    cancelSaveConfigButton?.addEventListener("click", () => {
+      saveConfigDialog?.close();
+    });
+
+    saveConfigForm?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = document.getElementById("configSaveNameInput").value.trim();
+      const description = document.getElementById("configSaveDescInput").value.trim();
+      if (!name) return;
+
+      const activeRoles = getActiveRoles(state.config.gameType);
+      const settings = {
+        game_type: state.config.gameType,
+        money: state.config.money,
+        pnl: state.config.pnl,
+        intermediate_stock: state.config.intermediateStock,
+        opportunity_costs: state.config.opportunityCosts,
+        role_freedom: state.config.roleFreedom,
+        price_mode: state.config.priceMode,
+        logistics_organization: state.config.logisticsOrganization,
+        product_type_count: state.config.productTypeCount,
+        customer_order_mode: state.config.customerOrderMode || "required",
+        enabled_roles: activeRoles
+      };
+
+      const newConfig = window.GameConfigurationStore.saveConfiguration({
+        name,
+        description,
+        baseTemplate: state.config.gameType,
+        settings
+      });
+
+      saveConfigDialog?.close();
+      loadGameConfiguration(newConfig.config_id, true);
+    });
+
+    deleteConfigButton?.addEventListener("click", () => {
+      const currentId = state.config.currentConfigId;
+      if (!currentId) return;
+      const config = window.GameConfigurationStore.getConfiguration(currentId);
+      if (config && !config.is_preset) {
+        if (window.confirm(`Weet je zeker dat je het opgeslagen scenario "${config.name}" wilt verwijderen?`)) {
+          window.GameConfigurationStore.deleteCustomConfiguration(currentId);
+          loadGameConfiguration("lo4", true);
+        }
+      }
+    });
+
     [
       els.moneyToggle,
       els.pnlToggle,
@@ -4438,7 +4891,12 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js").catch(error => {
+    navigator.serviceWorker.register("service-worker.js").then(registration => {
+      registration.update();
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+    }).catch(error => {
       console.info("Service worker niet geregistreerd:", error);
     });
   }
@@ -4472,6 +4930,14 @@
   }
 
   function initControls() {
+    try {
+      if (localStorage.getItem("learngame.om.tutorialCompleted") === "true") {
+        state.tutorialCompleted = true;
+        state.tutorialDismissed = true;
+      } else if (localStorage.getItem("learngame.om.tutorialDismissed") === "true") {
+        state.tutorialDismissed = true;
+      }
+    } catch (e) {}
     rebuildProducts(state.config.productTypeCount);
     productOptions();
     els.quantityInput.value = "3";
@@ -4480,7 +4946,10 @@
     els.productTypeCountInput.max = String(MAX_PRODUCT_TYPES);
     syncConfigControls();
     state.managerTab = sessionStorage.getItem("learngame.om.managerTab") || "core";
+    state.appView = sessionStorage.getItem("learngame.om.appView") || "player";
+    setAppView(state.appView, false);
     updatePriceInput();
+    updateTutorialResumeButton();
   }
 
   window.LEARNGameOMSimulator = {
@@ -4534,9 +5003,6 @@
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
     beginOnboardingTutorial: () => {
-      state.tutorialDismissed = false;
-      state.tutorialCompleted = false;
-      state.tutorialPaused = false;
       if (location.hash === "#tutorialStep4") {
         startFinancialTutorial();
         return;
@@ -4546,6 +5012,14 @@
         startLogisticsTutorial(true);
         return;
       }
+      if (state.tutorialCompleted || state.tutorialDismissed) {
+        leaveTutorialFocus();
+        updateTutorialResumeButton();
+        return;
+      }
+      state.tutorialDismissed = false;
+      state.tutorialCompleted = false;
+      state.tutorialPaused = false;
       setTutorialFocus("builder");
       window.LegoBuilder?.restartTutorial();
       renderAll();
@@ -4580,6 +5054,18 @@
   // Bind this essential escape/restart action before initializing the heavier
   // game views. It must remain usable even if a renderer fails during startup.
   document.addEventListener("click", event => {
+    const appViewButton = event.target.closest("[data-app-view]");
+    if (appViewButton && appViewButton.dataset.appView) {
+      event.preventDefault();
+      setAppView(appViewButton.dataset.appView);
+      return;
+    }
+    const managerTabButton = event.target.closest("[data-manager-tab]");
+    if (managerTabButton && managerTabButton.dataset.managerTab) {
+      event.preventDefault();
+      setManagerTab(managerTabButton.dataset.managerTab);
+      return;
+    }
     const button = event.target.closest("[data-tutorial-launch]");
     if (!button || button.disabled) return;
     event.preventDefault();

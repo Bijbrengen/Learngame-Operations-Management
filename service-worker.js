@@ -1,9 +1,11 @@
-const CACHE_VERSION = "learngame-om-v111";
+const CACHE_VERSION = "learngame-om-v122";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
+  "./game-configuration-store.js",
+  "./contracts/game-configuration-v1.schema.json",
   "./leerpret-auth.js",
   "./leerpret-theme.js",
   "./behavior-quality.js",
@@ -46,13 +48,66 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+
+  // Directly bypass service worker for API, authentication, and dynamic backend calls
+  if (
+    url.pathname.includes("/api") ||
+    url.pathname.includes("/v1/") ||
+    url.pathname.includes("/auth/") ||
+    url.port === "8011"
+  ) {
+    return;
+  }
+
+  // Network-First strategy for HTML, JS, and CSS files to guarantee fresh scripts on load
+  if (
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css") ||
+    url.pathname === "/" ||
+    url.pathname.endsWith("/")
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Cache-First with background revalidation for static media/images/icons
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy));
+    caches.match(event.request).then(cached => {
+      if (cached) {
+        fetch(event.request).then(response => {
+          if (response.ok) {
+            caches.open(CACHE_VERSION).then(cache => cache.put(event.request, response));
+          }
+        }).catch(() => {});
+        return cached;
+      }
+      return fetch(event.request).then(response => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy));
+        }
         return response;
-      })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html")))
+      });
+    })
   );
 });
+
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+

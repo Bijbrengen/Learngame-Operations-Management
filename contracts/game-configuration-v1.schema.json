@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leerpret.nl/contracts/game-configuration-v1.schema.json",
+  "title": "LEARNGame OM Game Configuration Schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "config_id",
+    "name",
+    "is_preset",
+    "base_template",
+    "created_at",
+    "updated_at",
+    "settings"
+  ],
+  "properties": {
+    "config_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "is_preset": {
+      "type": "boolean"
+    },
+    "base_template": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "game_type",
+        "money",
+        "pnl",
+        "intermediate_stock",
+        "opportunity_costs",
+        "role_freedom",
+        "price_mode",
+        "logistics_organization",
+        "product_type_count",
+        "customer_order_mode"
+      ],
+      "properties": {
+        "game_type": {
+          "type": "string"
+        },
+        "money": {
+          "type": "boolean"
+        },
+        "pnl": {
+          "type": "boolean"
+        },
+        "intermediate_stock": {
+          "type": "boolean"
+        },
+        "opportunity_costs": {
+          "type": "boolean"
+        },
+        "role_freedom": {
+          "type": "boolean"
+        },
+        "price_mode": {
+          "enum": ["fixed", "free"]
+        },
+        "logistics_organization": {
+          "enum": ["product", "functional"]
+        },
+        "product_type_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "customer_order_mode": {
+          "enum": ["free", "required"]
+        },
+        "enabled_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
