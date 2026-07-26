@@ -8369,6 +8369,17 @@ body.tutorial-focus {
   text-align: left;
 }
 
+.game-matrix-table caption {
+  padding: 0 0 10px;
+  color: var(--lp-muted, #8faab3);
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+.game-matrix-table td:not(:first-child) {
+  text-align: center;
+}
+
 .game-matrix-table th,
 .game-matrix-table td {
   padding: 8px 10px;

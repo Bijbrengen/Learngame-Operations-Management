@@ -1041,7 +1041,7 @@
     gameSessionDifficulty: "normal",
     customProducts: loadCustomProducts(),
     appView: "player",
-    managerTab: "core",
+    managerTab: "session",
     attention: {
       mode: "task",
       timer: null,
@@ -1532,8 +1532,8 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["session", "core", "tower-editor", "inventory", "events", "process"]);
-    const nextTab = allowed.has(tab) ? tab : "core";
+    const allowed = new Set(["session", "tower-editor", "inventory", "events", "process"]);
+    const nextTab = allowed.has(tab) ? tab : "session";
     state.managerTab = nextTab;
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
       const active = button.dataset.managerTab === nextTab;
@@ -3223,7 +3223,7 @@
   function setTutorialFocus(stage = "builder") {
     state.tutorialDismissed = false;
     logisticsGameController?.pause();
-    setManagerTab(stage === "logistics" ? "process" : "core", false);
+    setManagerTab(stage === "logistics" ? "process" : "session", false);
     state.tutorialStage = stage;
     state.tutorialPaused = false;
     document.body.classList.add("tutorial-focus");
@@ -4875,6 +4875,94 @@
     entrepreneurial: ["customer", "sales", "supplier", "finance", "logistics_manager"]
   };
 
+  function renderGameComparisonMatrices() {
+    const settingsTable = document.getElementById("gameSettingsMatrixTable");
+    const rolesTable = document.getElementById("gameRolesMatrixTable");
+    if (!settingsTable || !rolesTable) return;
+
+    const gameIds = ["lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"];
+    const settingsByGame = Object.fromEntries(gameIds.map(gameId => {
+      const stored = window.GameConfigurationStore?.getConfiguration(gameId)?.settings;
+      const preset = GAME_TYPE_PRESETS[gameId]?.config || {};
+      return [gameId, stored || {
+        game_type: gameId,
+        money: preset.money,
+        pnl: preset.pnl,
+        intermediate_stock: preset.intermediateStock,
+        opportunity_costs: preset.opportunityCosts,
+        role_freedom: preset.roleFreedom,
+        multiple_colors: Boolean(preset.multipleColors),
+        editable_color_layers: preset.editableColorLayers || [],
+        price_mode: preset.priceMode,
+        production_processes: window.LogisticsProcess?.defaultProcessesForGame(gameId) || [],
+        logistics_organization: preset.logisticsOrganization,
+        product_type_count: preset.productTypeCount,
+        customer_order_mode: gameId === "lo7" ? "free" : "required",
+        enabled_roles: PRESET_ROLE_IDS[gameId]
+      }];
+    }));
+    const yesNo = value => value
+      ? '<span class="badge-on" aria-label="Aan">✅</span>'
+      : '<span class="badge-excluded" aria-label="Uit">❌</span>';
+    const text = value => escapeHtml(String(value));
+    const header = `
+      <thead><tr>
+        <th scope="col">Optie</th>
+        ${gameIds.map((_, index) => `<th scope="col">Game ${index + 1}</th>`).join("")}
+      </tr></thead>
+    `;
+    const settingsRows = [
+      ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
+      ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
+      ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
+      ["Functionele organisatie", config => config.logistics_organization === "functional", "bool"],
+      ["Tussenvoorraad", config => config.intermediate_stock, "bool"],
+      ["Geld", config => config.money, "bool"],
+      ["Winst/verlies", config => config.pnl, "bool"],
+      ["Opportunity costs", config => config.opportunity_costs, "bool"],
+      ["Rolvrijheid", config => config.role_freedom, "bool"],
+      ["Meerdere kleuren", config => config.multiple_colors, "bool"],
+      ["Grondplaatkleur vrij", config => config.editable_color_layers?.includes("groundPlate"), "bool"],
+      ["Kleur laag 1 vrij", config => config.editable_color_layers?.includes("layer1"), "bool"],
+      ["Kleur laag 2 vrij", config => config.editable_color_layers?.includes("layer2"), "bool"],
+      ["Kleur laag 3 vrij", config => config.editable_color_layers?.includes("layer3"), "bool"],
+      ["Vrije verkoopprijs", config => config.price_mode === "free", "bool"],
+      ["Vrije klantorder", config => config.customer_order_mode === "free", "bool"],
+      ["Aantal torensoorten", config => config.product_type_count, "text"]
+    ];
+    settingsTable.innerHTML = `
+      <caption>Automatisch opgebouwd uit de ingebouwde gamepresets.</caption>
+      ${header}
+      <tbody>
+        ${settingsRows.map(([label, read, type]) => `
+          <tr>
+            <th scope="row">${text(label)}</th>
+            ${gameIds.map(gameId => {
+              const value = read(settingsByGame[gameId]);
+              return `<td>${type === "bool" ? yesNo(Boolean(value)) : text(value)}</td>`;
+            }).join("")}
+          </tr>
+        `).join("")}
+      </tbody>
+    `;
+
+    rolesTable.innerHTML = `
+      <caption>Rollen per ingebouwde gamepreset; aantallen kunnen binnen de sessie worden verdeeld.</caption>
+      ${header.replace("Optie", "Rol")}
+      <tbody>
+        ${ALL_LO_GAME_ROLES.map(role => `
+          <tr>
+            <th scope="row">${text(role.label)}</th>
+            ${gameIds.map(gameId => {
+              const activeRoles = settingsByGame[gameId].enabled_roles || PRESET_ROLE_IDS[gameId] || [];
+              return `<td>${yesNo(activeRoles.includes(role.id))}</td>`;
+            }).join("")}
+          </tr>
+        `).join("")}
+      </tbody>
+    `;
+  }
+
   function getActiveRoles(gameType) {
     if (state.config.enabledRoles && Array.isArray(state.config.enabledRoles)) {
       return state.config.enabledRoles;
@@ -5706,7 +5794,8 @@
     els.productTypeCountInput.min = String(MIN_PRODUCT_TYPES);
     els.productTypeCountInput.max = String(MAX_PRODUCT_TYPES);
     syncConfigControls();
-    state.managerTab = sessionStorage.getItem("learngame.om.managerTab") || "core";
+    const storedManagerTab = sessionStorage.getItem("learngame.om.managerTab");
+    state.managerTab = storedManagerTab === "core" ? "session" : storedManagerTab || "session";
     state.appView = sessionStorage.getItem("learngame.om.appView") || "player";
     setAppView(state.appView, false);
     updatePriceInput();

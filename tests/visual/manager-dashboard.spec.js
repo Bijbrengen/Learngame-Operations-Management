@@ -45,7 +45,7 @@ test.describe("Manager Dashboard & Perspectives", () => {
     const managerWorkbench = page.locator('#managerWorkbench');
     await expect(managerWorkbench).toBeVisible();
 
-    const tabs = ["session", "process", "inventory", "core", "events", "tower-editor"];
+    const tabs = ["session", "process", "inventory", "events", "tower-editor"];
 
     for (const tabKey of tabs) {
       await page.evaluate((key) => {

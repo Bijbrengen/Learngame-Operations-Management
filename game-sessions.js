@@ -256,6 +256,105 @@
     };
   }
 
+  function gameComparisonMatricesMarkup() {
+    const gameIds = ["lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"];
+    const settingsByGame = Object.fromEntries(gameIds.map(gameId => {
+      const stored = window.GameConfigurationStore?.getConfiguration(gameId)?.settings;
+      const preset = GAME_CONFIG_PRESETS[gameId];
+      const sequential = ["lo1", "lo2", "lo5", "lo6", "lo7"].includes(gameId);
+      return [gameId, stored || {
+        ...preset,
+        production_processes: sequential ? ["sequential"] : ["parallel"],
+        enabled_roles: []
+      }];
+    }));
+    const roles = [
+      ["customer", "Klant"],
+      ["logistics_manager", "Logistiek Manager"],
+      ["raw_warehouse", "Magazijn Grondstoffen"],
+      ["production_1", "Productie Afdeling 1"],
+      ["production_2", "Productie Afdeling 2"],
+      ["production_3", "Productie Afdeling 3"],
+      ["production_a", "Productie Toren A"],
+      ["production_b", "Productie Toren B"],
+      ["production_c", "Productie Toren C"],
+      ["finished_warehouse", "Magazijn Gereed Product"],
+      ["sales", "Verkoop / Sales"],
+      ["finance", "Financiën / Admin"],
+      ["supplier", "Leverancier"],
+      ["transporter", "Transporteur"]
+    ];
+    const yesNo = value => value
+      ? '<span class="badge-on" aria-label="Aan">✅</span>'
+      : '<span class="badge-excluded" aria-label="Uit">❌</span>';
+    const header = firstColumn => `
+      <thead><tr>
+        <th scope="col">${firstColumn}</th>
+        ${gameIds.map((_, index) => `<th scope="col">Game ${index + 1}</th>`).join("")}
+      </tr></thead>
+    `;
+    const settingRows = [
+      ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
+      ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
+      ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
+      ["Functionele organisatie", config => config.logistics_organization === "functional", "bool"],
+      ["Tussenvoorraad", config => config.intermediate_stock, "bool"],
+      ["Geld", config => config.money, "bool"],
+      ["Winst/verlies", config => config.pnl, "bool"],
+      ["Opportunity costs", config => config.opportunity_costs, "bool"],
+      ["Rolvrijheid", config => config.role_freedom, "bool"],
+      ["Meerdere kleuren", config => config.multiple_colors, "bool"],
+      ["Grondplaatkleur vrij", config => config.editable_color_layers?.includes("groundPlate"), "bool"],
+      ["Kleur laag 1 vrij", config => config.editable_color_layers?.includes("layer1"), "bool"],
+      ["Kleur laag 2 vrij", config => config.editable_color_layers?.includes("layer2"), "bool"],
+      ["Kleur laag 3 vrij", config => config.editable_color_layers?.includes("layer3"), "bool"],
+      ["Vrije verkoopprijs", config => config.price_mode === "free", "bool"],
+      ["Vrije klantorder", config => config.customer_order_mode === "free", "bool"],
+      ["Aantal torensoorten", config => config.product_type_count, "text"]
+    ];
+    return `
+      <details class="game-matrix-details is-wide">
+        <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
+        <div class="game-matrix-wrapper">
+          <table class="game-matrix-table">
+            <caption>Automatisch opgebouwd uit de ingebouwde gamesessiepresets.</caption>
+            ${header("Optie")}
+            <tbody>
+              ${settingRows.map(([label, read, type]) => `
+                <tr>
+                  <th scope="row">${escapeHtml(label)}</th>
+                  ${gameIds.map(gameId => {
+                    const value = read(settingsByGame[gameId]);
+                    return `<td>${type === "bool" ? yesNo(Boolean(value)) : escapeHtml(value)}</td>`;
+                  }).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details class="game-matrix-details is-wide">
+        <summary class="game-matrix-summary">👥 Bekijk actieve rollen per LO-Game spelvariant</summary>
+        <div class="game-matrix-wrapper">
+          <table class="game-matrix-table">
+            <caption>Rollen per ingebouwde gamesessiepreset.</caption>
+            ${header("Rol")}
+            <tbody>
+              ${roles.map(([roleId, label]) => `
+                <tr>
+                  <th scope="row">${escapeHtml(label)}</th>
+                  ${gameIds.map(gameId => yesNo(
+                    (settingsByGame[gameId].enabled_roles || []).includes(roleId)
+                  )).map(cell => `<td>${cell}</td>`).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    `;
+  }
+
   function gameConfigFieldsMarkup(config = {}) {
     const value = normalizedGameConfig(config);
     const matchingConfiguration = typeof window !== "undefined" && window.GameConfigurationStore
@@ -433,7 +532,8 @@
             }).join("")}
           </div>
         </details>
-        <details class="game-matrix-details is-wide">
+        ${gameComparisonMatricesMarkup()}
+        <details class="game-matrix-details is-wide" hidden aria-hidden="true">
           <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
           <div class="game-matrix-wrapper">
             <table class="game-matrix-table">
@@ -576,7 +676,7 @@
             </table>
           </div>
         </details>
-        <details class="game-matrix-details is-wide">
+        <details class="game-matrix-details is-wide" hidden aria-hidden="true">
           <summary class="game-matrix-summary">👥 Bekijk actieve rollen & deelnemersbezetting per LO-Game spelvariant</summary>
           <div class="game-matrix-wrapper">
             <table class="game-matrix-table">

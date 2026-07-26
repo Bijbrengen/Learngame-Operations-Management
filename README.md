@@ -348,6 +348,17 @@ meegeleverde preset. Elke wijziging wordt met bestaande presets vergeleken. Bij
 een exacte match springt de gametypekeuze naar die preset; bij een unieke
 combinatie kan de Game Master de configuratie als nieuwe preset opslaan.
 
+Onder **Beheer → Gamesessie → Spelvariant en spelregels** staan twee
+vergelijkingsmatrices voor Games 1–7.
+De eerste toont iedere actuele speloptie, waaronder productieroutes en de
+kleurrechten per laag. De tweede toont alle rollen, waaronder Leverancier en
+Transporteur. Beide matrices worden automatisch uit dezelfde ingebouwde
+presetdata opgebouwd en zijn daardoor geen afzonderlijk handmatig overzicht.
+
+**Gamesessie** is de eerste en standaard actieve beheertab. De voormalige
+aparte tab **Spelkern** is hierin samengevoegd; de order- en informatiestroom
+blijft daardoor binnen dezelfde gamesessiecontext beschikbaar.
+
 ## Wat de proefopstelling nu doet
 
 - starten bij `Klant 1` met de echte ICG2-handeling `Ik wil een order plaatsen`;

@@ -204,7 +204,7 @@
           <p>Kies links een werkvenster.</p>
         </div>
         <nav class="manager-tab-list" role="tablist" aria-orientation="vertical">
-          <button type="button" role="tab" aria-selected="false"
+          <button type="button" class="is-active" role="tab" aria-selected="true" tabindex="0"
                   data-manager-tab="session">
             <span aria-hidden="true">00</span>
             <strong>Gamesessie</strong>
@@ -222,21 +222,15 @@
             <strong>Voorraad</strong>
             <small>Materiaal en WIP</small>
           </button>
-          <button type="button" class="is-active" role="tab" aria-selected="true"
-                  data-manager-tab="core">
-            <span aria-hidden="true">03</span>
-            <strong>Spelkern</strong>
-            <small>Orders, bouw en keten</small>
-          </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="events">
-            <span aria-hidden="true">04</span>
+            <span aria-hidden="true">03</span>
             <strong>Events</strong>
             <small>Acties en meetlijn</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="tower-editor">
-            <span aria-hidden="true">05</span>
+            <span aria-hidden="true">04</span>
             <strong>Toreneditor</strong>
             <small>Productassortiment</small>
           </button>
@@ -290,7 +284,7 @@
       </aside>
 
       <section id="managerSessionPanel"
-               class="game-session-panel manager-dashboard-panel"
+               class="game-session-panel manager-dashboard-panel is-active"
                data-manager-panel="session"
                aria-labelledby="managerSessionTitle">
         <div class="game-session-heading">
@@ -418,7 +412,7 @@
       </section>
 
       <section class="order-band manager-dashboard-panel is-active"
-               data-manager-panel="core"
+               data-manager-panel="session"
                aria-label="Klantorder">
         <div class="role-card active-role-card">
           <div class="role-token">K1</div>
@@ -453,7 +447,7 @@
       </section>
 
       <section class="lego-builder-panel manager-dashboard-panel is-active"
-               data-manager-panel="core"
+               data-manager-panel="session"
                aria-labelledby="legoBuilderTitle">
         <div class="section-head">
           <div>
@@ -466,7 +460,7 @@
       </section>
 
       <section class="process-panel manager-dashboard-panel is-active"
-               data-manager-panel="core"
+               data-manager-panel="session"
                aria-label="Orderstroom">
         <div class="section-head">
           <div>
@@ -576,10 +570,10 @@
           </label>
         </div>
 
-        <details class="game-matrix-details">
+        <details class="game-matrix-details" hidden aria-hidden="true">
           <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
           <div class="game-matrix-wrapper">
-            <table class="game-matrix-table">
+            <table id="gameSettingsMatrixTable" class="game-matrix-table">
               <thead>
                 <tr>
                   <th>Spelvariant</th>
@@ -720,10 +714,10 @@
           </div>
         </details>
 
-        <details class="game-matrix-details">
+        <details class="game-matrix-details" hidden aria-hidden="true">
           <summary class="game-matrix-summary">👥 Bekijk actieve rollen & deelnemersbezetting per LO-Game spelvariant</summary>
           <div class="game-matrix-wrapper">
-            <table class="game-matrix-table">
+            <table id="gameRolesMatrixTable" class="game-matrix-table">
               <thead>
                 <tr>
                   <th>Spelvariant</th>

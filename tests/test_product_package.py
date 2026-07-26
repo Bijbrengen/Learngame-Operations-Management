@@ -76,9 +76,13 @@ class ProductPackageTests(unittest.TestCase):
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
         self.assertEqual(
-            ["session", "process", "inventory", "core", "events", "tower-editor"],
+            ["session", "process", "inventory", "events", "tower-editor"],
             tabs,
         )
+        self.assertNotIn('data-manager-tab="core"', navigation)
+        self.assertIn('class="is-active" role="tab" aria-selected="true"', navigation)
+        self.assertNotIn('data-manager-panel="core"', html)
+        self.assertIn('data-manager-panel="session"', html)
 
     def test_runtime_exposes_versioned_events_without_dropping_legacy_events(self) -> None:
         script = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -1891,6 +1895,9 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("updateColorLayerControls", sessions)
         self.assertIn("editable_color_layers", sessions)
         self.assertIn("Meerdere kleuren", sessions)
+        self.assertIn("gameComparisonMatricesMarkup", sessions)
+        self.assertIn("Grondplaatkleur vrij", sessions)
+        self.assertIn("Leverancier", sessions)
 
 
     def test_game_configuration_store_and_schema(self) -> None:
