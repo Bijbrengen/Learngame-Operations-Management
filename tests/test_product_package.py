@@ -490,11 +490,15 @@ process.stdout.write(JSON.stringify({{
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn('src="lego-builder.js"', html)
         self.assertIn('id="legoBuilderMount"', html)
         self.assertIn("window.LegoTowerRenderer.renderPart", builder)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
-        self.assertIn("window.LegoTowerRenderer.definitions()", builder)
+        self.assertIn(
+            "window.LegoTowerRenderer.definitions(BOARD_GRADIENT_SCOPE)",
+            builder,
+        )
         self.assertIn("static gradientId(", renderer)
         self.assertIn('this.gradientId(color, "top", scope)', renderer)
         self.assertIn('this.gradientId(color, "right", scope)', renderer)
@@ -516,6 +520,213 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('towerBlueprint: { lower: "white", middle: "blue", upper: "red"', game)
         self.assertIn('A: { lower: "yellow", middle: "red", upper: "white"', renderer)
         self.assertIn("getLegoBuilderSnapshot", game)
+
+    def test_tutorial_board_renders_translucent_3d_target_bricks_with_studs(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+global.document = { activeElement: null };
+global.requestAnimationFrame = callback => callback();
+global.addEventListener = () => {};
+global.removeEventListener = () => {};
+vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
+const container = {
+  innerHTML: "",
+  offsetParent: {},
+  querySelectorAll: () => [],
+  querySelector: () => null
+};
+window.LegoBuilder.mount(container, {});
+const previewClass = container.innerHTML.indexOf('class="builder-order-animation"');
+const previewStart = container.innerHTML.lastIndexOf("<svg", previewClass);
+const previewEnd = container.innerHTML.indexOf("</svg>", previewClass);
+const previewMarkup = container.innerHTML.slice(previewStart, previewEnd + 6);
+const boardStart = container.innerHTML.indexOf('<svg class="builder-board"');
+const boardEnd = container.innerHTML.indexOf("</svg>", boardStart);
+const boardMarkup = container.innerHTML.slice(boardStart, boardEnd + 6);
+const targetPattern = /<g class="builder-target"[^>]*>([\s\S]*?)<\/g>\s*<\/g>/g;
+const targets = [...boardMarkup.matchAll(targetPattern)].map(match => match[1]);
+process.stdout.write(JSON.stringify({
+  previewBlockCount: (previewMarkup.match(/class="animated-tower-block-/g) || []).length,
+  previewHasCompleteColors:
+    previewMarkup.includes("yellow")
+    && previewMarkup.includes("red")
+    && previewMarkup.includes("white"),
+  targetCount: targets.length,
+  boardBrickCount: (boardMarkup.match(/class="iso-brick"/g) || []).length,
+  targetsUse3dBricks: targets.every(target => target.includes('class="iso-brick"')),
+  targetsHaveStuds: targets.every(target => target.includes("<ellipse")),
+  targetsUseExpectedColor: targets.every(target => target.includes("lego-builder-board-yellow")),
+  targetsHaveFilledTop: targets.every(target =>
+    target.includes('fill="url(#lego-builder-board-yellow-top)"')
+  ),
+  targetsHaveFilledSides: targets.every(target =>
+    target.includes('fill="url(#lego-builder-board-yellow-left)"')
+    && target.includes('fill="url(#lego-builder-board-yellow-right)"')
+  ),
+  targetsHaveNoEmptyFill: targets.every(target => !target.includes('fill="none"')),
+  boardDefinesScopedGradients:
+    boardMarkup.includes('id="lego-builder-board-yellow-top"')
+    && boardMarkup.includes('id="lego-builder-board-yellow-left"')
+    && boardMarkup.includes('id="lego-builder-board-yellow-right"'),
+  boardHasNoUnscopedGradientRefs: !boardMarkup.includes('url(#lego-yellow-'),
+  hasLegacyFlatTarget: /class="builder-target"[^>]*>\s*<polygon/.test(boardMarkup)
+}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual(4, result["previewBlockCount"])
+        self.assertTrue(result["previewHasCompleteColors"])
+        self.assertEqual(2, result["targetCount"])
+        self.assertEqual(3, result["boardBrickCount"])
+        self.assertTrue(result["targetsUse3dBricks"])
+        self.assertTrue(result["targetsHaveStuds"])
+        self.assertTrue(result["targetsUseExpectedColor"])
+        self.assertTrue(result["targetsHaveFilledTop"])
+        self.assertTrue(result["targetsHaveFilledSides"])
+        self.assertTrue(result["targetsHaveNoEmptyFill"])
+        self.assertTrue(result["boardDefinesScopedGradients"])
+        self.assertTrue(result["boardHasNoUnscopedGradientRefs"])
+        self.assertFalse(result["hasLegacyFlatTarget"])
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        target_css = styles.split(".builder-target {", 1)[1].split(
+            ".builder-icon-button",
+            1,
+        )[0]
+        self.assertIn("opacity: 0.34", target_css)
+        self.assertIn(".builder-target .iso-brick polygon", target_css)
+        self.assertIn("stroke-dasharray: 4 3", target_css)
+        self.assertIn("@keyframes builder-target-pulse", target_css)
+        self.assertIn("opacity: 0.58", target_css)
+        self.assertNotIn("filter", target_css)
+
+    def test_tutorial_order_preview_always_shows_the_complete_tower(self) -> None:
+        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        render_section = builder.split("function render() {", 1)[1].split(
+            "function wire() {",
+            1,
+        )[0]
+        self.assertIn("const orderSequence = goal.sequence;", render_section)
+        self.assertIn('"Volledig bouwvoorbeeld van Toren A"', render_section)
+        self.assertNotIn("TUTORIAL[state.tutorialStep].sequence", render_section)
+
+    def test_tutorial_placement_snaps_forgivingly_through_build_step_two(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+global.document = { activeElement: null };
+global.requestAnimationFrame = callback => callback();
+global.addEventListener = () => {};
+global.removeEventListener = () => {};
+global.setTimeout = callback => callback();
+vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+const builderSource = fs.readFileSync("lego-builder.js", "utf8").replace(
+  "window.LegoBuilder = {",
+  "window.__placeTutorialBrickForTest = placeAt;\n  window.LegoBuilder = {"
+);
+vm.runInThisContext(builderSource);
+const container = {
+  innerHTML: "",
+  offsetParent: {},
+  querySelectorAll: () => [],
+  querySelector: () => null
+};
+window.LegoBuilder.mount(container, {});
+window.__placeTutorialBrickForTest(0, 0);
+window.__placeTutorialBrickForTest(5, 5);
+const afterFoundation = window.LegoBuilder.getSnapshot();
+window.__placeTutorialBrickForTest(0, 0);
+const afterStepTwo = window.LegoBuilder.getSnapshot();
+const red = afterStepTwo.bricks.find(brick => brick.type === "red_8");
+process.stdout.write(JSON.stringify({
+  foundationStep: afterFoundation.tutorialStep,
+  foundationPositions: afterFoundation.bricks.map(brick => [brick.x, brick.y]),
+  stepTwoAdvanced: afterStepTwo.tutorialStep,
+  red
+}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual(1, result["foundationStep"])
+        self.assertEqual([[1, 1], [3, 1]], result["foundationPositions"])
+        self.assertEqual(2, result["stepTwoAdvanced"])
+        self.assertEqual(
+            {
+                "type": "red_8",
+                "color": "red",
+                "x": 1,
+                "y": 2,
+                "width": 4,
+                "depth": 2,
+                "z": 1,
+            },
+            result["red"],
+        )
+
+    def test_second_tower_build_has_no_transparent_target_layer(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+global.document = { activeElement: null };
+global.requestAnimationFrame = callback => callback();
+global.addEventListener = () => {};
+global.removeEventListener = () => {};
+vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
+const container = {
+  innerHTML: "",
+  offsetParent: {},
+  querySelectorAll: () => [],
+  querySelector: () => null
+};
+window.LegoBuilder.mount(container, {});
+window.LegoBuilder.prepareStockTutorial("B");
+window.LegoBuilder.setStockTutorialInventory({
+  blue_8: 2,
+  yellow_4: 1,
+  green_4: 1
+});
+const snapshot = window.LegoBuilder.getSnapshot();
+const boardStart = container.innerHTML.indexOf('<svg class="builder-board"');
+const boardEnd = container.innerHTML.indexOf("</svg>", boardStart);
+const boardMarkup = container.innerHTML.slice(boardStart, boardEnd + 6);
+process.stdout.write(JSON.stringify({
+  mode: snapshot.mode,
+  productId: snapshot.productId,
+  placedBrickCount: snapshot.bricks.length,
+  targetCount: (boardMarkup.match(/class="builder-target"/g) || []).length,
+  boardBrickCount: (boardMarkup.match(/class="iso-brick"/g) || []).length
+}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual("stock_build", result["mode"])
+        self.assertEqual("B", result["productId"])
+        self.assertEqual(0, result["placedBrickCount"])
+        self.assertEqual(0, result["targetCount"])
+        self.assertEqual(1, result["boardBrickCount"])
 
     def test_tutorial_step_two_collects_stock_in_the_isometric_view(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -539,6 +750,16 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('actionType === "complete_lego_tutorial"', game)
         self.assertIn('actionType === "complete_stock_tutorial_build"', game)
         self.assertIn('prepareStockTutorial("B")', game)
+        completion_transition = game.split(
+            'if (actionType === "complete_lego_tutorial") {',
+            1,
+        )[1].split("}", 1)[0]
+        self.assertIn('window.LegoBuilder?.prepareStockTutorial("B");', completion_transition)
+        self.assertIn("startLogisticsTutorial();", completion_transition)
+        self.assertLess(
+            completion_transition.index('prepareStockTutorial("B")'),
+            completion_transition.index("startLogisticsTutorial()"),
+        )
         self.assertIn("setStockTutorialInventory", game)
         self.assertIn("setFreeBuildUnlocked", builder)
         self.assertIn("freeBuildUnlocked", builder)
@@ -584,6 +805,206 @@ process.stdout.write(JSON.stringify({{
         self.assertIn(".iso-building-interior", styles)
         self.assertIn(".iso-stock-brick.is-draggable", styles)
         self.assertIn(".iso-department.is-drop-target.is-drag-over", styles)
+
+    def test_tutorial_step_two_renderer_never_produces_an_empty_screen(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+global.document = { elementFromPoint: () => null };
+global.setTimeout = callback => callback();
+vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const container = {
+  innerHTML: "",
+  querySelectorAll: () => [],
+  querySelector: () => null,
+  contains: () => true
+};
+window.IsometricLogisticsView.mount(container, {
+  title: "Tutorial · Magazijn & Voorraad",
+  selectedDepartmentId: "tutorial_warehouse_a",
+  legend: [{ color: "tutorial-blue", label: "Magazijn A · blauw" }],
+  connections: [],
+  departments: [{
+    id: "tutorial_warehouse_a",
+    title: "Magazijn A",
+    shortTitle: "Blauw",
+    departmentColor: "tutorial-blue",
+    status: "active",
+    layout: { x: 2, y: 2, width: 3.4, depth: 3.1, height: 58 },
+    orders: [],
+    primaryMetric: "2× blauw 2×4"
+  }],
+  tutorial: {
+    active: true,
+    stepLabel: "2 / 5",
+    eyebrow: "Self-starting tutorial · stap 2",
+    title: "Magazijn & Voorraad",
+    instruction: "Sleep de juiste blokken naar de Bouwafdeling.",
+    feedback: "Verzamel vier onderdelen.",
+    status: "collecting",
+    collected: 0,
+    required: 4
+  }
+}, {});
+process.stdout.write(JSON.stringify({
+  hasView: container.innerHTML.includes("iso-logistics-view is-tutorial"),
+  hasStepTwoBanner: container.innerHTML.includes("Self-starting tutorial · stap 2"),
+  hasInstruction: container.innerHTML.includes("Sleep de juiste blokken"),
+  hasMap: container.innerHTML.includes('class="iso-map"'),
+  hasWarehouse: container.innerHTML.includes('data-department-id="tutorial_warehouse_a"')
+}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertTrue(result["hasView"])
+        self.assertTrue(result["hasStepTwoBanner"])
+        self.assertTrue(result["hasInstruction"])
+        self.assertTrue(result["hasMap"])
+        self.assertTrue(result["hasWarehouse"])
+
+    def test_tutorial_focus_keeps_filled_step_two_parent_visible(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+const game = fs.readFileSync("script.js", "utf8");
+const visibilityFunction = "function syncWorkbenchVisibility"
+  + game.split("function syncWorkbenchVisibility")[1].split(
+    "function setAppView"
+  )[0];
+const activeClasses = new Set(["tutorial-focus", "tutorial-stage-logistics"]);
+global.document = {
+  body: {
+    classList: { contains: value => activeClasses.has(value) }
+  }
+};
+global.state = { appView: "player" };
+global.els = {
+  playerWorkbench: { hidden: false, style: { display: "" } },
+  managerWorkbench: { hidden: true, style: { display: "" } }
+};
+vm.runInThisContext(visibilityFunction);
+syncWorkbenchVisibility("player");
+const focused = {
+  playerHidden: els.playerWorkbench.hidden,
+  managerHidden: els.managerWorkbench.hidden
+};
+activeClasses.clear();
+syncWorkbenchVisibility("player");
+const normal = {
+  playerHidden: els.playerWorkbench.hidden,
+  managerHidden: els.managerWorkbench.hidden
+};
+process.stdout.write(JSON.stringify({ focused, normal }));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertTrue(result["focused"]["playerHidden"])
+        self.assertFalse(result["focused"]["managerHidden"])
+        self.assertFalse(result["normal"]["playerHidden"])
+        self.assertTrue(result["normal"]["managerHidden"])
+
+    def test_parallel_logistics_views_keep_stock_bricks_filled(self) -> None:
+        node_program = r"""
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+global.document = { elementFromPoint: () => null };
+global.setTimeout = callback => callback();
+vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const makeContainer = () => ({
+  innerHTML: "",
+  querySelectorAll: () => [],
+  querySelector: () => null,
+  contains: () => true
+});
+const scene = {
+  title: "Tutorial · Magazijn & Voorraad",
+  selectedDepartmentId: "tutorial_warehouse_a",
+  legend: [],
+  connections: [],
+  departments: [{
+    id: "tutorial_warehouse_a",
+    title: "Magazijn A",
+    shortTitle: "Blauw",
+    departmentColor: "tutorial-blue",
+    materialId: "blue_8",
+    status: "active",
+    openRoof: true,
+    layout: { x: 2, y: 2, width: 3.4, depth: 3.1, height: 58 },
+    orders: [],
+    stockVisuals: [{
+      partId: "blue_8",
+      color: "blue",
+      width: 2,
+      depth: 4,
+      count: 1,
+      draggable: true,
+      label: "blauw 2×4-blok"
+    }]
+  }],
+  tutorial: {
+    active: true,
+    title: "Magazijn & Voorraad",
+    instruction: "Verzamel het blok.",
+    status: "collecting",
+    collected: 0,
+    required: 1
+  }
+};
+const first = makeContainer();
+const second = makeContainer();
+window.IsometricLogisticsView.mount(first, scene, {});
+window.IsometricLogisticsView.mount(second, scene, {});
+process.stdout.write(JSON.stringify({
+  firstDefinesOwnFill:
+    first.innerHTML.includes('id="lego-iso-logistics-1-blue-top"')
+    && first.innerHTML.includes('id="lego-iso-logistics-1-blue-left"')
+    && first.innerHTML.includes('id="lego-iso-logistics-1-blue-right"'),
+  firstUsesOwnFill:
+    first.innerHTML.includes('fill="url(#lego-iso-logistics-1-blue-top)"')
+    && first.innerHTML.includes('fill="url(#lego-iso-logistics-1-blue-left)"')
+    && first.innerHTML.includes('fill="url(#lego-iso-logistics-1-blue-right)"'),
+  secondDefinesOwnFill:
+    second.innerHTML.includes('id="lego-iso-logistics-2-blue-top"')
+    && second.innerHTML.includes('id="lego-iso-logistics-2-blue-left"')
+    && second.innerHTML.includes('id="lego-iso-logistics-2-blue-right"'),
+  secondUsesOwnFill:
+    second.innerHTML.includes('fill="url(#lego-iso-logistics-2-blue-top)"')
+    && second.innerHTML.includes('fill="url(#lego-iso-logistics-2-blue-left)"')
+    && second.innerHTML.includes('fill="url(#lego-iso-logistics-2-blue-right)"'),
+  hasNoUnscopedBlueFill:
+    !first.innerHTML.includes('url(#lego-blue-')
+    && !second.innerHTML.includes('url(#lego-blue-')
+}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertTrue(result["firstDefinesOwnFill"])
+        self.assertTrue(result["firstUsesOwnFill"])
+        self.assertTrue(result["secondDefinesOwnFill"])
+        self.assertTrue(result["secondUsesOwnFill"])
+        self.assertTrue(result["hasNoUnscopedBlueFill"])
 
     def test_tutorial_warehouses_only_contain_their_own_color(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -682,11 +1103,33 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("endTutorial", game)
         self.assertIn("pauseTutorial", game)
         self.assertIn("resumeTutorial", game)
+        resume_section = game.split("function resumeTutorial() {", 1)[1].split(
+            "function endTutorial",
+            1,
+        )[0]
+        self.assertNotIn("return launchTutorial()", resume_section)
+        self.assertIn('state.tutorialStage === "logistics"', resume_section)
+        self.assertIn("state.logisticsTutorial.active = true", resume_section)
+        self.assertIn('setTutorialFocus("logistics")', resume_section)
+        self.assertIn('state.tutorialStage === "finance"', resume_section)
+        launch_section = game.split("function launchTutorial() {", 1)[1].split(
+            "async function syncTutorialStateToBackend",
+            1,
+        )[0]
+        self.assertIn(
+            "if (state.tutorialPaused || state.tutorialCompleted) return resumeTutorial();",
+            launch_section,
+        )
         self.assertIn('actionType: "pause_onboarding_tutorial"', game)
         self.assertIn('actionType: "resume_onboarding_tutorial"', game)
         self.assertIn('actionType: "restart_onboarding_tutorial"', game)
         self.assertIn('state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten"', game)
         self.assertIn('els.tutorialExitButton?.addEventListener("click", pauseTutorial)', game)
+        self.assertIn(
+            'document.querySelectorAll("[data-tutorial-launch]").forEach(button => {',
+            game,
+        )
+        self.assertIn("event.stopPropagation()", game)
         self.assertIn("tutorialDismissed", game)
         self.assertIn("skipTutorial", builder)
         self.assertIn(".tutorial-focus.tutorial-stage-builder", styles)
@@ -694,6 +1137,12 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("logisticsGameController?.pause()", game)
         self.assertIn("logisticsGameController?.resume()", game)
         self.assertIn(".tutorial-focus .logistics-game-mount", styles)
+        self.assertIn("lastTutorialStateUpdateTimestamp = Date.now()", game)
+        self.assertIn("requestStartTime < lastTutorialStateUpdateTimestamp", game)
+        self.assertIn(
+            '&& !document.body.classList.contains("tutorial-focus")',
+            game,
+        )
         self.assertIn(
             "pause()",
             (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"),
@@ -726,8 +1175,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("static renderAnimated(", tower_renderer)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", renderer)
         self.assertNotIn("plaats hier", builder.lower())
-        self.assertNotIn("builder-rotate", builder)
-        self.assertNotIn('board.addEventListener("click"', builder)
+        self.assertIn("builder-rotate", builder)
+        self.assertIn("quality_orientation_mismatch", builder)
         self.assertIn('board.addEventListener("drop"', builder)
         self.assertIn("builder-icon-button builder-undo", builder)
         self.assertIn("builder-icon-button builder-reset", builder)
@@ -859,6 +1308,55 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("createSessionDraft", runtime)
         self.assertIn("state.createSessionDraft.game_config = collectGameConfig(form)", runtime)
 
+    def test_create_session_button_executes_post_contract_directly(self) -> None:
+        runtime = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        function_source = "function createSessionFromForm" + runtime.split(
+            "function createSessionFromForm",
+            1,
+        )[1].split("function wire", 1)[0]
+        node_program = f"""
+const vm = require("vm");
+const sandbox = {{
+  state: {{ busy: false, createSessionDraft: null }},
+  collectGameConfig: () => ({{ game_type: "lo4", play_mode: "physical" }}),
+  mutate: (path, body) => {{ sandbox.mutation = {{ path, body }}; }}
+}};
+sandbox.form = {{
+  querySelector: selector => ({{
+    value: selector === "#gameSessionType" ? "closed" : "normal"
+  }})
+}};
+vm.runInNewContext({json.dumps(function_source)} + `
+  result = createSessionFromForm(form);
+`, sandbox);
+process.stdout.write(JSON.stringify({{
+  result: sandbox.result,
+  draft: sandbox.state.createSessionDraft,
+  mutation: sandbox.mutation
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertTrue(result["result"])
+        self.assertEqual("/v1/game-sessions", result["mutation"]["path"])
+        self.assertEqual("closed", result["mutation"]["body"]["session_type"])
+        self.assertEqual("normal", result["mutation"]["body"]["difficulty_level"])
+        self.assertEqual("lo4", result["mutation"]["body"]["game_config"]["game_type"])
+        self.assertEqual(result["draft"], result["mutation"]["body"])
+        self.assertIn("data-create-game-session", html)
+        self.assertIn('event.target.closest("[data-create-game-session]")', runtime)
+        self.assertIn(
+            'createSessionFromForm(createButton.closest("#gameSessionCreateForm"))',
+            runtime,
+        )
+
     def test_customer_places_tower_order_without_selecting_bricks(self) -> None:
         engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
@@ -953,10 +1451,22 @@ uiController.selectedParts = {{}};
 uiController.transferred = false;
 uiController.signed = false;
 uiController.feedback = "";
+let signatureRenderCount = 0;
+uiController.render = () => {{ signatureRenderCount += 1; }};
 const digitalBefore = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.selectedParts = {{...digitalTask.requiredParts}};
 const digitalBuilt = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.transferred = true;
+const signatureButton = {{
+  tagName: "BUTTON",
+  disabled: false,
+  closest: selector => selector === "[data-sim-signature]" ? signatureButton : null
+}};
+uiController.handleClick({{ target: signatureButton }});
+const signedAfterClick = uiController.signed;
+const signatureFeedback = uiController.feedback;
+const signedMarkup = uiController.signatureMarkup();
+const completedDigitalPanel = uiController.digitalActionPanelMarkup(digitalTask);
 const digitalAfterTransfer = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.engine = physical;
 uiController.selectedParts = {{}};
@@ -977,7 +1487,15 @@ process.stdout.write(JSON.stringify({{
   digitalHasTowerDropzone: digitalBuilt.includes("data-sim-part-dropzone"),
   digitalHidesSignatureBeforeTransfer: !digitalBuilt.includes("data-sim-signature"),
   digitalShowsSignatureAfterTransfer: digitalAfterTransfer.includes("data-sim-signature"),
-  physicalKeepsLegacyPartButton: physicalMarkup.includes('data-sim-part="')
+  physicalKeepsLegacyPartButton: physicalMarkup.includes('data-sim-part="'),
+  signedAfterClick,
+  signatureRenderCount,
+  signatureFeedback,
+  signedMarkupIsButton: signedMarkup.includes('<button type="button"'),
+  signedMarkupIsPressed: signedMarkup.includes('aria-pressed="true"'),
+  signedMarkupIsActive: signedMarkup.includes("sim-signature is-signed"),
+  signedMarkupConfirms: signedMarkup.includes("Formulier geparafeerd ✓"),
+  signatureClickEnablesCompletion: !completedDigitalPanel.match(/data-sim-complete\\s+disabled/)
 }}));
 """
         completed_process = subprocess.run(
@@ -1005,6 +1523,14 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["digitalHidesSignatureBeforeTransfer"])
         self.assertTrue(result["digitalShowsSignatureAfterTransfer"])
         self.assertTrue(result["physicalKeepsLegacyPartButton"])
+        self.assertTrue(result["signedAfterClick"])
+        self.assertEqual(1, result["signatureRenderCount"])
+        self.assertIn("Paraaf geregistreerd", result["signatureFeedback"])
+        self.assertTrue(result["signedMarkupIsButton"])
+        self.assertTrue(result["signedMarkupIsPressed"])
+        self.assertTrue(result["signedMarkupIsActive"])
+        self.assertTrue(result["signedMarkupConfirms"])
+        self.assertTrue(result["signatureClickEnablesCompletion"])
 
         node_program = f"""
 const fs = require("fs");
@@ -1195,4 +1721,3 @@ process.stdout.write(JSON.stringify({{
 
 if __name__ == "__main__":
     unittest.main()
-

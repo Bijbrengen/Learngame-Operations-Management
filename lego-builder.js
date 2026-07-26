@@ -66,6 +66,7 @@
 
   const BOARD_VIEWBOX = { width: 520, height: 420 };
   const BOARD_TRANSFORM = { x: 170, y: 62, scale: 2 };
+  const BOARD_GRADIENT_SCOPE = "builder-board";
 
   let container = null;
   let options = {};
@@ -122,21 +123,71 @@
       .join("|");
   }
 
-  function validateBuild(productId, bricks) {
-    if (!GOALS[productId] || !Array.isArray(bricks)) return false;
-    const actualSignature = normalizedSignature(bricks);
-    let expected = GOALS[productId].bricks.map(brick => ({ ...brick }));
-    for (let turn = 0; turn < 4; turn += 1) {
-      if (actualSignature === normalizedSignature(expected)) return true;
-      expected = expected.map(rotateBrick);
+  function rotateSelectedPiece() {
+    const piece = PIECES[state.selectedType];
+    if (!piece || piece.width === piece.depth) {
+      state.feedback = { kind: "info", text: "Een vierkant 2×2-blokje hoeft niet te worden gedraaid." };
+      render();
+      return;
     }
-    return false;
+    state.rotated = !state.rotated;
+    const current = currentPiece();
+    state.feedback = {
+      kind: "info",
+      text: `Oriëntatie gedraaid: ${current.label} (${current.width}×${current.depth}).`
+    };
+    emit("rotate_lego_brick", {
+      selectedType: state.selectedType,
+      rotated: state.rotated,
+      dimensions: `${current.width}x${current.depth}`
+    });
+    render();
+  }
+
+  function validateBuildStrict(productId, bricks) {
+    if (!GOALS[productId] || !Array.isArray(bricks)) return { valid: false, reason: "invalid_input" };
+    const actualSignature = normalizedSignature(bricks);
+    const expected = GOALS[productId].bricks;
+    const expectedSignature = normalizedSignature(expected);
+
+    // Exact signature match (position AND orientation)
+    if (actualSignature === expectedSignature) {
+      return { valid: true, reason: "correct" };
+    }
+
+    // Check if the overall structure matches a rotated variant (wrong orientation)
+    let rotatedExpected = expected.map(brick => ({ ...brick }));
+    for (let turn = 1; turn < 4; turn += 1) {
+      rotatedExpected = rotatedExpected.map(rotateBrick);
+      if (actualSignature === normalizedSignature(rotatedExpected)) {
+        return { valid: false, reason: "quality_orientation_mismatch" };
+      }
+    }
+
+    return { valid: false, reason: "mismatch" };
+  }
+
+  function validateBuild(productId, bricks) {
+    return validateBuildStrict(productId, bricks).valid;
   }
 
   function isExpectedTutorialBrick(candidate) {
     const expected = GOALS.A.bricks.slice(0, TUTORIAL[state.tutorialStep].expectedCount);
     return expected.some(brick => canonical(brick) === canonical(candidate))
       && !state.bricks.some(brick => canonical(brick) === canonical(candidate));
+  }
+
+  function tutorialPlacementTarget(type, x, y) {
+    if (state.mode !== "tutorial" || state.tutorialComplete) return null;
+    return GOALS.A.bricks
+      .slice(0, TUTORIAL[state.tutorialStep].expectedCount)
+      .filter(target => (
+        target.type === type
+        && !state.bricks.some(brick => canonical(brick) === canonical(target))
+      ))
+      .sort((left, right) => (
+        Math.hypot(left.x - x, left.y - y) - Math.hypot(right.x - x, right.y - y)
+      ))[0] || null;
   }
 
   function surfaceAt(x, y) {
@@ -201,7 +252,7 @@
   }
 
   function placeAt(x, y) {
-    const piece = currentPiece();
+    let piece = currentPiece();
     if (!piece) return;
     if (state.mode === "stock_waiting") {
       reject("De blokken zijn op. Haal eerst de nieuwe bouwvoorraad uit de magazijnen.", "stock_not_collected");
@@ -210,6 +261,18 @@
     if (state.mode === "stock_build" && (state.availableStock[piece.id] || 0) <= 0) {
       reject(`${piece.label} is niet meer beschikbaar in je bouwvoorraad.`, "tutorial_stock_empty");
       return;
+    }
+    const tutorialTarget = tutorialPlacementTarget(piece.id, x, y);
+    if (tutorialTarget) {
+      const basePiece = PIECES[piece.id];
+      state.rotated = (
+        basePiece.width !== basePiece.depth
+        && tutorialTarget.width === basePiece.depth
+        && tutorialTarget.depth === basePiece.width
+      );
+      piece = currentPiece();
+      x = tutorialTarget.x;
+      y = tutorialTarget.y;
     }
     const snappedX = Math.max(0, Math.min(6 - piece.width, Math.round(x)));
     const snappedY = Math.max(0, Math.min(6 - piece.depth, Math.round(y)));
@@ -228,7 +291,7 @@
       z
     };
     if (state.mode === "tutorial" && !isExpectedTutorialBrick(candidate)) {
-      reject("Dit blok hoort hier nog niet. Volg de gemarkeerde tutorialstap.", "tutorial_mismatch");
+      reject("Kies het blokje met dezelfde kleur en hetzelfde formaat als het transparante hulpblok.", "tutorial_mismatch");
       return;
     }
     state.bricks.push(candidate);
@@ -439,13 +502,28 @@
       emit("complete_lego_tutorial", { productId: "A" });
       return;
     }
-    const correct = validateBuild(state.productId, state.bricks);
-    state.feedback = correct
-      ? { kind: "success", text: `${GOALS[state.productId].name} klopt met de klantbestelling en kan worden geleverd.` }
-      : { kind: "error", text: "De levering wijkt af: controleer kleuren, maten, lagen en posities." };
+    const check = validateBuildStrict(state.productId, state.bricks);
+    const correct = check.valid;
+    if (correct) {
+      state.feedback = {
+        kind: "success",
+        text: `${GOALS[state.productId].name} klopt exact qua maten, lagen én oriëntatie (kwaliteitscontrole goedgekeurd).`
+      };
+    } else if (check.reason === "quality_orientation_mismatch") {
+      state.feedback = {
+        kind: "error",
+        text: "Kwaliteitscontrole afgekeurd: De toren staat in een foutieve oriëntatie / draairichting. Voldoet niet aan de kwaliteitseisen."
+      };
+    } else {
+      state.feedback = {
+        kind: "error",
+        text: "Kwaliteitscontrole afgekeurd: De levering wijkt af in kleuren, maten, posities of lagen."
+      };
+    }
     emit("validate_lego_delivery", {
       productId: state.productId,
       result: correct ? "correct" : "incorrect",
+      reason: check.reason,
       brickCount: state.bricks.length
     });
     if (typeof options.onDelivered === "function") {
@@ -466,7 +544,8 @@
       physicalLayer(brick.z),
       brick.width,
       brick.depth,
-      piece.color
+      piece.color,
+      BOARD_GRADIENT_SCOPE
     );
   }
 
@@ -474,25 +553,23 @@
     let expected = [];
     if (state.mode === "tutorial" && !state.tutorialComplete) {
       expected = GOALS.A.bricks.slice(0, TUTORIAL[state.tutorialStep].expectedCount);
-    } else if (state.mode === "stock_build" && !state.stockTutorialComplete) {
-      const missing = GOALS[state.productId].bricks
-        .filter(target => !state.bricks.some(brick => canonical(brick) === canonical(target)));
-      const nextLayer = Math.min(...missing.map(target => target.z));
-      expected = missing.filter(target => target.z === nextLayer);
     }
     return expected
       .filter(target => !state.bricks.some(brick => canonical(brick) === canonical(target)))
       .map(target => {
-        const z = physicalLayer(target.z) + 0.05;
-        const corners = [
-          window.LegoTowerRenderer.iso(target.x, target.y, z),
-          window.LegoTowerRenderer.iso(target.x + target.width, target.y, z),
-          window.LegoTowerRenderer.iso(target.x + target.width, target.y + target.depth, z),
-          window.LegoTowerRenderer.iso(target.x, target.y + target.depth, z)
-        ];
+        const piece = PIECES[target.type];
+        if (!piece) return "";
         return `
           <g class="builder-target" aria-hidden="true">
-            <polygon points="${corners.map(point => point.join(",")).join(" ")}"></polygon>
+            ${window.LegoTowerRenderer.brick(
+              target.x,
+              target.y,
+              physicalLayer(target.z),
+              target.width,
+              target.depth,
+              piece.color,
+              BOARD_GRADIENT_SCOPE
+            )}
           </g>
         `;
       }).join("");
@@ -511,9 +588,10 @@
       <svg class="builder-board"
            viewBox="0 0 ${BOARD_VIEWBOX.width} ${BOARD_VIEWBOX.height}"
            role="application"
-           aria-label="Isometrische groene 6 bij 6 LEGO-grondplaat">
+           tabindex="0"
+           aria-label="Isometrische groene 6 bij 6 LEGO-grondplaat. Gebruik de middelste muisknop, scrollwiel of R om te draaien.">
         <defs>
-          ${window.LegoTowerRenderer.definitions()}
+          ${window.LegoTowerRenderer.definitions(BOARD_GRADIENT_SCOPE)}
           <filter id="builderBoardShadow" x="-30%" y="-30%" width="170%" height="190%">
             <feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#173d26" flood-opacity="0.25"></feDropShadow>
           </filter>
@@ -522,7 +600,15 @@
         <g class="builder-isometric-scene"
            transform="translate(${BOARD_TRANSFORM.x} ${BOARD_TRANSFORM.y}) scale(${BOARD_TRANSFORM.scale})"
            filter="url(#builderBoardShadow)">
-          ${window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green")}
+          ${window.LegoTowerRenderer.plate(
+            0,
+            0,
+            0,
+            6,
+            6,
+            "green",
+            BOARD_GRADIENT_SCOPE
+          )}
           ${sortedBricks.map(brickMarkup).join("")}
           ${targetMarkup()}
         </g>
@@ -540,6 +626,7 @@
       .map(piece => {
         const available = state.mode === "stock_build" ? (state.availableStock[piece.id] || 0) : 0;
         const outOfStock = stockBound && (state.mode === "stock_waiting" || available <= 0);
+        const isRotated = state.selectedType === piece.id && state.rotated && piece.width !== piece.depth;
         return `
       <button type="button"
               class="builder-palette-item brick-${piece.color}${state.selectedType === piece.id ? " is-selected" : ""}${outOfStock ? " is-out-of-stock" : ""}"
@@ -547,7 +634,7 @@
               ${outOfStock ? 'data-out-of-stock data-tooltip="Geen blokjes meer in voorraad"' : ""}
               draggable="${outOfStock ? "false" : "true"}"
               aria-disabled="${outOfStock}"
-              aria-label="${escapeHtml(piece.label)}${outOfStock ? ", geen blokjes meer in voorraad" : stockBound ? `, ${available} beschikbaar` : ""}"
+              aria-label="${escapeHtml(piece.label)}${isRotated ? ", oriëntatie gedraaid 90 graden" : ""}${outOfStock ? ", geen blokjes meer in voorraad" : stockBound ? `, ${available} beschikbaar` : ""}"
               aria-pressed="${state.selectedType === piece.id}">
         ${window.LegoTowerRenderer
           ? window.LegoTowerRenderer.renderPart(
@@ -555,6 +642,7 @@
               piece.label
             )
           : `<span class="palette-brick-shape ${piece.width === 2 && piece.depth === 2 ? "is-square" : ""}"></span>`}
+        ${isRotated ? `<span class="builder-rotate-badge" title="Gedraaid 90° (Middelste muisknop / R)" aria-hidden="true">90°</span>` : ""}
         ${stockBound ? `<span class="builder-stock-count" aria-hidden="true">${available}</span>` : ""}
       </button>
     `;
@@ -581,14 +669,14 @@
   function render() {
     if (!container) return;
     const goal = GOALS[state.productId];
-    const orderSequence = state.mode === "tutorial"
-      ? TUTORIAL[state.tutorialStep].sequence
-      : goal.sequence;
+    // The order card is the learner's blueprint: keep showing the complete
+    // tower, even while the board guidance advances one tutorial step at a time.
+    const orderSequence = goal.sequence;
     const orderVisual = window.LegoTowerRenderer
       ? window.LegoTowerRenderer.renderAnimated(
           orderSequence,
           state.mode === "tutorial"
-            ? `Bouwvoorbeeld ${state.tutorialStep + 1} van Toren A`
+            ? "Volledig bouwvoorbeeld van Toren A"
             : `Geanimeerde bouw van ${goal.name}`,
           "builder-order-animation"
         )
@@ -655,9 +743,9 @@
         ${stockHintMarkup()}
         <header class="builder-order-card">
           <div>
-            <p class="eyebrow">Klantbestelling</p>
+            <p class="eyebrow">Klantbestelling · Kwaliteitscontrole</p>
             <h3>Je bent leverancier van LEGO-torens.</h3>
-            <p class="builder-customer-request">Een klant wil deze toren.</p>
+            <p class="builder-customer-request">Een klant wil deze toren. Bouw de toren exact volgens specificatie (positie én oriëntatie voor kwaliteitscontrole).</p>
           </div>
           ${orderVisual}
         </header>
@@ -672,6 +760,12 @@
           </div>
           <aside class="builder-actions" aria-label="Bouwacties">
             ${deliverButton}
+            <button type="button"
+                    class="secondary-button builder-icon-button builder-rotate"
+                    aria-label="Blokje 90° draaien (R / Middelste muisknop / Scrollwiel)"
+                    title="Blokje 90° draaien (Middelste muisknop / Scrollwiel / Hotkey 'R')">
+              🔄
+            </button>
             <button type="button"
                     class="secondary-button builder-icon-button builder-undo"
                     aria-label="Laatste bewerking terugdraaien"
@@ -695,11 +789,26 @@
   function wire() {
     container.querySelectorAll("[data-piece-type]").forEach(button => {
       button.addEventListener("click", event => {
-        if (!button.hasAttribute("data-out-of-stock")) return;
-        event.preventDefault();
-        state.stockHintOpen = true;
-        render();
-        container.querySelector("[data-close-stock-hint]")?.focus();
+        if (button.hasAttribute("data-out-of-stock")) {
+          event.preventDefault();
+          state.stockHintOpen = true;
+          render();
+          container.querySelector("[data-close-stock-hint]")?.focus();
+          return;
+        }
+        if (state.mode === "tutorial" && !state.tutorialComplete) {
+          state.selectedType = button.dataset.pieceType;
+          state.rotated = tutorialRotationForPiece(state.selectedType);
+          render();
+          return;
+        }
+        if (state.selectedType === button.dataset.pieceType) {
+          rotateSelectedPiece();
+        } else {
+          state.selectedType = button.dataset.pieceType;
+          state.rotated = tutorialRotationForPiece(state.selectedType);
+          render();
+        }
       });
       button.addEventListener("dragstart", event => {
         if (button.hasAttribute("data-out-of-stock")) {
@@ -721,21 +830,55 @@
       button.addEventListener("click", () => startFreeBuild(button.dataset.productId));
     });
     const board = container.querySelector(".builder-board");
-    board.addEventListener("dragover", event => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-    });
-    board.addEventListener("drop", event => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData("text/plain");
-      if (PIECES[type]) state.selectedType = type;
-      state.rotated = tutorialRotationForPiece(state.selectedType);
-      const candidate = snapCandidate(event);
-      if (candidate) placeAt(candidate.x, candidate.y);
-    });
+    if (board) {
+      board.addEventListener("dragover", event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      });
+      board.addEventListener("drop", event => {
+        event.preventDefault();
+        const type = event.dataTransfer.getData("text/plain");
+        if (PIECES[type]) state.selectedType = type;
+        const candidate = snapCandidate(event);
+        if (candidate) placeAt(candidate.x, candidate.y);
+      });
+      // Click on board places candidate, or middle click / scroll wheel rotates
+      board.addEventListener("mousedown", event => {
+        if (event.button === 1) {
+          event.preventDefault();
+          rotateSelectedPiece();
+        }
+      });
+      board.addEventListener("auxclick", event => {
+        if (event.button === 1) {
+          event.preventDefault();
+          rotateSelectedPiece();
+        }
+      });
+      board.addEventListener("wheel", event => {
+        event.preventDefault();
+        rotateSelectedPiece();
+      }, { passive: false });
+    }
+
+    container.querySelector(".builder-rotate")?.addEventListener("click", rotateSelectedPiece);
     container.querySelector(".builder-deliver")?.addEventListener("click", deliver);
-    container.querySelector(".builder-undo").addEventListener("click", undo);
-    container.querySelector(".builder-reset").addEventListener("click", resetBuild);
+    container.querySelector(".builder-undo")?.addEventListener("click", undo);
+    container.querySelector(".builder-reset")?.addEventListener("click", resetBuild);
+
+    const handleKeyDown = event => {
+      if (!container || !container.offsetParent) return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+      if (event.key === "r" || event.key === "R") {
+        event.preventDefault();
+        rotateSelectedPiece();
+      }
+    };
+    if (container._handleRotateKey) {
+      window.removeEventListener("keydown", container._handleRotateKey);
+    }
+    container._handleRotateKey = handleKeyDown;
+    window.addEventListener("keydown", container._handleRotateKey);
   }
 
   function mount(target, mountOptions = {}) {

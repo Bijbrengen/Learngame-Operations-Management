@@ -268,6 +268,13 @@
             <span aria-hidden="true">KA</span>
             <strong>Karakter aanpassen</strong>
           </button>
+          <button id="managerTutorialResumeButton"
+                  type="button"
+                  data-tutorial-launch
+                  title="Tutorial hervatten of opnieuw starten">
+            <span aria-hidden="true">▶</span>
+            <strong data-tutorial-label>Tutorial hervatten</strong>
+          </button>
         </div>
         <div class="manager-utility-actions" aria-label="Beheeracties">
           <span>Beheeracties</span>
@@ -311,7 +318,9 @@
                 <option value="hard">Moeilijk</option>
               </select>
             </label>
-            <button class="primary-button" type="submit">Sessie aanmaken</button>
+            <button class="primary-button"
+                    type="submit"
+                    data-create-game-session>Sessie aanmaken</button>
             <div class="difficulty-axis-summary" data-difficulty-summary>
               <span><strong>Aanvragen</strong><small>Normale aanvraagdruk</small></span>
               <span><strong>Foutmarge</strong><small>Incidentele fouten</small></span>
@@ -913,6 +922,7 @@
         <button id="gameConsensusStartButton" class="primary-button" type="button">Nu starten met agents</button>
       </div>
     </div>
+  </section>
   <!-- Save Configuration Dialog -->
   <dialog id="saveConfigDialog" class="config-modal-dialog">
     <form id="saveConfigForm" method="dialog" class="config-modal-form">

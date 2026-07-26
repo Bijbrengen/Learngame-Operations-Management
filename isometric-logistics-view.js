@@ -3,6 +3,7 @@
 
   const VIEWBOX = { width: 1320, height: 900 };
   const PROJECTION = { originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 };
+  let legoGradientInstance = 0;
   const TUTORIAL_WAREHOUSE_PALETTES = Object.freeze({
     "tutorial-blue": {
       floor: "rgba(53, 139, 255, 0.34)",
@@ -158,7 +159,7 @@
     `;
   }
 
-  function openWarehouseMarkup(department, geometry) {
+  function openWarehouseMarkup(department, geometry, legoGradientScope) {
     const center = geometry.center;
     const palette = department.materialId
       ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
@@ -212,13 +213,14 @@
               0,
               width,
               depth,
-              visual.color || "blue"
+              visual.color || "blue",
+              legoGradientScope
             )}
           </g>
         `;
       }).join("")
       : "";
-    const cargo = towerCargoMarkup(department, geometry);
+    const cargo = towerCargoMarkup(department, geometry, legoGradientScope);
     const empty = items.length === 0 && !cargo
       ? `<text class="iso-empty-stock-label"
                x="${center.x}"
@@ -236,7 +238,7 @@
     `;
   }
 
-  function towerCargoMarkup(department, geometry) {
+  function towerCargoMarkup(department, geometry, legoGradientScope) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "tower" || !window.LegoTowerRenderer) return "";
     const scale = 0.56;
@@ -245,14 +247,15 @@
       ? window.LegoTowerRenderer.layoutSequence(sequence)
       : window.LegoTowerRenderer.layoutSequence(["blue_8", "blue_8", "yellow_4", "green_4"]);
     const tower = [
-      window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green"),
+      window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green", legoGradientScope),
       ...blocks.map(block => window.LegoTowerRenderer.brick(
         block.x,
         block.y,
         block.z,
         block.width,
         block.depth,
-        block.color
+        block.color,
+        legoGradientScope
       ))
     ].join("");
     return `
@@ -282,7 +285,7 @@
     `;
   }
 
-  function departmentMarkup(department, selectedId) {
+  function departmentMarkup(department, selectedId, legoGradientScope) {
     const geometry = zoneGeometry(department);
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
@@ -313,7 +316,7 @@
           ])}"
                    ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>
           ${department.openRoof
-            ? openWarehouseMarkup(department, geometry)
+            ? openWarehouseMarkup(department, geometry, legoGradientScope)
             : `
               <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>
               ${symbolMarkup(department, geometry.center)}
@@ -515,6 +518,7 @@
 
   function mount(container, scene, options = {}) {
     if (!container) return;
+    const legoGradientScope = `iso-logistics-${legoGradientInstance += 1}`;
     const departments = (scene.departments || [])
       .filter(department => department.visible !== false)
       .map(department => (
@@ -546,7 +550,9 @@
       const rightDepth = right.layout.x + right.layout.y;
       return leftDepth - rightDepth || left.layout.x - right.layout.x;
     });
-    const zones = sortedDepartments.map(department => departmentMarkup(department, selected?.id)).join("");
+    const zones = sortedDepartments
+      .map(department => departmentMarkup(department, selected?.id, legoGradientScope))
+      .join("");
     const overlays = sortedDepartments.map(department => departmentOverlayMarkup({
       ...department,
       hideMetric: department.hideMetric || Boolean(scene.tutorial?.active)
@@ -573,7 +579,9 @@
                role="img"
                aria-label="Isometrische kaart van de logistieke afdelingen">
             <defs>
-              ${window.LegoTowerRenderer ? window.LegoTowerRenderer.definitions() : ""}
+              ${window.LegoTowerRenderer
+                ? window.LegoTowerRenderer.definitions(legoGradientScope)
+                : ""}
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#123039"></stop>
                 <stop offset="100%" stop-color="#08161c"></stop>

@@ -171,6 +171,12 @@
         return;
       }
 
+      const signatureButton = eventTargetClosest(event, "[data-sim-signature]");
+      if (signatureButton && signatureButton.tagName === "BUTTON" && !signatureButton.disabled) {
+        this.setSignature(!this.signed);
+        return;
+      }
+
       const digitalPart = eventTargetClosest(event, "[data-sim-drag-part]");
       if (digitalPart) {
         this.digitalSelectedPartId = digitalPart.dataset.simDragPart;
@@ -329,11 +335,18 @@
         this.render();
         return;
       }
-      if (event.target.matches("[data-sim-signature]")) {
-        this.signed = event.target.checked;
-        this.feedback = "";
-        this.render();
+      const signature = eventTargetClosest(event, "[data-sim-signature]");
+      if (signature) {
+        this.setSignature(Boolean(signature.checked));
       }
+    }
+
+    setSignature(signed) {
+      this.signed = Boolean(signed);
+      this.feedback = this.signed
+        ? "Paraaf geregistreerd. Klik op Uitgevoerd om de handeling af te ronden."
+        : "De paraaf is verwijderd.";
+      this.render();
     }
 
     handleSubmit(event) {
@@ -552,6 +565,18 @@
         : this.physicalActionPanelMarkup(task);
     }
 
+    signatureMarkup() {
+      return `
+        <button type="button"
+                class="sim-signature${this.signed ? " is-signed" : ""}"
+                data-sim-signature
+                aria-pressed="${this.signed ? "true" : "false"}">
+          <span class="sim-signature-box" aria-hidden="true">${this.signed ? "✓" : ""}</span>
+          <span>${this.signed ? "Formulier geparafeerd ✓" : "Parafeer formulier"}</span>
+        </button>
+      `;
+    }
+
     physicalActionPanelMarkup(task) {
       const partEntries = Object.entries(task.requiredParts || {});
       const partsComplete = this.partsComplete(task);
@@ -601,10 +626,7 @@
           </section>
           <section class="sim-action-section">
             <h3>3. Administratief afronden</h3>
-            <label class="sim-signature">
-              <input type="checkbox" data-sim-signature ${this.signed ? "checked" : ""}>
-              <span>Parafeer formulier</span>
-            </label>
+            ${this.signatureMarkup()}
             <button type="button"
                     class="primary-button sim-complete-button"
                     data-sim-complete
@@ -976,10 +998,7 @@
             <section class="sim-action-section">
               <h3>3. Administratief afronden</h3>
               ${this.digitalFormSummaryMarkup(task)}
-              <label class="sim-signature">
-                <input type="checkbox" data-sim-signature ${this.signed ? "checked" : ""}>
-                <span>Parafeer formulier</span>
-              </label>
+              ${this.signatureMarkup()}
               <button type="button"
                       class="primary-button sim-complete-button"
                       data-sim-complete

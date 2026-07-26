@@ -1239,6 +1239,19 @@
     return openOrders.find(order => stepRole(order)?.id === state.assignedRoleId) || null;
   }
 
+  function syncWorkbenchVisibility(view = state.appView) {
+    const nextView = view === "manager" ? "manager" : "player";
+    const tutorialFocused = document.body.classList.contains("tutorial-focus");
+    if (els.playerWorkbench) {
+      els.playerWorkbench.hidden = tutorialFocused || nextView !== "player";
+      els.playerWorkbench.style.display = "";
+    }
+    if (els.managerWorkbench) {
+      els.managerWorkbench.hidden = tutorialFocused ? false : nextView !== "manager";
+      els.managerWorkbench.style.display = "";
+    }
+  }
+
   function setAppView(view, dispatch = true) {
     const nextView = view === "manager" ? "manager" : "player";
     state.appView = nextView;
@@ -1247,14 +1260,7 @@
       document.body.classList.remove("tutorial-focus", "tutorial-stage-builder", "tutorial-stage-logistics");
       if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
     }
-    if (els.playerWorkbench) {
-      els.playerWorkbench.hidden = nextView !== "player";
-      els.playerWorkbench.style.display = "";
-    }
-    if (els.managerWorkbench) {
-      els.managerWorkbench.hidden = nextView !== "manager";
-      els.managerWorkbench.style.display = "";
-    }
+    syncWorkbenchVisibility(nextView);
     document.querySelectorAll("[data-app-view]").forEach(button => {
       if (!button) return;
       const active = button.dataset.appView === nextView;
@@ -2670,19 +2676,15 @@
   }
 
   function setTutorialFocus(stage = "builder") {
-    if (state.tutorialDismissed) return;
+    state.tutorialDismissed = false;
     logisticsGameController?.pause();
-    setAppView("player", false);
     setManagerTab(stage === "logistics" ? "process" : "core", false);
-    // De herbruikbare tutorialpanelen staan technisch in de dashboardcontainer,
-    // maar de actieve gebruikersweergave blijft altijd het spelersperspectief.
-    // De schermvullende tutorialstijl verbergt alle overige beheeronderdelen.
-    if (els.managerWorkbench) els.managerWorkbench.hidden = false;
     state.tutorialStage = stage;
     state.tutorialPaused = false;
     document.body.classList.add("tutorial-focus");
     document.body.classList.toggle("tutorial-stage-builder", stage === "builder");
     document.body.classList.toggle("tutorial-stage-logistics", stage === "logistics");
+    syncWorkbenchVisibility(state.appView);
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = false;
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
       button.hidden = true;
@@ -2699,33 +2701,61 @@
     setAppView(activeView, false);
     if (state.gameSessionRunning) logisticsGameController?.resume();
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
+    updateTutorialResumeButton();
   }
 
   function updateTutorialResumeButton() {
+    const isFocus = document.body.classList.contains("tutorial-focus");
     const label = state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten";
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
-      button.hidden = false;
-      const labelNode = button.querySelector("[data-tutorial-label]")
-        || button.querySelector("span:last-child");
-      if (labelNode) labelNode.textContent = label;
-      button.title = state.tutorialCompleted
-        ? "Tutorial opnieuw starten vanaf Stap 1"
-        : "Tutorial hervatten waar je bent gestopt";
+      button.hidden = isFocus;
+      if (!isFocus) {
+        button.style.display = "";
+        const labelNode = button.querySelector("[data-tutorial-label]")
+          || button.querySelector("span:last-child");
+        if (labelNode) labelNode.textContent = label;
+        button.title = state.tutorialCompleted
+          ? "Tutorial opnieuw starten vanaf Stap 1"
+          : "Tutorial hervatten waar je bent gestopt";
+      }
     });
   }
 
+  let lastTutorialStateUpdateTimestamp = 0;
+
   function launchTutorial() {
-    if (document.body.classList.contains("tutorial-focus")) {
-      setAppView("manager");
-      return true;
-    }
+    if (document.body.classList.contains("tutorial-focus")) return true;
     if (state.tutorialPaused || state.tutorialCompleted) return resumeTutorial();
-    state.tutorialDismissed = false;
+    lastTutorialStateUpdateTimestamp = Date.now();
+    try {
+      localStorage.removeItem("learngame.om.tutorialCompleted");
+      localStorage.removeItem("learngame.om.tutorialDismissed");
+    } catch (e) {}
+    syncTutorialStateToBackend(false, false);
     state.tutorialCompleted = false;
+    state.tutorialDismissed = false;
     state.tutorialPaused = false;
+    state.tutorialStage = "builder";
     resetLogisticsTutorial();
     window.LegoBuilder?.restartTutorial();
     setTutorialFocus("builder");
+    updateTutorialResumeButton();
+    dispatchInteraction({
+      actionType: "restart_onboarding_tutorial",
+      learningObjectID: "self_starting_tutorial",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "restarted",
+      step: 1
+    });
+    dispatchInteraction({
+      actionType: "resume_onboarding_tutorial",
+      learningObjectID: "self_starting_tutorial",
+      objectRole: "onboarding",
+      role: "Lerende",
+      result: "resumed",
+      step: 1
+    });
     renderAll();
     els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
     return true;
@@ -2747,6 +2777,7 @@
   }
 
   async function checkBackendTutorialState() {
+    const requestStartTime = Date.now();
     const apiBase = (window.LeerpretAuth?.getSession?.().apiBase || "").replace(/\/+$/, "");
     if (!apiBase) return;
     try {
@@ -2756,6 +2787,9 @@
       });
       if (res.ok) {
         const data = await res.json();
+        if (requestStartTime < lastTutorialStateUpdateTimestamp || document.body.classList.contains("tutorial-focus")) {
+          return;
+        }
         if (data.completed || data.dismissed) {
           state.tutorialCompleted = Boolean(data.completed);
           state.tutorialDismissed = Boolean(data.dismissed);
@@ -2799,6 +2833,7 @@
   }
 
   function resumeTutorial() {
+    lastTutorialStateUpdateTimestamp = Date.now();
     try {
       localStorage.removeItem("learngame.om.tutorialCompleted");
       localStorage.removeItem("learngame.om.tutorialDismissed");
@@ -2810,6 +2845,7 @@
     state.tutorialPaused = false;
 
     if (wasCompleted) {
+      state.tutorialStage = "builder";
       resetLogisticsTutorial();
       window.LegoBuilder?.restartTutorial();
       setTutorialFocus("builder");
@@ -2840,6 +2876,7 @@
       renderAll();
       els.legoBuilderMount?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    updateTutorialResumeButton();
     dispatchInteraction({
       actionType: "resume_onboarding_tutorial",
       learningObjectID: "self_starting_tutorial",
@@ -4108,6 +4145,7 @@
         renderMetrics();
         if (actionType === "complete_lego_tutorial") {
           window.LegoBuilder?.prepareStockTutorial("B");
+          startLogisticsTutorial();
         }
         if (actionType === "restart_lego_tutorial") {
           resetLogisticsTutorial();
@@ -4661,7 +4699,11 @@
     window.addEventListener("behavior-profile-completed", event => {
       const receipt = event.detail?.receipt || {};
       const tutorialState = receipt.tutorial_state;
-      if (tutorialState && (tutorialState.completed || tutorialState.dismissed)) {
+      if (
+        tutorialState
+        && (tutorialState.completed || tutorialState.dismissed)
+        && !document.body.classList.contains("tutorial-focus")
+      ) {
         state.tutorialCompleted = Boolean(tutorialState.completed);
         state.tutorialDismissed = Boolean(tutorialState.dismissed);
         try {
@@ -4691,6 +4733,13 @@
     });
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
       button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
+    });
+    document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        launchTutorial();
+      });
     });
     els.playerFormConfirmInput?.addEventListener("change", () => {
       els.playerCompleteActionButton.disabled = !els.playerFormConfirmInput.checked;

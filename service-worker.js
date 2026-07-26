@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v122";
+const CACHE_VERSION = "learngame-om-v142";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -110,4 +110,3 @@ self.addEventListener("message", event => {
     self.skipWaiting();
   }
 });
-

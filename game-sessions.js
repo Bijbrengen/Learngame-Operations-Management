@@ -779,7 +779,9 @@
             ${difficultyOptions(draft.difficulty_level)}
           </select>
         </label>
-        <button class="primary-button" type="submit">Sessie aanmaken</button>
+        <button class="primary-button"
+                type="submit"
+                data-create-game-session>Sessie aanmaken</button>
         <div class="difficulty-axis-summary" data-difficulty-summary>
           ${difficultyAxesMarkup(draft.difficulty_level)}
         </div>
@@ -1068,30 +1070,42 @@
     state.session = state.availability.current_session;
   }
 
+  function createSessionFromForm(form) {
+    if (!form || state.busy) return false;
+    const type = form.querySelector("#gameSessionType")?.value || "closed";
+    const difficulty = form.querySelector("#gameSessionDifficulty")?.value || "normal";
+    const gameConfig = collectGameConfig(form);
+    state.createSessionDraft = {
+      session_type: type,
+      difficulty_level: difficulty,
+      game_config: { ...gameConfig }
+    };
+    mutate("/v1/game-sessions", {
+      session_type: type,
+      difficulty_level: difficulty,
+      game_config: gameConfig
+    });
+    return true;
+  }
+
   function wire() {
     document.addEventListener("submit", event => {
       if (event.target.matches("#gameSessionCreateForm")) {
         event.preventDefault();
-        const type = event.target.querySelector("#gameSessionType")?.value || "closed";
-        const difficulty = event.target.querySelector("#gameSessionDifficulty")?.value || "normal";
-        const gameConfig = collectGameConfig(event.target);
-        state.createSessionDraft = {
-          session_type: type,
-          difficulty_level: difficulty,
-          game_config: { ...gameConfig }
-        };
-        mutate("/v1/game-sessions", {
-          session_type: type,
-          difficulty_level: difficulty,
-          game_config: gameConfig
-        });
+        createSessionFromForm(event.target);
       }
       if (event.target.matches("[data-game-code-join]")) {
         event.preventDefault();
         const code = new FormData(event.target).get("join_code");
         mutate("/v1/game-sessions/join", { join_code: String(code || "").toUpperCase() });
       }
-    });
+    }, true);
+    document.addEventListener("click", event => {
+      const createButton = event.target.closest("[data-create-game-session]");
+      if (!createButton) return;
+      event.preventDefault();
+      createSessionFromForm(createButton.closest("#gameSessionCreateForm"));
+    }, true);
     document.addEventListener("input", event => {
       const createForm = event.target.closest("#gameSessionCreateForm");
       if (!createForm) return;

@@ -1250,8 +1250,9 @@ h3,
   margin-inline: auto;
 }
 
+.tutorial-focus .player-workbench,
 .tutorial-focus .manager-dashboard-menu {
-  display: none;
+  display: none !important;
 }
 
 .tutorial-focus.tutorial-stage-builder .workbench > :not(.lego-builder-panel),
@@ -3077,24 +3078,53 @@ body[data-app-view="player"] .topbar {
 }
 
 .sim-signature {
+  display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
+  width: 100%;
   min-height: 48px;
   padding: 9px 11px;
   border: 1px dashed #537078;
   border-radius: 8px;
   color: #cde3e5;
   background: #0d2229;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
-.sim-signature input {
+.sim-signature-box {
+  display: inline-grid;
+  place-items: center;
   width: 20px;
-  min-height: 20px;
-  accent-color: var(--lp-accent);
+  height: 20px;
+  border: 2px solid #8aabb1;
+  border-radius: 4px;
+  color: #062017;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 900;
 }
 
 .sim-signature > span {
   color: #cde3e5;
+}
+
+.sim-signature.is-signed {
+  border-style: solid;
+  border-color: #41c58a;
+  color: #d8ffea;
+  background: #12372a;
+}
+
+.sim-signature.is-signed .sim-signature-box {
+  border-color: #41c58a;
+  background: #41c58a;
+}
+
+.sim-signature.is-signed > span {
+  color: #d8ffea;
+  font-weight: 800;
 }
 
 .sim-complete-button:disabled {
@@ -4089,6 +4119,20 @@ body[data-app-view="player"] .topbar {
   margin-top: 5px;
 }
 
+.builder-rotate-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #041312;
+  background: var(--lp-accent, #32ddd2);
+  font-size: 0.65rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 .builder-stock-count {
   position: absolute;
   right: 5px;
@@ -4130,21 +4174,20 @@ body[data-app-view="player"] .topbar {
 
 .builder-target {
   pointer-events: none;
+  opacity: 0.34;
+  animation: builder-target-pulse 1.1s ease-in-out infinite alternate;
 }
 
-.builder-target polygon {
-  fill: rgba(140, 236, 229, 0.16);
-  stroke: #62b6b7;
-  stroke-width: 2.4;
-  stroke-dasharray: 5 4;
+.builder-target .iso-brick polygon {
+  stroke: var(--lp-accent);
+  stroke-width: 1.35;
+  stroke-dasharray: 4 3;
   vector-effect: non-scaling-stroke;
-  animation: builder-target-pulse 1.1s ease-in-out infinite alternate;
 }
 
 @keyframes builder-target-pulse {
   to {
-    fill: rgba(140, 236, 229, 0.3);
-    stroke: var(--lp-accent);
+    opacity: 0.58;
   }
 }
 
@@ -8390,7 +8433,3 @@ body.tutorial-focus {
   gap: 10px;
   margin-top: 6px;
 }
-
-
-
-
