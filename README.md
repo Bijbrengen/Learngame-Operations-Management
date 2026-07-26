@@ -6,6 +6,44 @@ De browserruntime heeft geen backend- of buildafhankelijkheden. `product.json`
 beschrijft wat bij dit product hoort en welke hostkoppelingen bij afsplitsing
 door een adapter of deploymentconfiguratie moeten worden overgenomen.
 
+## Plaats in het Leerpret-repositorylandschap
+
+De normale lokale opstelling bestaat uit drie zelfstandige Git-repository's:
+
+```text
+D:\repos\
+├── Leerpret\
+├── LeerpretEngine\
+└── Learngame Operations Management\
+```
+
+- `Leerpret` bezit artikelen, onderzoek, generieke leerboxbronnen, het
+  canonieke publieke interactiecontract en de dashboardfrontend.
+- `LeerpretEngine` bezit FastAPI, authenticatie, gamesessies, profielopslag,
+  telemetry, actieverwerking, scoring en simulatie.
+- deze repository bezit de productspecifieke browsergame, PWA-assets, lokale
+  fixtures en producttests.
+
+Er is geen Git-submodule en broncode wordt niet automatisch tussen deze
+repository's gekopieerd. Deze game communiceert met LeerpretEngine via
+publieke HTTP-routes en versieerbare contractevents. De lokale contractkopieën
+onder `contracts/` maken zelfstandige validatie en offline ontwikkeling
+mogelijk; de canonieke taalneutrale bron staat in `Leerpret/contracts/`. Een
+contractwijziging moet bewust in alle consumers worden doorgevoerd en getest.
+
+LeerpretEngine vindt deze repository via `LEARNGAME_OM_DIR` of standaard als
+buurmap `../Learngame Operations Management`. De Engine kan de game daardoor
+zonder kopie mounten op:
+
+```text
+/tools/leerbox/learngame-operations-management/
+```
+
+Standalone draait de game normaal op poort `4173` en gebruikt zij
+LeerpretEngine op poort `8011`. De statische spelkern blijft zonder backend
+bruikbaar; authenticatie, gedeelde sessies, duurzame profielopslag en
+servertelemetry vereisen de Engine.
+
 ## Character Creation en gedragsscan
 
 Na het aanmelden doorloopt de speler eerst een gamified point-buy-wizard:
@@ -91,7 +129,8 @@ moet voor een afzonderlijke oorsprong die oorsprong opnemen in
 `LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
 `GOOGLE_OAUTH_CLIENT_ID` en `GOOGLE_OAUTH_CLIENT_SECRET` op de backend en de
 oorsprong van de standalone game als Authorized JavaScript origin in Google
-Cloud. Het client secret hoort uitsluitend in de genegeerde `backend/.env`.
+Cloud. Het client secret hoort uitsluitend in de genegeerde
+`LeerpretEngine/.env`.
 
 ## Uitgangspunten
 
