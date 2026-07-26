@@ -255,6 +255,34 @@ http://localhost:47113/
 
 De service worker gebruikt een network-first strategie: bij verbinding wordt de nieuwste versie van de server opgehaald, terwijl eerder bezochte bestanden als fallback beschikbaar blijven.
 
+## Visuele controle met Playwright
+
+Deze repository heeft eigen Playwright-tests en een eigen
+`@playwright/test`-ontwikkelafhankelijkheid. De Chromiumbinary staat volgens
+de Playwright-conventie buiten de repository in de gedeelde gebruikerscache
+`%LOCALAPPDATA%\ms-playwright`. Andere Leerpret-repository's worden niet
+aangepast en kunnen dezelfde browserbinary later hergebruiken. Playwright leest
+`LEARNGAME_OM_URL` uit `.env`, start de statische server zo nodig op die vaste
+URL en wijkt niet naar een andere poort uit.
+
+Eenmalig op een nieuwe werkplek:
+
+```powershell
+npm install
+npx playwright install chromium
+```
+
+Voer daarna de desktop- en mobiele visuele controle uit met:
+
+```powershell
+npm run test:visual
+```
+
+De bespreekbare schermafbeeldingen komen in de genegeerde map
+`test-results/`. Bij een mislukte test bewaart Playwright daarnaast een trace,
+video en foutafbeelding. Gebruik `npm run test:visual:report` om het lokale
+HTML-rapport te openen.
+
 Binnen het Leerpret-dashboard blijft de bestaande compatibiliteits-URL werken:
 
 ```text

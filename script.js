@@ -1261,7 +1261,7 @@
       if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
     }
     syncWorkbenchVisibility(nextView);
-    document.querySelectorAll("[data-app-view]").forEach(button => {
+    document.querySelectorAll("button[data-app-view], a[data-app-view]").forEach(button => {
       if (!button) return;
       const active = button.dataset.appView === nextView;
       button.classList.toggle("is-active", active);
@@ -4728,7 +4728,7 @@
       });
       renderAll();
     });
-    document.querySelectorAll("[data-app-view]").forEach(button => {
+    document.querySelectorAll("button[data-app-view], a[data-app-view]").forEach(button => {
       button.addEventListener("click", () => setAppView(button.dataset.appView));
     });
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
@@ -5103,7 +5103,7 @@
   // Bind this essential escape/restart action before initializing the heavier
   // game views. It must remain usable even if a renderer fails during startup.
   document.addEventListener("click", event => {
-    const appViewButton = event.target.closest("[data-app-view]");
+    const appViewButton = event.target.closest("button[data-app-view], a[data-app-view]");
     if (appViewButton && appViewButton.dataset.appView) {
       event.preventDefault();
       setAppView(appViewButton.dataset.appView);

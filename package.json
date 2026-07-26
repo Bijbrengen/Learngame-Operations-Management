@@ -1,0 +1,14 @@
+{
+  "name": "learngame-operations-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone LEARNGame OM webapp with repo-local Playwright visual checks.",
+  "scripts": {
+    "test:visual": "playwright test",
+    "test:visual:headed": "playwright test --headed",
+    "test:visual:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0"
+  }
+}

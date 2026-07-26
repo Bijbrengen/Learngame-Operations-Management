@@ -323,7 +323,7 @@
     }
 
     handleChange(event) {
-      const customerOrderForm = event.target.closest("[data-customer-order-form]");
+      const customerOrderForm = eventTargetClosest(event, "[data-customer-order-form]");
       if (customerOrderForm) {
         const values = new FormData(customerOrderForm);
         this.customerOrderDraft = {
@@ -332,7 +332,11 @@
           dueMinutes: Math.max(2, Number(values.get("due_minutes")) || 2)
         };
         this.feedback = "";
-        this.render();
+        // Een volledige render tijdens de blur/change van een numeriek veld
+        // vervangt de submitknop nog vóór diens click-event. Daardoor leek de
+        // knop niets te doen. Alleen een productkeuze moet de torenpreview
+        // direct opnieuw tekenen; aantallen blijven in het bestaande formulier.
+        if (event.target?.matches?.('[name="product_id"]')) this.render();
         return;
       }
       const signature = eventTargetClosest(event, "[data-sim-signature]");
