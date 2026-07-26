@@ -1,11 +1,22 @@
 (() => {
   "use strict";
 
+  const GROUND_PLATE_SIZE = Object.freeze({ width: 6, depth: 6 });
+  const GROUND_PLATE_COLORS = Object.freeze([
+    { id: "green", label: "Grasgroen", hex: "#38be72" },
+    { id: "blue", label: "Blauw", hex: "#4c8df2" },
+    { id: "light_gray", label: "Lichtgrijs", hex: "#cbd5e1" },
+    { id: "dark_gray", label: "Donkergrijs", hex: "#64748b" },
+    { id: "black", label: "Zwart", hex: "#111827" },
+    { id: "sand", label: "Zandgeel", hex: "#f0d58a" }
+  ]);
+
   const state = {
     mount: null,
     parts: [],
     products: [],
     sequence: [],
+    groundPlateColor: "green",
     onAdd: null,
     onDelete: null,
     sessionRunning: false,
@@ -33,6 +44,11 @@
 
   function sequenceFor(product) {
     return Array.isArray(product.towerSequence) ? product.towerSequence : [];
+  }
+
+  function groundPlateColorFor(product) {
+    const color = product?.groundPlate?.color;
+    return GROUND_PLATE_COLORS.some(option => option.id === color) ? color : "green";
   }
 
   function foundationCount(sequence = state.sequence) {
@@ -88,8 +104,34 @@
     return window.LegoTowerRenderer.renderSequence(
       state.sequence,
       "Voorbeeld van de ontworpen toren",
-      "tower-editor-preview-svg"
+      "tower-editor-preview-svg",
+      state.groundPlateColor
     );
+  }
+
+  function groundPlateMarkup() {
+    return `
+      <fieldset class="tower-ground-plate">
+        <legend>Grondplaat</legend>
+        <div class="tower-ground-plate-size">
+          Grootte: <strong>${GROUND_PLATE_SIZE.width}×${GROUND_PLATE_SIZE.depth} noppen</strong>
+          <span>vast</span>
+        </div>
+        <div class="tower-ground-plate-colors" aria-label="Kleur van de grondplaat">
+          ${GROUND_PLATE_COLORS.map(option => `
+            <button type="button"
+                    class="tower-ground-plate-color${state.groundPlateColor === option.id ? " is-selected" : ""}"
+                    data-ground-plate-color="${option.id}"
+                    aria-label="${option.label}"
+                    aria-pressed="${state.groundPlateColor === option.id}"
+                    title="${option.label}">
+              <span style="--ground-plate-swatch:${option.hex}" aria-hidden="true"></span>
+              <small>${option.label}</small>
+            </button>
+          `).join("")}
+        </div>
+      </fieldset>
+    `;
   }
 
   function paletteMarkup() {
@@ -142,7 +184,8 @@
           ${window.LegoTowerRenderer.renderAnimated(
             sequenceFor(product),
             `Geanimeerde bouw van ${product.name}`,
-            "tower-assortment-svg"
+            "tower-assortment-svg",
+            groundPlateColorFor(product)
           )}
         </div>
         <div>
@@ -178,7 +221,10 @@
             <span>${completedLayerCount()}/3 lagen gereed</span>
           </div>
           <div class="tower-editor-design-grid">
-            <div class="tower-editor-preview">${previewMarkup()}</div>
+            <div>
+              <div class="tower-editor-preview">${previewMarkup()}</div>
+              ${groundPlateMarkup()}
+            </div>
             <div>
               <strong class="tower-editor-field-label">Beschikbare blokken</strong>
               <div class="tower-part-palette">${paletteMarkup()}</div>
@@ -223,6 +269,13 @@
   }
 
   function handleClick(event) {
+    const groundPlateButton = event.target.closest("[data-ground-plate-color]");
+    if (groundPlateButton) {
+      state.groundPlateColor = groundPlateButton.dataset.groundPlateColor;
+      state.message = "";
+      render();
+      return;
+    }
     const addButton = event.target.closest("[data-add-tower-part]");
     if (addButton) {
       const part = partById(addButton.dataset.addTowerPart);
@@ -267,12 +320,18 @@
     const draft = {
       name: String(form.get("name") || "").trim(),
       price: Number(form.get("price")),
-      towerSequence: [...state.sequence]
+      towerSequence: [...state.sequence],
+      groundPlate: {
+        color: state.groundPlateColor,
+        width: GROUND_PLATE_SIZE.width,
+        depth: GROUND_PLATE_SIZE.depth
+      }
     };
     const product = state.onAdd?.(draft);
     if (!product) return;
     state.products = [...state.products, product];
     state.sequence = [];
+    state.groundPlateColor = "green";
     state.message = `${product.name} is toegevoegd aan het productassortiment.`;
     render();
   }
@@ -285,6 +344,7 @@
     state.onAdd = options.onAdd;
     state.onDelete = options.onDelete;
     state.sequence = [];
+    state.groundPlateColor = "green";
     state.message = "";
     mountPoint.addEventListener("click", handleClick);
     mountPoint.addEventListener("submit", handleSubmit);

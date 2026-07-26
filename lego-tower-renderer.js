@@ -31,6 +31,30 @@ class LegoTowerRenderer {
       left: ["#d0d0d0", "#b0b0b0"],
       right: ["#c0c0c0", "#a0a0a0"],
       stroke: "#ffffff"
+    },
+    light_gray: {
+      top: ["#cbd5e1", "#94a3b8"],
+      left: ["#7c8ba1", "#59677a"],
+      right: ["#68778c", "#465365"],
+      stroke: "#e2e8f0"
+    },
+    dark_gray: {
+      top: ["#64748b", "#334155"],
+      left: ["#293548", "#182234"],
+      right: ["#202b3c", "#111827"],
+      stroke: "#94a3b8"
+    },
+    black: {
+      top: ["#29313d", "#111827"],
+      left: ["#111827", "#05080e"],
+      right: ["#0b1019", "#020408"],
+      stroke: "#64748b"
+    },
+    sand: {
+      top: ["#f0d58a", "#d4ad55"],
+      left: ["#b88d3e", "#886327"],
+      right: ["#9b742f", "#6d4d1e"],
+      stroke: "#ffebb0"
     }
   };
 
@@ -73,11 +97,17 @@ class LegoTowerRenderer {
     `).join("");
   }
 
-  static render(productId, label = "LEGO toren", blueprintOverride = null, className = "tower-large") {
+  static render(
+    productId,
+    label = "LEGO toren",
+    blueprintOverride = null,
+    className = "tower-large",
+    groundPlateColor = "green"
+  ) {
     const blueprint = blueprintOverride || this.blueprints[productId] || this.blueprints.A;
     const scope = `render-${this.animationId += 1}`;
     const bricks = [
-      this.plate(0, 0, 0, 6, 6, "green", scope),
+      this.plate(0, 0, 0, 6, 6, groundPlateColor, scope),
       this.brick(1, 1, 0.22, 2, 4, blueprint.lower, scope),
       this.brick(3, 1, 0.22, 2, 4, blueprint.lower, scope),
       blueprint.middleSize === "2x2"
@@ -137,7 +167,8 @@ class LegoTowerRenderer {
   static renderAnimated(
     sequence,
     label = "Geanimeerde bouw van een LEGO-toren",
-    className = "tower-animated"
+    className = "tower-animated",
+    groundPlateColor = "green"
   ) {
     const blocks = this.layoutSequence(sequence);
     const animationId = `lego-tower-build-${this.animationId += 1}`;
@@ -200,7 +231,7 @@ class LegoTowerRenderer {
           }
         </style>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,.14)"></ellipse>
-        ${this.plate(0, 0, 0, 6, 6, "green", gradientScope)}
+        ${this.plate(0, 0, 0, 6, 6, groundPlateColor, gradientScope)}
         ${blockMarkup}
       </svg>
     `;
@@ -209,7 +240,8 @@ class LegoTowerRenderer {
   static renderSequence(
     sequence,
     label = "Zelf ontworpen LEGO-toren",
-    className = "tower-large"
+    className = "tower-large",
+    groundPlateColor = "green"
   ) {
     const blocks = this.layoutSequence(sequence);
     const scope = `sequence-${this.animationId += 1}`;
@@ -218,7 +250,7 @@ class LegoTowerRenderer {
            role="img" aria-label="${this.escape(label)}">
         <defs>${this.definitions(scope)}</defs>
         <ellipse cx="90" cy="132" rx="58" ry="12" fill="rgba(0,0,0,.14)"></ellipse>
-        ${this.plate(0, 0, 0, 6, 6, "green", scope)}
+        ${this.plate(0, 0, 0, 6, 6, groundPlateColor, scope)}
         ${blocks.map(block => (
           this.brick(block.x, block.y, block.z, block.width, block.depth, block.color, scope)
         )).join("")}

@@ -129,6 +129,10 @@
     return core.resolvePiece(PIECES, state.selectedType, state.rotated);
   }
 
+  function groundPlateColor() {
+    return GOALS[state.productId]?.groundPlate?.color || "green";
+  }
+
   function tutorialRotationForPiece(type) {
     const piece = PIECES[type];
     if (!piece || piece.width === piece.depth) return false;
@@ -498,7 +502,7 @@
            viewBox="0 0 ${BOARD_VIEWBOX.width} ${BOARD_VIEWBOX.height}"
            role="application"
            tabindex="0"
-           aria-label="Isometrische groene 6 bij 6 LEGO-grondplaat. Gebruik de middelste muisknop, scrollwiel of R om te draaien.">
+           aria-label="Isometrische 6 bij 6 LEGO-grondplaat. Gebruik de middelste muisknop, scrollwiel of R om te draaien.">
         <defs>
           ${window.LegoTowerRenderer.definitions(BOARD_GRADIENT_SCOPE)}
           <filter id="builderBoardShadow" x="-30%" y="-30%" width="170%" height="190%">
@@ -515,7 +519,7 @@
             0,
             6,
             6,
-            "green",
+            groundPlateColor(),
             BOARD_GRADIENT_SCOPE
           )}
           ${sortedBricks.map(brickMarkup).join("")}
@@ -587,7 +591,8 @@
           state.mode === "tutorial"
             ? "Volledig bouwvoorbeeld van Toren A"
             : `Geanimeerde bouw van ${goal.name}`,
-          "builder-order-animation"
+          "builder-order-animation",
+          groundPlateColor()
         )
       : `<span class="builder-order-visual-fallback" role="img"
                aria-label="${escapeHtml(goal.name)}"></span>`;
@@ -806,6 +811,11 @@
   function registerProduct(product) {
     const goal = core.buildProductGoal(PIECES, product);
     if (!goal) return false;
+    goal.groundPlate = {
+      color: product.groundPlate?.color || "green",
+      width: 6,
+      depth: 6
+    };
     GOALS[product.id] = goal;
     return true;
   }

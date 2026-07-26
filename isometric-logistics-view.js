@@ -247,7 +247,15 @@
       ? window.LegoTowerRenderer.layoutSequence(sequence)
       : window.LegoTowerRenderer.layoutSequence(["blue_8", "blue_8", "yellow_4", "green_4"]);
     const tower = [
-      window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green", legoGradientScope),
+      window.LegoTowerRenderer.plate(
+        0,
+        0,
+        0,
+        6,
+        6,
+        cargo.groundPlateColor || "green",
+        legoGradientScope
+      ),
       ...blocks.map(block => window.LegoTowerRenderer.brick(
         block.x,
         block.y,

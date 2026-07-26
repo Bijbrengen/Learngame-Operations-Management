@@ -1871,6 +1871,14 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("precies 3 lagen hoog", editor)
         self.assertIn("registerProduct", builder)
         self.assertIn("unregisterProduct", builder)
+        self.assertIn('data-ground-plate-color=', editor)
+        self.assertIn("Grootte:", editor)
+        self.assertIn("GROUND_PLATE_SIZE", editor)
+        self.assertIn("groundPlate: {", editor)
+        self.assertIn("groundPlate: { ...product.groundPlate }", game)
+        self.assertIn('width: 6,\n      depth: 6', game)
+        self.assertIn('groundPlateColor = "green"', renderer)
+        self.assertIn("product.groundPlate?.color || \"green\"", builder)
 
 
     def test_game_configuration_store_and_schema(self) -> None:

@@ -2,6 +2,14 @@
   const LEARNING_OBJECT_ID = "leerbox-learngame-operations-management";
   const PERSON_ID = `person-${Math.random().toString(36).slice(2, 8)}`;
   const CUSTOM_PRODUCTS_STORAGE = "learngame.om.customProducts.v1";
+  const GROUND_PLATE_COLORS = new Set([
+    "green",
+    "blue",
+    "light_gray",
+    "dark_gray",
+    "black",
+    "sand"
+  ]);
 
   const ROLES = [
     { id: "customer1", token: "K1", lane: "customer", title: "Klant 1" },
@@ -1268,7 +1276,8 @@
         id: product.id,
         name: product.name,
         price: product.price,
-        towerSequence: product.towerSequence
+        towerSequence: product.towerSequence,
+        groundPlate: { ...product.groundPlate }
       }))
     ));
   }
@@ -1297,6 +1306,14 @@
     const name = String(draft.name || "").trim().slice(0, 48);
     if (!name) throw new Error("Geef de toren een productnaam.");
     const price = Math.max(1, Math.min(9999, Math.round(Number(draft.price) || 0)));
+    const requestedGroundPlateColor = String(draft.groundPlate?.color || "green");
+    const groundPlate = {
+      color: GROUND_PLATE_COLORS.has(requestedGroundPlateColor)
+        ? requestedGroundPlateColor
+        : "green",
+      width: 6,
+      depth: 6
+    };
     const firstBreak = Math.ceil(sequence.length / 3);
     const secondBreak = Math.ceil(sequence.length * 2 / 3);
     const stageSequences = [
@@ -1312,6 +1329,7 @@
       price,
       custom: true,
       towerSequence: sequence,
+      groundPlate,
       stages: [
         { department: 1, output: "ss1", recipe: firstRecipe },
         { department: 2, input: "ss1", output: "ss2", recipe: recipeFromSequence(stageSequences[1]) },
@@ -1350,7 +1368,8 @@
       role: "Game Master",
       productId: product.id,
       productName: product.name,
-      towerSequence: [...product.towerSequence]
+      towerSequence: [...product.towerSequence],
+      groundPlate: { ...product.groundPlate }
     });
     renderAll();
     return product;
@@ -2110,10 +2129,17 @@
         return window.LegoTowerRenderer.renderSequence(
           product.towerSequence,
           product.name,
-          "tower-mini-3d"
+          "tower-mini-3d",
+          product.groundPlate?.color || "green"
         );
       }
-      return window.LegoTowerRenderer.render(productId, product.name, product.towerBlueprint, "tower-mini-3d");
+      return window.LegoTowerRenderer.render(
+        productId,
+        product.name,
+        product.towerBlueprint,
+        "tower-mini-3d",
+        product.groundPlate?.color || "green"
+      );
     }
     return `<div class="tower-mini" aria-label="${escapeHtml(product.name)}">` +
       product.visual.map(row => {
@@ -2133,10 +2159,17 @@
         return window.LegoTowerRenderer.renderSequence(
           product.towerSequence,
           product.name,
-          "tower-large"
+          "tower-large",
+          product.groundPlate?.color || "green"
         );
       }
-      return window.LegoTowerRenderer.render(productId, product.name, product.towerBlueprint, "tower-large");
+      return window.LegoTowerRenderer.render(
+        productId,
+        product.name,
+        product.towerBlueprint,
+        "tower-large",
+        product.groundPlate?.color || "green"
+      );
     }
     return renderTower(productId);
   }
@@ -2571,6 +2604,7 @@
           productId: activeOrder.productId,
           label: `${activeOrder.productName} · ${activeOrder.id}`,
           towerSequence: partialSequence,
+          groundPlateColor: activeProduct?.groundPlate?.color || "green",
           draggable: false
         } : null,
         facts: [
@@ -2642,6 +2676,11 @@
           name: product.name,
           price: product.price,
           towerSequence: [...(product.towerSequence || [])],
+          groundPlate: {
+            color: product.groundPlate?.color || "green",
+            width: 6,
+            depth: 6
+          },
           colors: [
             blueprint.lower || "yellow",
             blueprint.middle || "red",

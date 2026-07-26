@@ -41,7 +41,8 @@
       return window.LegoTowerRenderer.renderAnimated(
         product.towerSequence,
         `Geanimeerde bouw van ${product.name}`,
-        "sim-tower-renderer"
+        "sim-tower-renderer",
+        product.groundPlate?.color || "green"
       );
     }
     const colors = Array.isArray(product?.colors) ? product.colors : ["yellow", "red", "white"];
