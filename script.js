@@ -1769,6 +1769,9 @@
       conversionCost: 0,
       bookedMaterialCost: 0,
       stageFinancialCost: { 1: 0, 2: 0, 3: 0 },
+      builtQuantity: 0,
+      builtTowers: [],
+      buildValidated: false,
       history: []
     };
     if (productionRoute === "parallel" && state.config.opportunityCosts) {
@@ -4818,13 +4821,24 @@
           ? selected
           : [...state.orders].reverse().find(candidate => !candidate.done && candidate.productId === delivery.productId);
         if (order) {
-          order.buildValidated = true;
-          order.builtBricks = delivery.bricks.map(brick => ({ ...brick }));
+          order.builtQuantity = Math.min(order.quantity, Number(order.builtQuantity || 0) + 1);
+          order.builtTowers = Array.isArray(order.builtTowers) ? order.builtTowers : [];
+          order.builtTowers.push(delivery.bricks.map(brick => ({ ...brick })));
+          order.buildValidated = order.builtQuantity >= order.quantity;
           order.history.push({
-            step: "lego_build_validated",
+            step: order.buildValidated ? "lego_order_batch_validated" : "lego_tower_validated",
             at: state.clockMinutes,
-            productId: delivery.productId
+            productId: delivery.productId,
+            builtQuantity: order.builtQuantity,
+            orderQuantity: order.quantity
           });
+          if (!order.buildValidated) {
+            window.LegoBuilder?.prepareNextBatchTower?.(
+              delivery.productId,
+              order.builtQuantity,
+              order.quantity
+            );
+          }
         }
         renderAll();
       }

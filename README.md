@@ -358,6 +358,9 @@ presetdata opgebouwd en zijn daardoor geen afzonderlijk handmatig overzicht.
 **Gamesessie** is de eerste en standaard actieve beheertab. De voormalige
 aparte tab **Spelkern** is hierin samengevoegd; de order- en informatiestroom
 blijft daardoor binnen dezelfde gamesessiecontext beschikbaar.
+Wisselen tussen Speler en Beheer gebeurt uitsluitend via de schakelaar boven
+in de applicatie; het voormalige dubbele perspectiefblok in het zijmenu is
+verwijderd.
 
 ## Wat de proefopstelling nu doet
 

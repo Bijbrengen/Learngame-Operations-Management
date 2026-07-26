@@ -3127,6 +3127,65 @@ body[data-app-view="player"] .topbar {
   font-weight: 800;
 }
 
+.sim-signature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  cursor: default;
+}
+
+.sim-signature > div {
+  display: grid;
+  gap: 2px;
+}
+
+.sim-signature > div small {
+  color: #91abb0;
+}
+
+.sim-signature svg {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 96px;
+  border: 1px solid #537078;
+  border-radius: 6px;
+  background:
+    linear-gradient(transparent 74%, rgba(138, 171, 177, 0.22) 75%, transparent 76%),
+    #f6fbfa;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.sim-signature svg polyline {
+  fill: none;
+  stroke: #102e3a;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sim-signature > button {
+  grid-column: 2;
+  padding: 5px 9px;
+  border: 1px solid #537078;
+  border-radius: 5px;
+  color: #cde3e5;
+  background: #17313a;
+}
+
+.sim-signature.is-disabled {
+  opacity: 0.58;
+}
+
+.sim-signature.is-disabled svg {
+  cursor: not-allowed;
+  background: #d9e1e0;
+}
+
+.sim-signature.is-signed svg {
+  border-color: #41c58a;
+}
+
 .sim-complete-button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.7);
@@ -6793,13 +6852,6 @@ select {
   box-shadow: inset 3px 0 rgba(50, 221, 210, 0.16);
 }
 
-.manager-perspective-switcher {
-  display: grid;
-  gap: 7px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--lp-line);
-}
-
 .manager-utility-actions {
   display: grid;
   gap: 7px;
@@ -6820,49 +6872,6 @@ select {
   border-color: #8d453f;
   color: #ffc2b8;
   background: #321b1c;
-}
-
-.manager-perspective-switcher > span {
-  color: var(--lp-amber);
-  font-family: var(--lp-font-heading);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.manager-perspective-switcher > div {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--lp-line);
-  border-radius: 9px;
-  background: #071014;
-}
-
-.manager-perspective-switcher button {
-  min-height: 38px;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--lp-muted);
-  background: transparent;
-  font-family: var(--lp-font-heading);
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.manager-perspective-switcher button:hover,
-.manager-perspective-switcher button:focus-visible {
-  color: var(--lp-ink);
-  outline: 1px solid var(--lp-accent-border);
-}
-
-.manager-perspective-switcher button.is-active {
-  color: #041312;
-  background: var(--lp-accent);
-  outline: 0;
 }
 
 .manager-menu-heading {

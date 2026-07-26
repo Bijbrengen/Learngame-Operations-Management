@@ -64,6 +64,8 @@
       this.engine = options.engine || new window.LogisticsGameEngine.LogisticsGameEngine(options.engineOptions);
       this.selectedParts = {};
       this.signed = false;
+      this.signatureStrokes = [];
+      this.activeSignaturePointer = null;
       this.transferred = false;
       this.waitingTab = "flow";
       this.lastFlowSignature = "";
@@ -106,12 +108,19 @@
       this.handleDragStart = this.handleDragStart.bind(this);
       this.handleDragOver = this.handleDragOver.bind(this);
       this.handleDrop = this.handleDrop.bind(this);
+      this.handlePointerDown = this.handlePointerDown.bind(this);
+      this.handlePointerMove = this.handlePointerMove.bind(this);
+      this.handlePointerUp = this.handlePointerUp.bind(this);
       this.mount.addEventListener("click", this.handleClick);
       this.mount.addEventListener("change", this.handleChange);
       this.mount.addEventListener("submit", this.handleSubmit);
       this.mount.addEventListener("dragstart", this.handleDragStart);
       this.mount.addEventListener("dragover", this.handleDragOver);
       this.mount.addEventListener("drop", this.handleDrop);
+      this.mount.addEventListener("pointerdown", this.handlePointerDown);
+      this.mount.addEventListener("pointermove", this.handlePointerMove);
+      this.mount.addEventListener("pointerup", this.handlePointerUp);
+      this.mount.addEventListener("pointercancel", this.handlePointerUp);
       this.render();
     }
 
@@ -151,12 +160,18 @@
       this.mount.removeEventListener("dragstart", this.handleDragStart);
       this.mount.removeEventListener("dragover", this.handleDragOver);
       this.mount.removeEventListener("drop", this.handleDrop);
+      this.mount.removeEventListener("pointerdown", this.handlePointerDown);
+      this.mount.removeEventListener("pointermove", this.handlePointerMove);
+      this.mount.removeEventListener("pointerup", this.handlePointerUp);
+      this.mount.removeEventListener("pointercancel", this.handlePointerUp);
       this.mount.innerHTML = "";
     }
 
     resetPlayerInput() {
       this.selectedParts = {};
       this.signed = false;
+      this.signatureStrokes = [];
+      this.activeSignaturePointer = null;
       this.transferred = false;
       this.feedback = "";
       this.taskKey = null;
@@ -172,9 +187,12 @@
         return;
       }
 
-      const signatureButton = eventTargetClosest(event, "[data-sim-signature]");
-      if (signatureButton && signatureButton.tagName === "BUTTON" && !signatureButton.disabled) {
-        this.setSignature(!this.signed);
+      const clearSignatureButton = eventTargetClosest(event, "[data-sim-signature-clear]");
+      if (clearSignatureButton && !clearSignatureButton.disabled) {
+        this.signatureStrokes = [];
+        this.signed = false;
+        this.feedback = "De orderparaaf is gewist.";
+        this.render();
         return;
       }
 
@@ -213,6 +231,8 @@
       if (resetPartButton) {
         this.selectedParts[resetPartButton.dataset.simPartReset] = 0;
         this.transferred = false;
+        this.signed = false;
+        this.signatureStrokes = [];
         this.render();
         return;
       }
@@ -220,7 +240,7 @@
       const transferButton = eventTargetClosest(event, "[data-sim-transfer]");
       if (transferButton && !transferButton.disabled) {
         this.transferred = true;
-        this.feedback = "Overdracht staat gereed. Parafeer het formulier en rond de handeling af.";
+        this.feedback = "De volledige orderbatch is in één keer overgedragen.";
         this.render();
         return;
       }
@@ -237,6 +257,8 @@
         const result = this.engine.completePlayerAction({
           parts: { ...this.selectedParts },
           signed: this.signed,
+          signature: this.signatureEvidence(),
+          completedQuantity: this.completedOrderQuantity(task),
           transferred: this.transferred
         });
         this.feedback = result.ok ? "Handeling verwerkt en doorgestuurd." : result.errors.join(" · ");
@@ -262,6 +284,8 @@
       }
       this.selectedParts[partId] = selected + 1;
       this.transferred = false;
+      this.signed = false;
+      this.signatureStrokes = [];
       this.feedback = "";
       this.render();
       return true;
@@ -269,7 +293,13 @@
 
     completeDigitalTransfer() {
       const task = this.engine.playerTask();
-      if (!this.partsComplete(task)) return false;
+      if (!this.partsComplete(task) || !this.signed) {
+        this.feedback = !this.partsComplete(task)
+          ? "Maak eerst alle torens van deze order af."
+          : "Zet eerst één paraaf voor de volledige order.";
+        this.render();
+        return false;
+      }
       this.transferred = true;
       this.feedback = "";
       this.render();
@@ -340,18 +370,91 @@
         if (event.target?.matches?.('[name="product_id"]')) this.render();
         return;
       }
-      const signature = eventTargetClosest(event, "[data-sim-signature]");
-      if (signature) {
-        this.setSignature(Boolean(signature.checked));
+    }
+
+    signaturePoint(event, pad) {
+      const bounds = pad.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(320, ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 320)),
+        y: Math.max(0, Math.min(96, ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 96))
+      };
+    }
+
+    handlePointerDown(event) {
+      const pad = eventTargetClosest(event, "[data-sim-signature-pad]");
+      if (!pad || pad.getAttribute("aria-disabled") === "true") return;
+      event.preventDefault();
+      const stroke = [this.signaturePoint(event, pad)];
+      this.signatureStrokes.push(stroke);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("data-active-signature-stroke", "");
+      line.setAttribute("points", `${stroke[0].x.toFixed(1)},${stroke[0].y.toFixed(1)}`);
+      pad.appendChild(line);
+      this.activeSignaturePointer = { id: event.pointerId, stroke, pad };
+      pad.setPointerCapture?.(event.pointerId);
+    }
+
+    handlePointerMove(event) {
+      const active = this.activeSignaturePointer;
+      if (!active || active.id !== event.pointerId) return;
+      event.preventDefault();
+      const point = this.signaturePoint(event, active.pad);
+      const previous = active.stroke[active.stroke.length - 1];
+      if (Math.hypot(point.x - previous.x, point.y - previous.y) < 1.5) return;
+      active.stroke.push(point);
+      const line = active.pad.querySelector("[data-active-signature-stroke]");
+      if (line) {
+        line.setAttribute(
+          "points",
+          active.stroke.map(item => `${item.x.toFixed(1)},${item.y.toFixed(1)}`).join(" ")
+        );
       }
     }
 
-    setSignature(signed) {
-      this.signed = Boolean(signed);
+    handlePointerUp(event) {
+      const active = this.activeSignaturePointer;
+      if (!active || active.id !== event.pointerId) return;
+      active.pad.releasePointerCapture?.(event.pointerId);
+      this.activeSignaturePointer = null;
+      this.signed = this.signatureHasInk();
       this.feedback = this.signed
-        ? "Paraaf geregistreerd. Klik op Uitgevoerd om de handeling af te ronden."
-        : "De paraaf is verwijderd.";
+        ? "Orderparaaf geregistreerd. De volledige batch mag nu worden overgedragen."
+        : "Zet een herkenbare paraaf in het vak; één tik is niet voldoende.";
       this.render();
+    }
+
+    signatureHasInk() {
+      let distance = 0;
+      let points = 0;
+      this.signatureStrokes.forEach(stroke => {
+        points += stroke.length;
+        for (let index = 1; index < stroke.length; index += 1) {
+          distance += Math.hypot(
+            stroke[index].x - stroke[index - 1].x,
+            stroke[index].y - stroke[index - 1].y
+          );
+        }
+      });
+      return points >= 5 && distance >= 18;
+    }
+
+    signatureEvidence() {
+      return this.signed
+        ? this.signatureStrokes.map(stroke => stroke.map(point => [
+          Number(point.x.toFixed(1)),
+          Number(point.y.toFixed(1))
+        ]))
+        : [];
+    }
+
+    completedOrderQuantity(task) {
+      if (!["pd1", "pd2", "pd3"].includes(task?.role?.id)) {
+        return Number(task?.order?.quantity || 1);
+      }
+      if (task.playMode !== "digital") {
+        return this.partsComplete(task) ? Number(task.order.quantity || 1) : 0;
+      }
+      return this.digitalBuildState(task).completedTowers;
     }
 
     handleSubmit(event) {
@@ -570,7 +673,7 @@
         : this.physicalActionPanelMarkup(task);
     }
 
-    signatureMarkup() {
+    legacySignatureMarkup() {
       return `
         <button type="button"
                 class="sim-signature${this.signed ? " is-signed" : ""}"
@@ -579,6 +682,31 @@
           <span class="sim-signature-box" aria-hidden="true">${this.signed ? "✓" : ""}</span>
           <span>${this.signed ? "Formulier geparafeerd ✓" : "Parafeer formulier"}</span>
         </button>
+      `;
+    }
+
+    signatureMarkup(task, enabled) {
+      const strokes = this.signatureStrokes.map((stroke, index) => `
+        <polyline ${index === this.signatureStrokes.length - 1 ? "data-active-signature-stroke" : ""}
+                  points="${stroke.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ")}"></polyline>
+      `).join("");
+      return `
+        <div class="sim-signature${this.signed ? " is-signed" : ""}${enabled ? "" : " is-disabled"}">
+          <div>
+            <strong>${this.signed ? "Order geparafeerd ✓" : "Paraaf volledige order"}</strong>
+            <small>${enabled
+              ? `Teken met muis of vinger voor ${Number(task.order.quantity || 1)} toren(s).`
+              : `Bouw eerst alle ${Number(task.order.quantity || 1)} toren(s).`}</small>
+          </div>
+          <svg viewBox="0 0 320 96"
+               role="img"
+               aria-label="Veld voor orderparaaf"
+               aria-disabled="${enabled ? "false" : "true"}"
+               data-sim-signature-pad>${strokes}</svg>
+          <button type="button"
+                  data-sim-signature-clear
+                  ${this.signatureStrokes.length && enabled ? "" : "disabled"}>Wis paraaf</button>
+        </div>
       `;
     }
 
@@ -620,18 +748,21 @@
               : `<p class="sim-action-note">Controleer de metadata en taken op het orderformulier.</p>`}
           </section>
           <section class="sim-action-section">
-            <h3>2. Logistieke overdracht</h3>
+            <h3>2. Parafeer de complete order</h3>
+            ${this.signatureMarkup(task, partsComplete)}
+          </section>
+          <section class="sim-action-section">
+            <h3>3. Lever de volledige batch af</h3>
             <button type="button"
                     class="sim-transfer-button ${this.transferred ? "is-complete" : ""}"
                     data-sim-transfer
-                    ${!partsComplete || this.transferred ? "disabled" : ""}>
+                    ${!partsComplete || !this.signed || this.transferred ? "disabled" : ""}>
               <span aria-hidden="true">→</span>
               <strong>${this.transferred ? "Overdracht gereed" : escapeHtml(task.role.form.transferLabel)}</strong>
             </button>
           </section>
           <section class="sim-action-section">
-            <h3>3. Administratief afronden</h3>
-            ${this.signatureMarkup()}
+            <h3>4. Administratief afronden</h3>
             <button type="button"
                     class="primary-button sim-complete-button"
                     data-sim-complete
@@ -923,16 +1054,17 @@
       `;
     }
 
-    digitalTransportMarkup(task, partsComplete) {
+    digitalTransportMarkup(task, batchReady) {
+      const quantity = Number(task.order.quantity || 1);
       return `
-        <div class="sim-digital-transport ${partsComplete ? "is-ready" : "is-locked"}">
+        <div class="sim-digital-transport ${batchReady ? "is-ready" : "is-locked"}">
           <button type="button"
                   class="sim-transfer-cargo"
                   data-sim-transfer-cargo
-                  draggable="${partsComplete ? "true" : "false"}"
-                  ${partsComplete ? "" : "disabled"}>
+                  draggable="${batchReady ? "true" : "false"}"
+                  ${batchReady ? "" : "disabled"}>
             <span aria-hidden="true">${task.role.id === "srm" ? "▦" : "▤"}</span>
-            <strong>${task.role.id === "srm" ? "Klaargelegde materiaalset" : task.product.name}</strong>
+            <strong>${quantity}× ${task.role.id === "srm" ? "complete materiaalset" : task.product.name}</strong>
           </button>
           <span aria-hidden="true">⇢</span>
           <div class="sim-transfer-destination"
@@ -968,6 +1100,7 @@
       }
       const partEntries = Object.entries(task.requiredParts || {});
       const partsComplete = this.partsComplete(task);
+      const batchReady = partsComplete && this.signed;
       const canComplete = partsComplete && this.transferred && this.signed;
       const partActionTitle = task.role.id === "srm"
         ? "1. Haal onderdelen uit het magazijn en leg ze klaar"
@@ -994,16 +1127,20 @@
             ${this.digitalMaterialActionMarkup(task)}
             ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
           </section>
+          <section class="sim-action-section">
+            <h3>2. Parafeer de complete order</h3>
+            ${this.signatureMarkup(task, partsComplete)}
+          </section>
           ${this.transferred ? "" : `
             <section class="sim-action-section sim-digital-transfer-section" aria-label="Virtuele logistieke overdracht">
-              ${this.digitalTransportMarkup(task, partsComplete)}
+              <h3>3. Lever alle ${Number(task.order.quantity || 1)} torens tegelijk af</h3>
+              ${this.digitalTransportMarkup(task, batchReady)}
             </section>
           `}
           ${this.transferred ? `
             <section class="sim-action-section">
-              <h3>3. Administratief afronden</h3>
+              <h3>4. Administratief afronden</h3>
               ${this.digitalFormSummaryMarkup(task)}
-              ${this.signatureMarkup()}
               <button type="button"
                       class="primary-button sim-complete-button"
                       data-sim-complete

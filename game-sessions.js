@@ -1449,12 +1449,20 @@
     document.addEventListener("change", event => {
       if (event.target.matches("[data-game-config-control]")) {
         const form = event.target.closest("form");
-        if (event.target.matches("[data-session-game-type]")) {
-          applyGameConfigPreset(form, event.target.value);
-        }
+        const selectedPreset = event.target.matches("[data-session-game-type]")
+          ? event.target.value
+          : null;
+        if (selectedPreset) applyGameConfigPreset(form, selectedPreset);
         updateColorLayerControls(form);
         const config = collectGameConfig(form);
-        syncGameConfigurationSelection(form, config);
+        // Een expliciet gekozen preset is al de bron van waarheid. Meteen opnieuw
+        // matchen kon op een nog niet gematerialiseerde standaardwaarde (zoals
+        // play_mode) uitkomen en de dropdown onterecht naar custom_draft zetten.
+        if (selectedPreset && selectedPreset !== "custom_draft") {
+          event.target.value = selectedPreset;
+        } else {
+          syncGameConfigurationSelection(form, config);
+        }
         if (form?.matches("#gameSessionCreateForm")) {
           state.createSessionDraft.game_config = config;
         }

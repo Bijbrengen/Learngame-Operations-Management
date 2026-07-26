@@ -71,8 +71,9 @@ class ProductPackageTests(unittest.TestCase):
         manager_menu = html.split('<aside class="manager-dashboard-menu"', 1)[1].split("</aside>", 1)[0]
         self.assertLess(
             manager_menu.index('<p class="eyebrow">Game Master</p>'),
-            manager_menu.index('class="manager-perspective-switcher"'),
+            manager_menu.index('class="manager-tab-list"'),
         )
+        self.assertNotIn("manager-perspective-switcher", manager_menu)
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
         self.assertEqual(
@@ -363,19 +364,31 @@ const engine = new Engine({{
 }});
 engine.start({{humanRoleId: "pd1", playMode: "digital"}});
 const created = engine.generateOrder();
+engine.orders.get(created.id).quantity = 3;
 for (let i = 0; i < 20 && !engine.playerTask(); i += 1) {{
   now += 1000;
   engine.update(now);
 }}
 const task = engine.playerTask();
+const partialBatch = engine.completePlayerAction({{
+  parts: task.requiredParts,
+  signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: 2,
+  transferred: true
+}});
 const rejected = engine.completePlayerAction({{
   parts: task.requiredParts,
   signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: task.order.quantity,
   transferred: false
 }});
 const completed = engine.completePlayerAction({{
   parts: task.requiredParts,
   signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: task.order.quantity,
   transferred: true
 }});
 for (let i = 0; i < 30; i += 1) {{
@@ -386,6 +399,7 @@ const delivered = engine.snapshot().orders.find(order => order.id === created.id
 process.stdout.write(JSON.stringify({{
   taskRole: task.role.id,
   requiredParts: task.requiredParts,
+  partialBatch,
   rejected,
   completed,
   delivered: delivered.status,
@@ -402,7 +416,9 @@ process.stdout.write(JSON.stringify({{
         )
         result = json.loads(completed_process.stdout)
         self.assertEqual("pd1", result["taskRole"])
-        self.assertEqual({"base_green": 1, "yellow_8": 2}, result["requiredParts"])
+        self.assertEqual({"base_green": 3, "yellow_8": 6}, result["requiredParts"])
+        self.assertFalse(result["partialBatch"]["ok"])
+        self.assertIn("alle 3 torens", " ".join(result["partialBatch"]["errors"]))
         self.assertFalse(result["rejected"]["ok"])
         self.assertTrue(result["completed"]["ok"])
         self.assertEqual("DELIVERED", result["delivered"])
@@ -446,6 +462,8 @@ const before = engine.snapshot().orders.find(order => order.id === created.id);
 const completed = engine.completePlayerAction({{
   parts: task.requiredParts,
   signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: task.order.quantity,
   transferred: true
 }});
 for (let index = 0; index < 20; index += 1) {{
@@ -1623,7 +1641,9 @@ const physicalRejected = physical.completePlayerAction({{signed: true}});
 const physicalResult = physical.completePlayerAction({{
   parts: physicalTask.requiredParts,
   transferred: true,
-  signed: true
+  signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: physicalTask.order.quantity
 }});
 const digital = taskFor("digital");
 const digitalTask = digital.playerTask();
@@ -1631,7 +1651,9 @@ const digitalRejected = digital.completePlayerAction({{signed: true}});
 const digitalCompleted = digital.completePlayerAction({{
   parts: digitalTask.requiredParts,
   transferred: true,
-  signed: true
+  signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: digitalTask.order.quantity
 }});
 const UIController = window.LogisticsGameUI.LogisticsGameUIController;
 const uiController = Object.create(UIController.prototype);
@@ -1639,27 +1661,24 @@ uiController.engine = digital;
 uiController.selectedParts = {{}};
 uiController.transferred = false;
 uiController.signed = false;
+uiController.signatureStrokes = [];
 uiController.feedback = "";
 let signatureRenderCount = 0;
 uiController.render = () => {{ signatureRenderCount += 1; }};
 const digitalBefore = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.selectedParts = {{...digitalTask.requiredParts}};
 const digitalBuilt = uiController.digitalActionPanelMarkup(digitalTask);
+uiController.signatureStrokes = [[{{x: 1, y: 1}}, {{x: 12, y: 12}}, {{x: 24, y: 18}}, {{x: 40, y: 8}}, {{x: 55, y: 20}}]];
+uiController.signed = uiController.signatureHasInk();
+const signedMarkup = uiController.signatureMarkup(digitalTask, true);
+const signedDigitalPanel = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.transferred = true;
-const signatureButton = {{
-  tagName: "BUTTON",
-  disabled: false,
-  closest: selector => selector === "[data-sim-signature]" ? signatureButton : null
-}};
-uiController.handleClick({{ target: signatureButton }});
-const signedAfterClick = uiController.signed;
-const signatureFeedback = uiController.feedback;
-const signedMarkup = uiController.signatureMarkup();
 const completedDigitalPanel = uiController.digitalActionPanelMarkup(digitalTask);
-const digitalAfterTransfer = uiController.digitalActionPanelMarkup(digitalTask);
 uiController.engine = physical;
 uiController.selectedParts = {{}};
 uiController.transferred = false;
+uiController.signed = false;
+uiController.signatureStrokes = [];
 const physicalMarkup = uiController.physicalActionPanelMarkup(physicalTask);
 process.stdout.write(JSON.stringify({{
   physicalMode: physicalTask.playMode,
@@ -1674,17 +1693,16 @@ process.stdout.write(JSON.stringify({{
   digitalShowsPlacementTarget: digitalBefore.includes("sim-builder-target"),
   digitalHasNoLegacyPartButton: !digitalBefore.includes('data-sim-part="'),
   digitalHasTowerDropzone: digitalBuilt.includes("data-sim-part-dropzone"),
-  digitalHidesSignatureBeforeTransfer: !digitalBuilt.includes("data-sim-signature"),
-  digitalShowsSignatureAfterTransfer: digitalAfterTransfer.includes("data-sim-signature"),
+  digitalShowsSignatureForCompleteBatch: digitalBuilt.includes("data-sim-signature-pad"),
+  digitalLocksTransferBeforeSignature: digitalBuilt.includes('draggable="false"'),
+  digitalUnlocksBatchAfterSignature: signedDigitalPanel.includes('draggable="true"'),
   physicalKeepsLegacyPartButton: physicalMarkup.includes('data-sim-part="'),
-  signedAfterClick,
-  signatureRenderCount,
-  signatureFeedback,
-  signedMarkupIsButton: signedMarkup.includes('<button type="button"'),
-  signedMarkupIsPressed: signedMarkup.includes('aria-pressed="true"'),
+  signatureHasInk: signedMarkup.includes("sim-signature is-signed"),
+  signedMarkupHasPad: signedMarkup.includes("data-sim-signature-pad"),
   signedMarkupIsActive: signedMarkup.includes("sim-signature is-signed"),
+  signedMarkupConfirmsOrder: signedMarkup.includes("Order geparafeerd"),
   signedMarkupConfirms: signedMarkup.includes("Formulier geparafeerd ✓"),
-  signatureClickEnablesCompletion: !completedDigitalPanel.match(/data-sim-complete\\s+disabled/)
+  signatureEnablesCompletionAfterTransfer: !completedDigitalPanel.match(/data-sim-complete\\s+disabled/)
 }}));
 """
         completed_process = subprocess.run(
@@ -1710,17 +1728,15 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["digitalShowsPlacementTarget"])
         self.assertTrue(result["digitalHasNoLegacyPartButton"])
         self.assertTrue(result["digitalHasTowerDropzone"])
-        self.assertTrue(result["digitalHidesSignatureBeforeTransfer"])
-        self.assertTrue(result["digitalShowsSignatureAfterTransfer"])
+        self.assertTrue(result["digitalShowsSignatureForCompleteBatch"])
+        self.assertTrue(result["digitalLocksTransferBeforeSignature"])
+        self.assertTrue(result["digitalUnlocksBatchAfterSignature"])
         self.assertTrue(result["physicalKeepsLegacyPartButton"])
-        self.assertTrue(result["signedAfterClick"])
-        self.assertEqual(1, result["signatureRenderCount"])
-        self.assertIn("Paraaf geregistreerd", result["signatureFeedback"])
-        self.assertTrue(result["signedMarkupIsButton"])
-        self.assertTrue(result["signedMarkupIsPressed"])
+        self.assertTrue(result["signatureHasInk"])
+        self.assertTrue(result["signedMarkupHasPad"])
         self.assertTrue(result["signedMarkupIsActive"])
-        self.assertTrue(result["signedMarkupConfirms"])
-        self.assertTrue(result["signatureClickEnablesCompletion"])
+        self.assertTrue(result["signedMarkupConfirmsOrder"])
+        self.assertTrue(result["signatureEnablesCompletionAfterTransfer"])
 
         node_program = f"""
 const fs = require("fs");
@@ -1921,6 +1937,33 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("saveConfiguration", store_code)
         self.assertIn("deleteCustomConfiguration", store_code)
         self.assertIn("findMatchingConfiguration", store_code)
+
+        probe = subprocess.run(
+            [
+                "node",
+                "-e",
+                """
+global.localStorage = { getItem: () => null, setItem: () => {} };
+require("./logistics-process.js");
+require("./game-configuration-store.js");
+const lo4 = global.GameConfigurationStore.getConfiguration("lo4");
+const match = global.GameConfigurationStore.findMatchingConfiguration({
+  ...lo4.settings,
+  play_mode: "digital",
+  enabled_roles: [...lo4.settings.enabled_roles]
+});
+console.log(JSON.stringify({
+  match: match && match.config_id
+}));
+""",
+            ],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        preset_result = json.loads(probe.stdout)
+        self.assertEqual("lo4", preset_result["match"])
 
         html = html_path.read_text(encoding="utf-8")
         self.assertIn('src="game-configuration-store.js"', html)

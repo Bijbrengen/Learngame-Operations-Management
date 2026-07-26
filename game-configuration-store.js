@@ -330,7 +330,6 @@
           === Boolean(currentSettings.multiple_colors);
         const editableColorLayersMatch = [...(s.editable_color_layers || [])].sort().join(",")
           === [...(currentSettings.editable_color_layers || [])].sort().join(",");
-        const playModeMatch = (s.play_mode || "physical") === (currentSettings.play_mode || "physical");
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
         const customerOrderModeMatch = (s.customer_order_mode || "required")
           === (currentSettings.customer_order_mode || "required");
@@ -341,7 +340,7 @@
 
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
             !roleFreedomMatch || !multipleColorsMatch || !editableColorLayersMatch ||
-            !playModeMatch || !priceModeMatch || !customerOrderModeMatch ||
+            !priceModeMatch || !customerOrderModeMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;
         }

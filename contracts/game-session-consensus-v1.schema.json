@@ -14,7 +14,7 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["play_mode", "game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
+      "required": ["play_mode", "game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "enabled_roles"],
       "properties": {
         "play_mode": {"enum": ["physical", "digital"]},
         "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"]},
@@ -39,7 +39,30 @@
           "uniqueItems": true
         },
         "product_type_count": {"type": "integer", "minimum": 1, "maximum": 9},
-        "customer_order_mode": {"enum": ["free", "required"]}
+        "customer_order_mode": {"enum": ["free", "required"]},
+        "enabled_roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "customer",
+              "logistics_manager",
+              "raw_warehouse",
+              "production_1",
+              "production_2",
+              "production_3",
+              "production_a",
+              "production_b",
+              "production_c",
+              "finished_warehouse",
+              "sales",
+              "finance",
+              "supplier",
+              "transporter"
+            ]
+          },
+          "maxItems": 14,
+          "uniqueItems": true
+        }
       }
     },
     "origin": {"enum": ["managed", "free_game"]},

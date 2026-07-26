@@ -856,6 +856,12 @@
           errors.push(`${this.parts[partId]?.label || partId}: ${selected}/${required}`);
         }
       });
+      if (
+        ["pd1", "pd2", "pd3"].includes(task.role.id)
+        && Number(payload.completedQuantity || 0) < Number(task.order.quantity || 1)
+      ) {
+        errors.push(`Bouw eerst alle ${task.order.quantity} torens van deze order.`);
+      }
       if (!payload.transferred) {
         errors.push(
           this.playMode === "digital"
@@ -863,7 +869,12 @@
             : "Bevestig de fysieke logistieke overdracht op het formulier."
         );
       }
-      if (!payload.signed) errors.push("Parafeer het formulier.");
+      const signatureHasInk = Array.isArray(payload.signature)
+        ? payload.signature.some(stroke => Array.isArray(stroke) && stroke.length >= 2)
+        : String(payload.signature || "").trim().length >= 2;
+      if (!payload.signed || !signatureHasInk) {
+        errors.push("Zet één paraaf voor de volledige order.");
+      }
       if (errors.length) {
         this.emit("player-action-rejected", { errors });
         return { ok: false, errors };
@@ -879,7 +890,9 @@
         type: "player_handling",
         label: this.playMode === "digital" ? "Digitale handeling" : "Fysieke handling",
         handlingTimeMs,
-        playMode: this.playMode
+        playMode: this.playMode,
+        completedQuantity: Number(payload.completedQuantity || task.order.quantity || 1),
+        orderSignature: true
       });
       const incident = this.rollIncident(this.humanRoleId, order);
       this.addFeed(

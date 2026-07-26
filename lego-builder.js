@@ -301,6 +301,24 @@
     render();
   }
 
+  function prepareNextBatchTower(productId, completedQuantity, orderQuantity) {
+    state.mode = "free";
+    state.productId = GOALS[productId] ? productId : "A";
+    state.selectedType = GOALS[state.productId].bricks[0].type;
+    state.rotated = false;
+    state.bricks = [];
+    state.feedback = {
+      kind: "success",
+      text: `Toren ${completedQuantity} van ${orderQuantity} is goedgekeurd. Bouw nu toren ${completedQuantity + 1}; de batch wordt pas na alle torens afgeleverd.`
+    };
+    emit("continue_lego_order_batch", {
+      productId: state.productId,
+      completedQuantity,
+      orderQuantity
+    });
+    render();
+  }
+
   function prepareStockTutorial(productId = "B") {
     state.mode = "stock_waiting";
     state.productId = GOALS[productId] ? productId : "B";
@@ -875,6 +893,7 @@
     registerProduct,
     unregisterProduct,
     startFreeBuild,
+    prepareNextBatchTower,
     prepareStockTutorial,
     setStockTutorialInventory,
     reset: resetBuild,
