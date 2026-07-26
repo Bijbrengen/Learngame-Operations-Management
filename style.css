@@ -5107,6 +5107,62 @@ select {
   padding: 0 5px;
 }
 
+.color-choice-settings {
+  grid-template-columns: 1fr;
+}
+
+.session-config-field.color-choice-settings {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.session-config-field.color-choice-settings legend {
+  padding: 0 5px;
+  color: var(--muted);
+}
+
+.color-choice-settings > small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.color-layer-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(7, 19, 24, 0.58);
+}
+
+.color-layer-options[hidden] {
+  display: none;
+}
+
+.color-layer-options > span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.color-layer-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.76rem;
+}
+
+.session-config-field .color-layer-options input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  accent-color: var(--lp-accent);
+}
+
 .hybrid-production-tooltip,
 [data-hybrid-production-tooltip] {
   background: #f0b6471f;
@@ -7079,6 +7135,19 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   border-color: var(--lp-accent);
   color: var(--lp-ink);
   box-shadow: inset 0 0 0 1px var(--lp-accent-border);
+}
+
+.tower-ground-plate-color:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.tower-ground-plate-note {
+  display: block;
+  margin-top: 9px;
+  color: var(--lp-muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
 }
 
 .tower-editor-empty-preview {

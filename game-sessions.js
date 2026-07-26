@@ -85,6 +85,8 @@
       label: "LO Game 6",
       money: true, pnl: true, intermediate_stock: true, opportunity_costs: true,
       role_freedom: true, price_mode: "fixed", logistics_organization: "functional",
+      multiple_colors: true,
+      editable_color_layers: ["groundPlate", "layer1", "layer2", "layer3"],
       product_type_count: 9, customer_order_mode: "required"
     },
     lo7: {
@@ -230,12 +232,22 @@
       config.production_processes,
       gameType
     ) || ["parallel"];
-    return {
+    const merged = {
       ...GAME_CONFIG_PRESETS[gameType],
       ...storedPresetSettings,
-      ...config,
+      ...config
+    };
+    const multipleColors = Boolean(merged.multiple_colors);
+    return {
+      ...merged,
       play_mode: config.play_mode === "digital" ? "digital" : "physical",
       game_type: gameType,
+      multiple_colors: multipleColors,
+      editable_color_layers: multipleColors && Array.isArray(merged.editable_color_layers)
+        ? [...new Set(merged.editable_color_layers)].filter(layerId => (
+            ["groundPlate", "layer1", "layer2", "layer3"].includes(layerId)
+          ))
+        : [],
       production_processes: productionProcesses,
       logistics_organization: productionProcesses.length === 1
         && productionProcesses[0] === "sequential"
@@ -285,6 +297,7 @@
     const hasParallel = value.production_processes.includes("parallel");
     const hasSequential = value.production_processes.includes("sequential");
     const isHybrid = hasParallel && hasSequential;
+    const editableColorLayers = new Set(value.editable_color_layers || []);
     return `
       <fieldset class="session-game-config">
         <legend>Spelvariant en spelregels</legend>
@@ -309,6 +322,39 @@
           ${toggle("opportunity_costs", "Opportunity costs")}
           ${toggle("role_freedom", "Rolvrijheid")}
         </div>
+        <fieldset class="session-config-field color-choice-settings is-wide">
+          <legend>Kleurvrijheid</legend>
+          <label class="session-config-toggle">
+            <input type="checkbox"
+                   name="multiple_colors"
+                   data-multiple-colors
+                   data-game-config-control
+                   ${value.multiple_colors ? "checked" : ""}>
+            <span>Meerdere kleuren</span>
+          </label>
+          <div class="color-layer-options"
+               data-editable-color-layers
+               ${value.multiple_colors ? "" : "hidden"}>
+            <span>Kleur zelf kiezen voor:</span>
+            ${[
+              ["groundPlate", "Grondplaat"],
+              ["layer1", "Laag 1"],
+              ["layer2", "Laag 2"],
+              ["layer3", "Laag 3"]
+            ].map(([layerId, label]) => `
+              <label>
+                <input type="checkbox"
+                       name="color_${layerId}"
+                       data-color-layer="${layerId}"
+                       data-game-config-control
+                       ${editableColorLayers.has(layerId) ? "checked" : ""}
+                       ${value.multiple_colors ? "" : "disabled"}>
+                ${label}
+              </label>
+            `).join("")}
+          </div>
+          <small>LO Game 6 ontgrendelt standaard alle vier kleurlagen.</small>
+        </fieldset>
         <label class="session-config-field">
           <span>Klantorder</span>
           <select name="customer_order_mode" data-game-config-control>
@@ -725,6 +771,11 @@
       });
     }
     updateHybridProductionTooltip(form);
+    const editableColorLayers = new Set(settings.editable_color_layers || []);
+    form.querySelectorAll("[data-color-layer]").forEach(control => {
+      control.checked = editableColorLayers.has(control.dataset.colorLayer);
+    });
+    updateColorLayerControls(form);
   }
 
   function selectedProductionProcesses(form, gameType) {
@@ -749,6 +800,16 @@
     );
   }
 
+  function updateColorLayerControls(form) {
+    if (!form) return;
+    const enabled = Boolean(form.elements.namedItem("multiple_colors")?.checked);
+    const layerOptions = form.querySelector("[data-editable-color-layers]");
+    if (layerOptions) layerOptions.hidden = !enabled;
+    form.querySelectorAll("[data-color-layer]").forEach(control => {
+      control.disabled = !enabled;
+    });
+  }
+
   function collectGameConfig(form) {
     const get = name => form.elements.namedItem(name);
     const selectedConfiguration = window.GameConfigurationStore?.getConfiguration(
@@ -763,6 +824,8 @@
       .filter(control => control.checked)
       .map(control => control.name.slice("role_".length));
     updateHybridProductionTooltip(form);
+    updateColorLayerControls(form);
+    const multipleColors = Boolean(get("multiple_colors")?.checked);
     return {
       play_mode: get("play_mode")?.value === "digital" ? "digital" : "physical",
       game_type: gameType,
@@ -771,6 +834,12 @@
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
+      multiple_colors: multipleColors,
+      editable_color_layers: multipleColors
+        ? [...form.querySelectorAll("[data-color-layer]")]
+            .filter(control => control.checked)
+            .map(control => control.dataset.colorLayer)
+        : [],
       price_mode: get("price_mode")?.value || "fixed",
       production_processes: productionProcesses,
       logistics_organization: productionProcesses.length === 1
@@ -969,6 +1038,9 @@
           <span>${escapeHtml(difficultyLevel(session.difficulty_level).label)}</span>
           <span>${escapeHtml(GAME_CONFIG_PRESETS[session.game_config?.game_type]?.label || "LO Game 4")}</span>
           <span>${session.game_config?.customer_order_mode === "free" ? "Vrije klantorders" : "Verplichte klantorders"}</span>
+          <span>${session.game_config?.multiple_colors
+            ? `Meerdere kleuren · ${(session.game_config.editable_color_layers || []).length}/4 lagen`
+            : "Klassieke kleuren"}</span>
           <span>${session.members.length}/${session.required_role_ids.length} spelers</span>
           <span>${session.is_game_master ? "Jij bent Game Master" : "Game Master aanwezig"}</span>
         </div>
@@ -1264,6 +1336,7 @@
         && !event.target.matches("[data-session-game-type]")
       ) {
         updateHybridProductionTooltip(createForm);
+        updateColorLayerControls(createForm);
         const config = collectGameConfig(createForm);
         syncGameConfigurationSelection(createForm, config);
         state.createSessionDraft.game_config = config;
@@ -1279,6 +1352,7 @@
         if (event.target.matches("[data-session-game-type]")) {
           applyGameConfigPreset(form, event.target.value);
         }
+        updateColorLayerControls(form);
         const config = collectGameConfig(form);
         syncGameConfigurationSelection(form, config);
         if (form?.matches("#gameSessionCreateForm")) {

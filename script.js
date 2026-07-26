@@ -10,6 +10,12 @@
     "black",
     "sand"
   ]);
+  const COLOR_LAYER_IDS = Object.freeze(["groundPlate", "layer1", "layer2", "layer3"]);
+
+  function normalizeEditableColorLayers(value) {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value)].filter(layerId => COLOR_LAYER_IDS.includes(layerId));
+  }
 
   const ROLES = [
     { id: "customer1", token: "K1", lane: "customer", title: "Klant 1" },
@@ -701,13 +707,15 @@
     },
     lo6: {
       label: "LO Game 6",
-      description: "Flexibele functionele keten met negen torensoorten en meer vrijheid in de rolverdeling.",
+      description: "Flexibele functionele keten met negen torensoorten, extra grondplaatkleuren en vrije kleurkeuze per laag.",
       config: {
         money: true,
         pnl: true,
         intermediateStock: true,
         opportunityCosts: true,
         roleFreedom: true,
+        multipleColors: true,
+        editableColorLayers: ["groundPlate", "layer1", "layer2", "layer3"],
         priceMode: "fixed",
         logisticsOrganization: "functional",
         productTypeCount: 9
@@ -1077,6 +1085,8 @@
       intermediateStock: true,
       opportunityCosts: true,
       roleFreedom: false,
+      multipleColors: false,
+      editableColorLayers: [],
       customerOrderMode: "required",
       priceMode: "fixed",
       productionProcesses: ["parallel"],
@@ -4826,6 +4836,10 @@
     window.TowerEditor.mount(els.towerEditorMount, {
       parts: PARTS,
       products: Object.values(PRODUCTS),
+      colorConfiguration: {
+        multipleColors: state.config.multipleColors,
+        editableColorLayers: [...state.config.editableColorLayers]
+      },
       onAdd: registerCustomProduct,
       onDelete: removeCustomProduct
     });
@@ -4969,6 +4983,10 @@
     state.config.intermediateStock = Boolean(settings.intermediate_stock);
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
+    state.config.multipleColors = Boolean(settings.multiple_colors);
+    state.config.editableColorLayers = state.config.multipleColors
+      ? normalizeEditableColorLayers(settings.editable_color_layers)
+      : [];
     state.config.priceMode = settings.price_mode || "fixed";
     state.config.productionProcesses = window.LogisticsProcess?.normalizeProcesses(
       settings.production_processes,
@@ -5036,6 +5054,10 @@
     }
     els.opportunityToggle.checked = state.config.opportunityCosts;
     els.roleFreedomToggle.checked = state.config.roleFreedom;
+    window.TowerEditor?.setColorConfiguration({
+      multipleColors: state.config.multipleColors,
+      editableColorLayers: [...state.config.editableColorLayers]
+    });
     els.priceModeSelect.value = state.config.priceMode;
     els.parallelProductionToggle.checked = state.config.productionProcesses.includes("parallel");
     els.sequentialProductionToggle.checked = state.config.productionProcesses.includes("sequential");
@@ -5055,6 +5077,8 @@
     const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
     Object.assign(state.config, preset.config, {
       gameType,
+      multipleColors: Boolean(preset.config.multipleColors),
+      editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
       productionProcesses: window.LogisticsProcess?.defaultProcessesForGame(gameType) || ["parallel"],
       enabledRoles: [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
       customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" || gameType === "lo8" ? "free" : "required"
@@ -5101,6 +5125,10 @@
       intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
       opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
       roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
+      multipleColors: config.multiple_colors ?? Boolean(preset.config.multipleColors),
+      editableColorLayers: normalizeEditableColorLayers(
+        config.editable_color_layers ?? preset.config.editableColorLayers
+      ),
       customerOrderMode: config.customer_order_mode === "free" ? "free" : "required",
       priceMode: config.price_mode || preset.config.priceMode,
       productionProcesses: window.LogisticsProcess?.normalizeProcesses(
@@ -5110,6 +5138,9 @@
       logisticsOrganization: config.logistics_organization || preset.config.logisticsOrganization,
       productTypeCount
     });
+    if (!state.config.multipleColors) {
+      state.config.editableColorLayers = [];
+    }
     applyLogisticsProcessContract(gameType);
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
@@ -5152,6 +5183,10 @@
     }
     state.config.opportunityCosts = els.opportunityToggle.checked;
     state.config.roleFreedom = els.roleFreedomToggle.checked;
+    window.TowerEditor?.setColorConfiguration({
+      multipleColors: state.config.multipleColors,
+      editableColorLayers: [...state.config.editableColorLayers]
+    });
     state.config.priceMode = els.priceModeSelect.value;
     state.config.productTypeCount = Math.max(
       MIN_PRODUCT_TYPES,
@@ -5166,6 +5201,8 @@
       intermediate_stock: state.config.intermediateStock,
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
+      multiple_colors: state.config.multipleColors,
+      editable_color_layers: [...state.config.editableColorLayers],
       price_mode: state.config.priceMode,
       production_processes: [...state.config.productionProcesses],
       logistics_organization: state.config.logisticsOrganization,
@@ -5505,6 +5542,8 @@
         intermediate_stock: state.config.intermediateStock,
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
+        multiple_colors: state.config.multipleColors,
+        editable_color_layers: [...state.config.editableColorLayers],
         price_mode: state.config.priceMode,
         production_processes: [...state.config.productionProcesses],
         logistics_organization: state.config.logisticsOrganization,

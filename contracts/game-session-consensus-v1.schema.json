@@ -14,7 +14,7 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["play_mode", "game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
+      "required": ["play_mode", "game_type", "money", "pnl", "intermediate_stock", "opportunity_costs", "role_freedom", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode"],
       "properties": {
         "play_mode": {"enum": ["physical", "digital"]},
         "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"]},
@@ -23,6 +23,12 @@
         "intermediate_stock": {"type": "boolean"},
         "opportunity_costs": {"type": "boolean"},
         "role_freedom": {"type": "boolean"},
+        "multiple_colors": {"type": "boolean"},
+        "editable_color_layers": {
+          "type": "array",
+          "items": {"enum": ["groundPlate", "layer1", "layer2", "layer3"]},
+          "uniqueItems": true
+        },
         "price_mode": {"enum": ["fixed", "free"]},
         "logistics_organization": {"enum": ["product", "functional"]},
         "production_processes": {

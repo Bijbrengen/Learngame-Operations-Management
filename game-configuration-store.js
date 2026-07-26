@@ -120,7 +120,7 @@
     {
       config_id: "lo6",
       name: "LO Game 6",
-      description: "Flexibele functionele keten met negen torensoorten en meer rolvrijheid.",
+      description: "Flexibele functionele keten met negen torensoorten, extra grondplaatkleuren en vrije kleurkeuze per laag.",
       is_preset: true,
       base_template: "lo6",
       created_at: "2026-01-01T00:00:00Z",
@@ -132,6 +132,8 @@
         intermediate_stock: true,
         opportunity_costs: true,
         role_freedom: true,
+        multiple_colors: true,
+        editable_color_layers: ["groundPlate", "layer1", "layer2", "layer3"],
         price_mode: "fixed",
         logistics_organization: "functional",
         product_type_count: 9,
@@ -236,8 +238,16 @@
     ) || (settings.logistics_organization === "functional"
       ? ["sequential"]
       : ["parallel"]);
+    const multipleColors = Boolean(settings.multiple_colors);
+    const editableColorLayers = multipleColors && Array.isArray(settings.editable_color_layers)
+      ? [...new Set(settings.editable_color_layers)].filter(layerId => (
+          ["groundPlate", "layer1", "layer2", "layer3"].includes(layerId)
+        ))
+      : [];
     return {
       ...settings,
+      multiple_colors: multipleColors,
+      editable_color_layers: editableColorLayers,
       production_processes: productionProcesses,
       logistics_organization: productionProcesses.length === 1
         && productionProcesses[0] === "sequential"
@@ -316,6 +326,10 @@
         const intermediateStockMatch = Boolean(s.intermediate_stock) === Boolean(currentSettings.intermediate_stock);
         const opportunityCostsMatch = Boolean(s.opportunity_costs) === Boolean(currentSettings.opportunity_costs);
         const roleFreedomMatch = Boolean(s.role_freedom) === Boolean(currentSettings.role_freedom);
+        const multipleColorsMatch = Boolean(s.multiple_colors)
+          === Boolean(currentSettings.multiple_colors);
+        const editableColorLayersMatch = [...(s.editable_color_layers || [])].sort().join(",")
+          === [...(currentSettings.editable_color_layers || [])].sort().join(",");
         const playModeMatch = (s.play_mode || "physical") === (currentSettings.play_mode || "physical");
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
         const customerOrderModeMatch = (s.customer_order_mode || "required")
@@ -326,7 +340,8 @@
         const productTypeCountMatch = (Number(s.product_type_count) || 3) === (Number(currentSettings.product_type_count) || 3);
 
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
-            !roleFreedomMatch || !playModeMatch || !priceModeMatch || !customerOrderModeMatch ||
+            !roleFreedomMatch || !multipleColorsMatch || !editableColorLayersMatch ||
+            !playModeMatch || !priceModeMatch || !customerOrderModeMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;
         }

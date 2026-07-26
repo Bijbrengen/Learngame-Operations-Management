@@ -76,6 +76,18 @@
         "role_freedom": {
           "type": "boolean"
         },
+        "multiple_colors": {
+          "type": "boolean",
+          "default": false
+        },
+        "editable_color_layers": {
+          "type": "array",
+          "items": {
+            "enum": ["groundPlate", "layer1", "layer2", "layer3"]
+          },
+          "uniqueItems": true,
+          "default": []
+        },
         "price_mode": {
           "enum": ["fixed", "free"]
         },

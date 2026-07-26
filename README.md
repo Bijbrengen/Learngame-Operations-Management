@@ -451,6 +451,14 @@ Deze digital twin kiest bewust voor een kleine, testbare kern:
 
 De volgende logische stap is een adapterlaag naar de simulator, vergelijkbaar met het profiel `phile`, zodat LEARNGame-events expliciet naar de vijf markers `(T, A, V, R, S)` kunnen worden vertaald.
 
+LO Game 6 heeft in **Beheer → Gamesessie → Spelvariant en spelregels** als
+unieke preset `Meerdere kleuren` ingeschakeld. Daaronder staan afzonderlijke
+vinkjes voor Grondplaat en laag 1, 2 en 3. Alleen
+vrijgegeven lagen mogen in de toreneditor een afwijkende kleur krijgen; overige
+lagen vallen terug op klassiek groen, geel, rood en wit. Dezelfde instelling kan
+voor een aangepaste game worden aan- of uitgezet en als eigen preset worden
+opgeslagen.
+
 ## Interactieve LEGO-bouwmodule
 
 De bouwmodule start altijd met een woordarme tutorial voor Toren A. Bovenaan

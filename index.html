@@ -356,6 +356,21 @@
                 <label class="session-config-toggle"><input type="checkbox" name="opportunity_costs" data-game-config-control checked><span>Opportunity costs</span></label>
                 <label class="session-config-toggle"><input type="checkbox" name="role_freedom" data-game-config-control><span>Rolvrijheid</span></label>
               </div>
+              <fieldset class="session-config-field color-choice-settings is-wide">
+                <legend>Kleurvrijheid</legend>
+                <label class="session-config-toggle">
+                  <input type="checkbox" name="multiple_colors" data-multiple-colors data-game-config-control>
+                  <span>Meerdere kleuren</span>
+                </label>
+                <div class="color-layer-options" data-editable-color-layers hidden>
+                  <span>Kleur zelf kiezen voor:</span>
+                  <label><input type="checkbox" name="color_groundPlate" data-color-layer="groundPlate" data-game-config-control disabled> Grondplaat</label>
+                  <label><input type="checkbox" name="color_layer1" data-color-layer="layer1" data-game-config-control disabled> Laag 1</label>
+                  <label><input type="checkbox" name="color_layer2" data-color-layer="layer2" data-game-config-control disabled> Laag 2</label>
+                  <label><input type="checkbox" name="color_layer3" data-color-layer="layer3" data-game-config-control disabled> Laag 3</label>
+                </div>
+                <small>LO Game 6 ontgrendelt standaard alle vier kleurlagen.</small>
+              </fieldset>
               <label class="session-config-field">
                 <span>Klantorder</span>
                 <select name="customer_order_mode" data-game-config-control>

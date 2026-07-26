@@ -1853,6 +1853,7 @@ process.stdout.write(JSON.stringify({{
         editor = (PRODUCT_ROOT / "tower-editor.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
         self.assertIn('data-manager-tab="tower-editor"', html)
         self.assertIn('data-manager-panel="tower-editor"', html)
         self.assertIn("Productassortiment", html)
@@ -1879,6 +1880,17 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('width: 6,\n      depth: 6', game)
         self.assertIn('groundPlateColor = "green"', renderer)
         self.assertIn("product.groundPlate?.color || \"green\"", builder)
+        self.assertIn('name="multiple_colors"', html)
+        self.assertIn('name="color_groundPlate"', html)
+        self.assertIn('name="color_layer1"', html)
+        self.assertIn('name="color_layer2"', html)
+        self.assertIn('name="color_layer3"', html)
+        self.assertIn("setColorConfiguration", editor)
+        self.assertIn("CLASSIC_LAYER_COLORS", editor)
+        self.assertIn('editableColorLayers: ["groundPlate", "layer1", "layer2", "layer3"]', game)
+        self.assertIn("updateColorLayerControls", sessions)
+        self.assertIn("editable_color_layers", sessions)
+        self.assertIn("Meerdere kleuren", sessions)
 
 
     def test_game_configuration_store_and_schema(self) -> None:

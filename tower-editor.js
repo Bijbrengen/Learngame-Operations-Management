@@ -10,6 +10,11 @@
     { id: "black", label: "Zwart", hex: "#111827" },
     { id: "sand", label: "Zandgeel", hex: "#f0d58a" }
   ]);
+  const CLASSIC_LAYER_COLORS = Object.freeze({
+    layer1: "yellow",
+    layer2: "red",
+    layer3: "white"
+  });
 
   const state = {
     mount: null,
@@ -17,6 +22,8 @@
     products: [],
     sequence: [],
     groundPlateColor: "green",
+    multipleColors: false,
+    editableColorLayers: [],
     onAdd: null,
     onDelete: null,
     sessionRunning: false,
@@ -67,8 +74,24 @@
     return Math.min(3, 1 + sequence.length - foundation);
   }
 
+  function currentLayerId(sequence = state.sequence) {
+    const foundation = foundationCount(sequence);
+    if (sequence.length < foundation) return "layer1";
+    if (sequence.length === foundation) return "layer2";
+    return "layer3";
+  }
+
+  function mayChooseLayerColor(layerId) {
+    return state.multipleColors && state.editableColorLayers.includes(layerId);
+  }
+
   function partFitsCurrentLayer(part, sequence = state.sequence) {
-    if (!part || !sequence.length) return Boolean(part);
+    if (!part) return false;
+    const layerId = currentLayerId(sequence);
+    if (!mayChooseLayerColor(layerId) && part.color !== CLASSIC_LAYER_COLORS[layerId]) {
+      return false;
+    }
+    if (!sequence.length) return true;
     const foundation = foundationCount(sequence);
     if (sequence.length >= foundation) {
       return sequence.length < foundation + 2;
@@ -110,6 +133,7 @@
   }
 
   function groundPlateMarkup() {
+    const groundPlateEditable = mayChooseLayerColor("groundPlate");
     return `
       <fieldset class="tower-ground-plate">
         <legend>Grondplaat</legend>
@@ -124,12 +148,19 @@
                     data-ground-plate-color="${option.id}"
                     aria-label="${option.label}"
                     aria-pressed="${state.groundPlateColor === option.id}"
+                    aria-disabled="${!groundPlateEditable}"
+                    ${groundPlateEditable ? "" : "disabled"}
                     title="${option.label}">
               <span style="--ground-plate-swatch:${option.hex}" aria-hidden="true"></span>
               <small>${option.label}</small>
             </button>
           `).join("")}
         </div>
+        <small class="tower-ground-plate-note">
+          ${groundPlateEditable
+            ? "Deze laag is vrijgegeven in de game-instellingen."
+            : "Klassiek groen · geef Grondplaat vrij via Meerdere kleuren om dit te wijzigen."}
+        </small>
       </fieldset>
     `;
   }
@@ -271,6 +302,7 @@
   function handleClick(event) {
     const groundPlateButton = event.target.closest("[data-ground-plate-color]");
     if (groundPlateButton) {
+      if (!mayChooseLayerColor("groundPlate")) return;
       state.groundPlateColor = groundPlateButton.dataset.groundPlateColor;
       state.message = "";
       render();
@@ -341,6 +373,10 @@
     state.mount = mountPoint;
     state.parts = (options.parts || []).filter(part => part.id !== "base_green");
     state.products = [...(options.products || [])];
+    state.multipleColors = Boolean(options.colorConfiguration?.multipleColors);
+    state.editableColorLayers = state.multipleColors
+      ? [...(options.colorConfiguration?.editableColorLayers || [])]
+      : [];
     state.onAdd = options.onAdd;
     state.onDelete = options.onDelete;
     state.sequence = [];
@@ -356,6 +392,33 @@
     render();
   }
 
+  function setColorConfiguration(configuration = {}) {
+    state.multipleColors = Boolean(configuration.multipleColors);
+    state.editableColorLayers = state.multipleColors
+      ? [...new Set(configuration.editableColorLayers || [])].filter(layerId => (
+          ["groundPlate", "layer1", "layer2", "layer3"].includes(layerId)
+        ))
+      : [];
+    if (!mayChooseLayerColor("groundPlate")) {
+      state.groundPlateColor = "green";
+    }
+    const invalidLayerColor = state.sequence.some((partId, index, sequence) => {
+      const foundation = foundationCount(sequence);
+      const layerId = index < foundation
+        ? "layer1"
+        : index === foundation
+          ? "layer2"
+          : "layer3";
+      return !mayChooseLayerColor(layerId)
+        && partById(partId)?.color !== CLASSIC_LAYER_COLORS[layerId];
+    });
+    if (invalidLayerColor) {
+      state.sequence = [];
+      state.message = "Het ontwerp is leeggemaakt omdat de nieuwe game-instelling andere vaste laagkleuren gebruikt.";
+    }
+    render();
+  }
+
   window.addEventListener("learngame-session-state", event => {
     const running = Boolean(event.detail?.running);
     if (state.sessionRunning === running) return;
@@ -363,5 +426,5 @@
     render();
   });
 
-  window.TowerEditor = { mount, setProducts };
+  window.TowerEditor = { mount, setProducts, setColorConfiguration };
 })();
