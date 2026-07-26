@@ -14,6 +14,7 @@ De normale lokale opstelling bestaat uit drie zelfstandige Git-repository's:
 D:\repos\
 ├── Leerpret\
 ├── LeerpretEngine\
+├── LeerboxEditor\
 └── Learngame Operations Management\
 ```
 
@@ -21,6 +22,8 @@ D:\repos\
   canonieke publieke interactiecontract en de dashboardfrontend.
 - `LeerpretEngine` bezit FastAPI, authenticatie, gamesessies, profielopslag,
   telemetry, actieverwerking, scoring en simulatie.
+- `LeerboxEditor` bezit de zelfstandige statische editor voor
+  leerbox-captures.
 - deze repository bezit de productspecifieke browsergame, PWA-assets, lokale
   fixtures en producttests.
 
