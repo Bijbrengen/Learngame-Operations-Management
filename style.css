@@ -5186,6 +5186,25 @@ select {
   font-size: 0.72rem;
 }
 
+.session-config-field.financial-detail-settings {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 10px;
+  border: 1px solid rgba(245, 203, 114, 0.32);
+  border-radius: 10px;
+  background: rgba(72, 49, 15, 0.18);
+}
+
+.financial-detail-settings > small {
+  grid-column: 1 / -1;
+  color: #e6d4a7;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.financial-detail-settings[hidden] {
+  display: none;
+}
+
 .color-layer-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

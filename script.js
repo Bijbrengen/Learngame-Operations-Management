@@ -764,6 +764,19 @@
       }
     }
   });
+  const MONEY_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
+  const REVENUE_BALANCE_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
+
+  function financialDetailDefaults(gameType, money = true) {
+    return {
+      openingBalance: Boolean(money && MONEY_PRESET_GAMES.has(gameType)),
+      revenueBalance: Boolean(money && REVENUE_BALANCE_PRESET_GAMES.has(gameType))
+    };
+  }
 
   function applyLogisticsProcessContract(gameType, config = state.config) {
     const processes = window.LogisticsProcess?.normalizeProcesses(
@@ -1082,6 +1095,8 @@
       gameType: "lo4",
       money: true,
       pnl: true,
+      openingBalance: true,
+      revenueBalance: false,
       intermediateStock: true,
       opportunityCosts: true,
       roleFreedom: false,
@@ -1131,6 +1146,8 @@
     gameTypeSelect: document.getElementById("gameTypeSelect"),
     gameTypeDescription: document.getElementById("gameTypeDescription"),
     moneyToggle: document.getElementById("moneyToggle"),
+    openingBalanceToggle: document.getElementById("openingBalanceToggle"),
+    revenueBalanceToggle: document.getElementById("revenueBalanceToggle"),
     pnlToggle: document.getElementById("pnlToggle"),
     intermediateToggle: document.getElementById("intermediateToggle"),
     opportunityToggle: document.getElementById("opportunityToggle"),
@@ -2838,7 +2855,7 @@
       + workInProgressValue
       + finishedGoodsValue;
     const items = [
-      `
+      state.config.money && state.config.openingBalance ? `
         <article class="inventory-item financial-overview-card" data-financial-overview="balance">
           <div>
             <h3 class="inventory-name">Balans</h3>
@@ -2854,7 +2871,7 @@
           </div>
           <strong class="inventory-count">${formatMoney(totalAssets)}</strong>
         </article>
-      `,
+      ` : "",
       `
         <article class="inventory-item financial-overview-card" data-financial-overview="profit-loss">
           <div>
@@ -2868,7 +2885,47 @@
           <strong class="inventory-count">${state.config.pnl ? formatMoney(result) : "W&R uit"}</strong>
         </article>
       `
-    ];
+    ].filter(Boolean);
+
+    if (state.config.money && state.config.revenueBalance) {
+      const otherCashMovements = state.financial.cash
+        - state.financial.openingCash
+        - state.financial.revenue;
+      items.push(`
+        <article class="inventory-item financial-overview-card"
+                 data-financial-overview="revenue-balance">
+          <div>
+            <h3 class="inventory-name">Omzetbalans</h3>
+            <div class="inventory-meta">
+              Beginstand ${formatMoney(state.financial.openingCash)} Â·
+              omzet ${formatMoney(state.financial.revenue)} Â·
+              overige kasmutaties ${formatMoney(otherCashMovements)}
+            </div>
+            <div class="inventory-meta">
+              Controle: beginstand + omzet + overige mutaties = eindsaldo.
+            </div>
+          </div>
+          <strong class="inventory-count">${formatMoney(state.financial.cash)}</strong>
+        </article>
+      `);
+    }
+
+    if (state.config.money && (state.config.openingBalance || state.config.revenueBalance)) {
+      const liquidityEffect = state.financial.cash - state.financial.openingCash;
+      const advice = state.config.revenueBalance
+        ? `Omzet ${formatMoney(state.financial.revenue)} verandert de liquiditeitspositie samen met overige kasmutaties. Het netto-effect sinds de opening is ${formatMoney(liquidityEffect)}.`
+        : `De openingsbalans start met ${formatMoney(state.financial.openingCash)} liquide middelen. Dit is de beschikbare financiÃ«le ruimte voor inkoop, productie en verstoringen.`;
+      items.push(`
+        <article class="inventory-item financial-advisor-card"
+                 data-financial-advisor>
+          <div>
+            <h3 class="inventory-name">Adviseur Â· financiÃ«le impact</h3>
+            <div class="inventory-meta">${advice}</div>
+          </div>
+          <strong class="inventory-count">Advies</strong>
+        </article>
+      `);
+    }
 
     if (state.config.productionProcesses.includes("parallel")) {
       PRODUCTION_DEPARTMENT_IDS.forEach(departmentId => {
@@ -5082,6 +5139,8 @@
     state.config.gameType = settings.game_type || configId;
     state.config.money = Boolean(settings.money);
     state.config.pnl = Boolean(settings.pnl);
+    state.config.openingBalance = state.config.money && Boolean(settings.opening_balance_enabled);
+    state.config.revenueBalance = state.config.money && Boolean(settings.revenue_balance_enabled);
     state.config.intermediateStock = Boolean(settings.intermediate_stock);
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
@@ -5144,6 +5203,18 @@
     }
     els.moneyToggle.checked = state.config.money;
     els.pnlToggle.checked = state.config.pnl;
+    if (!state.config.money) {
+      state.config.openingBalance = false;
+      state.config.revenueBalance = false;
+    }
+    if (els.openingBalanceToggle) {
+      els.openingBalanceToggle.checked = state.config.openingBalance;
+      els.openingBalanceToggle.disabled = !state.config.money;
+    }
+    if (els.revenueBalanceToggle) {
+      els.revenueBalanceToggle.checked = state.config.revenueBalance;
+      els.revenueBalanceToggle.disabled = !state.config.money;
+    }
     applyLogisticsProcessContract(state.config.gameType);
     const parallelOnly = state.config.productionProcesses.length === 1
       && state.config.productionProcesses[0] === "parallel";
@@ -5177,7 +5248,8 @@
     if (!preset) return false;
 
     const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
-    Object.assign(state.config, preset.config, {
+    const financialDetails = financialDetailDefaults(gameType, preset.config.money);
+    Object.assign(state.config, preset.config, financialDetails, {
       gameType,
       multipleColors: Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
@@ -5224,6 +5296,16 @@
       gameType,
       money: config.money ?? preset.config.money,
       pnl: config.pnl ?? preset.config.pnl,
+      openingBalance: Boolean(
+        (config.money ?? preset.config.money)
+        && (config.opening_balance_enabled
+          ?? financialDetailDefaults(gameType, preset.config.money).openingBalance)
+      ),
+      revenueBalance: Boolean(
+        (config.money ?? preset.config.money)
+        && (config.revenue_balance_enabled
+          ?? financialDetailDefaults(gameType, preset.config.money).revenueBalance)
+      ),
       intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
       opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
       roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
@@ -5257,6 +5339,18 @@
   function syncConfigFromControls(dispatch = true) {
     state.config.money = els.moneyToggle.checked;
     state.config.pnl = els.pnlToggle.checked;
+    state.config.openingBalance = state.config.money
+      && Boolean(els.openingBalanceToggle?.checked);
+    state.config.revenueBalance = state.config.money
+      && Boolean(els.revenueBalanceToggle?.checked);
+    if (els.openingBalanceToggle) {
+      els.openingBalanceToggle.checked = state.config.openingBalance;
+      els.openingBalanceToggle.disabled = !state.config.money;
+    }
+    if (els.revenueBalanceToggle) {
+      els.revenueBalanceToggle.checked = state.config.revenueBalance;
+      els.revenueBalanceToggle.disabled = !state.config.money;
+    }
     const requestedProcesses = [
       els.parallelProductionToggle.checked ? "parallel" : null,
       els.sequentialProductionToggle.checked ? "sequential" : null
@@ -5300,6 +5394,8 @@
       game_type: state.config.gameType,
       money: state.config.money,
       pnl: state.config.pnl,
+      opening_balance_enabled: state.config.openingBalance,
+      revenue_balance_enabled: state.config.revenueBalance,
       intermediate_stock: state.config.intermediateStock,
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
@@ -5641,6 +5737,8 @@
         game_type: state.config.gameType,
         money: state.config.money,
         pnl: state.config.pnl,
+        opening_balance_enabled: state.config.openingBalance,
+        revenue_balance_enabled: state.config.revenueBalance,
         intermediate_stock: state.config.intermediateStock,
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
@@ -5680,11 +5778,13 @@
     [
       els.moneyToggle,
       els.pnlToggle,
+      els.openingBalanceToggle,
+      els.revenueBalanceToggle,
       els.intermediateToggle,
       els.opportunityToggle,
       els.roleFreedomToggle,
       els.priceModeSelect
-    ].forEach(control => control.addEventListener("change", () => syncConfigFromControls(true)));
+    ].filter(Boolean).forEach(control => control.addEventListener("change", () => syncConfigFromControls(true)));
     els.productSelect.addEventListener("change", () => {
       updatePriceInput();
       renderOrderPreview();

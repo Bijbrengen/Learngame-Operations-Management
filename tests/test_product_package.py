@@ -1457,6 +1457,13 @@ process.stdout.write(JSON.stringify({
         consensus = contract["properties"]["consensus"]
         self.assertIn("difficulty_level", contract["required"])
         self.assertIn("play_mode", contract["properties"]["game_config"]["required"])
+        self.assertIn("opening_balance_enabled", contract["properties"]["game_config"]["required"])
+        self.assertIn("revenue_balance_enabled", contract["properties"]["game_config"]["required"])
+        self.assertIn("enabled_roles", contract["properties"]["game_config"]["required"])
+        self.assertIn(
+            "production_a",
+            contract["properties"]["game_config"]["properties"]["enabled_roles"]["items"]["enum"],
+        )
         self.assertEqual(
             ["physical", "digital"],
             contract["properties"]["game_config"]["properties"]["play_mode"]["enum"],
@@ -1927,6 +1934,8 @@ process.stdout.write(JSON.stringify({{
 
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         self.assertEqual("LEARNGame OM Game Configuration Schema v1", schema["title"])
+        self.assertIn("opening_balance_enabled", schema["properties"]["settings"]["required"])
+        self.assertIn("revenue_balance_enabled", schema["properties"]["settings"]["required"])
 
         store_code = store_path.read_text(encoding="utf-8")
         self.assertIn("class GameConfigurationStore", store_code)
@@ -1937,6 +1946,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("saveConfiguration", store_code)
         self.assertIn("deleteCustomConfiguration", store_code)
         self.assertIn("findMatchingConfiguration", store_code)
+        self.assertIn("opening_balance_enabled", store_code)
+        self.assertIn("revenue_balance_enabled", store_code)
 
         probe = subprocess.run(
             [
@@ -1975,6 +1986,8 @@ console.log(JSON.stringify({
         self.assertIn("populateGameTypeSelect", script)
         self.assertIn("findMatchingConfiguration", script)
         self.assertIn("is-highlighted", script)
+        self.assertIn('data-financial-overview="revenue-balance"', script)
+        self.assertIn("data-financial-advisor", script)
 
 
 if __name__ == "__main__":

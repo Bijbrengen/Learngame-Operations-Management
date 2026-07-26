@@ -1,0 +1,380 @@
+const { test, expect } = require("@playwright/test");
+
+async function fulfillJson(route, status, body) {
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body)
+  });
+}
+
+async function mockAuthenticatedApp(page, { profileExists = true } = {}) {
+  await page.route("**/accounts.google.com/**", route => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: ""
+  }));
+  await page.route("**/auth/leerbox/session?**", route => fulfillJson(route, 200, {
+    authenticated: true,
+    user: { label: "Playwright regressie" },
+    roles: ["learner"]
+  }));
+  await page.route("**/v1/player/behavior-profile**", route => fulfillJson(route, 200, {
+    exists: profileExists,
+    ...(profileExists ? { profile: {} } : {})
+  }));
+  await page.route("**/v1/game-sessions/availability", route => fulfillJson(route, 200, {
+    current_session: null,
+    discoverable_sessions: [],
+    open_sessions: [],
+    can_start_free_game: true
+  }));
+}
+
+async function openManagerSessionSettings(page) {
+  await mockAuthenticatedApp(page);
+  await page.goto("/");
+  await page.waitForFunction(() => window.LEARNGameOMSimulator && window.GameConfigurationStore);
+  await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+  await expect(page.locator("#characterCreationGate")).toBeHidden();
+  await page.evaluate(() => {
+    window.LEARNGameOMSimulator.setAppView("manager");
+    window.LEARNGameOMSimulator.setManagerTab("session");
+  });
+  const form = page.locator("#gameSessionCreateForm");
+  await expect(form).toBeVisible();
+  return form;
+}
+
+test.describe("Kritieke regressies: authenticatie, presets en productie", () => {
+  test("1. karakteraanmaak gebruikt profielstatus 200 en actuele kwaliteits-API", async ({ page }) => {
+    await mockAuthenticatedApp(page, { profileExists: false });
+
+    const profileResponse = page.waitForResponse(response => (
+      response.url().includes("/v1/player/behavior-profile")
+      && response.status() === 200
+    ));
+    await page.goto("/");
+    await profileResponse;
+
+    const beginScans = page.locator('[data-action="begin-scans"]');
+    await expect(page.locator("#characterCreationGate")).toBeVisible();
+    await expect(beginScans).toBeVisible();
+    await beginScans.click();
+    await expect(page.getByRole("heading", { name: "Baseline Attribute Allocation" })).toBeVisible();
+
+    await page.waitForFunction(() => (
+      window.BehaviorResponseQuality
+      && typeof window.BehaviorResponseQuality.assess === "function"
+    ));
+    const quality = await page.evaluate(() => {
+      const uniformScan = Array.from({ length: 10 }, () => [5, 5, 5, 5]);
+      return window.BehaviorResponseQuality.assess({
+        basic_style: uniformScan,
+        response_style: uniformScan
+      });
+    });
+
+    expect(quality.doubtful).toBe(true);
+    expect(quality.reasons.length).toBeGreaterThan(0);
+  });
+
+  test("2. bereikbare backend met 401 start Google OAuth op 127.0.0.1", async ({ page }) => {
+    await page.route("**/accounts.google.com/gsi/client", route => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: `
+        window.google = {
+          accounts: {
+            oauth2: {
+              initCodeClient: () => ({
+                requestCode() {
+                  window.__googleCodeRequestStarted = true;
+                  window.open("about:blank", "google-oauth", "popup,width=520,height=640");
+                }
+              })
+            }
+          }
+        };
+      `
+    }));
+    await page.route("**/api/auth/leerbox/session**", route => fulfillJson(route, 401, {
+      detail: "No active session for this leerbox"
+    }));
+    await page.route("**/api/auth/leerbox/exchange**", route => fulfillJson(route, 401, {
+      detail: "No active Leerpret session"
+    }));
+    await page.route("**/api/auth/google/config", route => fulfillJson(route, 200, {
+      enabled: true,
+      client_id: "playwright-client.apps.googleusercontent.com",
+      scope: "openid"
+    }));
+
+    await page.goto("/");
+    expect(new URL(page.url()).hostname).toBe("127.0.0.1");
+    await expect(page.locator("#leerpretAuthMessage")).toHaveText(
+      "Meld je hier met je Google-account aan."
+    );
+    await expect(page.locator("#leerpretAuthMessage")).not.toContainText(
+      "De Leerpret-service is niet bereikbaar"
+    );
+
+    const googleButton = page.getByRole("button", {
+      name: "Pseudoniem aanmelden met Google"
+    });
+    await expect(googleButton).toBeVisible();
+    const popupPromise = page.waitForEvent("popup");
+    await googleButton.click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded");
+    expect(await page.evaluate(() => window.__googleCodeRequestStarted)).toBe(true);
+    await popup.close();
+
+    const session = await page.evaluate(() => window.LeerpretAuth.getSession());
+    expect(session).toMatchObject({ online: true, authenticated: false });
+  });
+
+  test("3. LO Game 4 blijft geselecteerd bij fysiek-digitaal-fysiek", async ({ page }) => {
+    const form = await openManagerSessionSettings(page);
+    const preset = form.locator('[name="game_type"]');
+    const playMode = form.locator('[name="play_mode"]');
+
+    await preset.selectOption("lo4");
+    await expect(preset).toHaveValue("lo4");
+    await expect(preset.locator("option:checked")).toHaveText("LO Game 4");
+
+    await playMode.selectOption("digital");
+    await expect(playMode).toHaveValue("digital");
+    await expect(preset).toHaveValue("lo4");
+    await expect(preset.locator("option:checked")).not.toContainText("Aangepast scenario");
+
+    await playMode.selectOption("physical");
+    await expect(playMode).toHaveValue("physical");
+    await expect(preset).toHaveValue("lo4");
+    await expect(preset.locator("option:checked")).toHaveText("LO Game 4");
+  });
+
+  test("4. digitale LO Game 4 voldoet inclusief enabled_roles aan het backendcontract", async ({ page }) => {
+    const form = await openManagerSessionSettings(page);
+    const allowedGameConfigFields = new Set([
+      "play_mode",
+      "game_type",
+      "money",
+      "pnl",
+      "opening_balance_enabled",
+      "revenue_balance_enabled",
+      "intermediate_stock",
+      "opportunity_costs",
+      "role_freedom",
+      "multiple_colors",
+      "editable_color_layers",
+      "price_mode",
+      "production_processes",
+      "logistics_organization",
+      "product_type_count",
+      "customer_order_mode",
+      "enabled_roles"
+    ]);
+    let postedBody;
+    let resolvePosted;
+    const posted = new Promise(resolve => {
+      resolvePosted = resolve;
+    });
+    const dialogs = [];
+    page.on("dialog", async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+    await page.route(/\/v1\/game-sessions$/, async route => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      postedBody = route.request().postDataJSON();
+      const extraFields = Object.keys(postedBody.game_config)
+        .filter(field => !allowedGameConfigFields.has(field));
+      if (extraFields.length) {
+        await fulfillJson(route, 422, {
+          detail: extraFields.map(field => ({
+            type: "extra_forbidden",
+            loc: ["body", "game_config", field],
+            msg: "Extra inputs are not permitted"
+          }))
+        });
+      } else {
+        await fulfillJson(route, 200, { status: "finished" });
+      }
+      resolvePosted();
+    });
+
+    await form.locator('[name="game_type"]').selectOption("lo4");
+    await form.locator('[name="play_mode"]').selectOption("digital");
+    await form.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await posted;
+
+    expect(postedBody.game_config.play_mode).toBe("digital");
+    expect(postedBody.game_config.game_type).toBe("lo4");
+    expect(postedBody.game_config.enabled_roles).toEqual(expect.arrayContaining([
+      "customer",
+      "logistics_manager",
+      "production_a",
+      "production_b",
+      "production_c",
+      "finished_warehouse"
+    ]));
+    expect(dialogs).not.toContain("Extra inputs are not permitted");
+    expect(dialogs).toEqual([]);
+  });
+
+  test("5. LO Game 6 geeft vier kleurlagen vrij en de editor respecteert deelvrijgave", async ({ page }) => {
+    const form = await openManagerSessionSettings(page);
+    await form.locator('[name="game_type"]').selectOption("lo6");
+
+    await expect(form.locator('[name="multiple_colors"]')).toBeChecked();
+    for (const layer of ["groundPlate", "layer1", "layer2", "layer3"]) {
+      await expect(form.locator(`[data-color-layer="${layer}"]`)).toBeChecked();
+      await expect(form.locator(`[data-color-layer="${layer}"]`)).toBeEnabled();
+    }
+
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.setManagerTab("tower-editor");
+      window.TowerEditor.setColorConfiguration({
+        multipleColors: true,
+        editableColorLayers: ["layer1"]
+      });
+    });
+    const editor = page.locator("#towerEditorMount");
+    await expect(editor).toBeVisible();
+    await expect(editor.locator('[data-ground-plate-color="blue"]')).toBeDisabled();
+    await expect(editor.locator('[data-add-tower-part="blue_8"]')).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
+
+    await page.evaluate(() => {
+      window.TowerEditor.setColorConfiguration({
+        multipleColors: true,
+        editableColorLayers: ["groundPlate"]
+      });
+    });
+    await expect(editor.locator('[data-ground-plate-color="blue"]')).toBeEnabled();
+    await expect(editor.locator('[data-add-tower-part="yellow_8"]')).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
+    await expect(editor.locator('[data-add-tower-part="blue_8"]')).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+  });
+
+  test("6. order van drie blokkeert overdracht tot batchbouw en getekende orderparaaf", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.body.innerHTML = '<main id="batch-regression"></main>';
+
+      const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+        random: () => 0,
+        config: {
+          initialOrderDelayMs: 999999999,
+          orderIntervalMinMs: 999999999,
+          orderIntervalMaxMs: 999999999,
+          transferDelayMinMs: 0,
+          transferDelayMaxMs: 0,
+          incidentChance: 0
+        }
+      });
+      const controller = window.LogisticsGameUI.mount(
+        document.getElementById("batch-regression"),
+        { engine }
+      );
+      controller.start({
+        humanRoleId: "pd1",
+        playMode: "digital",
+        productionProcesses: ["sequential"]
+      });
+      const created = engine.generateOrder();
+      const order = engine.orders.get(created.id);
+      order.quantity = 3;
+      Object.values(engine.roleRuntime).forEach(runtime => {
+        runtime.queue = runtime.queue.filter(orderId => orderId !== order.id);
+      });
+      engine.beginRoleWork("pd1", order.id, Date.now());
+      controller.render();
+      window.__batchRegression = { engine, controller, orderId: order.id };
+    });
+
+    const progress = page.locator(".sim-inline-builder-status strong");
+    const signaturePad = page.locator("[data-sim-signature-pad]");
+    const transferCargo = page.locator("[data-sim-transfer-cargo]");
+    await expect(progress).toHaveText("0 van 3 torens gebouwd · bouw toren 1");
+    await expect(signaturePad).toHaveAttribute("aria-disabled", "true");
+    await expect(transferCargo).toBeDisabled();
+
+    for (const expected of [
+      "1 van 3 torens gebouwd · bouw toren 2",
+      "2 van 3 torens gebouwd · bouw toren 3"
+    ]) {
+      await page.evaluate(() => {
+        window.__batchRegression.controller.addDigitalPart("yellow_8");
+        window.__batchRegression.controller.addDigitalPart("yellow_8");
+      });
+      await expect(progress).toHaveText(expected);
+      await expect(signaturePad).toHaveAttribute("aria-disabled", "true");
+      await expect(transferCargo).toBeDisabled();
+      expect(await page.evaluate(
+        () => window.__batchRegression.controller.transferred
+      )).toBe(false);
+    }
+
+    const prematureTransfer = await page.evaluate(
+      () => window.__batchRegression.controller.completeDigitalTransfer()
+    );
+    expect(prematureTransfer).toBe(false);
+    expect(await page.evaluate(
+      () => window.__batchRegression.controller.transferred
+    )).toBe(false);
+
+    await page.evaluate(() => {
+      window.__batchRegression.controller.addDigitalPart("yellow_8");
+      window.__batchRegression.controller.addDigitalPart("yellow_8");
+    });
+    await expect(progress).toHaveText("3 van 3 torens gebouwd");
+    await expect(signaturePad).toHaveAttribute("aria-disabled", "false");
+    await expect(transferCargo).toBeDisabled();
+    await expect(transferCargo).toContainText("3×");
+
+    const box = await signaturePad.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box.x + 20, box.y + 30);
+    await page.mouse.down();
+    for (const [x, y] of [[55, 48], [95, 25], [135, 58], [180, 32], [230, 62]]) {
+      await page.mouse.move(box.x + x, box.y + y, { steps: 2 });
+    }
+    await page.mouse.up();
+
+    await expect(page.locator(".sim-signature")).toHaveClass(/is-signed/);
+    await expect(transferCargo).toBeEnabled();
+    await expect(transferCargo).toHaveAttribute("draggable", "true");
+    await transferCargo.click();
+
+    expect(await page.evaluate(
+      () => window.__batchRegression.controller.transferred
+    )).toBe(true);
+    const complete = page.locator("[data-sim-complete]");
+    await expect(complete).toBeEnabled();
+    await complete.click();
+
+    const handling = await page.evaluate(() => {
+      const { engine, orderId } = window.__batchRegression;
+      return engine.orders.get(orderId).history.find(item => item.type === "player_handling");
+    });
+    expect(handling).toMatchObject({
+      completedQuantity: 3,
+      orderSignature: true,
+      playMode: "digital"
+    });
+  });
+});

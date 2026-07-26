@@ -49,6 +49,8 @@
         "game_type",
         "money",
         "pnl",
+        "opening_balance_enabled",
+        "revenue_balance_enabled",
         "intermediate_stock",
         "opportunity_costs",
         "role_freedom",
@@ -65,6 +67,12 @@
           "type": "boolean"
         },
         "pnl": {
+          "type": "boolean"
+        },
+        "opening_balance_enabled": {
+          "type": "boolean"
+        },
+        "revenue_balance_enabled": {
           "type": "boolean"
         },
         "intermediate_stock": {

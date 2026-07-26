@@ -18,6 +18,12 @@
     open: "Open",
     semi_closed: "Semi-gesloten"
   };
+  const MONEY_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
+  const REVENUE_BALANCE_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
   const DIFFICULTY_LEVELS = {
     easy: {
       label: "Makkelijk",
@@ -238,10 +244,21 @@
       ...config
     };
     const multipleColors = Boolean(merged.multiple_colors);
+    const money = Boolean(merged.money);
     return {
       ...merged,
       play_mode: config.play_mode === "digital" ? "digital" : "physical",
       game_type: gameType,
+      opening_balance_enabled: money && (
+        merged.opening_balance_enabled === undefined
+          ? MONEY_PRESET_GAMES.has(gameType)
+          : Boolean(merged.opening_balance_enabled)
+      ),
+      revenue_balance_enabled: money && (
+        merged.revenue_balance_enabled === undefined
+          ? REVENUE_BALANCE_PRESET_GAMES.has(gameType)
+          : Boolean(merged.revenue_balance_enabled)
+      ),
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors && Array.isArray(merged.editable_color_layers)
         ? [...new Set(merged.editable_color_layers)].filter(layerId => (
@@ -300,6 +317,8 @@
       ["Functionele organisatie", config => config.logistics_organization === "functional", "bool"],
       ["Tussenvoorraad", config => config.intermediate_stock, "bool"],
       ["Geld", config => config.money, "bool"],
+      ["Openingsbalans", config => config.opening_balance_enabled, "bool"],
+      ["Omzetbalans", config => config.revenue_balance_enabled, "bool"],
       ["Winst/verlies", config => config.pnl, "bool"],
       ["Opportunity costs", config => config.opportunity_costs, "bool"],
       ["Rolvrijheid", config => config.role_freedom, "bool"],
@@ -421,6 +440,34 @@
           ${toggle("opportunity_costs", "Opportunity costs")}
           ${toggle("role_freedom", "Rolvrijheid")}
         </div>
+        <fieldset class="session-config-field financial-detail-settings is-wide"
+                  data-financial-detail-settings
+                  ${value.money ? "" : "hidden"}>
+          <legend>Financiële verdieping</legend>
+          <label class="session-config-toggle">
+            <input type="checkbox"
+                   name="opening_balance_enabled"
+                   data-game-config-control
+                   ${value.opening_balance_enabled ? "checked" : ""}
+                   ${value.money ? "" : "disabled"}>
+            <span>Openingsbalans</span>
+          </label>
+          <label class="session-config-toggle">
+            <input type="checkbox"
+                   name="revenue_balance_enabled"
+                   data-game-config-control
+                   ${value.revenue_balance_enabled ? "checked" : ""}
+                   ${value.money ? "" : "disabled"}>
+            <span>Omzetbalans</span>
+          </label>
+          <small data-financial-advisor-preview>
+            ${value.revenue_balance_enabled
+              ? "Adviseur: omzet wordt met begin- en eindpositie vergeleken; dit maakt het effect op liquiditeit en resultaat zichtbaar."
+              : value.opening_balance_enabled
+                ? "Adviseur: de beginpositie maakt zichtbaar hoeveel financiële ruimte er vóór de eerste order beschikbaar is."
+                : "Adviseur: alleen eenvoudige inkomsten, uitgaven en cashflow worden gevolgd."}
+          </small>
+        </fieldset>
         <fieldset class="session-config-field color-choice-settings is-wide">
           <legend>Kleurvrijheid</legend>
           <label class="session-config-toggle">
@@ -871,6 +918,7 @@
       });
     }
     updateHybridProductionTooltip(form);
+    updateFinancialDetailControls(form);
     const editableColorLayers = new Set(settings.editable_color_layers || []);
     form.querySelectorAll("[data-color-layer]").forEach(control => {
       control.checked = editableColorLayers.has(control.dataset.colorLayer);
@@ -910,6 +958,29 @@
     });
   }
 
+  function updateFinancialDetailControls(form) {
+    if (!form) return;
+    const moneyEnabled = Boolean(form.elements.namedItem("money")?.checked);
+    const details = form.querySelector("[data-financial-detail-settings]");
+    if (details) details.hidden = !moneyEnabled;
+    const opening = form.elements.namedItem("opening_balance_enabled");
+    const revenue = form.elements.namedItem("revenue_balance_enabled");
+    [opening, revenue].forEach(control => {
+      if (!control) return;
+      control.disabled = !moneyEnabled;
+      if (!moneyEnabled) control.checked = false;
+    });
+    const advice = form.querySelector("[data-financial-advisor-preview]");
+    if (!advice) return;
+    advice.textContent = !moneyEnabled
+      ? "Adviseur: zonder Geld ligt de focus op doorstroom, kwaliteit en logistieke knelpunten."
+      : revenue?.checked
+        ? "Adviseur: omzet wordt met begin- en eindpositie vergeleken; dit maakt het effect op liquiditeit en resultaat zichtbaar."
+        : opening?.checked
+          ? "Adviseur: de beginpositie maakt zichtbaar hoeveel financiële ruimte er vóór de eerste order beschikbaar is."
+          : "Adviseur: alleen eenvoudige inkomsten, uitgaven en cashflow worden gevolgd.";
+  }
+
   function collectGameConfig(form) {
     const get = name => form.elements.namedItem(name);
     const selectedConfiguration = window.GameConfigurationStore?.getConfiguration(
@@ -925,12 +996,17 @@
       .map(control => control.name.slice("role_".length));
     updateHybridProductionTooltip(form);
     updateColorLayerControls(form);
+    updateFinancialDetailControls(form);
     const multipleColors = Boolean(get("multiple_colors")?.checked);
     return {
       play_mode: get("play_mode")?.value === "digital" ? "digital" : "physical",
       game_type: gameType,
       money: Boolean(get("money")?.checked),
       pnl: Boolean(get("pnl")?.checked),
+      opening_balance_enabled: Boolean(get("money")?.checked)
+        && Boolean(get("opening_balance_enabled")?.checked),
+      revenue_balance_enabled: Boolean(get("money")?.checked)
+        && Boolean(get("revenue_balance_enabled")?.checked),
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
@@ -1437,6 +1513,7 @@
       ) {
         updateHybridProductionTooltip(createForm);
         updateColorLayerControls(createForm);
+        updateFinancialDetailControls(createForm);
         const config = collectGameConfig(createForm);
         syncGameConfigurationSelection(createForm, config);
         state.createSessionDraft.game_config = config;
@@ -1454,6 +1531,7 @@
           : null;
         if (selectedPreset) applyGameConfigPreset(form, selectedPreset);
         updateColorLayerControls(form);
+        updateFinancialDetailControls(form);
         const config = collectGameConfig(form);
         // Een expliciet gekozen preset is al de bron van waarheid. Meteen opnieuw
         // matchen kon op een nog niet gematerialiseerde standaardwaarde (zoals

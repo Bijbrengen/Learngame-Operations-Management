@@ -5,6 +5,12 @@
  */
 (function (global) {
   const STORAGE_KEY = "learngame_custom_configurations_v1";
+  const MONEY_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
+  const REVENUE_BALANCE_PRESET_GAMES = new Set([
+    "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
+  ]);
 
   const BUILTIN_PRESETS = [
     {
@@ -244,8 +250,21 @@
           ["groundPlate", "layer1", "layer2", "layer3"].includes(layerId)
         ))
       : [];
+    const money = Boolean(settings.money);
+    const openingBalanceEnabled = money && (
+      settings.opening_balance_enabled === undefined
+        ? MONEY_PRESET_GAMES.has(gameType)
+        : Boolean(settings.opening_balance_enabled)
+    );
+    const revenueBalanceEnabled = money && (
+      settings.revenue_balance_enabled === undefined
+        ? REVENUE_BALANCE_PRESET_GAMES.has(gameType)
+        : Boolean(settings.revenue_balance_enabled)
+    );
     return {
       ...settings,
+      opening_balance_enabled: openingBalanceEnabled,
+      revenue_balance_enabled: revenueBalanceEnabled,
       multiple_colors: multipleColors,
       editable_color_layers: editableColorLayers,
       production_processes: productionProcesses,
@@ -326,6 +345,10 @@
         const intermediateStockMatch = Boolean(s.intermediate_stock) === Boolean(currentSettings.intermediate_stock);
         const opportunityCostsMatch = Boolean(s.opportunity_costs) === Boolean(currentSettings.opportunity_costs);
         const roleFreedomMatch = Boolean(s.role_freedom) === Boolean(currentSettings.role_freedom);
+        const openingBalanceMatch = Boolean(s.opening_balance_enabled)
+          === Boolean(currentSettings.opening_balance_enabled);
+        const revenueBalanceMatch = Boolean(s.revenue_balance_enabled)
+          === Boolean(currentSettings.revenue_balance_enabled);
         const multipleColorsMatch = Boolean(s.multiple_colors)
           === Boolean(currentSettings.multiple_colors);
         const editableColorLayersMatch = [...(s.editable_color_layers || [])].sort().join(",")
@@ -339,7 +362,8 @@
         const productTypeCountMatch = (Number(s.product_type_count) || 3) === (Number(currentSettings.product_type_count) || 3);
 
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
-            !roleFreedomMatch || !multipleColorsMatch || !editableColorLayersMatch ||
+            !roleFreedomMatch || !openingBalanceMatch || !revenueBalanceMatch ||
+            !multipleColorsMatch || !editableColorLayersMatch ||
             !priceModeMatch || !customerOrderModeMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;

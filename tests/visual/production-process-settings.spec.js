@@ -176,4 +176,39 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     ]);
     expect(dialogs).toEqual([]);
   });
+
+  test("openingsbalans en omzetbalans volgen Geld en de gekozen gamepreset", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const gameType = form.locator('[name="game_type"]');
+    const money = form.locator('[name="money"]');
+    const openingBalance = form.locator('[name="opening_balance_enabled"]');
+    const revenueBalance = form.locator('[name="revenue_balance_enabled"]');
+    const financialDetails = form.locator("[data-financial-detail-settings]");
+    const advisor = form.locator("[data-financial-advisor-preview]");
+
+    await gameType.selectOption("lo4");
+    await expect(money).toBeChecked();
+    await expect(openingBalance).toBeChecked();
+    await expect(revenueBalance).not.toBeChecked();
+    await expect(advisor).toContainText("beginpositie");
+
+    await gameType.selectOption("lo5");
+    await expect(openingBalance).toBeChecked();
+    await expect(revenueBalance).toBeChecked();
+    await expect(advisor).toContainText("liquiditeit");
+
+    await money.uncheck();
+    await expect(financialDetails).toBeHidden();
+    await expect(openingBalance).toBeDisabled();
+    await expect(revenueBalance).toBeDisabled();
+    await expect(openingBalance).not.toBeChecked();
+    await expect(revenueBalance).not.toBeChecked();
+
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.applyGameTypePreset("lo5", false);
+      window.LEARNGameOMSimulator.setManagerTab("inventory");
+    });
+    await expect(page.locator('[data-financial-overview="revenue-balance"]')).toBeVisible();
+    await expect(page.locator("[data-financial-advisor]")).toContainText("netto-effect");
+  });
 });

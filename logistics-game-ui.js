@@ -254,6 +254,7 @@
 
       const completeButton = eventTargetClosest(event, "[data-sim-complete]");
       if (completeButton && !completeButton.disabled) {
+        const task = this.engine.playerTask();
         const result = this.engine.completePlayerAction({
           parts: { ...this.selectedParts },
           signed: this.signed,
@@ -937,7 +938,7 @@
             <span>${escapeHtml(task.product.name)}</span>
             <strong>${state.complete
               ? `${state.quantity} van ${state.quantity} torens gebouwd`
-              : `Bouw toren ${state.currentTower} van ${state.quantity}`}</strong>
+              : `${state.completedTowers} van ${state.quantity} torens gebouwd · bouw toren ${state.currentTower}`}</strong>
           </div>
           <svg class="sim-inline-builder-board"
                viewBox="0 0 520 420"
