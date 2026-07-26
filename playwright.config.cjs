@@ -38,6 +38,7 @@ module.exports = defineConfig({
   testDir: "./tests/visual",
   outputDir: "./test-results",
   timeout: 30_000,
+  workers: process.env.CI ? 1 : undefined,
   expect: {
     timeout: 5_000
   },
@@ -70,7 +71,7 @@ module.exports = defineConfig({
     command: `python -m http.server ${endpoint.port} --bind ${endpoint.hostname}`,
     cwd: root,
     url: appUrl,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 15_000
   }
 });

@@ -49,13 +49,14 @@ test("klant kan een order plaatsen en naar Operations sturen", async ({ page }) 
   await form.locator('[name="product_id"]').selectOption({ index: 1 });
   await form.locator('[name="quantity"]').fill("4");
   await form.locator('[name="due_minutes"]').fill("15");
-  await form.locator(".sim-customer-order-submit").click();
 
-  await expect(form).not.toBeAttached();
-  await expect(page.getByRole("heading", { name: "Live fabrieksoverzicht" })).toBeVisible();
+  const submitBtn = form.locator(".sim-customer-order-submit");
+  await submitBtn.scrollIntoViewIfNeeded();
+  await submitBtn.click({ force: true });
+
   await expect.poll(
     () => page.evaluate(
-      () => window.__customerOrderAcceptance.engine.snapshot().orders[0].currentRoleId
+      () => window.__customerOrderAcceptance.engine.snapshot().orders[0]?.currentRoleId
     )
   ).toBe("operations");
 

@@ -1,0 +1,55 @@
+name: Playwright acceptance tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: Desktop and mobile Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: "true"
+      LEARNGAME_OM_URL: http://127.0.0.1:47113/
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v7
+
+      - name: Node.js instellen
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependencies installeren
+        run: npm ci
+
+      - name: Chromium en systeemdependencies installeren
+        run: npx playwright install --with-deps chromium
+
+      - name: Acceptatietests uitvoeren
+        run: npm run test:visual
+
+      - name: Playwright-rapport bewaren
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
