@@ -211,4 +211,32 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(page.locator('[data-financial-overview="revenue-balance"]')).toBeVisible();
     await expect(page.locator("[data-financial-advisor]")).toContainText("netto-effect");
   });
+
+  test("productieplanning volgt de gamepreset en kan via de adviseur worden geactiveerd", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const gameType = form.locator('[name="game_type"]');
+    const planning = form.locator('[name="production_planning_enabled"]');
+
+    await gameType.selectOption("lo4");
+    await expect(planning).not.toBeChecked();
+
+    await page.locator("#gameAdvisorButton").click();
+    await expect(page.locator("#gameAdvisorPanel")).toBeVisible();
+    await expect(page.locator("#gameAdvisorPanel")).toContainText(
+      "Hebben jullie gedacht aan productieplanning?"
+    );
+    await page.locator("[data-advisor-enable-planning]").click();
+    await expect(page.locator("[data-production-planning]")).toBeVisible();
+
+    await page.locator('[data-plan-product="A"]').fill("3");
+    await page.locator('[data-plan-product="B"]').fill("2");
+    await page.locator('[data-plan-product="C"]').fill("1");
+    await page.locator("[data-save-production-plan]").click();
+    await expect(page.locator("[data-production-plan-status]")).toContainText(
+      "6 gepland"
+    );
+
+    await gameType.selectOption("lo5");
+    await expect(planning).toBeChecked();
+  });
 });

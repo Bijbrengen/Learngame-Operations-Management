@@ -24,6 +24,7 @@
   const REVENUE_BALANCE_PRESET_GAMES = new Set([
     "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
+  const PRODUCTION_PLANNING_PRESET_GAMES = new Set(["lo5", "lo6", "lo7", "lo8"]);
   const DIFFICULTY_LEVELS = {
     easy: {
       label: "Makkelijk",
@@ -259,6 +260,9 @@
           ? REVENUE_BALANCE_PRESET_GAMES.has(gameType)
           : Boolean(merged.revenue_balance_enabled)
       ),
+      production_planning_enabled: merged.production_planning_enabled === undefined
+        ? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
+        : Boolean(merged.production_planning_enabled),
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors && Array.isArray(merged.editable_color_layers)
         ? [...new Set(merged.editable_color_layers)].filter(layerId => (
@@ -319,6 +323,7 @@
       ["Geld", config => config.money, "bool"],
       ["Openingsbalans", config => config.opening_balance_enabled, "bool"],
       ["Omzetbalans", config => config.revenue_balance_enabled, "bool"],
+      ["Productieplanning", config => config.production_planning_enabled, "bool"],
       ["Winst/verlies", config => config.pnl, "bool"],
       ["Opportunity costs", config => config.opportunity_costs, "bool"],
       ["Rolvrijheid", config => config.role_freedom, "bool"],
@@ -406,8 +411,8 @@
         <option value="${id}"${value.game_type === id ? " selected" : ""}>${preset.label}</option>
       `).join("");
     }
-    const toggle = (name, label) => `
-      <label class="session-config-toggle">
+    const toggle = (name, label, title = "") => `
+      <label class="session-config-toggle"${title ? ` title="${escapeHtml(title)}"` : ""}>
         <input type="checkbox" name="${name}" data-game-config-control ${value[name] ? "checked" : ""}>
         <span>${label}</span>
       </label>
@@ -439,6 +444,11 @@
           ${toggle("intermediate_stock", "Tussenvoorraad")}
           ${toggle("opportunity_costs", "Opportunity costs")}
           ${toggle("role_freedom", "Rolvrijheid")}
+          ${toggle(
+            "production_planning_enabled",
+            "Productieplanning",
+            "Toon het productieplan A/B/C, valideer de beschikbare grondstoffen en vergelijk plan met werkelijk gereed."
+          )}
         </div>
         <fieldset class="session-config-field financial-detail-settings is-wide"
                   data-financial-detail-settings
@@ -1010,6 +1020,7 @@
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
+      production_planning_enabled: Boolean(get("production_planning_enabled")?.checked),
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors
         ? [...form.querySelectorAll("[data-color-layer]")]

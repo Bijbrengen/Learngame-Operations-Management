@@ -1459,6 +1459,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn("play_mode", contract["properties"]["game_config"]["required"])
         self.assertIn("opening_balance_enabled", contract["properties"]["game_config"]["required"])
         self.assertIn("revenue_balance_enabled", contract["properties"]["game_config"]["required"])
+        self.assertIn("production_planning_enabled", contract["properties"]["game_config"]["required"])
         self.assertIn("enabled_roles", contract["properties"]["game_config"]["required"])
         self.assertIn(
             "production_a",
@@ -1936,6 +1937,7 @@ process.stdout.write(JSON.stringify({{
         self.assertEqual("LEARNGame OM Game Configuration Schema v1", schema["title"])
         self.assertIn("opening_balance_enabled", schema["properties"]["settings"]["required"])
         self.assertIn("revenue_balance_enabled", schema["properties"]["settings"]["required"])
+        self.assertIn("production_planning_enabled", schema["properties"]["settings"]["required"])
 
         store_code = store_path.read_text(encoding="utf-8")
         self.assertIn("class GameConfigurationStore", store_code)
@@ -1948,6 +1950,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("findMatchingConfiguration", store_code)
         self.assertIn("opening_balance_enabled", store_code)
         self.assertIn("revenue_balance_enabled", store_code)
+        self.assertIn("production_planning_enabled", store_code)
 
         probe = subprocess.run(
             [

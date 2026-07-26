@@ -770,6 +770,7 @@
   const REVENUE_BALANCE_PRESET_GAMES = new Set([
     "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
+  const PRODUCTION_PLANNING_PRESET_GAMES = new Set(["lo5", "lo6", "lo7", "lo8"]);
 
   function financialDetailDefaults(gameType, money = true) {
     return {
@@ -1090,6 +1091,12 @@
       },
       feedback: ""
     },
+    productionPlan: {
+      quantities: { A: 0, B: 0, C: 0 },
+      saved: false,
+      updatedAt: null
+    },
+    advisorOpen: false,
     config: {
       playMode: "physical",
       gameType: "lo4",
@@ -1097,6 +1104,7 @@
       pnl: true,
       openingBalance: true,
       revenueBalance: false,
+      productionPlanning: false,
       intermediateStock: true,
       opportunityCosts: true,
       roleFreedom: false,
@@ -1130,6 +1138,11 @@
     laneGrid: document.getElementById("laneGrid"),
     inventoryGrid: document.getElementById("inventoryGrid"),
     stockSignal: document.getElementById("stockSignal"),
+    gameAdvisorButton: document.getElementById("gameAdvisorButton"),
+    gameAdvisorBadge: document.getElementById("gameAdvisorBadge"),
+    gameAdvisorPanel: document.getElementById("gameAdvisorPanel"),
+    gameAdvisorCloseButton: document.getElementById("gameAdvisorCloseButton"),
+    gameAdvisorContent: document.getElementById("gameAdvisorContent"),
     eventLog: document.getElementById("eventLog"),
     dataModelButton: document.getElementById("dataModelButton"),
     dataModelPanel: document.getElementById("dataModelPanel"),
@@ -1148,6 +1161,7 @@
     moneyToggle: document.getElementById("moneyToggle"),
     openingBalanceToggle: document.getElementById("openingBalanceToggle"),
     revenueBalanceToggle: document.getElementById("revenueBalanceToggle"),
+    productionPlanningToggle: document.getElementById("productionPlanningToggle"),
     pnlToggle: document.getElementById("pnlToggle"),
     intermediateToggle: document.getElementById("intermediateToggle"),
     opportunityToggle: document.getElementById("opportunityToggle"),
@@ -2830,6 +2844,27 @@
     renderPlayerWaiting();
   }
 
+  function validateProductionPlan(quantities = state.productionPlan.quantities) {
+    const normalized = Object.fromEntries(
+      ["A", "B", "C"].map(productId => [
+        productId,
+        Math.max(0, Math.floor(Number(quantities[productId]) || 0))
+      ])
+    );
+    const requirements = Object.fromEntries(PARTS.map(part => [part.id, 0]));
+    Object.entries(normalized).forEach(([productId, quantity]) => {
+      const recipe = fullProductRecipe(productId, quantity);
+      Object.entries(recipe).forEach(([partId, required]) => {
+        requirements[partId] = (requirements[partId] || 0) + required;
+      });
+    });
+    const shortages = PARTS
+      .filter(part => requirements[part.id] > Number(state.inventory[part.id] || 0))
+      .map(part => part.name);
+    const total = Object.values(normalized).reduce((sum, value) => sum + value, 0);
+    return { normalized, total, shortages, valid: total > 0 && shortages.length === 0 };
+  }
+
   function renderInventory() {
     const rawInventoryValue = PARTS.reduce(
       (sum, part) => sum + (state.inventory[part.id] || 0) * part.price,
@@ -2886,6 +2921,41 @@
         </article>
       `
     ].filter(Boolean);
+
+    if (state.config.productionPlanning) {
+      const validation = validateProductionPlan();
+      const planTotal = validation.total;
+      const actualTotal = ["A", "B", "C"]
+        .reduce((sum, productId) => sum + Number(state.finishedGoods[productId] || 0), 0);
+      const planStatus = state.productionPlan.saved && validation.valid
+        ? `Planning opgeslagen · ${planTotal} gepland · ${actualTotal} gereed`
+        : validation.shortages.length
+          ? `Planning niet haalbaar: onvoldoende ${validation.shortages.join(", ")}.`
+          : "Vul minimaal één geplande toren in en sla de planning op.";
+      items.unshift(`
+        <article class="inventory-item production-planning-card" data-production-planning>
+          <div>
+            <p class="eyebrow">Production Planning &amp; Scheduling</p>
+            <h3 class="inventory-name">Productieplan A / B / C</h3>
+            <div class="production-plan-fields">
+              ${["A", "B", "C"].map(productId => `
+                <label>
+                  <span>Toren ${productId}</span>
+                  <input type="number" min="0" step="1"
+                         value="${Number(state.productionPlan.quantities[productId] || 0)}"
+                         data-plan-product="${productId}">
+                  <small>Gereed: ${Number(state.finishedGoods[productId] || 0)}</small>
+                </label>
+              `).join("")}
+            </div>
+            <p class="inventory-meta" data-production-plan-status>${planStatus}</p>
+            <button type="button" class="primary-button compact-button"
+                    data-save-production-plan>Productieplan opslaan</button>
+          </div>
+          <strong class="inventory-count">${actualTotal}/${planTotal}</strong>
+        </article>
+      `);
+    }
 
     if (state.config.money && state.config.revenueBalance) {
       const otherCashMovements = state.financial.cash
@@ -3010,6 +3080,85 @@
     const lowCount = PARTS.filter(part => (state.inventory[part.id] || 0) <= part.reorder).length;
     els.stockSignal.textContent = lowCount ? `${lowCount} laag` : "OK";
     els.stockSignal.classList.toggle("low", lowCount > 0);
+  }
+
+  function advisorInsights() {
+    const insights = [];
+    const activeOrders = state.orders.filter(order => !order.done);
+    const qualityProblems = activeOrders.filter(order => (
+      String(order.lastIssue || "").toLowerCase().includes("kwaliteit")
+    )).length;
+    const lowStockCount = PARTS.filter(part => (state.inventory[part.id] || 0) <= part.reorder).length;
+    const planTotal = Object.values(state.productionPlan.quantities)
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+
+    if (!state.config.productionPlanning) {
+      insights.push({
+        type: activeOrders.length > 1 ? "warning" : "tip",
+        title: "Hebben jullie gedacht aan productieplanning?",
+        text: "Maak vooraf een plan voor toren A, B en C en vergelijk de werkelijke productie met het programma.",
+        action: "planning"
+      });
+    } else if (!state.productionPlan.saved || planTotal <= 0) {
+      insights.push({
+        type: "warning",
+        title: "Het productieplan is nog niet compleet",
+        text: "Plan minimaal één toren en sla het plan op voordat je de voortgang beoordeelt."
+      });
+    }
+    if (lowStockCount >= 2) {
+      insights.push({
+        type: "warning",
+        title: "Voorraad vraagt aandacht",
+        text: `${lowStockCount} grondstoffen zitten op of onder het bestelpunt. Controleer of het productieplan haalbaar is.`
+      });
+    }
+    if (qualityProblems > 0) {
+      insights.push({
+        type: "warning",
+        title: "Kwaliteitscontrole vraagt aandacht",
+        text: `${qualityProblems} order(s) hebben kwaliteitsherwerk. Controleer de specificatie vóór overdracht.`
+      });
+    }
+    if (state.config.money && state.financial.cash < state.financial.openingCash * 0.5) {
+      insights.push({
+        type: "warning",
+        title: "Liquiditeit neemt sterk af",
+        text: "Vergelijk inkopen, onderhanden werk en omzet voordat je extra productie vrijgeeft."
+      });
+    }
+    if (!insights.length) {
+      insights.push({
+        type: "ok",
+        title: "Proces is stabiel",
+        text: "Geen directe bottleneck gevonden. Blijf plan, voorraad en werkelijke output vergelijken."
+      });
+    }
+    return insights;
+  }
+
+  function renderAdvisor() {
+    if (!els.gameAdvisorButton || !els.gameAdvisorPanel || !els.gameAdvisorContent) return;
+    const insights = advisorInsights();
+    const warnings = insights.filter(insight => insight.type === "warning").length;
+    els.gameAdvisorPanel.hidden = !state.advisorOpen;
+    els.gameAdvisorButton.setAttribute("aria-expanded", String(state.advisorOpen));
+    els.gameAdvisorBadge.hidden = warnings === 0;
+    els.gameAdvisorBadge.textContent = String(warnings);
+    els.gameAdvisorContent.innerHTML = insights.map(insight => `
+      <article class="game-advisor-insight is-${insight.type}">
+        <h3>${escapeHtml(insight.title)}</h3>
+        <p>${escapeHtml(insight.text)}</p>
+        ${insight.action === "planning" ? `
+          <div class="game-advisor-actions">
+            <button type="button" class="primary-button compact-button"
+                    data-advisor-enable-planning>Productieplanning activeren</button>
+            <button type="button" class="secondary-button compact-button"
+                    data-advisor-book-theory>Bekijk theorie uit het LE-boek</button>
+          </div>
+        ` : ""}
+      </article>
+    `).join("");
   }
 
   function renderMetrics() {
@@ -4834,6 +4983,7 @@
     updatePriceInput();
     renderOrderPreview();
     renderPlayerView();
+    renderAdvisor();
   }
 
   function initLegoBuilder() {
@@ -5141,6 +5291,7 @@
     state.config.pnl = Boolean(settings.pnl);
     state.config.openingBalance = state.config.money && Boolean(settings.opening_balance_enabled);
     state.config.revenueBalance = state.config.money && Boolean(settings.revenue_balance_enabled);
+    state.config.productionPlanning = Boolean(settings.production_planning_enabled);
     state.config.intermediateStock = Boolean(settings.intermediate_stock);
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
@@ -5227,6 +5378,9 @@
     }
     els.opportunityToggle.checked = state.config.opportunityCosts;
     els.roleFreedomToggle.checked = state.config.roleFreedom;
+    if (els.productionPlanningToggle) {
+      els.productionPlanningToggle.checked = state.config.productionPlanning;
+    }
     window.TowerEditor?.setColorConfiguration({
       multipleColors: state.config.multipleColors,
       editableColorLayers: [...state.config.editableColorLayers]
@@ -5251,6 +5405,7 @@
     const financialDetails = financialDetailDefaults(gameType, preset.config.money);
     Object.assign(state.config, preset.config, financialDetails, {
       gameType,
+      productionPlanning: PRODUCTION_PLANNING_PRESET_GAMES.has(gameType),
       multipleColors: Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
       productionProcesses: window.LogisticsProcess?.defaultProcessesForGame(gameType) || ["parallel"],
@@ -5305,6 +5460,10 @@
         (config.money ?? preset.config.money)
         && (config.revenue_balance_enabled
           ?? financialDetailDefaults(gameType, preset.config.money).revenueBalance)
+      ),
+      productionPlanning: Boolean(
+        config.production_planning_enabled
+          ?? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
       ),
       intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
       opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
@@ -5379,6 +5538,7 @@
     }
     state.config.opportunityCosts = els.opportunityToggle.checked;
     state.config.roleFreedom = els.roleFreedomToggle.checked;
+    state.config.productionPlanning = Boolean(els.productionPlanningToggle?.checked);
     window.TowerEditor?.setColorConfiguration({
       multipleColors: state.config.multipleColors,
       editableColorLayers: [...state.config.editableColorLayers]
@@ -5396,6 +5556,7 @@
       pnl: state.config.pnl,
       opening_balance_enabled: state.config.openingBalance,
       revenue_balance_enabled: state.config.revenueBalance,
+      production_planning_enabled: state.config.productionPlanning,
       intermediate_stock: state.config.intermediateStock,
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
@@ -5528,6 +5689,12 @@
     state.financial = createFinancialState();
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
+    state.productionPlan = {
+      quantities: { A: 0, B: 0, C: 0 },
+      saved: false,
+      updatedAt: null
+    };
+    state.advisorOpen = false;
 
     let isCompleted = false;
     let isDismissed = false;
@@ -5700,6 +5867,51 @@
     els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
+    els.gameAdvisorButton?.addEventListener("click", () => {
+      state.advisorOpen = !state.advisorOpen;
+      renderAdvisor();
+    });
+    els.gameAdvisorCloseButton?.addEventListener("click", () => {
+      state.advisorOpen = false;
+      renderAdvisor();
+    });
+    els.gameAdvisorContent?.addEventListener("click", event => {
+      if (event.target.closest("[data-advisor-enable-planning]")) {
+        state.config.productionPlanning = true;
+        if (els.productionPlanningToggle) els.productionPlanningToggle.checked = true;
+        syncConfigFromControls(true);
+        setAppView("manager", false);
+        setManagerTab("inventory", false);
+        return;
+      }
+      if (event.target.closest("[data-advisor-book-theory]")) {
+        window.alert(
+          "LE-boek LO-Game 4/5: werk met een forecast voor A, B en C, toets het plan aan de beschikbare voorraad en beperk omsteltijden."
+        );
+      }
+    });
+    els.inventoryGrid?.addEventListener("click", event => {
+      if (!event.target.closest("[data-save-production-plan]")) return;
+      const quantities = {};
+      els.inventoryGrid.querySelectorAll("[data-plan-product]").forEach(input => {
+        quantities[input.dataset.planProduct] = Math.max(0, Math.floor(Number(input.value) || 0));
+      });
+      const validation = validateProductionPlan(quantities);
+      state.productionPlan = {
+        quantities: validation.normalized,
+        saved: validation.valid,
+        updatedAt: validation.valid ? new Date().toISOString() : null
+      };
+      dispatchInteraction({
+        actionType: "save_production_plan",
+        result: validation.valid ? "success" : "invalid",
+        objectRole: "production_planning",
+        role: "Logistiek Manager",
+        plannedQuantities: { ...state.productionPlan.quantities },
+        shortages: [...validation.shortages]
+      });
+      renderAll();
+    });
     els.tutorialExitButton?.addEventListener("click", pauseTutorial);
     els.gameTypeSelect.addEventListener("change", () => {
       const val = els.gameTypeSelect.value;
@@ -5739,6 +5951,7 @@
         pnl: state.config.pnl,
         opening_balance_enabled: state.config.openingBalance,
         revenue_balance_enabled: state.config.revenueBalance,
+        production_planning_enabled: state.config.productionPlanning,
         intermediate_stock: state.config.intermediateStock,
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
@@ -5780,6 +5993,7 @@
       els.pnlToggle,
       els.openingBalanceToggle,
       els.revenueBalanceToggle,
+      els.productionPlanningToggle,
       els.intermediateToggle,
       els.opportunityToggle,
       els.roleFreedomToggle,

@@ -163,6 +163,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       "pnl",
       "opening_balance_enabled",
       "revenue_balance_enabled",
+      "production_planning_enabled",
       "intermediate_stock",
       "opportunity_costs",
       "role_freedom",

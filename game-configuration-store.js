@@ -11,6 +11,7 @@
   const REVENUE_BALANCE_PRESET_GAMES = new Set([
     "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
+  const PRODUCTION_PLANNING_PRESET_GAMES = new Set(["lo5", "lo6", "lo7", "lo8"]);
 
   const BUILTIN_PRESETS = [
     {
@@ -261,10 +262,14 @@
         ? REVENUE_BALANCE_PRESET_GAMES.has(gameType)
         : Boolean(settings.revenue_balance_enabled)
     );
+    const productionPlanningEnabled = settings.production_planning_enabled === undefined
+      ? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
+      : Boolean(settings.production_planning_enabled);
     return {
       ...settings,
       opening_balance_enabled: openingBalanceEnabled,
       revenue_balance_enabled: revenueBalanceEnabled,
+      production_planning_enabled: productionPlanningEnabled,
       multiple_colors: multipleColors,
       editable_color_layers: editableColorLayers,
       production_processes: productionProcesses,
@@ -349,6 +354,8 @@
           === Boolean(currentSettings.opening_balance_enabled);
         const revenueBalanceMatch = Boolean(s.revenue_balance_enabled)
           === Boolean(currentSettings.revenue_balance_enabled);
+        const productionPlanningMatch = Boolean(s.production_planning_enabled)
+          === Boolean(currentSettings.production_planning_enabled);
         const multipleColorsMatch = Boolean(s.multiple_colors)
           === Boolean(currentSettings.multiple_colors);
         const editableColorLayersMatch = [...(s.editable_color_layers || [])].sort().join(",")
@@ -363,6 +370,7 @@
 
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
             !roleFreedomMatch || !openingBalanceMatch || !revenueBalanceMatch ||
+            !productionPlanningMatch ||
             !multipleColorsMatch || !editableColorLayersMatch ||
             !priceModeMatch || !customerOrderModeMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {

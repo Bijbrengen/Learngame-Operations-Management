@@ -536,6 +536,10 @@
             <input id="roleFreedomToggle" type="checkbox">
             <span>Rolvrijheid</span>
           </label>
+          <label class="toggle-field">
+            <input id="productionPlanningToggle" type="checkbox">
+            <span>Productieplanning</span>
+          </label>
           <label class="select-field">
             <span>Prijs</span>
             <select id="priceModeSelect">
@@ -939,6 +943,29 @@
       </section>
     </main>
   </div>
+
+  <button id="gameAdvisorButton"
+          class="game-advisor-button"
+          type="button"
+          aria-controls="gameAdvisorPanel"
+          aria-expanded="false">
+    <span aria-hidden="true">💡</span>
+    <strong>Adviseur</strong>
+    <span id="gameAdvisorBadge" class="game-advisor-badge" hidden>0</span>
+  </button>
+  <aside id="gameAdvisorPanel"
+         class="game-advisor-panel"
+         aria-labelledby="gameAdvisorTitle"
+         hidden>
+    <header>
+      <div>
+        <p class="eyebrow">Just-in-time ondersteuning</p>
+        <h2 id="gameAdvisorTitle">Game-adviseur</h2>
+      </div>
+      <button id="gameAdvisorCloseButton" type="button" aria-label="Adviseur sluiten">×</button>
+    </header>
+    <div id="gameAdvisorContent"></div>
+  </aside>
 
   <section id="gameConsensusDialog"
            class="game-consensus-dialog"
