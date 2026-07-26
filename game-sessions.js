@@ -223,16 +223,33 @@
 
   function normalizedGameConfig(config = {}) {
     const gameType = GAME_CONFIG_PRESETS[config.game_type] ? config.game_type : "lo4";
+    const storedPresetSettings = window.GameConfigurationStore
+      ?.getConfiguration(gameType)
+      ?.settings || {};
+    const productionProcesses = window.LogisticsProcess?.normalizeProcesses(
+      config.production_processes,
+      gameType
+    ) || ["parallel"];
     return {
       ...GAME_CONFIG_PRESETS[gameType],
+      ...storedPresetSettings,
       ...config,
       play_mode: config.play_mode === "digital" ? "digital" : "physical",
-      game_type: gameType
+      game_type: gameType,
+      production_processes: productionProcesses,
+      logistics_organization: productionProcesses.length === 1
+        && productionProcesses[0] === "sequential"
+        ? "functional"
+        : "product"
     };
   }
 
   function gameConfigFieldsMarkup(config = {}) {
     const value = normalizedGameConfig(config);
+    const matchingConfiguration = typeof window !== "undefined" && window.GameConfigurationStore
+      ? window.GameConfigurationStore.findMatchingConfiguration(value)
+      : null;
+    const selectedConfigId = matchingConfiguration?.config_id || "custom_draft";
     let gameTypeOptions = "";
     if (typeof window !== "undefined" && window.GameConfigurationStore) {
       const presets = window.GameConfigurationStore.getPresets();
@@ -240,16 +257,19 @@
 
       gameTypeOptions += `<optgroup label="🔒 Ingebouwde Presets">`;
       presets.forEach(p => {
-        gameTypeOptions += `<option value="${p.config_id}" ${value.game_type === p.config_id ? "selected" : ""}>${escapeHtml(p.name)}</option>`;
+        gameTypeOptions += `<option value="${p.config_id}" ${selectedConfigId === p.config_id ? "selected" : ""}>${escapeHtml(p.name)}</option>`;
       });
       gameTypeOptions += `</optgroup>`;
 
       if (customConfigs.length > 0) {
         gameTypeOptions += `<optgroup label="💾 Mijn Opgeslagen Scenario's">`;
         customConfigs.forEach(c => {
-          gameTypeOptions += `<option value="${c.config_id}" ${value.game_type === c.config_id ? "selected" : ""}>💾 ${escapeHtml(c.name)}</option>`;
+          gameTypeOptions += `<option value="${c.config_id}" ${selectedConfigId === c.config_id ? "selected" : ""}>💾 ${escapeHtml(c.name)}</option>`;
         });
         gameTypeOptions += `</optgroup>`;
+      }
+      if (!matchingConfiguration) {
+        gameTypeOptions += `<option value="custom_draft" selected>⚙️ Aangepast scenario (nog niet opgeslagen)</option>`;
       }
     } else {
       gameTypeOptions = Object.entries(GAME_CONFIG_PRESETS).map(([id, preset]) => `
@@ -262,6 +282,9 @@
         <span>${label}</span>
       </label>
     `;
+    const hasParallel = value.production_processes.includes("parallel");
+    const hasSequential = value.production_processes.includes("sequential");
+    const isHybrid = hasParallel && hasSequential;
     return `
       <fieldset class="session-game-config">
         <legend>Spelvariant en spelregels</legend>
@@ -300,17 +323,40 @@
             <option value="free"${value.price_mode === "free" ? " selected" : ""}>Vrij</option>
           </select>
         </label>
-        <label class="session-config-field">
-          <span>Organisatie</span>
-          <select name="logistics_organization" data-game-config-control>
-            <option value="product"${value.logistics_organization === "product" ? " selected" : ""}>Productgericht</option>
-            <option value="functional"${value.logistics_organization === "functional" ? " selected" : ""}>Functionele keten</option>
-          </select>
-        </label>
+        <fieldset class="session-config-field production-process-fields">
+          <legend>Productieroutes</legend>
+          <label class="session-config-toggle">
+            <input type="checkbox" name="parallel_production" data-production-process data-game-config-control ${hasParallel ? "checked" : ""}>
+            <span>Parallelle productie</span>
+          </label>
+          <label class="session-config-toggle">
+            <input type="checkbox" name="sequential_production" data-production-process data-game-config-control ${hasSequential ? "checked" : ""}>
+            <span>Sequentiële productie</span>
+          </label>
+          <small data-hybrid-production-tooltip
+                 title="Hybride productie is toegestaan als aangepaste configuratie, maar is nog geen bestaande preset."
+                 ${isHybrid ? "" : "hidden"}>
+            Hybride productie · aangepaste configuratie, nog geen preset
+          </small>
+        </fieldset>
         <label class="session-config-field">
           <span>Torensoorten</span>
           <input name="product_type_count" type="number" min="1" max="9" value="${value.product_type_count}" data-game-config-control>
         </label>
+        <details class="session-config-save is-wide">
+          <summary>Opslaan als nieuwe preset…</summary>
+          <div>
+            <label>
+              <span>Naam *</span>
+              <input name="configuration_name" maxlength="100" placeholder="Bijv. Hybride klantorderroute">
+            </label>
+            <label>
+              <span>Beschrijving</span>
+              <input name="configuration_description" maxlength="300" placeholder="Optionele toelichting">
+            </label>
+            <button type="button" class="secondary-button" data-save-session-config>Preset opslaan</button>
+          </div>
+        </details>
         <details class="role-selector-details is-wide">
           <summary class="role-selector-summary">⚙️ Rollen af- of aanvinken voor deze sessie (Afwijken van preset)</summary>
           <div class="role-selector-grid">
@@ -653,32 +699,134 @@
     `;
   }
 
-  function applyGameConfigPreset(form, gameType) {
-    const preset = GAME_CONFIG_PRESETS[gameType];
-    if (!form || !preset) return;
-    Object.entries(preset).forEach(([name, value]) => {
+  function applyGameConfigPreset(form, configurationId) {
+    if (!form || configurationId === "custom_draft") return;
+    const stored = window.GameConfigurationStore?.getConfiguration(configurationId);
+    const settings = stored?.settings || GAME_CONFIG_PRESETS[configurationId];
+    if (!settings) return;
+    const gameType = settings.game_type || configurationId;
+    form.dataset.gameType = gameType;
+    Object.entries(settings).forEach(([name, value]) => {
       const control = form.elements.namedItem(name);
       if (!control) return;
       if (control.type === "checkbox") control.checked = Boolean(value);
       else control.value = String(value);
     });
+    const processes = window.LogisticsProcess?.normalizeProcesses(
+      settings.production_processes,
+      gameType
+    ) || ["parallel"];
+    form.elements.namedItem("parallel_production").checked = processes.includes("parallel");
+    form.elements.namedItem("sequential_production").checked = processes.includes("sequential");
+    if (Array.isArray(settings.enabled_roles)) {
+      const enabledRoles = new Set(settings.enabled_roles);
+      form.querySelectorAll('.role-selector-grid input[name^="role_"]').forEach(control => {
+        control.checked = enabledRoles.has(control.name.slice("role_".length));
+      });
+    }
+    updateHybridProductionTooltip(form);
+  }
+
+  function selectedProductionProcesses(form, gameType) {
+    const requested = [
+      form.elements.namedItem("parallel_production")?.checked ? "parallel" : null,
+      form.elements.namedItem("sequential_production")?.checked ? "sequential" : null
+    ].filter(Boolean);
+    const normalized = window.LogisticsProcess?.normalizeProcesses(requested, gameType)
+      || ["parallel"];
+    form.elements.namedItem("parallel_production").checked = normalized.includes("parallel");
+    form.elements.namedItem("sequential_production").checked = normalized.includes("sequential");
+    return normalized;
+  }
+
+  function updateHybridProductionTooltip(form) {
+    if (!form) return;
+    const tooltip = form.querySelector("[data-hybrid-production-tooltip]");
+    if (!tooltip) return;
+    tooltip.hidden = !(
+      form.elements.namedItem("parallel_production")?.checked
+      && form.elements.namedItem("sequential_production")?.checked
+    );
   }
 
   function collectGameConfig(form) {
     const get = name => form.elements.namedItem(name);
+    const selectedConfiguration = window.GameConfigurationStore?.getConfiguration(
+      get("game_type")?.value
+    );
+    const gameType = form.dataset.gameType
+      || selectedConfiguration?.settings?.game_type
+      || get("game_type")?.value
+      || "lo4";
+    const productionProcesses = selectedProductionProcesses(form, gameType);
+    const enabledRoles = [...form.querySelectorAll('.role-selector-grid input[name^="role_"]')]
+      .filter(control => control.checked)
+      .map(control => control.name.slice("role_".length));
+    updateHybridProductionTooltip(form);
     return {
       play_mode: get("play_mode")?.value === "digital" ? "digital" : "physical",
-      game_type: get("game_type")?.value || "lo4",
+      game_type: gameType,
       money: Boolean(get("money")?.checked),
       pnl: Boolean(get("pnl")?.checked),
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
       price_mode: get("price_mode")?.value || "fixed",
-      logistics_organization: get("logistics_organization")?.value || "product",
+      production_processes: productionProcesses,
+      logistics_organization: productionProcesses.length === 1
+        && productionProcesses[0] === "sequential"
+        ? "functional"
+        : "product",
       product_type_count: Math.max(1, Math.min(9, Number(get("product_type_count")?.value) || 3)),
-      customer_order_mode: get("customer_order_mode")?.value || "required"
+      customer_order_mode: get("customer_order_mode")?.value || "required",
+      ...(enabledRoles.length ? { enabled_roles: enabledRoles } : {})
     };
+  }
+
+  function syncGameConfigurationSelection(form, config) {
+    const select = form?.elements.namedItem("game_type");
+    if (!select || !window.GameConfigurationStore) return null;
+    const match = window.GameConfigurationStore.findMatchingConfiguration(config);
+    if (match) {
+      if (![...select.options].some(option => option.value === match.config_id)) {
+        select.add(new Option(`💾 ${match.name}`, match.config_id));
+      }
+      select.value = match.config_id;
+      form.dataset.gameType = match.settings.game_type || match.base_template;
+      return match;
+    }
+    if (![...select.options].some(option => option.value === "custom_draft")) {
+      select.add(new Option("⚙️ Aangepast scenario (nog niet opgeslagen)", "custom_draft"));
+    }
+    select.value = "custom_draft";
+    return null;
+  }
+
+  function saveSessionConfiguration(form) {
+    if (!form || !window.GameConfigurationStore) return null;
+    const name = String(form.elements.namedItem("configuration_name")?.value || "").trim();
+    if (!name) {
+      form.elements.namedItem("configuration_name")?.focus();
+      return null;
+    }
+    const description = String(
+      form.elements.namedItem("configuration_description")?.value || ""
+    ).trim();
+    const settings = collectGameConfig(form);
+    const saved = window.GameConfigurationStore.saveConfiguration({
+      name,
+      description,
+      baseTemplate: settings.game_type,
+      settings
+    });
+    const select = form.elements.namedItem("game_type");
+    if (![...select.options].some(option => option.value === saved.config_id)) {
+      select.add(new Option(`💾 ${saved.name}`, saved.config_id));
+    }
+    select.value = saved.config_id;
+    form.dataset.gameType = saved.settings.game_type || saved.base_template;
+    form.querySelector(".session-config-save")?.removeAttribute("open");
+    return saved;
   }
 
   function memberCards(session) {
@@ -946,7 +1094,9 @@
       els.playerBadge.textContent = "Geen sessie";
       els.managerBadge.textContent = "Geen sessie";
       els.playerContent.innerHTML = availableMarkup(state.availability);
-      els.managerContent.innerHTML = createSessionMarkup();
+      if (!els.managerContent.querySelector("#gameSessionCreateForm .session-config-save")) {
+        els.managerContent.innerHTML = createSessionMarkup();
+      }
     }
     const playerDetails = els.playerContent.querySelectorAll("details");
     openPlayerIndices.forEach(i => playerDetails[i]?.setAttribute("open", ""));
@@ -1095,6 +1245,12 @@
       }
     }, true);
     document.addEventListener("click", event => {
+      const saveConfigurationButton = event.target.closest("[data-save-session-config]");
+      if (saveConfigurationButton) {
+        event.preventDefault();
+        saveSessionConfiguration(saveConfigurationButton.closest("form"));
+        return;
+      }
       const createButton = event.target.closest("[data-create-game-session]");
       if (!createButton) return;
       event.preventDefault();
@@ -1107,7 +1263,10 @@
         event.target.matches("[data-game-config-control]")
         && !event.target.matches("[data-session-game-type]")
       ) {
-        state.createSessionDraft.game_config = collectGameConfig(createForm);
+        updateHybridProductionTooltip(createForm);
+        const config = collectGameConfig(createForm);
+        syncGameConfigurationSelection(createForm, config);
+        state.createSessionDraft.game_config = config;
       } else if (event.target.matches("[data-create-difficulty-select]")) {
         state.createSessionDraft.difficulty_level = String(event.target.value || "normal");
       } else if (event.target.matches("#gameSessionType")) {
@@ -1120,11 +1279,13 @@
         if (event.target.matches("[data-session-game-type]")) {
           applyGameConfigPreset(form, event.target.value);
         }
+        const config = collectGameConfig(form);
+        syncGameConfigurationSelection(form, config);
         if (form?.matches("#gameSessionCreateForm")) {
-          state.createSessionDraft.game_config = collectGameConfig(form);
+          state.createSessionDraft.game_config = config;
         }
         if (form?.matches("[data-active-game-config]") && state.session) {
-          queueGameConfigSave(collectGameConfig(form));
+          queueGameConfigSave(config);
         }
         return;
       }
@@ -1187,4 +1348,16 @@
   }
 
   wire();
+
+  // Authentication can finish before this module has registered its event
+  // listener. Recover the current session so the manager form never remains
+  // stuck on the static fallback markup.
+  const initialAuthSession = window.LeerpretAuth?.getSession?.();
+  if (initialAuthSession?.authenticated) {
+    state.authenticated = true;
+    state.apiBase = initialAuthSession.apiBase || "";
+    refresh();
+    clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(refresh, 3000);
+  }
 })();

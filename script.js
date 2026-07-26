@@ -635,6 +635,21 @@
     }
   });
 
+  function applyLogisticsProcessContract(gameType, config = state.config) {
+    const processes = window.LogisticsProcess?.normalizeProcesses(
+      config.productionProcesses,
+      gameType
+    );
+    const profile = window.LogisticsProcess?.profileForProcesses(processes, gameType);
+    if (!profile) return null;
+    config.productionProcesses = processes;
+    config.logisticsOrganization = profile.logisticsOrganization;
+    if (processes.length === 1 && processes[0] === "parallel") {
+      config.intermediateStock = false;
+    }
+    return profile;
+  }
+
   const LOGISTICS_TUTORIAL_REQUIREMENTS = Object.freeze({
     blue_8: 2,
     yellow_4: 1,
@@ -762,28 +777,62 @@
   const FINANCIAL_TUTORIAL_DEPARTMENTS = [
     {
       id: "tutorial_finance_warehouse",
-      title: "Magazijn",
-      shortTitle: "Magazijn",
+      title: "Magazijn Grondstoffen",
+      shortTitle: "Grondstoffen",
       description: "Hier worden de onderdelen tegen de actuele interne verrekenprijs uitgegeven.",
       kind: "warehouse",
       departmentColor: "raw",
       openRoof: true,
       compactStock: true,
-      dragTargetLabel: "Gereed Product",
+      dragTargetLabel: "Productie B",
       emptyLabel: "materialen uitgegeven",
       layout: { x: 3, y: 13, width: 4.1, depth: 3.7, height: 70 }
     },
     {
+      id: "tutorial_finance_production_a",
+      title: "Productieafdeling A",
+      shortTitle: "Productie A",
+      description: "Parallelle afdeling voor complete Toren A-orders.",
+      kind: "production",
+      departmentColor: "production",
+      openRoof: true,
+      emptyLabel: "geen Toren A-order",
+      layout: { x: 10, y: 16, width: 4.2, depth: 3.4, height: 66 }
+    },
+    {
+      id: "tutorial_finance_production_b",
+      title: "Productieafdeling B",
+      shortTitle: "Productie B",
+      description: "Deze parallelle afdeling bouwt zelfstandig de complete Toren B.",
+      kind: "production",
+      departmentColor: "production",
+      openRoof: true,
+      showDropLabel: false,
+      emptyLabel: "wacht op onderdelen",
+      layout: { x: 10, y: 10, width: 4.2, depth: 3.4, height: 68 }
+    },
+    {
+      id: "tutorial_finance_production_c",
+      title: "Productieafdeling C",
+      shortTitle: "Productie C",
+      description: "Parallelle afdeling voor complete Toren C-orders.",
+      kind: "production",
+      departmentColor: "production",
+      openRoof: true,
+      emptyLabel: "geen Toren C-order",
+      layout: { x: 10, y: 4, width: 4.2, depth: 3.4, height: 66 }
+    },
+    {
       id: "tutorial_finance_finished",
-      title: "Gereed Product",
+      title: "Magazijn Gereed Product",
       shortTitle: "Gereed Product",
-      description: "Verzamel hier de onderdelen. Zodra de set compleet is, staat Toren B klaar voor verkoop.",
+      description: "Ontvang hier de complete Toren B vanuit de parallelle productieafdeling.",
       kind: "warehouse",
       departmentColor: "finished",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "wacht op onderdelen",
-      layout: { x: 11, y: 10, width: 4.2, depth: 3.8, height: 68 }
+      emptyLabel: "wacht op complete toren",
+      layout: { x: 17, y: 10, width: 4.2, depth: 3.8, height: 68 }
     },
     {
       id: "tutorial_finance_dispatch",
@@ -795,16 +844,46 @@
       openRoof: true,
       showDropLabel: false,
       emptyLabel: "wacht op levering",
-      layout: { x: 18, y: 5, width: 4.2, depth: 3.8, height: 62 }
+      layout: { x: 23, y: 5, width: 4.2, depth: 3.8, height: 62 }
     }
   ];
 
   const FINANCIAL_TUTORIAL_CONNECTIONS = [
     {
       from: "tutorial_finance_warehouse",
-      to: "tutorial_finance_finished",
+      to: "tutorial_finance_production_a",
+      kind: "material",
+      locked: true
+    },
+    {
+      from: "tutorial_finance_warehouse",
+      to: "tutorial_finance_production_b",
       kind: "material",
       highlight: true
+    },
+    {
+      from: "tutorial_finance_warehouse",
+      to: "tutorial_finance_production_c",
+      kind: "material",
+      locked: true
+    },
+    {
+      from: "tutorial_finance_production_a",
+      to: "tutorial_finance_finished",
+      kind: "material",
+      locked: true
+    },
+    {
+      from: "tutorial_finance_production_b",
+      to: "tutorial_finance_finished",
+      kind: "material",
+      locked: true
+    },
+    {
+      from: "tutorial_finance_production_c",
+      to: "tutorial_finance_finished",
+      kind: "material",
+      locked: true
     },
     {
       from: "tutorial_finance_finished",
@@ -877,6 +956,7 @@
       roleFreedom: false,
       customerOrderMode: "required",
       priceMode: "fixed",
+      productionProcesses: ["parallel"],
       logisticsOrganization: "product",
       productTypeCount: MIN_PRODUCT_TYPES,
       visibleLogisticsDepartments: ISOMETRIC_DEPARTMENT_DEFINITIONS.map(department => department.id),
@@ -923,7 +1003,9 @@
     opportunityToggle: document.getElementById("opportunityToggle"),
     roleFreedomToggle: document.getElementById("roleFreedomToggle"),
     priceModeSelect: document.getElementById("priceModeSelect"),
-    logisticsOrganizationSelect: document.getElementById("logisticsOrganizationSelect"),
+    parallelProductionToggle: document.getElementById("parallelProductionToggle"),
+    sequentialProductionToggle: document.getElementById("sequentialProductionToggle"),
+    hybridProductionTooltip: document.getElementById("hybridProductionTooltip"),
     productTypeCountInput: document.getElementById("productTypeCountInput"),
     playerViewButton: document.getElementById("playerViewButton"),
     managerViewButton: document.getElementById("managerViewButton"),
@@ -3249,7 +3331,7 @@
     if (
       tutorial.phase !== "financial_purchase"
       || sourceDepartmentId !== "tutorial_finance_warehouse"
-      || targetDepartmentId !== "tutorial_finance_finished"
+      || targetDepartmentId !== "tutorial_finance_production_b"
     ) return false;
     if (!(partId in LOGISTICS_TUTORIAL_REQUIREMENTS)) {
       const distractor = FINANCIAL_TUTORIAL_DISTRACTORS.find(part => part.partId === partId);
@@ -3275,13 +3357,13 @@
     finance.purchaseCost += cost;
     finance.balance -= cost;
     state.purchaseCost += state.config.pnl ? cost : 0;
-    state.selectedLogisticsDepartmentId = "tutorial_finance_finished";
+    state.selectedLogisticsDepartmentId = "tutorial_finance_production_b";
     showFinancialMutation("tutorial_finance_warehouse", -cost);
 
     const complete = financialTutorialMaterialsComplete();
     if (complete) {
-      tutorial.phase = "financial_sale_ready";
-      tutorial.feedback = "De materiaalset is compleet. Sleep Toren B vanuit Gereed Product naar Expeditie.";
+      tutorial.phase = "financial_production_ready";
+      tutorial.feedback = "Productieafdeling B heeft de complete toren gebouwd. Sleep Toren B naar Magazijn Gereed Product.";
     } else {
       tutorial.feedback = "De afschrijving is verwerkt. Haal ook de overige onderdelen op.";
     }
@@ -3299,6 +3381,42 @@
     });
     renderAll();
     return true;
+  }
+
+  function transferFinancialTutorialProduct({
+    sourceDepartmentId,
+    targetDepartmentId,
+    cargoId
+  } = {}) {
+    const tutorial = state.logisticsTutorial;
+    if (
+      tutorial.phase !== "financial_production_ready"
+      || sourceDepartmentId !== "tutorial_finance_production_b"
+      || targetDepartmentId !== "tutorial_finance_finished"
+      || cargoId !== "tower_b_customer_order"
+    ) return false;
+
+    tutorial.phase = "financial_sale_ready";
+    tutorial.feedback = "Toren B is als gereed product ontvangen. Sleep de toren nu naar Expeditie.";
+    state.selectedLogisticsDepartmentId = "tutorial_finance_finished";
+    dispatchInteraction({
+      actionType: "tutorial_financial_finished_goods_receipt",
+      learningObjectID: "tutorial_finance_tower_b_finished",
+      objectRole: "finished_goods_transfer",
+      role: "Lerende",
+      result: "success",
+      step: 4,
+      productId: "B",
+      productionDepartment: "B",
+      workInProgress: state.logisticsTutorial.finance.purchaseCost
+    });
+    renderAll();
+    return true;
+  }
+
+  function dropFinancialTutorialCargo(payload = {}) {
+    return transferFinancialTutorialProduct(payload)
+      || deliverFinancialTutorialOrder(payload);
   }
 
   function deliverFinancialTutorialOrder({
@@ -3401,36 +3519,72 @@
           ]
         };
       }
-      if (definition.id === "tutorial_finance_finished") {
+      if (definition.id.startsWith("tutorial_finance_production_")) {
+        const isProductionB = definition.id === "tutorial_finance_production_b";
+        const productionReady = tutorial.phase === "financial_production_ready";
         return {
           ...definition,
           orders: [],
-          stockVisuals: materialsComplete
-            ? []
-            : Object.entries(finance.picked).map(([partId, count]) => ({
+          stockVisuals: isProductionB && !materialsComplete
+            ? Object.entries(finance.picked).map(([partId, count]) => ({
                 ...partVisuals[partId],
                 partId,
                 count,
                 draggable: false
-              })),
-          cargoVisual: materialsComplete && !delivered
+              }))
+            : [],
+          cargoVisual: isProductionB && productionReady
+            ? {
+                kind: "tower",
+                cargoId: "tower_b_customer_order",
+                productId: "B",
+                label: "Complete Toren B",
+                draggable: true
+              }
+            : null,
+          acceptsStockDrop: isProductionB && tutorial.phase === "financial_purchase",
+          status: isProductionB ? (materialsComplete ? "complete" : "active") : "idle",
+          highlight: isProductionB && (
+            tutorial.phase === "financial_purchase"
+            || tutorial.phase === "financial_production_ready"
+          ),
+          badgeValue: isProductionB ? (materialsComplete ? 1 : pickedTotal) : 0,
+          badgeLabel: isProductionB
+            ? (materialsComplete ? "1 complete Toren B" : `${pickedTotal}/4 onderdelen ontvangen`)
+            : "Geen actieve order",
+          primaryMetric: isProductionB
+            ? (materialsComplete ? "Toren B compleet" : `${pickedTotal}/4 onderdelen`)
+            : "Capaciteit beschikbaar",
+          facts: [
+            { label: "OHW", value: isProductionB && finance.moneyEnabled ? formatMoney(finance.purchaseCost) : formatMoney(0) },
+            { label: "Complete producten", value: isProductionB && materialsComplete ? 1 : 0 }
+          ]
+        };
+      }
+      if (definition.id === "tutorial_finance_finished") {
+        const inFinishedGoods = tutorial.phase === "financial_sale_ready";
+        return {
+          ...definition,
+          orders: [],
+          stockVisuals: [],
+          cargoVisual: inFinishedGoods
             ? {
                 kind: "tower",
                 cargoId: "tower_b_customer_order",
                 productId: "B",
                 label: "Toren B voor de klant",
-                draggable: tutorial.phase === "financial_sale_ready"
+                draggable: true
               }
             : null,
-          acceptsStockDrop: tutorial.phase === "financial_purchase",
-          status: materialsComplete ? "complete" : "active",
-          highlight: tutorial.phase === "financial_purchase",
-          badgeValue: materialsComplete ? 1 : pickedTotal,
-          badgeLabel: materialsComplete ? "1 verkoopklare Toren B" : `${pickedTotal}/4 onderdelen ontvangen`,
-          primaryMetric: materialsComplete ? "Toren B verkoopklaar" : `${pickedTotal}/4 onderdelen`,
+          acceptsCargoDrop: tutorial.phase === "financial_production_ready",
+          status: inFinishedGoods || delivered ? "complete" : "idle",
+          highlight: tutorial.phase === "financial_production_ready",
+          badgeValue: inFinishedGoods ? 1 : 0,
+          badgeLabel: inFinishedGoods ? "1 verkoopklare Toren B" : "Nog geen gereed product",
+          primaryMetric: inFinishedGoods ? "Toren B verkoopklaar" : "Wacht op productie",
           facts: [
-            { label: "Materiaalset", value: `${pickedTotal}/4` },
-            { label: "Verkoopprijs Toren B", value: finance.moneyEnabled ? formatMoney(financialTutorialSalePrice()) : "Geld uit" }
+            { label: "Gereed product", value: inFinishedGoods ? 1 : 0 },
+            { label: "Voorraadwaarde", value: inFinishedGoods && finance.moneyEnabled ? formatMoney(finance.purchaseCost) : formatMoney(0) }
           ]
         };
       }
@@ -3463,7 +3617,8 @@
     return {
       title: "Tutorial · Financieel & Transactie",
       legend: [
-        { color: "raw", label: "Magazijn" },
+        { color: "raw", label: "Magazijn Grondstoffen" },
+        { color: "production", label: "Parallelle productie A / B / C" },
         { color: "finished", label: "Gereed Product" },
         { color: "yellow", label: "Expeditie" }
       ],
@@ -3471,8 +3626,22 @@
       departments,
       connections: FINANCIAL_TUTORIAL_CONNECTIONS.map(connection => (
         connection.to === "tutorial_finance_dispatch"
-          ? { ...connection, locked: !materialsComplete, highlight: materialsComplete && !delivered }
-          : { ...connection, highlight: !materialsComplete }
+          ? {
+              ...connection,
+              locked: tutorial.phase !== "financial_sale_ready",
+              highlight: tutorial.phase === "financial_sale_ready"
+            }
+          : connection.from === "tutorial_finance_production_b"
+            ? {
+                ...connection,
+                locked: tutorial.phase !== "financial_production_ready",
+                highlight: tutorial.phase === "financial_production_ready"
+              }
+            : {
+                ...connection,
+                highlight: connection.to === "tutorial_finance_production_b"
+                  && tutorial.phase === "financial_purchase"
+              }
       )),
       finance: {
         active: true,
@@ -3485,6 +3654,17 @@
         margin: finance.margin,
         flash: finance.flash,
         mutation: finance.mutation,
+        departments: [
+          { id: "A", workInProgress: 0, finishedGoods: 0 },
+          {
+            id: "B",
+            workInProgress: tutorial.phase === "financial_purchase" || tutorial.phase === "financial_production_ready"
+              ? finance.purchaseCost
+              : 0,
+            finishedGoods: tutorial.phase === "financial_sale_ready" ? finance.purchaseCost : 0
+          },
+          { id: "C", workInProgress: 0, finishedGoods: 0 }
+        ],
         complete: delivered,
         nextLabel: "Naar Stap 5"
       },
@@ -3495,7 +3675,7 @@
         eyebrow: "Self-starting tutorial · stap 4",
         title: "Financieel & Transactie",
         instruction: finance.moneyEnabled
-          ? "Kies in het magazijn alleen de vier onderdelen van Toren B. Alleen juiste uitgiftes worden geboekt; volg daarna inkoop, verkoop en marge."
+          ? "Kies in Magazijn Grondstoffen alleen de vier onderdelen van Toren B. Bouw de complete toren parallel in Productie B en lever via Gereed Product aan Expeditie."
           : "Kies in het magazijn alleen de vier onderdelen van Toren B. De Game Master heeft spelen met geld uitgeschakeld.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
@@ -3779,11 +3959,16 @@
     if (state.logisticsTutorial.active) return logisticsTutorialScene();
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    const processProfile = window.LogisticsProcess?.profileForProcesses(
+      state.config.productionProcesses,
+      state.config.gameType
+    ) || null;
     const visible = new Set(state.config.visibleLogisticsDepartments);
     return {
       title: organization.title,
       legend: organization.legend,
       organizationId: organization.id,
+      processProfile,
       selectedDepartmentId: state.selectedLogisticsDepartmentId,
       departments: organization.departments
         .filter(definition => visible.has(definition.id))
@@ -3862,7 +4047,7 @@
         ? dropFinancialTutorialMaterial(payload)
         : dropTutorialMaterial(payload),
       onCargoDrop: payload => state.logisticsTutorial.phase.startsWith("financial_")
-        ? deliverFinancialTutorialOrder(payload)
+        ? dropFinancialTutorialCargo(payload)
         : dropTutorialSemiFinished(payload),
       onFinanceAction: action => {
         if (action === "next" && state.logisticsTutorial.phase === "financial_complete") {
@@ -4332,7 +4517,12 @@
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
     state.config.priceMode = settings.price_mode || "fixed";
+    state.config.productionProcesses = window.LogisticsProcess?.normalizeProcesses(
+      settings.production_processes,
+      state.config.gameType
+    ) || ["parallel"];
     state.config.logisticsOrganization = settings.logistics_organization || "product";
+    applyLogisticsProcessContract(state.config.gameType);
     state.config.productTypeCount = productTypeCount;
     state.config.customerOrderMode = settings.customer_order_mode || "required";
     state.config.enabledRoles = Array.isArray(settings.enabled_roles)
@@ -4381,18 +4571,22 @@
     }
     els.moneyToggle.checked = state.config.money;
     els.pnlToggle.checked = state.config.pnl;
-    const isProductOrg = state.config.logisticsOrganization === "product";
-    if (isProductOrg) {
+    applyLogisticsProcessContract(state.config.gameType);
+    const parallelOnly = state.config.productionProcesses.length === 1
+      && state.config.productionProcesses[0] === "parallel";
+    if (parallelOnly) {
       state.config.intermediateStock = false;
     }
     if (els.intermediateToggle) {
       els.intermediateToggle.checked = state.config.intermediateStock;
-      els.intermediateToggle.disabled = isProductOrg;
+      els.intermediateToggle.disabled = parallelOnly;
     }
     els.opportunityToggle.checked = state.config.opportunityCosts;
     els.roleFreedomToggle.checked = state.config.roleFreedom;
     els.priceModeSelect.value = state.config.priceMode;
-    els.logisticsOrganizationSelect.value = state.config.logisticsOrganization;
+    els.parallelProductionToggle.checked = state.config.productionProcesses.includes("parallel");
+    els.sequentialProductionToggle.checked = state.config.productionProcesses.includes("sequential");
+    els.hybridProductionTooltip.hidden = state.config.productionProcesses.length !== 2;
     els.productTypeCountInput.value = String(state.config.productTypeCount);
     const configDesc = window.GameConfigurationStore
       ? window.GameConfigurationStore.getConfiguration(state.config.currentConfigId || state.config.gameType)?.description
@@ -4408,9 +4602,11 @@
     const productTypeCountChanged = state.config.productTypeCount !== preset.config.productTypeCount;
     Object.assign(state.config, preset.config, {
       gameType,
+      productionProcesses: window.LogisticsProcess?.defaultProcessesForGame(gameType) || ["parallel"],
       enabledRoles: [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
       customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" || gameType === "lo8" ? "free" : "required"
     });
+    applyLogisticsProcessContract(gameType);
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
@@ -4454,9 +4650,14 @@
       roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
       customerOrderMode: config.customer_order_mode === "free" ? "free" : "required",
       priceMode: config.price_mode || preset.config.priceMode,
+      productionProcesses: window.LogisticsProcess?.normalizeProcesses(
+        config.production_processes,
+        gameType
+      ) || ["parallel"],
       logisticsOrganization: config.logistics_organization || preset.config.logisticsOrganization,
       productTypeCount
     });
+    applyLogisticsProcessContract(gameType);
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
@@ -4470,9 +4671,21 @@
   function syncConfigFromControls(dispatch = true) {
     state.config.money = els.moneyToggle.checked;
     state.config.pnl = els.pnlToggle.checked;
-    state.config.logisticsOrganization = els.logisticsOrganizationSelect.value;
-    const isProductOrg = state.config.logisticsOrganization === "product";
-    if (isProductOrg) {
+    const requestedProcesses = [
+      els.parallelProductionToggle.checked ? "parallel" : null,
+      els.sequentialProductionToggle.checked ? "sequential" : null
+    ].filter(Boolean);
+    state.config.productionProcesses = window.LogisticsProcess?.normalizeProcesses(
+      requestedProcesses,
+      state.config.gameType
+    ) || ["parallel"];
+    applyLogisticsProcessContract(state.config.gameType);
+    els.parallelProductionToggle.checked = state.config.productionProcesses.includes("parallel");
+    els.sequentialProductionToggle.checked = state.config.productionProcesses.includes("sequential");
+    els.hybridProductionTooltip.hidden = state.config.productionProcesses.length !== 2;
+    const parallelOnly = state.config.productionProcesses.length === 1
+      && state.config.productionProcesses[0] === "parallel";
+    if (parallelOnly) {
       state.config.intermediateStock = false;
       if (els.intermediateToggle) {
         els.intermediateToggle.checked = false;
@@ -4501,6 +4714,7 @@
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
       price_mode: state.config.priceMode,
+      production_processes: [...state.config.productionProcesses],
       logistics_organization: state.config.logisticsOrganization,
       product_type_count: state.config.productTypeCount,
       customer_order_mode: state.config.customerOrderMode || "required",
@@ -4837,6 +5051,7 @@
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
         price_mode: state.config.priceMode,
+        production_processes: [...state.config.productionProcesses],
         logistics_organization: state.config.logisticsOrganization,
         product_type_count: state.config.productTypeCount,
         customer_order_mode: state.config.customerOrderMode || "required",
@@ -4880,8 +5095,8 @@
       window.LegoBuilder?.setProduct(els.productSelect.value);
     });
     els.productTypeCountInput.addEventListener("change", () => applyProductTypeCount(true));
-    els.logisticsOrganizationSelect.addEventListener("change", () => {
-      setLogisticsOrganizationVariant(els.logisticsOrganizationSelect.value);
+    [els.parallelProductionToggle, els.sequentialProductionToggle].forEach(control => {
+      control.addEventListener("change", () => syncConfigFromControls(true));
     });
     els.quantityInput.addEventListener("input", renderOrderPreview);
     els.priceInput.addEventListener("input", renderOrderPreview);
@@ -4917,8 +5132,11 @@
 
   function setLogisticsOrganizationVariant(variantId) {
     if (!LOGISTICS_ORGANIZATION_VARIANTS[variantId]) return false;
+    state.config.productionProcesses = [
+      variantId === "product" ? "parallel" : "sequential"
+    ];
     state.config.logisticsOrganization = variantId;
-    els.logisticsOrganizationSelect.value = variantId;
+    syncConfigControls();
     state.config.visibleLogisticsDepartments = LOGISTICS_ORGANIZATION_VARIANTS[variantId]
       .departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
@@ -5083,6 +5301,7 @@
     finishInternalLogisticsTutorial,
     startFinancialTutorial,
     dropFinancialTutorialMaterial,
+    transferFinancialTutorialProduct,
     deliverFinancialTutorialOrder,
     finishFinancialTutorial,
     pauseTutorial,

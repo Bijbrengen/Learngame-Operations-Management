@@ -370,13 +370,29 @@
                   <option value="free">Vrij</option>
                 </select>
               </label>
-              <label class="session-config-field">
-                <span>Organisatie</span>
-                <select name="logistics_organization" data-game-config-control>
-                  <option value="product" selected>Productgericht</option>
-                  <option value="functional">Functionele keten</option>
-                </select>
-              </label>
+              <fieldset class="session-config-field production-process-fields">
+                <legend>Productieroutes</legend>
+                <label class="session-config-toggle">
+                  <input type="checkbox"
+                         name="parallel_production"
+                         data-production-process
+                         data-game-config-control
+                         checked>
+                  <span>Parallelle productie</span>
+                </label>
+                <label class="session-config-toggle">
+                  <input type="checkbox"
+                         name="sequential_production"
+                         data-production-process
+                         data-game-config-control>
+                  <span>Sequentiële productie</span>
+                </label>
+                <small data-hybrid-production-tooltip
+                       title="Hybride productie is toegestaan als aangepaste configuratie, maar is nog geen bestaande preset."
+                       hidden>
+                  Hybride productie · aangepaste configuratie, nog geen preset
+                </small>
+              </fieldset>
               <label class="session-config-field">
                 <span>Torensoorten</span>
                 <input name="product_type_count" type="number" min="1" max="9" value="3" data-game-config-control>
@@ -521,13 +537,24 @@
               <option value="free">vrij</option>
             </select>
           </label>
-          <label class="select-field wide-select-field">
-            <span>Organisatie</span>
-            <select id="logisticsOrganizationSelect">
-              <option value="product">Productgericht (LO 3/4)</option>
-              <option value="functional">Functionele keten (LO 1/2/5/6/7)</option>
-            </select>
-          </label>
+          <fieldset class="production-process-fields wide-select-field">
+            <legend>Productieroutes</legend>
+            <label class="toggle-field">
+              <input id="parallelProductionToggle" type="checkbox" checked>
+              <span>Parallelle productie</span>
+            </label>
+            <label class="toggle-field">
+              <input id="sequentialProductionToggle" type="checkbox">
+              <span>Sequentiële productie</span>
+            </label>
+            <span id="hybridProductionTooltip"
+                  class="hybrid-production-tooltip"
+                  role="status"
+                  title="Hybride productie is toegestaan als aangepaste configuratie, maar is nog geen bestaande preset."
+                  hidden>
+              Hybride productie · aangepaste configuratie, nog geen preset
+            </span>
+          </fieldset>
           <label class="select-field">
             <span>Torensoorten</span>
             <input id="productTypeCountInput" type="number" min="1" max="9" step="1" value="3">
@@ -954,6 +981,7 @@
   <script src="leerpret-theme.js"></script>
   <script src="behavior-quality.js"></script>
   <script src="character-creation.js"></script>
+  <script src="logistics-process.js"></script>
   <script src="game-configuration-store.js"></script>
   <script src="game-sessions.js"></script>
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>

@@ -236,7 +236,8 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_CONNECTIONS", game)
         self.assertIn('{ from: "production_1", to: "production_2", kind: "material" }', game)
         self.assertIn("setLogisticsOrganizationVariant", game)
-        self.assertIn('id="logisticsOrganizationSelect"', html)
+        self.assertIn('id="parallelProductionToggle"', html)
+        self.assertIn('id="sequentialProductionToggle"', html)
         self.assertIn('setProcessView("isometric")', game)
 
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
@@ -254,6 +255,46 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn('gameType: "lo4"', game)
         self.assertIn("loadGameConfiguration(val, true)", game)
         self.assertIn("const MIN_PRODUCT_TYPES = 1", game)
+
+    def test_production_routes_support_parallel_sequential_and_unsaved_hybrid(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        store = (PRODUCT_ROOT / "game-configuration-store.js").read_text(encoding="utf-8")
+        self.assertIn('id="parallelProductionToggle"', html)
+        self.assertIn('id="sequentialProductionToggle"', html)
+        self.assertIn('id="hybridProductionTooltip"', html)
+        self.assertNotIn('id="logisticsOrganizationSelect"', html)
+        self.assertIn("production_processes", game)
+        self.assertIn("production_processes", store)
+        self.assertIn("processMatch", store)
+        self.assertIn('"custom_draft"', game)
+
+        probe = subprocess.run(
+            [
+                "node",
+                "-e",
+                """
+const process = require("./logistics-process.js");
+console.log(JSON.stringify({
+  lo1: process.defaultProcessesForGame("lo1"),
+  lo3: process.defaultProcessesForGame("lo3"),
+  lo7: process.defaultProcessesForGame("lo7"),
+  tutorial: process.defaultProcessesForGame("tutorial"),
+  hybrid: process.profileForProcesses(["parallel", "sequential"], "lo4")
+}));
+""",
+            ],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(probe.stdout)
+        self.assertEqual(["sequential"], result["lo1"])
+        self.assertEqual(["parallel"], result["lo3"])
+        self.assertEqual(["sequential"], result["lo7"])
+        self.assertEqual(["parallel"], result["tutorial"])
+        self.assertEqual("hybrid", result["hybrid"]["id"])
 
     def test_role_actions_are_not_rendered_inside_settings(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -1109,10 +1150,14 @@ process.stdout.write(JSON.stringify({
         readme = (PRODUCT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("FINANCIAL_TUTORIAL_DEPARTMENTS", game)
         self.assertIn('"tutorial_finance_warehouse"', game)
+        self.assertIn('"tutorial_finance_production_a"', game)
+        self.assertIn('"tutorial_finance_production_b"', game)
+        self.assertIn('"tutorial_finance_production_c"', game)
         self.assertIn('"tutorial_finance_finished"', game)
         self.assertIn('"tutorial_finance_dispatch"', game)
         self.assertIn("startFinancialTutorial", game)
         self.assertIn("dropFinancialTutorialMaterial", game)
+        self.assertIn("transferFinancialTutorialProduct", game)
         self.assertIn("deliverFinancialTutorialOrder", game)
         self.assertIn("finishFinancialTutorial", game)
         self.assertIn("financialTutorialSalePrice", game)
@@ -1361,7 +1406,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn("await refreshAfterMutation()", runtime)
         self.assertIn('localStorage.setItem("leerpret.apiBase"', runtime)
         self.assertIn("createSessionDraft", runtime)
-        self.assertIn("state.createSessionDraft.game_config = collectGameConfig(form)", runtime)
+        self.assertIn("state.createSessionDraft.game_config = config", runtime)
 
     def test_create_session_button_executes_post_contract_directly(self) -> None:
         runtime = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")

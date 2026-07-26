@@ -13,7 +13,14 @@ test.describe("Klantorder Acceptance Flow", () => {
       document.body.innerHTML = '<main id="customer-order-test"></main>';
 
       const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
-        config: { transferDelayMinMs: 0, transferDelayMaxMs: 0 },
+        config: {
+          transferDelayMinMs: 0,
+          transferDelayMaxMs: 0,
+          initialOrderDelayMs: 3_600_000,
+          orderIntervalMinMs: 3_600_000,
+          orderIntervalMaxMs: 3_600_000,
+          peakFlowChance: 0
+        },
         random: () => 0
       });
       const controller = window.LogisticsGameUI.mount(

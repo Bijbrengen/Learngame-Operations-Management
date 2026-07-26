@@ -229,6 +229,37 @@
     }
   ];
 
+  function normalizeSettings(settings = {}, gameType = settings.game_type) {
+    const productionProcesses = global.LogisticsProcess?.normalizeProcesses(
+      settings.production_processes,
+      gameType
+    ) || (settings.logistics_organization === "functional"
+      ? ["sequential"]
+      : ["parallel"]);
+    return {
+      ...settings,
+      production_processes: productionProcesses,
+      logistics_organization: productionProcesses.length === 1
+        && productionProcesses[0] === "sequential"
+        ? "functional"
+        : "product"
+    };
+  }
+
+  BUILTIN_PRESETS.forEach(preset => {
+    preset.settings = normalizeSettings(preset.settings, preset.settings.game_type);
+  });
+
+  function normalizeConfiguration(configuration) {
+    return {
+      ...configuration,
+      settings: normalizeSettings(
+        configuration.settings,
+        configuration.settings?.game_type || configuration.base_template
+      )
+    };
+  }
+
   function loadCustomConfigurations() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -255,7 +286,7 @@
     }
 
     getCustomConfigurations() {
-      return loadCustomConfigurations();
+      return loadCustomConfigurations().map(normalizeConfiguration);
     }
 
     getAllConfigurations() {
@@ -285,12 +316,18 @@
         const intermediateStockMatch = Boolean(s.intermediate_stock) === Boolean(currentSettings.intermediate_stock);
         const opportunityCostsMatch = Boolean(s.opportunity_costs) === Boolean(currentSettings.opportunity_costs);
         const roleFreedomMatch = Boolean(s.role_freedom) === Boolean(currentSettings.role_freedom);
+        const playModeMatch = (s.play_mode || "physical") === (currentSettings.play_mode || "physical");
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
+        const customerOrderModeMatch = (s.customer_order_mode || "required")
+          === (currentSettings.customer_order_mode || "required");
         const logisticsOrgMatch = (s.logistics_organization || "functional") === (currentSettings.logistics_organization || "functional");
+        const processMatch = [...(s.production_processes || [])].sort().join(",")
+          === [...(currentSettings.production_processes || [])].sort().join(",");
         const productTypeCountMatch = (Number(s.product_type_count) || 3) === (Number(currentSettings.product_type_count) || 3);
 
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
-            !roleFreedomMatch || !priceModeMatch || !logisticsOrgMatch || !productTypeCountMatch) {
+            !roleFreedomMatch || !playModeMatch || !priceModeMatch || !customerOrderModeMatch ||
+            !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;
         }
 
@@ -327,7 +364,7 @@
         base_template: baseTemplate,
         created_at: existingIndex >= 0 ? customConfigs[existingIndex].created_at : now,
         updated_at: now,
-        settings: { ...settings }
+        settings: normalizeSettings(settings, settings.game_type || baseTemplate)
       };
 
       if (existingIndex >= 0) {

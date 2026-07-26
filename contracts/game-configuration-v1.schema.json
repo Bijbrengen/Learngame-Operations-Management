@@ -82,6 +82,15 @@
         "logistics_organization": {
           "enum": ["product", "functional"]
         },
+        "production_processes": {
+          "type": "array",
+          "items": {
+            "enum": ["parallel", "sequential"]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
         "product_type_count": {
           "type": "integer",
           "minimum": 1,

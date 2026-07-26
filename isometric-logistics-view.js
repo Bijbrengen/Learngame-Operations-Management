@@ -469,6 +469,26 @@
     `;
   }
 
+  function processProfileMarkup(profile) {
+    if (!profile) return "";
+    const flow = (profile.flow || []).map(step => `<li>${escapeHtml(step)}</li>`).join("");
+    return `
+      <section class="iso-process-profile is-${escapeHtml(profile.id)}"
+               aria-label="Actieve productieroutes">
+        <div>
+          <p class="eyebrow">Logistiek proces</p>
+          <strong>${escapeHtml(profile.label)}</strong>
+        </div>
+        <ol>${flow}</ol>
+        <dl>
+          <div><dt>Balans</dt><dd>${escapeHtml(profile.finance?.balance || "")}</dd></div>
+          <div><dt>W&amp;R</dt><dd>${escapeHtml(profile.finance?.profitAndLoss || "")}</dd></div>
+          <div><dt>Voorraad</dt><dd>${escapeHtml(profile.finance?.inventory || "")}</dd></div>
+        </dl>
+      </section>
+    `;
+  }
+
   function financeMutationMarkup(finance, departmentById) {
     const mutation = finance?.mutation;
     if (!finance?.active || !finance.moneyEnabled || !mutation) return "";
@@ -571,6 +591,7 @@
             </div>
             <div class="iso-map-legend" aria-label="Afdelingslegenda">${legend}</div>
           </div>
+          ${processProfileMarkup(scene.processProfile)}
           ${tutorialMarkup(scene.tutorial)}
           ${financeHudMarkup(scene.finance)}
           <svg class="iso-map"
