@@ -7419,6 +7419,21 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   background: rgba(144, 49, 43, 0.34);
 }
 
+.manager-dashboard .financial-overview-card {
+  grid-column: span 2;
+  border-color: rgba(49, 196, 141, 0.42);
+  background: linear-gradient(135deg, rgba(49, 196, 141, 0.11), rgba(10, 26, 31, 0.92));
+}
+
+.manager-dashboard .production-finance-card {
+  border-color: rgba(74, 174, 255, 0.3);
+}
+
+.manager-dashboard .financial-overview-card .inventory-meta,
+.manager-dashboard .production-finance-card .inventory-meta {
+  line-height: 1.55;
+}
+
 .manager-dashboard .event-log {
   scrollbar-color: #315961 #08171d;
 }

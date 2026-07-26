@@ -310,6 +310,120 @@
     { id: "archive", lane: "archive", roleId: "opr", actionType: "archive_order", label: "Orderformulier naar archief", action: "Archiveer", minutes: 1 }
   ];
 
+  const PRODUCTION_DEPARTMENT_IDS = Object.freeze(["A", "B", "C"]);
+  const PARALLEL_DEPARTMENT_ROLES = Object.freeze({
+    A: Object.freeze({ number: 1, roleId: "pd1", lane: "pd1" }),
+    B: Object.freeze({ number: 2, roleId: "pd2", lane: "pd2" }),
+    C: Object.freeze({ number: 3, roleId: "pd3", lane: "pd3" })
+  });
+
+  function parallelDepartmentForProduct(productId) {
+    const productIndex = Math.max(0, productIds().indexOf(productId));
+    return PRODUCTION_DEPARTMENT_IDS[productIndex % PRODUCTION_DEPARTMENT_IDS.length];
+  }
+
+  function productionRouteForOrder(orderNumber, processes = state.config.productionProcesses) {
+    const normalized = window.LogisticsProcess?.normalizeProcesses(
+      processes,
+      state.config.gameType
+    ) || ["parallel"];
+    if (normalized.length === 2) {
+      return orderNumber % 2 === 0 ? "parallel" : "sequential";
+    }
+    return normalized[0] || "sequential";
+  }
+
+  function parallelStepsForProduct(productId) {
+    const departmentId = parallelDepartmentForProduct(productId);
+    const department = PARALLEL_DEPARTMENT_ROLES[departmentId];
+    const label = `Productieafdeling ${departmentId}`;
+    return [
+      ...STEPS.slice(0, 4),
+      {
+        id: `release_parallel_${departmentId.toLowerCase()}`,
+        lane: "operations",
+        roleId: "opr",
+        actionType: `release_to_${department.roleId}`,
+        label: `Ordervrijgave naar ${label}`,
+        action: `Vrijgeven ${departmentId}`,
+        minutes: 1
+      },
+      {
+        id: `parallel_${departmentId.toLowerCase()}_receive`,
+        lane: department.lane,
+        roleId: department.roleId,
+        actionType: "confirm_order_receipt",
+        label: `${label} bevestigt de complete productorder`,
+        action: "Parafeer",
+        minutes: 1
+      },
+      {
+        id: `parallel_${departmentId.toLowerCase()}_materials`,
+        lane: "raw",
+        roleId: "srm",
+        actionType: "issue_materials",
+        label: `Alle grondstoffen voor complete Toren ${productId}`,
+        action: "Geef complete set uit",
+        minutes: 2,
+        materialStage: department.number,
+        fullProductMaterials: true,
+        productionDepartment: departmentId
+      },
+      {
+        id: `parallel_${departmentId.toLowerCase()}_start`,
+        lane: department.lane,
+        roleId: department.roleId,
+        actionType: "start_production",
+        label: `${label} start de complete Toren ${productId}`,
+        action: "Start complete productie",
+        minutes: 3,
+        productionStage: department.number,
+        productionDepartment: departmentId
+      },
+      {
+        id: `parallel_${departmentId.toLowerCase()}_done`,
+        lane: department.lane,
+        roleId: department.roleId,
+        actionType: "complete_product",
+        label: `${label} meldt de complete Toren ${productId} gereed`,
+        action: "Toren gereedmelden",
+        minutes: 4,
+        completeStage: department.number,
+        completeProduct: true,
+        productionDepartment: departmentId
+      },
+      ...STEPS.slice(21)
+    ];
+  }
+
+  function processStepsForOrder(productId, productionRoute) {
+    return productionRoute === "parallel"
+      ? parallelStepsForProduct(productId)
+      : STEPS;
+  }
+
+  function createFinancialState() {
+    const zeroByDepartment = () => Object.fromEntries(
+      PRODUCTION_DEPARTMENT_IDS.map(id => [id, 0])
+    );
+    return {
+      openingCash: 1000,
+      cash: 1000,
+      revenue: 0,
+      costOfGoodsSold: 0,
+      conversionCost: 0,
+      materialIssues: 0,
+      wipByDepartment: zeroByDepartment(),
+      finishedGoodsByDepartment: zeroByDepartment(),
+      materialCostByDepartment: zeroByDepartment(),
+      conversionCostByDepartment: zeroByDepartment(),
+      revenueByDepartment: zeroByDepartment(),
+      opportunityCostByDepartment: zeroByDepartment(),
+      wipByStage: { 1: 0, 2: 0, 3: 0 },
+      materialCostByStage: { 1: 0, 2: 0, 3: 0 }
+    };
+  }
+
   const DISRUPTIONS = [
     { id: "forgot_update", label: "Rol vergeet Nu bijwerken", minutes: 3, cost: 5, roleId: "opr" },
     { id: "stockout", label: "Grondstoffen ontbreken", minutes: 4, cost: 9, roleId: "srm" },
@@ -711,9 +825,9 @@
     },
     {
       id: "tutorial_player_stock",
-      title: "Bouwafdeling · materiaalontvangst",
-      shortTitle: "Bouwafdeling",
-      description: "Sleep de juiste blokken vanuit de magazijnen naar het ontvangstvak van de bouwafdeling.",
+      title: "Productieafdeling B · materiaalontvangst",
+      shortTitle: "Productie B",
+      description: "Sleep de juiste blokken vanuit Magazijn Grondstoffen naar Productieafdeling B.",
       kind: "production",
       departmentColor: "tutorial-transit",
       openRoof: true,
@@ -723,9 +837,9 @@
     },
     {
       id: "tutorial_assembly",
-      title: "Assemblage",
-      shortTitle: "Assemblage",
-      description: "De bouwplek blijft vergrendeld totdat de volledige ophaalopdracht in de bouwvoorraad zit.",
+      title: "Bouwplek Productieafdeling B",
+      shortTitle: "Bouwplek B",
+      description: "De bouwplek blijft vergrendeld totdat Productieafdeling B de volledige materiaalset heeft ontvangen.",
       kind: "production",
       departmentColor: "production-a",
       layout: { x: 15, y: 10, width: 4, depth: 3.6, height: 76 }
@@ -742,9 +856,9 @@
   const INTERNAL_LOGISTICS_TUTORIAL_DEPARTMENTS = [
     {
       id: "tutorial_production",
-      title: "Productie",
-      shortTitle: "Productie",
-      description: "Toren B is gebouwd en staat hier als halffabricaat klaar voor intern transport.",
+      title: "Productieafdeling B",
+      shortTitle: "Productie B",
+      description: "Productieafdeling B heeft zelfstandig de complete Toren B gebouwd.",
       kind: "production",
       departmentColor: "production-b",
       openRoof: true,
@@ -753,9 +867,9 @@
     },
     {
       id: "tutorial_next_department",
-      title: "Volgende afdeling · Gereed Product",
+      title: "Magazijn Gereed Product",
       shortTitle: "Gereed Product",
-      description: "Deze afdeling ontvangt het halffabricaat vanuit Productie voor de volgende processtap.",
+      description: "Dit magazijn ontvangt de complete Toren B vanuit Productieafdeling B.",
       kind: "warehouse",
       departmentColor: "finished",
       openRoof: true,
@@ -905,6 +1019,7 @@
     finishedGoods: {},
     purchaseCost: 0,
     opportunityCost: 0,
+    financial: createFinancialState(),
     assignedRoleId: null,
     gameSessionRunning: false,
     gameSessionDifficulty: "normal",
@@ -1302,6 +1417,29 @@
     }, 0);
   }
 
+  function fullProductRecipe(productId, quantity) {
+    const product = productById(productId);
+    return product.stages.reduce((recipe, stage) => {
+      Object.entries(stage.recipe).forEach(([partId, amount]) => {
+        recipe[partId] = (recipe[partId] || 0) + amount * quantity;
+      });
+      return recipe;
+    }, {});
+  }
+
+  function recipeForOrderStep(order, step) {
+    return step.fullProductMaterials
+      ? fullProductRecipe(order.productId, order.quantity)
+      : recipeForStage(order.productId, step.materialStage, order.quantity);
+  }
+
+  function materialValue(recipe) {
+    return Object.entries(recipe).reduce(
+      (sum, [partId, amount]) => sum + partById(partId).price * amount,
+      0
+    );
+  }
+
   function selectedOrder() {
     return state.orders.find(order => order.id === state.selectedOrderId) || null;
   }
@@ -1397,7 +1535,11 @@
   }
 
   function currentStep(order) {
-    return STEPS[order.stepIndex] || STEPS[STEPS.length - 1];
+    const processSteps = order.processSteps || processStepsForOrder(
+      order.productId,
+      order.productionRoute || "sequential"
+    );
+    return processSteps[order.stepIndex] || processSteps[processSteps.length - 1];
   }
 
   function resetInventory() {
@@ -1572,6 +1714,10 @@
     state.orderCounter += 1;
     const customerNumber = ((state.orderCounter - 1) % 4) + 1;
     const customerRoleId = `customer${customerNumber}`;
+    const productionRoute = productionRouteForOrder(state.orderCounter);
+    const productionDepartment = productionRoute === "parallel"
+      ? parallelDepartmentForProduct(productId)
+      : null;
     const order = {
       id: `order-${String(state.orderCounter).padStart(3, "0")}`,
       productId,
@@ -1580,6 +1726,9 @@
       customerRoleId,
       acceptedAt: state.clockMinutes,
       dueAt: state.clockMinutes + dueMinutes,
+      productionRoute,
+      productionDepartment,
+      processSteps: processStepsForOrder(productId, productionRoute).map(step => ({ ...step })),
       stepIndex: 0,
       stageMaterialsIssued: { 1: false, 2: false, 3: false },
       status: "active",
@@ -1588,8 +1737,20 @@
       late: false,
       priority: false,
       materialCost: recipeCost(productId, quantity),
+      conversionCost: 0,
+      bookedMaterialCost: 0,
+      stageFinancialCost: { 1: 0, 2: 0, 3: 0 },
       history: []
     };
+    if (productionRoute === "parallel" && state.config.opportunityCosts) {
+      const unusedCapacityCost = quantity * 2;
+      PRODUCTION_DEPARTMENT_IDS
+        .filter(departmentId => departmentId !== productionDepartment)
+        .forEach(departmentId => {
+          state.financial.opportunityCostByDepartment[departmentId] += unusedCapacityCost;
+          state.opportunityCost += unusedCapacityCost;
+        });
+    }
     state.orders.push(order);
     state.selectedOrderId = order.id;
     window.LegoBuilder?.setProduct(productId);
@@ -1605,6 +1766,8 @@
       roleId: customerRoleId,
       result: "success",
       objectRole: "order_flow",
+      productionRoute,
+      productionDepartment,
       screen: "Ik wil een order plaatsen"
     });
     addClock(1);
@@ -1612,8 +1775,8 @@
     showAssignment(order);
   }
 
-  function missingMaterials(order, stageNumber) {
-    const recipe = recipeForStage(order.productId, stageNumber, order.quantity);
+  function missingMaterials(order, step) {
+    const recipe = recipeForOrderStep(order, step);
     return Object.entries(recipe)
       .map(([partId, amount]) => ({
         partId,
@@ -1667,16 +1830,32 @@
 
   function issueMaterials(order, step, role) {
     const stageNumber = step.materialStage;
-    const missing = missingMaterials(order, stageNumber);
+    const missing = missingMaterials(order, step);
     if (missing.length) {
       const text = missing.map(item => `${partById(item.partId).name}: ${item.missing}`).join(", ");
       blockOrder(order, step, role, `Tekort ${text}`, "stockout");
       return false;
     }
-    const recipe = recipeForStage(order.productId, stageNumber, order.quantity);
+    const recipe = recipeForOrderStep(order, step);
     Object.entries(recipe).forEach(([partId, amount]) => {
       state.inventory[partId] -= amount;
     });
+    const issuedValue = materialValue(recipe);
+    order.stageFinancialCost[stageNumber] = (
+      Number(order.stageFinancialCost[stageNumber]) || 0
+    ) + issuedValue;
+    order.bookedMaterialCost += issuedValue;
+    state.financial.materialIssues += issuedValue;
+    if (order.productionRoute === "parallel") {
+      const departmentId = order.productionDepartment;
+      state.financial.wipByDepartment[departmentId] += issuedValue;
+      state.financial.materialCostByDepartment[departmentId] += issuedValue;
+    } else {
+      state.financial.wipByStage[stageNumber] += issuedValue;
+      state.financial.materialCostByStage[stageNumber] += issuedValue;
+      const departmentId = PRODUCTION_DEPARTMENT_IDS[stageNumber - 1];
+      state.financial.materialCostByDepartment[departmentId] += issuedValue;
+    }
     order.stageMaterialsIssued[stageNumber] = true;
     return true;
   }
@@ -1689,10 +1868,40 @@
     return false;
   }
 
-  function completeProductionStage(order, stageNumber) {
+  function completeProductionStage(order, step) {
+    const stageNumber = step.completeStage;
+    const conversionCost = order.quantity * 2;
+    const departmentId = step.productionDepartment
+      || PRODUCTION_DEPARTMENT_IDS[stageNumber - 1];
+    order.conversionCost += conversionCost;
+    state.financial.conversionCost += conversionCost;
+    state.financial.conversionCostByDepartment[departmentId] += conversionCost;
+    if (state.config.money) {
+      state.financial.cash -= conversionCost;
+    }
+
+    if (step.completeProduct) {
+      state.financial.wipByDepartment[departmentId] += conversionCost;
+      const finishedValue = state.financial.wipByDepartment[departmentId];
+      state.financial.wipByDepartment[departmentId] = 0;
+      state.financial.finishedGoodsByDepartment[departmentId] += finishedValue;
+      state.finishedGoods[order.productId] += order.quantity;
+      return;
+    }
+
     const product = productById(order.productId);
     const stage = product.stages[stageNumber - 1];
-    if (!state.config.intermediateStock) return;
+    state.financial.wipByStage[stageNumber] += conversionCost;
+    if (stageNumber > 1) {
+      state.financial.wipByStage[stageNumber] += state.financial.wipByStage[stageNumber - 1];
+      state.financial.wipByStage[stageNumber - 1] = 0;
+    }
+    if (stageNumber === 3) {
+      const finishedValue = state.financial.wipByStage[3];
+      state.financial.wipByStage[3] = 0;
+      state.financial.finishedGoodsByDepartment.C += finishedValue;
+    }
+
     if (stage.input) {
       state[stage.input][order.productId] = Math.max(0, state[stage.input][order.productId] - order.quantity);
     }
@@ -1733,7 +1942,7 @@
     order.status = "active";
     order.lastIssue = "";
     if (step.completeStage) {
-      completeProductionStage(order, step.completeStage);
+      completeProductionStage(order, step);
     }
     if (step.id === "quality_control" && (state.finishedGoods[order.productId] || 0) < order.quantity) {
       blockOrder(order, step, role, "Gereed product ontbreekt bij MFP", "finished_goods_missing");
@@ -1747,6 +1956,21 @@
       if (order.late && state.config.opportunityCosts) {
         state.opportunityCost += 6 * order.quantity;
       }
+      const departmentId = order.productionDepartment || "C";
+      const totalProductCost = order.bookedMaterialCost + order.conversionCost;
+      const revenue = state.config.money ? order.unitPrice * order.quantity : 0;
+      state.finishedGoods[order.productId] = Math.max(
+        0,
+        state.finishedGoods[order.productId] - order.quantity
+      );
+      state.financial.finishedGoodsByDepartment[departmentId] = Math.max(
+        0,
+        state.financial.finishedGoodsByDepartment[departmentId] - totalProductCost
+      );
+      state.financial.revenue += revenue;
+      state.financial.revenueByDepartment[departmentId] += revenue;
+      state.financial.costOfGoodsSold += state.config.pnl ? totalProductCost : 0;
+      state.financial.cash += revenue;
     }
 
     const result = order.done ? "complete" : "success";
@@ -1763,7 +1987,9 @@
       result,
       objectRole: order.done ? "success" : "order_flow",
       dueAt: order.dueAt,
-      late: order.late
+      late: order.late,
+      productionRoute: order.productionRoute,
+      productionDepartment: order.productionDepartment
     });
     order.history.push({ minute: state.clockMinutes, label: step.label, result });
     if (!order.done) {
@@ -1783,8 +2009,12 @@
     state.opportunityCost += cost;
     order.status = "blocked";
     order.lastIssue = disruption.label;
-    if (disruption.id === "quality_rework" && order.stepIndex > 18) {
-      order.stepIndex = 19;
+    if (disruption.id === "quality_rework") {
+      const processSteps = order.processSteps || STEPS;
+      const qualityIndex = processSteps.findIndex(step => step.id === "quality_control");
+      if (qualityIndex >= 0 && order.stepIndex > qualityIndex) {
+        order.stepIndex = qualityIndex;
+      }
     }
     dispatchInteraction({
       actionType: "disruption",
@@ -1820,6 +2050,7 @@
     const cost = part.price * quantity;
     state.inventory[partId] += quantity;
     state.purchaseCost += state.config.pnl ? cost : 0;
+    state.financial.cash -= state.config.money ? cost : 0;
     addClock(2);
     dispatchInteraction({
       actionType: "purchase_materials",
@@ -1865,7 +2096,11 @@
 
   function orderPercent(order) {
     if (order.done) return 100;
-    return Math.round((order.stepIndex / STEPS.length) * 100);
+    const processSteps = order.processSteps || processStepsForOrder(
+      order.productId,
+      order.productionRoute || "sequential"
+    );
+    return Math.round((order.stepIndex / processSteps.length) * 100);
   }
 
   function renderTower(productId) {
@@ -2239,8 +2474,14 @@
     return "idle";
   }
 
-  function simulationPartialSequence(product, roleId) {
+  function simulationPartialSequence(product, roleId, order = null) {
     if (!product?.stages) return product?.towerSequence || [];
+    if (
+      order?.productionRoute === "parallel"
+      && roleId === order.productionDepartment
+    ) {
+      return [...(product.towerSequence || [])];
+    }
     const stageRoles = ["pd1", "pd2", "pd3"];
     const stageIndex = stageRoles.indexOf(roleId);
     if (roleId === "ssf") return [...(product.towerSequence || [])];
@@ -2284,7 +2525,18 @@
     if (!knownIds.has(standaloneSelectedDepartmentId)) {
       standaloneSelectedDepartmentId = activeRole || snapshot.humanRoleId || "operations";
     }
-    const departments = STANDALONE_SIMULATION_DEPARTMENTS.map(definition => {
+    const parallelEnabled = snapshot.productionProcesses?.includes("parallel");
+    const sequentialEnabled = snapshot.productionProcesses?.includes("sequential");
+    const departments = STANDALONE_SIMULATION_DEPARTMENTS.map(baseDefinition => {
+      const productionIndex = ["pd1", "pd2", "pd3"].indexOf(baseDefinition.roleId);
+      const definition = parallelEnabled && productionIndex >= 0
+        ? {
+            ...baseDefinition,
+            title: `Productieafdeling ${PRODUCTION_DEPARTMENT_IDS[productionIndex]}`,
+            shortTitle: `Productie ${PRODUCTION_DEPARTMENT_IDS[productionIndex]}`,
+            description: `Bouwt zelfstandig een complete Toren ${PRODUCTION_DEPARTMENT_IDS[productionIndex]}.`
+          }
+        : baseDefinition;
       const runtime = snapshot.roleRuntime[definition.roleId];
       const orderIds = Array.from(new Set([
         runtime.activeOrderId,
@@ -2296,7 +2548,7 @@
       const latestEvent = snapshot.feed.find(item => (
         !activeOrder || item.orderId === activeOrder.id
       ));
-      const partialSequence = simulationPartialSequence(activeProduct, definition.roleId);
+      const partialSequence = simulationPartialSequence(activeProduct, definition.roleId, activeOrder);
       const showProduct = ["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId)
         && partialSequence.length;
       return {
@@ -2333,7 +2585,27 @@
         } : null
       };
     });
-    const connections = STANDALONE_SIMULATION_CONNECTIONS.map(connection => {
+    const configuredConnections = parallelEnabled && !sequentialEnabled
+      ? [
+          { from: "customer", to: "operations", kind: "customer" },
+          { from: "operations", to: "srm", kind: "material" },
+          { from: "srm", to: "pd1", kind: "material" },
+          { from: "srm", to: "pd2", kind: "material" },
+          { from: "srm", to: "pd3", kind: "material" },
+          { from: "pd1", to: "ssf", kind: "material" },
+          { from: "pd2", to: "ssf", kind: "material" },
+          { from: "pd3", to: "ssf", kind: "material" }
+        ]
+      : parallelEnabled && sequentialEnabled
+        ? [
+            ...STANDALONE_SIMULATION_CONNECTIONS,
+            { from: "srm", to: "pd2", kind: "material" },
+            { from: "srm", to: "pd3", kind: "material" },
+            { from: "pd1", to: "ssf", kind: "material" },
+            { from: "pd2", to: "ssf", kind: "material" }
+          ]
+        : STANDALONE_SIMULATION_CONNECTIONS;
+    const connections = configuredConnections.map(connection => {
       const sourceRuntime = snapshot.roleRuntime[connection.from];
       const targetRuntime = snapshot.roleRuntime[connection.to];
       return {
@@ -2344,7 +2616,11 @@
       };
     });
     return {
-      title: "Live simulatie · Productiestroom",
+      title: parallelEnabled && sequentialEnabled
+        ? "Live simulatie · Hybride productiestroom"
+        : parallelEnabled
+          ? "Live simulatie · Parallelle productorganisatie"
+          : "Live simulatie · Sequentiële productieketen",
       selectedDepartmentId: standaloneSelectedDepartmentId,
       legend: [
         { color: "customer", label: "Klantorder" },
@@ -2439,8 +2715,14 @@
     state.config.playMode = playMode;
     logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
     logisticsGameController.engine.setPlayMode(playMode);
+    logisticsGameController.engine.setProductionProcesses(state.config.productionProcesses);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
-    logisticsGameController.start({ humanRoleId, customerOrderMode, playMode });
+    logisticsGameController.start({
+      humanRoleId,
+      customerOrderMode,
+      playMode,
+      productionProcesses: state.config.productionProcesses
+    });
     if (document.body.classList.contains("tutorial-focus")) {
       logisticsGameController.pause();
     } else {
@@ -2480,10 +2762,108 @@
   }
 
   function renderInventory() {
-    const items = PARTS.map(part => {
+    const rawInventoryValue = PARTS.reduce(
+      (sum, part) => sum + (state.inventory[part.id] || 0) * part.price,
+      0
+    );
+    const parallelWorkInProgress = state.config.productionProcesses.includes("parallel")
+      ? Object.values(state.financial.wipByDepartment).reduce((sum, value) => sum + value, 0)
+      : 0;
+    const sequentialWorkInProgress = state.config.productionProcesses.includes("sequential")
+      ? Object.values(state.financial.wipByStage).reduce((sum, value) => sum + value, 0)
+      : 0;
+    const workInProgressValue = parallelWorkInProgress + sequentialWorkInProgress;
+    const finishedGoodsValue = Object.values(state.financial.finishedGoodsByDepartment)
+      .reduce((sum, value) => sum + value, 0);
+    const opportunityCosts = Object.values(state.financial.opportunityCostByDepartment)
+      .reduce((sum, value) => sum + value, 0);
+    const result = state.financial.revenue
+      - state.financial.costOfGoodsSold
+      - opportunityCosts;
+    const cashValue = state.config.money ? state.financial.cash : 0;
+    const totalAssets = cashValue
+      + rawInventoryValue
+      + workInProgressValue
+      + finishedGoodsValue;
+    const items = [
+      `
+        <article class="inventory-item financial-overview-card" data-financial-overview="balance">
+          <div>
+            <h3 class="inventory-name">Balans</h3>
+            <div class="inventory-meta">
+              Activa: liquide middelen ${formatMoney(cashValue)} ·
+              grondstoffen ${formatMoney(rawInventoryValue)} ·
+              OHW ${formatMoney(workInProgressValue)} ·
+              gereed product ${formatMoney(finishedGoodsValue)}
+            </div>
+            <div class="inventory-meta">
+              Passiva: eigen vermogen ${formatMoney(totalAssets)} · vreemd vermogen ${formatMoney(0)}
+            </div>
+          </div>
+          <strong class="inventory-count">${formatMoney(totalAssets)}</strong>
+        </article>
+      `,
+      `
+        <article class="inventory-item financial-overview-card" data-financial-overview="profit-loss">
+          <div>
+            <h3 class="inventory-name">Winst- en verliesrekening</h3>
+            <div class="inventory-meta">
+              Omzet ${formatMoney(state.financial.revenue)} ·
+              kostprijs omzet ${formatMoney(state.financial.costOfGoodsSold)} ·
+              opportunity costs ${formatMoney(opportunityCosts)}
+            </div>
+          </div>
+          <strong class="inventory-count">${state.config.pnl ? formatMoney(result) : "W&R uit"}</strong>
+        </article>
+      `
+    ];
+
+    if (state.config.productionProcesses.includes("parallel")) {
+      PRODUCTION_DEPARTMENT_IDS.forEach(departmentId => {
+        items.push(`
+          <article class="inventory-item production-finance-card"
+                   data-production-finance="${departmentId}">
+            <div>
+              <h3 class="inventory-name">Productieafdeling ${departmentId}</h3>
+              <div class="inventory-meta">
+                Materiaal ${formatMoney(state.financial.materialCostByDepartment[departmentId])} ·
+                conversie ${formatMoney(state.financial.conversionCostByDepartment[departmentId])} ·
+                OHW ${formatMoney(state.financial.wipByDepartment[departmentId])} ·
+                gereed ${formatMoney(state.financial.finishedGoodsByDepartment[departmentId])}
+              </div>
+              <div class="inventory-meta">
+                Omzet ${formatMoney(state.financial.revenueByDepartment[departmentId])} ·
+                opportunity costs ${formatMoney(state.financial.opportunityCostByDepartment[departmentId])}
+              </div>
+            </div>
+            <strong class="inventory-count">${departmentId}</strong>
+          </article>
+        `);
+      });
+    }
+
+    if (state.config.productionProcesses.includes("sequential")) {
+      [1, 2, 3].forEach(stageNumber => {
+        items.push(`
+          <article class="inventory-item production-finance-card"
+                   data-production-stage-finance="${stageNumber}">
+            <div>
+              <h3 class="inventory-name">Laag ${stageNumber} · Productieafdeling ${stageNumber}</h3>
+              <div class="inventory-meta">
+                Materiaal laag ${formatMoney(state.financial.materialCostByStage[stageNumber])} ·
+                cumulatief OHW ${formatMoney(state.financial.wipByStage[stageNumber])}
+              </div>
+            </div>
+            <strong class="inventory-count">L${stageNumber}</strong>
+          </article>
+        `);
+      });
+    }
+
+    PARTS.forEach(part => {
       const count = state.inventory[part.id] || 0;
       const low = count <= part.reorder;
-      return `
+      items.push(`
         <article class="inventory-item${low ? " low" : ""}">
           ${renderPart(part)}
           <div>
@@ -2492,7 +2872,7 @@
           </div>
           <strong class="inventory-count">${count}</strong>
         </article>
-      `;
+      `);
     });
 
     Object.values(PRODUCTS).forEach(product => {
@@ -2500,8 +2880,18 @@
         <article class="inventory-item">
           ${renderTower(product.id)}
           <div>
-            <h3 class="inventory-name">SS1 / SS2 / gereed ${escapeHtml(product.id)}</h3>
-            <div class="inventory-meta">${state.ss1[product.id]} / ${state.ss2[product.id]} / ${state.finishedGoods[product.id]}</div>
+            <h3 class="inventory-name">${
+              state.config.productionProcesses.length === 1
+                && state.config.productionProcesses[0] === "parallel"
+                ? `Afdeling ${parallelDepartmentForProduct(product.id)} / gereed ${escapeHtml(product.id)}`
+                : `SS1 / SS2 / gereed ${escapeHtml(product.id)}`
+            }</h3>
+            <div class="inventory-meta">${
+              state.config.productionProcesses.length === 1
+                && state.config.productionProcesses[0] === "parallel"
+                ? `${state.finishedGoods[product.id]} complete torens`
+                : `${state.ss1[product.id]} / ${state.ss2[product.id]} / ${state.finishedGoods[product.id]}`
+            }</div>
           </div>
           <strong class="inventory-count">${state.finishedGoods[product.id]}</strong>
         </article>
@@ -2658,12 +3048,17 @@
       };
     }
     if (definition.id.startsWith("production_") && !definition.productIds) {
+      const stageNumber = Number(definition.id.split("_")[1]) || 1;
+      const departmentId = PRODUCTION_DEPARTMENT_IDS[stageNumber - 1];
       return {
         primaryMetric: `${orders.length} lopend`,
         facts: [
           { label: "Lopende orders", value: orders.length },
           { label: "Processtap", value: definition.shortTitle },
-          { label: "Organisatie", value: "Functionele keten" }
+          { label: "Organisatie", value: "Functionele keten" },
+          { label: "Materiaalwaarde laag", value: formatMoney(state.financial.materialCostByStage[stageNumber]) },
+          { label: "Conversiekosten afdeling", value: formatMoney(state.financial.conversionCostByDepartment[departmentId]) },
+          { label: "Cumulatief OHW", value: formatMoney(state.financial.wipByStage[stageNumber]) }
         ]
       };
     }
@@ -2673,7 +3068,11 @@
         facts: [
           { label: "Lopende productorders", value: orders.length },
           { label: "Product", value: "Toren A" },
-          { label: "Afdeling", value: "A" }
+          { label: "Afdeling", value: "A" },
+          { label: "OHW", value: formatMoney(state.financial.wipByDepartment.A) },
+          { label: "Gereed product", value: formatMoney(state.financial.finishedGoodsByDepartment.A) },
+          { label: "Omzet", value: formatMoney(state.financial.revenueByDepartment.A) },
+          { label: "Opportunity costs", value: formatMoney(state.financial.opportunityCostByDepartment.A) }
         ]
       };
     }
@@ -2683,7 +3082,11 @@
         facts: [
           { label: "Lopende productorders", value: orders.length },
           { label: "Product", value: "Toren B" },
-          { label: "Afdeling", value: "B" }
+          { label: "Afdeling", value: "B" },
+          { label: "OHW", value: formatMoney(state.financial.wipByDepartment.B) },
+          { label: "Gereed product", value: formatMoney(state.financial.finishedGoodsByDepartment.B) },
+          { label: "Omzet", value: formatMoney(state.financial.revenueByDepartment.B) },
+          { label: "Opportunity costs", value: formatMoney(state.financial.opportunityCostByDepartment.B) }
         ]
       };
     }
@@ -2693,7 +3096,11 @@
         facts: [
           { label: "Lopende productorders", value: orders.length },
           { label: "Product", value: "Toren C" },
-          { label: "Afdeling", value: "C" }
+          { label: "Afdeling", value: "C" },
+          { label: "OHW", value: formatMoney(state.financial.wipByDepartment.C) },
+          { label: "Gereed product", value: formatMoney(state.financial.finishedGoodsByDepartment.C) },
+          { label: "Omzet", value: formatMoney(state.financial.revenueByDepartment.C) },
+          { label: "Opportunity costs", value: formatMoney(state.financial.opportunityCostByDepartment.C) }
         ]
       };
     }
@@ -2703,6 +3110,13 @@
         facts: [
           { label: "Te controleren orders", value: orders.length },
           { label: "Gereed-productvoorraad", value: sumProductStock(state.finishedGoods) },
+          {
+            label: "Voorraadwaarde",
+            value: formatMoney(
+              Object.values(state.financial.finishedGoodsByDepartment)
+                .reduce((sum, value) => sum + value, 0)
+            )
+          },
           { label: "Kwaliteitsrol", value: "MFP" }
         ]
       };
@@ -3058,7 +3472,7 @@
     const ready = tutorialRequirementsComplete();
     if (ready) {
       state.logisticsTutorial.phase = "ready";
-      state.logisticsTutorial.feedback = "Alle juiste blokken zijn bij de Bouwafdeling aangekomen.";
+      state.logisticsTutorial.feedback = "Alle juiste blokken zijn bij Productieafdeling B aangekomen.";
       state.selectedLogisticsDepartmentId = "tutorial_player_stock";
     } else {
       const remainingLabels = {
@@ -3133,7 +3547,7 @@
 
   function transferTutorialStockToAssembly() {
     if (state.logisticsTutorial.phase !== "ready" || !tutorialRequirementsComplete()) {
-      state.logisticsTutorial.feedback = "Assemblage blijft vergrendeld totdat de ophaalopdracht compleet is.";
+      state.logisticsTutorial.feedback = "De bouwplek van Productieafdeling B blijft vergrendeld totdat de materiaalset compleet is.";
       renderDataModel(true);
       return false;
     }
@@ -3162,7 +3576,7 @@
     setTutorialFocus("logistics");
     state.logisticsTutorial.phase = "internal_ready";
     state.logisticsTutorial.semiFinished = { production: 1, nextDepartment: 0 };
-    state.logisticsTutorial.feedback = "Toren B staat in het open productievak. Sleep de toren naar het open vak van de volgende afdeling.";
+    state.logisticsTutorial.feedback = "Productieafdeling B heeft Toren B compleet gebouwd. Sleep de toren naar Magazijn Gereed Product.";
     state.selectedLogisticsDepartmentId = "tutorial_production";
     state.config.processView = "isometric";
     els.dataModelPanel.classList.add("visible");
@@ -3189,7 +3603,7 @@
     state.logisticsTutorial.semiFinished.production = 0;
     state.logisticsTutorial.semiFinished.nextDepartment = 1;
     state.logisticsTutorial.phase = "internal_complete";
-    state.logisticsTutorial.feedback = "Interne logistiek voltooid: het halffabricaat is ontvangen door de volgende afdeling.";
+    state.logisticsTutorial.feedback = "Interne logistiek voltooid: de complete Toren B is ontvangen door Magazijn Gereed Product.";
     state.selectedLogisticsDepartmentId = "tutorial_next_department";
     dispatchInteraction({
       actionType: "complete_internal_logistics_tutorial_step",
@@ -3223,7 +3637,7 @@
       || targetDepartmentId !== "tutorial_next_department"
       || cargoId !== "tower_b_semi_finished"
     ) {
-      state.logisticsTutorial.feedback = "Sleep de gebouwde Toren B vanuit Productie naar het open vak van de volgende afdeling.";
+      state.logisticsTutorial.feedback = "Sleep de complete Toren B vanuit Productieafdeling B naar Magazijn Gereed Product.";
       return false;
     }
     return transferTutorialSemiFinished();
@@ -3706,16 +4120,16 @@
               },
           status: completed ? "idle" : "active",
           badgeValue: productionAmount,
-          badgeLabel: `${productionAmount} halffabricaat bij Productie`,
-          primaryMetric: productionAmount ? "1 halffabricaat gereed" : "Transport vertrokken",
+          badgeLabel: `${productionAmount} complete Toren B bij Productie`,
+          primaryMetric: productionAmount ? "1 complete Toren B gereed" : "Transport vertrokken",
           facts: [
             { label: "Product", value: "Toren B" },
-            { label: "Halffabricaten aanwezig", value: productionAmount },
+            { label: "Complete producten aanwezig", value: productionAmount },
             { label: "Transportstatus", value: completed ? "Doorgestuurd" : "Wacht op overdracht" }
           ],
           feedback: completed
-            ? { kind: "success", text: "Het halffabricaat heeft Productie verlaten." }
-            : { kind: "info", text: "Pak Toren B vast en sleep hem naar de volgende afdeling." }
+            ? { kind: "success", text: "De complete Toren B heeft Productieafdeling B verlaten." }
+            : { kind: "info", text: "Pak Toren B vast en sleep hem naar Magazijn Gereed Product." }
         };
       }
       return {
@@ -3733,18 +4147,18 @@
         acceptsCargoDrop: !completed,
         status: completed ? "complete" : "idle",
         badgeValue: nextDepartmentAmount,
-        badgeLabel: `${nextDepartmentAmount} halffabricaat ontvangen`,
-        primaryMetric: completed ? "1 halffabricaat ontvangen" : "Wacht op intern transport",
+        badgeLabel: `${nextDepartmentAmount} complete Toren B ontvangen`,
+        primaryMetric: completed ? "1 complete Toren B ontvangen" : "Wacht op intern transport",
         locked: false,
         highlight: !completed,
         facts: [
           { label: "Product", value: completed ? "Toren B" : "Nog niet ontvangen" },
-          { label: "Halffabricaten ontvangen", value: nextDepartmentAmount },
+          { label: "Complete producten ontvangen", value: nextDepartmentAmount },
           { label: "Ontvangststatus", value: completed ? "Bevestigd" : "Onderweg na overdracht" }
         ],
         feedback: completed
           ? { kind: "success", text: "Ontvangst bevestigd. Stap 3 is voltooid." }
-          : { kind: "info", text: "Zet het halffabricaat eerst vanuit Productie door." },
+          : { kind: "info", text: "Zet de complete Toren B eerst vanuit Productieafdeling B door." },
         action: completed
           ? { label: "Ga verder naar de volgende opdracht", disabled: false }
           : null
@@ -3754,7 +4168,7 @@
       title: "Tutorial · Interne Logistiek",
       legend: [
         { color: "production-b", label: "Productie" },
-        { color: "finished", label: "Volgende afdeling" }
+        { color: "finished", label: "Magazijn Gereed Product" }
       ],
       selectedDepartmentId: state.selectedLogisticsDepartmentId,
       departments,
@@ -3769,7 +4183,7 @@
         towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
         eyebrow: "Self-starting tutorial · stap 3",
         title: "Interne Logistiek",
-        instruction: "Pak de gebouwde Toren B in het open dak van Productie vast en sleep hem naar het open ontvangstvak van de volgende afdeling.",
+        instruction: "Pak de complete Toren B in Productieafdeling B vast en sleep hem naar Magazijn Gereed Product.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
         collected: completed ? 1 : 0,
@@ -3886,7 +4300,7 @@
       return {
         ...base,
         badgeValue: assemblyTotal,
-        badgeLabel: `${assemblyTotal} bij assemblage`,
+        badgeLabel: `${assemblyTotal} op bouwplek B`,
         primaryMetric: phaseComplete ? "Voorraad ontvangen" : phaseReady ? "Klaar voor ontvangst" : "Vergrendeld",
         locked: tutorial.phase === "collecting",
         highlight: phaseReady,
@@ -3896,7 +4310,7 @@
           { label: "Volgende stap", value: phaseComplete ? "Bouwen" : "Voorraad compleet maken" }
         ],
         feedback: phaseReady
-          ? { kind: "success", text: "Voorraad compleet. Assemblage is nu beschikbaar." }
+          ? { kind: "success", text: "Voorraad compleet. De bouwplek van Productie B is nu beschikbaar." }
           : {
               kind: phaseComplete ? "success" : "info",
               text: phaseComplete
@@ -3904,7 +4318,7 @@
                 : "Verzamel eerst alle vier onderdelen voor Toren B."
             },
         action: phaseReady
-          ? { label: "Verplaats 4 onderdelen naar Assemblage", disabled: false }
+          ? { label: "Verplaats 4 onderdelen naar Bouwplek B", disabled: false }
           : null
       };
       });
@@ -3914,7 +4328,7 @@
         { color: "tutorial-blue", label: "Magazijn A · blauw" },
         { color: "tutorial-yellow", label: "Magazijn B · geel" },
         { color: "green", label: "Magazijn C · groen" },
-        { color: "tutorial-transit", label: "Bouwafdeling" }
+        { color: "tutorial-transit", label: "Productieafdeling B" }
       ],
       selectedDepartmentId: state.selectedLogisticsDepartmentId,
       departments,
@@ -3934,7 +4348,7 @@
         towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
         eyebrow: "Self-starting tutorial · stap 2",
         title: "Magazijn & Voorraad (Logistieke basis)",
-        instruction: "Sleep naar de Bouwafdeling: 2× blauw 2×4 uit A, 1× geel 2×2 uit B en 1× groen 2×2 uit C. Sorteer goed: de magazijnen bevatten ook andere kleuren en formaten.",
+        instruction: "Sleep vanuit Magazijn Grondstoffen naar Productieafdeling B: 2× blauw 2×4, 1× geel 2×2 en 1× groen 2×2. Productie B bouwt hiermee zelfstandig de complete toren.",
         feedback: tutorial.feedback,
         status: tutorial.phase,
         collected: tutorialCollectedCount(),
@@ -3999,7 +4413,7 @@
           && departmentId === "tutorial_assembly"
           && state.logisticsTutorial.phase === "collecting"
         ) {
-          state.logisticsTutorial.feedback = "Assemblage is nog vergrendeld: verzamel eerst alle vier onderdelen voor Toren B.";
+          state.logisticsTutorial.feedback = "De bouwplek van Productie B is nog vergrendeld: verzamel eerst alle vier onderdelen.";
         }
         dispatchInteraction({
           learningObjectID: `logistics_department_${departmentId}`,
@@ -4765,6 +5179,7 @@
     state.ss1 = emptyProductStock();
     state.ss2 = emptyProductStock();
     state.finishedGoods = emptyProductStock();
+    state.financial = createFinancialState();
   }
 
   function applyProductTypeCount(dispatch = true) {
@@ -4836,6 +5251,7 @@
     resetProductStores();
     state.purchaseCost = 0;
     state.opportunityCost = 0;
+    state.financial = createFinancialState();
     state.interactionBuffer.length = 0;
     state.contractEventBuffer.length = 0;
 
@@ -5246,6 +5662,17 @@
       finishedGoods: { ...state.finishedGoods },
       purchaseCost: state.purchaseCost,
       opportunityCost: state.opportunityCost,
+      financial: {
+        ...state.financial,
+        wipByDepartment: { ...state.financial.wipByDepartment },
+        finishedGoodsByDepartment: { ...state.financial.finishedGoodsByDepartment },
+        materialCostByDepartment: { ...state.financial.materialCostByDepartment },
+        conversionCostByDepartment: { ...state.financial.conversionCostByDepartment },
+        revenueByDepartment: { ...state.financial.revenueByDepartment },
+        opportunityCostByDepartment: { ...state.financial.opportunityCostByDepartment },
+        wipByStage: { ...state.financial.wipByStage },
+        materialCostByStage: { ...state.financial.materialCostByStage }
+      },
       tutorialDismissed: state.tutorialDismissed,
       tutorialCompleted: state.tutorialCompleted,
       tutorialPaused: state.tutorialPaused,
@@ -5264,7 +5691,13 @@
             : null
         }
       },
-      orders: state.orders.map(order => ({ ...order }))
+      orders: state.orders.map(order => ({
+        ...order,
+        processSteps: (order.processSteps || []).map(step => ({ ...step })),
+        stageMaterialsIssued: { ...order.stageMaterialsIssued },
+        stageFinancialCost: { ...order.stageFinancialCost },
+        history: order.history.map(item => ({ ...item }))
+      }))
     }),
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),

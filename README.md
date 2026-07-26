@@ -1,6 +1,9 @@
 # LEARNGame Operations Management
 
-Deze zelfstandige repository bevat de eerste digital twin van de LEARNGame Operations Management / Legostiek Management als leerbox-proefopstelling. De huidige interface volgt expliciet de ICG2 versie 2-flow uit het bronarchief van de Leerpret-hostrepo: klantorder, Operations-inbox, Productie Afdeling 1, SS1, Productie Afdeling 2, SS2, Productie Afdeling 3, klantacceptatie, kwaliteitscontrole en archief.
+Deze zelfstandige repository bevat de eerste digital twin van de LEARNGame
+Operations Management / Legostiek Management als leerbox-proefopstelling. De
+runtime ondersteunt zowel de productgerichte parallelle route als de
+functionele sequentiële productieketen uit het bronarchief.
 
 De browserruntime heeft geen backend- of buildafhankelijkheden. `product.json`
 beschrijft wat bij dit product hoort en welke hostkoppelingen bij afsplitsing
@@ -272,16 +275,24 @@ npm install
 npx playwright install chromium
 ```
 
-Voer daarna de desktop- en mobiele visuele controle uit met:
+### Werkafspraak: volledige suite alleen in GitHub Actions
 
-```powershell
-npm run test:visual
-```
+Voer de volledige desktop- en mobiele Playwright-suite niet standaard lokaal
+uit. Deze suite duurt relatief lang en hoort bij de handmatig gestarte
+GitHub Actions-workflow `Playwright Acceptatietests`:
 
-De bespreekbare schermafbeeldingen komen in de genegeerde map
-`test-results/`. Bij een mislukte test bewaart Playwright daarnaast een trace,
-video en foutafbeelding. Gebruik `npm run test:visual:report` om het lokale
-HTML-rapport te openen.
+1. open op GitHub het tabblad **Actions**;
+2. kies **Playwright Acceptatietests**;
+3. kies **Run workflow** en de gewenste branch.
+
+De workflow gebruikt uitsluitend `workflow_dispatch` en start dus niet
+automatisch bij iedere push. Lokaal mogen wel snelle syntax- en unitcontroles
+worden uitgevoerd. Draai een afzonderlijke Playwright-specificatie alleen
+wanneer iemand daar expliciet om vraagt.
+
+De workflow bewaart bij een mislukte test het Playwright-rapport en de
+`test-results/` als artifact, inclusief beschikbare trace, video en
+foutafbeelding.
 
 Binnen het Leerpret-dashboard blijft de bestaande compatibiliteits-URL werken:
 
@@ -292,6 +303,50 @@ Binnen het Leerpret-dashboard blijft de bestaande compatibiliteits-URL werken:
 Leerpret vindt deze repository via `LEARNGAME_OM_DIR`. Als beide repositories
 naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 `../Learngame Operations Management`.
+
+## Productieroutes en financiële weergave
+
+`logistics-process.js` is de canonieke matrix voor de productieroute:
+
+| Preset | Productieroute |
+| --- | --- |
+| LO Game 1 | sequentieel |
+| LO Game 2 | sequentieel |
+| LO Game 3 | parallel |
+| LO Game 4 | parallel |
+| LO Game 5 | sequentieel |
+| LO Game 6 | sequentieel |
+| LO Game 7 | sequentieel |
+| Tutorial | parallel |
+
+In de parallelle route ontvangt Productie A, B of C de volledige materiaalset
+en bouwt die afdeling zelfstandig een compleet product. De tutorial gebruikt
+daarom exact deze goederenstroom:
+
+```text
+Magazijn Grondstoffen
+  -> Productieafdeling B
+  -> Magazijn Gereed Product
+  -> Expeditie
+```
+
+In de sequentiële route gaat ieder product achtereenvolgens door
+Productieafdeling 1, tussenvoorraad SS1, Productieafdeling 2, tussenvoorraad
+SS2 en Productieafdeling 3. De voortgang en het onderhanden werk worden daarbij
+per laag bijgehouden.
+
+Het financiële overzicht toont in beide routes een balans, een
+winst-en-verliesrekening en de voorraadstanden. Parallelle productie wordt
+uitgesplitst per Productie A/B/C met materiaal, conversiekosten, onderhanden
+werk, gereed product, omzet en opportunity costs. Sequentiële productie wordt
+uitgesplitst per laag/productiestap met materiaalverbruik, conversiekosten en
+cumulatief onderhanden werk.
+
+De instellingen gebruiken twee vinkjes. Parallel en sequentieel mogen tegelijk
+actief zijn; dit is een hybride, zelf te benoemen configuratie en geen
+meegeleverde preset. Elke wijziging wordt met bestaande presets vergeleken. Bij
+een exacte match springt de gametypekeuze naar die preset; bij een unieke
+combinatie kan de Game Master de configuratie als nieuwe preset opslaan.
 
 ## Wat de proefopstelling nu doet
 
@@ -306,8 +361,8 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 - bij wachttijd een live fabrieksoverzicht tonen met orderoverdrachten,
   afdelingsstatussen, Peak Flow, kwaliteitsfouten en materiaalvertragingen;
 - de gekozen order direct als LEGO-torenpreview zien, inclusief aantal en orderwaarde;
-- vóór het vrije spel een interactieve tutorial doorlopen waarin Toren A in
-  drie stappen wordt gebouwd met een parametrische SVG-animatie;
+- vóór het vrije spel een interactieve bouwtutorial doorlopen en daarna Toren B
+  volgens de parallelle goederenstroom volledig in Productieafdeling B bouwen;
 - LEGO-blokken uit het bestaande SVG-palet aanklikken of slepen, 90 graden
   draaien en in een isometrische 3D-view op een groene 6x6-grondplaat laten
   vastklikken;
@@ -316,10 +371,12 @@ naast elkaar onder dezelfde bovenliggende map staan, werkt ook automatisch
 - na de tutorial klantorders voor Toren A, B en C bouwen volgens de
   bijgeleverde productafbeeldingen;
 - vaste of vrije verkoopprijs gebruiken en het aantal verschillende LEGO-torens aanpassen;
-- de order door Operations, Magazijn Grondstoffen, Productie 1, SS1, Productie 2, SS2, Productie 3, klantacceptatie, kwaliteitscontrole en archief laten lopen;
+- de order automatisch door de parallelle of sequentiële route van de gekozen
+  gamepreset laten lopen;
 - grondstoffen inkopen met de prijzen uit het inkoopformulier;
 - materiaaltekorten blokkeren en daarna herstelacties registreren;
-- drie productiestappen per order simuleren;
+- afhankelijk van de preset één volledige parallelle bouwroute of drie
+  opeenvolgende productiestappen per order simuleren;
 - het eerste conceptschema als orderproces met datamodelobjecten bekijken via de knop `Orderproces`;
 - binnen die weergave wisselen tussen `Procesgraph` per afdeling, `Sequentie` als slingerend links-rechts/rechts-links orderpad en `Afdelingsroute` als sequentieel pad binnen vaste afdelingsbanen;
 - via `Isometrische kaart` de indeling uit

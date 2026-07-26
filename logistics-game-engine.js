@@ -123,6 +123,8 @@
     "ssf"
   ]);
 
+  const PARALLEL_PRODUCTION_ROLES = Object.freeze(["pd1", "pd2", "pd3"]);
+
   const PRODUCT_DEFINITIONS = Object.freeze({
     A: {
       id: "A",
@@ -276,6 +278,7 @@
       this.behaviorPatterns = options.behaviorPatterns || null;
       this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
       this.playMode = options.playMode === "digital" ? "digital" : "physical";
+      this.productionProcesses = this.normalizeProductionProcesses(options.productionProcesses);
       this.difficultyLevel = "normal";
       this.difficulty = DIFFICULTY_PRESETS.normal;
       this.random = typeof options.random === "function" ? options.random : Math.random;
@@ -364,6 +367,45 @@
       return this.playMode;
     }
 
+    normalizeProductionProcesses(processes) {
+      const normalized = Array.from(new Set(
+        (Array.isArray(processes) ? processes : [])
+          .filter(process => process === "parallel" || process === "sequential")
+      ));
+      return normalized.length ? normalized : ["sequential"];
+    }
+
+    setProductionProcesses(processes) {
+      this.productionProcesses = this.normalizeProductionProcesses(processes);
+      return [...this.productionProcesses];
+    }
+
+    productionRouteForNextOrder() {
+      if (this.productionProcesses.length === 2) {
+        return this.orderCounter % 2 === 0 ? "parallel" : "sequential";
+      }
+      return this.productionProcesses[0];
+    }
+
+    productionRoleForProduct(productId) {
+      const productIds = Object.keys(this.products);
+      const index = Math.max(0, productIds.indexOf(productId));
+      return PARALLEL_PRODUCTION_ROLES[index % PARALLEL_PRODUCTION_ROLES.length];
+    }
+
+    assignOrderRoleFlow(order) {
+      const productionRoute = order.productionRoute || this.productionRouteForNextOrder();
+      const productionRoleId = productionRoute === "parallel"
+        ? this.productionRoleForProduct(order.productId)
+        : null;
+      order.productionRoute = productionRoute;
+      order.productionDepartment = productionRoleId;
+      order.roleFlow = productionRoute === "parallel"
+        ? ["customer", "operations", "srm", productionRoleId, "ssf"]
+        : [...ROLE_FLOW];
+      return order.roleFlow;
+    }
+
     pickWeightedProfile(profiles) {
       if (!Array.isArray(profiles) || !profiles.length) return null;
       const totalWeight = profiles.reduce(
@@ -404,7 +446,8 @@
     start({
       humanRoleId = null,
       customerOrderMode = this.customerOrderMode,
-      playMode = this.playMode
+      playMode = this.playMode,
+      productionProcesses = this.productionProcesses
     } = {}) {
       if (humanRoleId && !this.roles[humanRoleId]) {
         throw new Error(`Onbekende spelersrol: ${humanRoleId}`);
@@ -412,6 +455,7 @@
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
       this.setPlayMode(playMode);
+      this.setProductionProcesses(productionProcesses);
       this.reset();
       const now = this.now();
       this.started = true;
@@ -494,12 +538,16 @@
         dueAt: now + this.randomBetween(this.config.dueTimeMinMs, this.config.dueTimeMaxMs),
         routeIndex: 0,
         currentRoleId: ROLE_FLOW[0],
+        productionRoute: this.productionRouteForNextOrder(),
+        productionDepartment: null,
+        roleFlow: [],
         status: this.humanRoleId === "customer" ? "DRAFT" : "ACTIVE",
         qualityRetries: 0,
         history: []
       };
+      this.assignOrderRoleFlow(order);
       this.orders.set(id, order);
-      this.enqueue(ROLE_FLOW[0], id);
+      this.enqueue(order.roleFlow[0], id);
       this.addFeed(
         "order",
         this.humanRoleId === "customer"
@@ -572,7 +620,7 @@
       runtime.stateSince = now;
       runtime.incident = null;
       order.currentRoleId = roleId;
-      order.routeIndex = ROLE_FLOW.indexOf(roleId);
+      order.routeIndex = order.roleFlow.indexOf(roleId);
       if (roleId === this.humanRoleId) {
         runtime.state = ROLE_STATES.AWAITING_PLAYER;
         runtime.completesAt = null;
@@ -691,8 +739,8 @@
         type: "completed",
         label: this.roles[roleId].form.actionLabel
       });
-      const currentIndex = ROLE_FLOW.indexOf(roleId);
-      const nextRoleId = ROLE_FLOW[currentIndex + 1] || null;
+      const currentIndex = order.roleFlow.indexOf(roleId);
+      const nextRoleId = order.roleFlow[currentIndex + 1] || null;
       if (!nextRoleId) {
         order.status = "DELIVERED";
         order.currentRoleId = null;
@@ -740,6 +788,17 @@
         });
         return allParts;
       }
+      if (
+        order.productionRoute === "parallel"
+        && roleId === order.productionDepartment
+      ) {
+        return Object.values(product.stages).reduce((allParts, recipe) => {
+          Object.entries(recipe).forEach(([partId, amount]) => {
+            allParts[partId] = (allParts[partId] || 0) + amount * order.quantity;
+          });
+          return allParts;
+        }, {});
+      }
       const recipe = product.stages[roleId] || {};
       return Object.fromEntries(
         Object.entries(recipe).map(([partId, amount]) => [partId, amount * order.quantity])
@@ -752,8 +811,28 @@
       if (runtime.state !== ROLE_STATES.AWAITING_PLAYER || !runtime.activeOrderId) return null;
       const order = this.orders.get(runtime.activeOrderId);
       if (!order) return null;
+      const role = deepClone(this.roles[this.humanRoleId]);
+      if (
+        order.productionRoute === "parallel"
+        && PARALLEL_PRODUCTION_ROLES.includes(this.humanRoleId)
+      ) {
+        const departmentLabel = String.fromCharCode(
+          65 + PARALLEL_PRODUCTION_ROLES.indexOf(this.humanRoleId)
+        );
+        role.department = `PRODUCTIEAFDELING ${departmentLabel}`;
+        role.title = `MANAGER PRODUCTIE ${departmentLabel}`;
+        role.form.tasks = [
+          "Controleer de complete productorder",
+          "Bouw alle drie torenlagen",
+          "Meld het complete product gereed"
+        ];
+        role.form.actionLabel = "Complete toren bouwen";
+        role.form.transferLabel = "Breng gereed product naar SSF";
+      } else if (order.productionRoute === "parallel" && this.humanRoleId === "srm") {
+        role.form.transferLabel = `Breng complete materiaalset naar ${order.productionDepartment.toUpperCase()}`;
+      }
       return {
-        role: deepClone(this.roles[this.humanRoleId]),
+        role,
         order: deepClone(order),
         product: deepClone(this.products[order.productId]),
         requiredParts: this.requiredParts(order, this.humanRoleId),
@@ -859,6 +938,7 @@
         order.productName = product.name;
         order.quantity = quantity;
         order.dueAt = this.now() + dueMinutes * 60 * 1000;
+        this.assignOrderRoleFlow(order);
       }
 
       const now = this.now();
@@ -904,6 +984,7 @@
         humanRoleId: this.humanRoleId,
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
+        productionProcesses: [...this.productionProcesses],
         nextOrderAt: this.nextOrderAt,
         roles: deepClone(this.roles),
         products: deepClone(this.products),

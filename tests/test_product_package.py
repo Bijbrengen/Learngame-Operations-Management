@@ -407,6 +407,90 @@ process.stdout.write(JSON.stringify({{
             result["roleStates"],
         )
 
+    def test_standalone_engine_routes_parallel_orders_to_one_complete_product_department(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+let now = 1000;
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+const engine = new Engine({{
+  now: () => now,
+  random: () => 0.5,
+  config: {{
+    initialOrderDelayMs: 999999999,
+    transferDelayMinMs: 0,
+    transferDelayMaxMs: 0,
+    incidentChance: 0,
+    processingTimeScale: 1
+  }}
+}});
+engine.start({{
+  humanRoleId: "pd2",
+  productionProcesses: ["parallel"]
+}});
+const created = engine.generateOrder();
+for (let index = 0; index < 20 && !engine.playerTask(); index += 1) {{
+  now += 1000;
+  engine.update(now);
+}}
+const task = engine.playerTask();
+const before = engine.snapshot().orders.find(order => order.id === created.id);
+const completed = engine.completePlayerAction({{
+  parts: task.requiredParts,
+  signed: true,
+  transferred: true
+}});
+for (let index = 0; index < 20; index += 1) {{
+  now += 1000;
+  engine.update(now);
+}}
+const delivered = engine.snapshot().orders.find(order => order.id === created.id);
+process.stdout.write(JSON.stringify({{
+  productionProcesses: engine.snapshot().productionProcesses,
+  productionRoute: before.productionRoute,
+  productionDepartment: before.productionDepartment,
+  roleFlow: before.roleFlow,
+  taskRole: task.role.id,
+  taskTitle: task.role.title,
+  requiredParts: task.requiredParts,
+  completed,
+  delivered: delivered.status
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual(["parallel"], result["productionProcesses"])
+        self.assertEqual("parallel", result["productionRoute"])
+        self.assertEqual("pd2", result["productionDepartment"])
+        self.assertEqual(
+            ["customer", "operations", "srm", "pd2", "ssf"],
+            result["roleFlow"],
+        )
+        self.assertEqual("pd2", result["taskRole"])
+        self.assertEqual("MANAGER PRODUCTIE B", result["taskTitle"])
+        self.assertEqual(
+            {
+                "base_green": 2,
+                "blue_8": 4,
+                "yellow_4": 2,
+                "green_4": 2,
+            },
+            result["requiredParts"],
+        )
+        self.assertTrue(result["completed"]["ok"])
+        self.assertEqual("DELIVERED", result["delivered"])
+
     def test_entrepreneurship_agents_use_anonymous_historical_patterns(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
