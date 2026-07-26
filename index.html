@@ -958,8 +958,91 @@
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>
   <script src="logistics-game-ui.js"></script>
-  <script src="lego-builder.js"></script>
-  <script src="isometric-logistics-view.js"></script>
-  <script src="script.js"></script>
+  <!-- LeerpretSDK-hub: de SDK-logica wordt door de Leerpret-backend geserveerd.
+       Deze loader bepaalt dezelfde backend-basis-URL als leerpret-auth.js (via
+       ?api=, onthouden api_base, of host:8011) en laadt vervolgens de SDK plus
+       de afhankelijke game-scripts in strikte volgorde. Zo werkt het zowel
+       same-origin (via de backend) als op een losse frontend op een andere
+       poort. Override de basis met window.LEERPRET_SDK_BASE. Valt de backend
+       weg, dan toont lego-builder.js een nette fallback. -->
+  <script>
+    (function () {
+      function loopback(h) {
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].indexOf(String(h || "").toLowerCase()) !== -1;
+      }
+      function localApi() {
+        var h = location.hostname || "127.0.0.1";
+        var fh = (h.indexOf(":") !== -1 && h.charAt(0) !== "[") ? "[" + h + "]" : h;
+        var p = location.protocol === "https:" ? "https:" : "http:";
+        return p + "//" + fh + ":8011/api";
+      }
+      function clean(value, fallback) {
+        try {
+          var url = new URL(String(value).trim(), location.origin);
+          return ["http:", "https:"].indexOf(url.protocol) !== -1 ? url.toString().replace(/\/+$/, "") : fallback;
+        } catch (e) { return fallback; }
+      }
+      function base() {
+        var underTools = location.pathname.indexOf("/tools/leerbox/") === 0;
+        var fallback = underTools ? (location.origin + "/api") : localApi();
+        // Expliciete overrides winnen zonder loopback-correctie.
+        if (window.LEERPRET_SDK_BASE) return clean(window.LEERPRET_SDK_BASE, fallback);
+        var explicit = new URLSearchParams(location.search).get("api");
+        if (explicit) return clean(explicit, fallback);
+        // Onthouden basis: op een loopback-pagina buiten /tools forceren we :8011.
+        var remembered;
+        try { remembered = localStorage.getItem("api_base") || localStorage.getItem("leerpret.apiBase"); } catch (e) {}
+        var value = remembered || fallback;
+        try {
+          var url = new URL(String(value).trim(), location.origin);
+          if (["http:", "https:"].indexOf(url.protocol) === -1) return fallback;
+          if (loopback(location.hostname) && loopback(url.hostname) && !underTools) return localApi();
+          return url.toString().replace(/\/+$/, "");
+        } catch (e) { return fallback; }
+      }
+      // SDK-kandidaten: primaire basis + loopback-variant. Zo vangen we het
+      // klassieke localhost/127.0.0.1-verschil op (backend op IPv4 terwijl de
+      // pagina localhost → IPv6 ::1 gebruikt, of andersom).
+      function sdkCandidates() {
+        var primary = base() + "/sdk/lego-builder/logic.js";
+        var list = [primary];
+        try {
+          var u = new URL(primary, location.origin);
+          if (u.hostname === "localhost") { u.hostname = "127.0.0.1"; list.push(u.toString()); }
+          else if (u.hostname === "127.0.0.1") { u.hostname = "localhost"; list.push(u.toString()); }
+        } catch (e) {}
+        return list;
+      }
+      // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
+      // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
+      // werkt ook op een losse frontend op een andere poort.
+      var tail = ["lego-builder.js", "isometric-logistics-view.js", "script.js"];
+      function loadTail(i) {
+        if (i >= tail.length) return;
+        var s = document.createElement("script");
+        s.src = tail[i];
+        s.async = false;
+        s.onload = function () { loadTail(i + 1); };
+        s.onerror = function () { loadTail(i + 1); };
+        document.head.appendChild(s);
+      }
+      var candidates = sdkCandidates();
+      (function trySdk(i) {
+        if (i >= candidates.length) {
+          window.__LEERPRET_SDK_LOAD_ERROR = candidates[0];
+          console.warn("LeerpretSDK: kon de SDK niet laden (geprobeerd: " + candidates.join(", ") +
+            "; pagina-origin " + location.origin + "). Mogelijk onbereikbare backend, verkeerde poort of mixed-content (https-pagina → http-backend).");
+          loadTail(0);
+          return;
+        }
+        var s = document.createElement("script");
+        s.src = candidates[i];
+        s.async = false;
+        s.onload = function () { loadTail(0); };
+        s.onerror = function () { trySdk(i + 1); };
+        document.head.appendChild(s);
+      })(0);
+    })();
+  </script>
 </body>
 </html>

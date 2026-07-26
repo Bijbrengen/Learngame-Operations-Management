@@ -9,6 +9,18 @@ from pathlib import Path
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
 
+# De LeerpretSDK-logica woont nu in de Leerpret-backend (naast deze repo). Override
+# met LEERPRET_SDK_LOGIC; standaard de sibling-repo onder dezelfde parent.
+import os
+
+SDK_LOGIC_PATH = Path(
+    os.getenv("LEERPRET_SDK_LOGIC")
+    or (PRODUCT_ROOT.parent / "Leerpret" / "backend" / "app" / "sdk" / "components" / "lego-builder.logic.js")
+).resolve()
+# Pad zoals node het vanuit cwd=PRODUCT_ROOT ziet (voor de vm-tests).
+SDK_LOGIC_JS_FOR_NODE = SDK_LOGIC_PATH.as_posix()
+_SDK_AVAILABLE = SDK_LOGIC_PATH.is_file()
+
 
 class ProductPackageTests(unittest.TestCase):
     def test_declared_entrypoint_and_fixtures_exist(self) -> None:
@@ -75,7 +87,9 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("Karakter aanpassen", html)
         self.assertIn('src="character-creation.js"', html)
         self.assertIn('src="behavior-quality.js"', html)
-        self.assertLess(html.index('src="character-creation.js"'), html.index('src="script.js"'))
+        # script.js wordt nu via de LeerpretSDK-laadketen ingeladen (niet meer als
+        # los src="script.js"), maar nog steeds na character-creation.js.
+        self.assertLess(html.index('src="character-creation.js"'), html.index('"script.js"'))
         self.assertIn("basic_style", wizard)
         self.assertIn("response_style", wizard)
         self.assertIn("Wat minder bij je past", wizard)
@@ -320,6 +334,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -395,6 +410,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -447,6 +463,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -485,13 +502,15 @@ process.stdout.write(JSON.stringify({{
         self.assertIn(".sim-waiting-tabs", styles)
         self.assertIn(".sim-process-flow-mount", styles)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_interactive_lego_builder_uses_the_three_source_products(self) -> None:
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
-        self.assertIn('src="lego-builder.js"', html)
+        self.assertIn('"lego-builder.js"', html)  # via de LeerpretSDK-laadketen
         self.assertIn('id="legoBuilderMount"', html)
         self.assertIn("window.LegoTowerRenderer.renderPart", builder)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
@@ -511,7 +530,10 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("LegoTowerRenderer.brick", builder)
         self.assertIn("builder-isometric-scene", builder)
         self.assertIn("validateBuild", builder)
-        self.assertIn("normalizedSignature", builder)
+        # De pure kwaliteitscontrole-logica is verhuisd naar de LeerpretSDK-module;
+        # de browsercomponent leunt erop via core.*.
+        self.assertIn("normalizedSignature", logic)
+        self.assertIn("core.validateBuildStrict", builder)
         self.assertIn("tutorialRotationForPiece", builder)
         self.assertIn("dragstart", builder)
         self.assertIn("grid", builder.lower())
@@ -521,6 +543,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('A: { lower: "yellow", middle: "red", upper: "white"', renderer)
         self.assertIn("getLegoBuilderSnapshot", game)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_tutorial_board_renders_translucent_3d_target_bricks_with_studs(self) -> None:
         node_program = r"""
 const fs = require("fs");
@@ -531,6 +554,7 @@ global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
 const container = {
   innerHTML: "",
@@ -578,6 +602,7 @@ process.stdout.write(JSON.stringify({
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -618,6 +643,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn('"Volledig bouwvoorbeeld van Toren A"', render_section)
         self.assertNotIn("TUTORIAL[state.tutorialStep].sequence", render_section)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_tutorial_placement_snaps_forgivingly_through_build_step_two(self) -> None:
         node_program = r"""
 const fs = require("fs");
@@ -629,9 +655,10 @@ global.addEventListener = () => {};
 global.removeEventListener = () => {};
 global.setTimeout = callback => callback();
 vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 const builderSource = fs.readFileSync("lego-builder.js", "utf8").replace(
-  "window.LegoBuilder = {",
-  "window.__placeTutorialBrickForTest = placeAt;\n  window.LegoBuilder = {"
+  "window.LegoBuilder = {\n    mount,",
+  "window.__placeTutorialBrickForTest = placeAt;\n  window.LegoBuilder = {\n    mount,"
 );
 vm.runInThisContext(builderSource);
 const container = {
@@ -657,6 +684,7 @@ process.stdout.write(JSON.stringify({
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -678,6 +706,7 @@ process.stdout.write(JSON.stringify({
             result["red"],
         )
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_second_tower_build_has_no_transparent_target_layer(self) -> None:
         node_program = r"""
 const fs = require("fs");
@@ -688,6 +717,7 @@ global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
 const container = {
   innerHTML: "",
@@ -717,6 +747,7 @@ process.stdout.write(JSON.stringify({
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -814,6 +845,7 @@ global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
 vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const container = {
   innerHTML: "",
@@ -859,6 +891,7 @@ process.stdout.write(JSON.stringify({
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -907,6 +940,7 @@ process.stdout.write(JSON.stringify({ focused, normal }));
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -925,6 +959,7 @@ global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
 vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const makeContainer = () => ({
   innerHTML: "",
@@ -995,6 +1030,7 @@ process.stdout.write(JSON.stringify({
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -1148,10 +1184,12 @@ process.stdout.write(JSON.stringify({
             (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"),
         )
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_tutorial_uses_visual_drag_only_guidance(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         tower_renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
@@ -1167,9 +1205,10 @@ process.stdout.write(JSON.stringify({
         self.assertIn('aria-disabled="${outOfStock}"', builder)
         self.assertIn(".builder-palette-item.is-out-of-stock", styles)
         self.assertIn(".builder-stock-hint-backdrop", styles)
-        self.assertIn('sequence: ["yellow_8", "yellow_8"]', builder)
-        self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8"]', builder)
-        self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8", "white_4"]', builder)
+        # De TUTORIAL-sequenties wonen nu in de LeerpretSDK-logica-module.
+        self.assertIn('sequence: ["yellow_8", "yellow_8"]', logic)
+        self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8"]', logic)
+        self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8", "white_4"]', logic)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
         self.assertIn("static layoutSequence(sequence)", tower_renderer)
         self.assertIn("static renderAnimated(", tower_renderer)
@@ -1339,6 +1378,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -1501,6 +1541,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -1582,6 +1623,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,
@@ -1631,6 +1673,7 @@ process.stdout.write(JSON.stringify({{
         completed_process = subprocess.run(
             ["node", "-e", node_program],
             cwd=PRODUCT_ROOT,
+            env={**os.environ, "SDK_LOGIC": SDK_LOGIC_JS_FOR_NODE},
             check=True,
             capture_output=True,
             text=True,

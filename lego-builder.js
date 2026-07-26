@@ -1,68 +1,55 @@
 (() => {
   "use strict";
 
-  const PIECES = {
-    yellow_8: { id: "yellow_8", label: "Geel 2×4", color: "yellow", width: 2, depth: 4 },
-    red_8: { id: "red_8", label: "Rood 2×4", color: "red", width: 2, depth: 4 },
-    white_4: { id: "white_4", label: "Wit 2×2", color: "white", width: 2, depth: 2 },
-    blue_8: { id: "blue_8", label: "Blauw 2×4", color: "blue", width: 2, depth: 4 },
-    yellow_4: { id: "yellow_4", label: "Geel 2×2", color: "yellow", width: 2, depth: 2 },
-    green_4: { id: "green_4", label: "Groen 2×2", color: "green", width: 2, depth: 2 },
-    white_8: { id: "white_8", label: "Wit 2×4", color: "white", width: 2, depth: 4 },
-    blue_4: { id: "blue_4", label: "Blauw 2×2", color: "blue", width: 2, depth: 2 },
-    red_4: { id: "red_4", label: "Rood 2×2", color: "red", width: 2, depth: 2 }
-  };
+  // LeerpretSDK · component "lego-builder"
+  // Data en pure logica komen uit de SDK-module (sdk/components/lego-builder.logic.js),
+  // die vóór dit bestand geladen wordt. Dit bestand bevat alleen nog DOM/render/events.
+  const LOGIC = (typeof window !== "undefined"
+    && window.LeerpretSDK
+    && window.LeerpretSDK.components
+    && window.LeerpretSDK.components["lego-builder"]
+    && window.LeerpretSDK.components["lego-builder"].logic) || null;
 
-  const GOALS = {
-    A: {
-      name: "Toren A",
-      sequence: ["yellow_8", "yellow_8", "red_8", "white_4"],
-      request: "Bouw twee gele 2×4-blokken, een rood 2×4-blok en een wit 2×2-blok.",
-      bricks: [
-        { type: "yellow_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "yellow_8", x: 3, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "red_8", x: 1, y: 2, width: 4, depth: 2, z: 1 },
-        { type: "white_4", x: 2, y: 2, width: 2, depth: 2, z: 2 }
-      ]
-    },
-    B: {
-      name: "Toren B",
-      sequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
-      request: "Bouw twee blauwe 2×4-blokken met daarop geel 2×2 en groen 2×2.",
-      bricks: [
-        { type: "blue_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "blue_8", x: 3, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "yellow_4", x: 2, y: 2, width: 2, depth: 2, z: 1 },
-        { type: "green_4", x: 2, y: 2, width: 2, depth: 2, z: 2 }
-      ]
-    },
-    C: {
-      name: "Toren C",
-      sequence: ["white_8", "white_8", "blue_4", "red_4"],
-      request: "Bouw twee witte 2×4-blokken met daarop blauw 2×2 en rood 2×2.",
-      bricks: [
-        { type: "white_8", x: 1, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "white_8", x: 3, y: 1, width: 2, depth: 4, z: 0 },
-        { type: "blue_4", x: 2, y: 2, width: 2, depth: 2, z: 1 },
-        { type: "red_4", x: 2, y: 2, width: 2, depth: 2, z: 2 }
-      ]
-    }
-  };
+  if (!LOGIC) {
+    // Nette degradatie i.p.v. een crash wanneer de SDK-logica niet geladen is.
+    const noop = () => {};
+    window.LegoBuilder = {
+      mount(target) {
+        if (target) {
+          var tried = (typeof window !== "undefined" && window.__LEERPRET_SDK_LOAD_ERROR)
+            ? " Geprobeerde URL: " + window.__LEERPRET_SDK_LOAD_ERROR + " (pagina: " + location.origin + ")."
+            : "";
+          target.innerHTML =
+            '<p class="builder-feedback is-error">De LeerpretSDK lego-logica kon niet worden geladen. Controleer of de backend bereikbaar is (of stel window.LEERPRET_SDK_BASE in).' + tried + '</p>';
+        }
+      },
+      setProduct: () => false,
+      registerProduct: () => false,
+      unregisterProduct: () => false,
+      startFreeBuild: noop,
+      prepareStockTutorial: noop,
+      setStockTutorialInventory: noop,
+      reset: noop,
+      restartTutorial: noop,
+      setFreeBuildUnlocked: noop,
+      setInternalLogisticsComplete: noop,
+      skipTutorial: noop,
+      validateBuild: () => false,
+      getCatalog: () => ({}),
+      getSnapshot: () => ({})
+    };
+    return;
+  }
 
-  const TUTORIAL = [
-    {
-      expectedCount: 2,
-      sequence: ["yellow_8", "yellow_8"]
-    },
-    {
-      expectedCount: 3,
-      sequence: ["yellow_8", "yellow_8", "red_8"]
-    },
-    {
-      expectedCount: 4,
-      sequence: ["yellow_8", "yellow_8", "red_8", "white_4"]
-    }
-  ];
+  // Eén bron van waarheid: verse, geïsoleerde instantie van de logica-kern.
+  const core = LOGIC.create();
+  const PIECES = core.PIECES;
+  const GOALS = core.GOALS;
+  const TUTORIAL = core.TUTORIAL;
+  const escapeHtml = core.escapeHtml;
+  const canonical = core.canonical;
+  const sameBuild = core.sameBuild;
+  const physicalLayer = core.physicalLayer;
 
   const BOARD_VIEWBOX = { width: 520, height: 420 };
   const BOARD_TRANSFORM = { x: 170, y: 62, scale: 2 };
@@ -86,43 +73,6 @@
     feedback: { kind: "info", text: "Lees de klantvraag en kies het eerste blokje." }
   };
 
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
-
-  function canonical(brick) {
-    return `${brick.type}:${brick.x}:${brick.y}:${brick.width}:${brick.depth}:${brick.z}`;
-  }
-
-  function sameBuild(actual, expected) {
-    return actual.map(canonical).sort().join("|") === expected.map(canonical).sort().join("|");
-  }
-
-  function rotateBrick(brick) {
-    return {
-      ...brick,
-      x: -brick.y - brick.depth,
-      y: brick.x,
-      width: brick.depth,
-      depth: brick.width
-    };
-  }
-
-  function normalizedSignature(bricks) {
-    if (!bricks.length) return "";
-    const minX = Math.min(...bricks.map(brick => brick.x));
-    const minY = Math.min(...bricks.map(brick => brick.y));
-    return bricks
-      .map(brick => canonical({ ...brick, x: brick.x - minX, y: brick.y - minY }))
-      .sort()
-      .join("|");
-  }
-
   function rotateSelectedPiece() {
     const piece = PIECES[state.selectedType];
     if (!piece || piece.width === piece.depth) {
@@ -145,30 +95,11 @@
   }
 
   function validateBuildStrict(productId, bricks) {
-    if (!GOALS[productId] || !Array.isArray(bricks)) return { valid: false, reason: "invalid_input" };
-    const actualSignature = normalizedSignature(bricks);
-    const expected = GOALS[productId].bricks;
-    const expectedSignature = normalizedSignature(expected);
-
-    // Exact signature match (position AND orientation)
-    if (actualSignature === expectedSignature) {
-      return { valid: true, reason: "correct" };
-    }
-
-    // Check if the overall structure matches a rotated variant (wrong orientation)
-    let rotatedExpected = expected.map(brick => ({ ...brick }));
-    for (let turn = 1; turn < 4; turn += 1) {
-      rotatedExpected = rotatedExpected.map(rotateBrick);
-      if (actualSignature === normalizedSignature(rotatedExpected)) {
-        return { valid: false, reason: "quality_orientation_mismatch" };
-      }
-    }
-
-    return { valid: false, reason: "mismatch" };
+    return core.validateBuildStrict(GOALS, productId, bricks);
   }
 
   function validateBuild(productId, bricks) {
-    return validateBuildStrict(productId, bricks).valid;
+    return core.validateBuild(GOALS, productId, bricks);
   }
 
   function isExpectedTutorialBrick(candidate) {
@@ -190,30 +121,12 @@
       ))[0] || null;
   }
 
-  function surfaceAt(x, y) {
-    return state.bricks.reduce((height, brick) => {
-      const covers = x >= brick.x && x < brick.x + brick.width && y >= brick.y && y < brick.y + brick.depth;
-      return covers ? Math.max(height, brick.z + 1) : height;
-    }, 0);
-  }
-
   function supportedLayer(x, y, width, depth) {
-    const heights = [];
-    for (let px = x; px < x + width; px += 1) {
-      for (let py = y; py < y + depth; py += 1) heights.push(surfaceAt(px, py));
-    }
-    return heights.every(height => height === heights[0]) ? heights[0] : null;
+    return core.supportedLayer(state.bricks, x, y, width, depth);
   }
 
   function currentPiece() {
-    const piece = PIECES[state.selectedType];
-    if (!piece) return null;
-    const rotate = state.rotated && piece.width !== piece.depth;
-    return {
-      ...piece,
-      width: rotate ? piece.depth : piece.width,
-      depth: rotate ? piece.width : piece.depth
-    };
+    return core.resolvePiece(PIECES, state.selectedType, state.rotated);
   }
 
   function tutorialRotationForPiece(type) {
@@ -339,10 +252,6 @@
       x: ((event.clientX - rect.left) / rect.width) * BOARD_VIEWBOX.width,
       y: ((event.clientY - rect.top) / rect.height) * BOARD_VIEWBOX.height
     };
-  }
-
-  function physicalLayer(z) {
-    return 0.22 + z * 0.78;
   }
 
   function boardProjection(x, y, z) {
@@ -895,53 +804,14 @@
   }
 
   function registerProduct(product) {
-    const sequence = Array.isArray(product?.towerSequence)
-      ? product.towerSequence.filter(pieceId => PIECES[pieceId])
-      : [];
-    const foundationCount = PIECES[sequence[0]]?.width === 2 && PIECES[sequence[0]]?.depth === 2
-      ? 4
-      : 2;
-    if (
-      !product?.id
-      || !product?.name
-      || sequence.length !== foundationCount + 2
-      || !sequence.slice(0, foundationCount).every(type => (
-        PIECES[type]?.width === PIECES[sequence[0]]?.width
-        && PIECES[type]?.depth === PIECES[sequence[0]]?.depth
-      ))
-    ) {
-      return false;
-    }
-    const foundationPositions = foundationCount === 4
-      ? [[1, 1], [3, 1], [1, 3], [3, 3]]
-      : [[1, 1], [3, 1]];
-    const bricks = sequence.map((type, index) => {
-      const piece = PIECES[type];
-      if (index < foundationCount) {
-        const [x, y] = foundationPositions[index];
-        return { type, x, y, width: piece.width, depth: piece.depth, z: 0 };
-      }
-      const long = piece.width === 2 && piece.depth === 4;
-      return {
-        type,
-        x: long ? 1 : 2,
-        y: 2,
-        width: long ? 4 : piece.width,
-        depth: long ? 2 : piece.depth,
-        z: index - foundationCount + 1
-      };
-    });
-    GOALS[product.id] = {
-      name: product.name,
-      sequence,
-      request: `Bouw ${product.name} volgens het ontwerp uit het productassortiment.`,
-      bricks
-    };
+    const goal = core.buildProductGoal(PIECES, product);
+    if (!goal) return false;
+    GOALS[product.id] = goal;
     return true;
   }
 
   function unregisterProduct(productId) {
-    if (["A", "B", "C"].includes(productId) || !GOALS[productId]) return false;
+    if (core.isBuiltinProduct(productId) || !GOALS[productId]) return false;
     delete GOALS[productId];
     if (state.productId === productId) {
       state.productId = "A";

@@ -1,14 +1,14 @@
-# FreellSDK — Blauwdruk (Shadow DOM component host)
+# LeerpretSDK — Blauwdruk (Shadow DOM component host)
 
 Ontwerpdocument. Nog geen code gewijzigd. Doel: het lego-cluster
 (`lego-builder.js`, `lego-tower-renderer.js`, `tower-editor.js`) omvormen tot
-een ingekapselde FreellSDK-component, als eerste bouwsteen van een echte SDK.
+een ingekapselde LeerpretSDK-component, als eerste bouwsteen van een echte SDK.
 
 ---
 
 ## 1. Doel & principes
 
-- **Eén global.** Alles hangt onder `window.FreellSDK`. Geen losse `LegoBuilder`,
+- **Eén global.** Alles hangt onder `window.LeerpretSDK`. Geen losse `LegoBuilder`,
   `LegoTowerRenderer`, `TowerEditor` meer in de globale ruimte.
 - **Echte inkapseling via Shadow DOM.** De UI van een component leeft in een
   shadow root. Styling van de component botst niet met de pagina en de pagina
@@ -17,7 +17,7 @@ een ingekapselde FreellSDK-component, als eerste bouwsteen van een echte SDK.
   niet meer defensief te prefixen. De scope beschermt je. De koppeling
   "klassenaam in JS-string ↔ klassenaam in style.css" verdwijnt als probleem.
 - **Dunne frontend.** De pagina (bv. GitHub Pages) laadt de SDK en roept
-  `FreellSDK.mount(...)` aan. Valt de SDK weg, dan toont de pagina een minimale
+  `LeerpretSDK.mount(...)` aan. Valt de SDK weg, dan toont de pagina een minimale
   fallback.
 - **Testzwaartepunt naar pure logica.** Wat getest kan worden zonder browser
   (validatie, catalogus, state) wordt zuiver testbaar gemaakt; alleen render/klik
@@ -28,7 +28,7 @@ een ingekapselde FreellSDK-component, als eerste bouwsteen van een echte SDK.
 ## 2. Architectuur op hoofdlijnen
 
 ```
-window.FreellSDK
+window.LeerpretSDK
 ├── version            "1.0.0"
 ├── mount(el, opts)    → maakt shadow root, injecteert CSS, rendert component
 ├── register(id, def)  → een component onder de SDK aanmelden
@@ -60,17 +60,17 @@ ding draagt twee niveaus — het SDK-merk én de component-id.** Nooit een kaal
 | Wat | Conventie | Voorbeeld (lego-bouwer) |
 | --- | --- | --- |
 | Component-id (de bron van waarheid) | kort, kebab-case, domein-gekwalificeerd | `lego-builder` |
-| JS-toegang | `FreellSDK.components["<id>"]` | `FreellSDK.components["lego-builder"]` |
+| JS-toegang | `LeerpretSDK.components["<id>"]` | `LeerpretSDK.components["lego-builder"]` |
 | Custom element / mount-tag | `freell-<id>` | `<freell-lego-builder>` |
 | Events | `<id>:<event>` | `lego-builder:build_valid` |
-| Publieke CSS-variabelen | `--fs-<id>-<naam>` | `--fs-lego-builder-accent` |
+| Publieke CSS-variabelen | `--ls-<id>-<naam>` | `--ls-lego-builder-accent` |
 | CSS-bestand | `<id>.css` | `lego-builder.css` |
 | Interne CSS-klassen | géén prefix nodig (shadow-scoped) | `.brick`, `.panel` |
 
 Het domeinwoord (`lego-`) blijft dus deel van de component-id. Zo blijft het
 helder als de SDK groeit: `lego-builder` naast een toekomstige `quiz-player` of
 `chart-widget`, elk met eigen events (`quiz-player:answered`) en eigen
-CSS-variabelen (`--fs-quiz-player-*`). De interne klassen binnen een component
+CSS-variabelen (`--ls-quiz-player-*`). De interne klassen binnen een component
 hoeven niets te prefixen — de shadow root scheidt ze al.
 
 ---
@@ -81,10 +81,10 @@ Voorstel — houd het klein en herkenbaar:
 
 ```
 sdk/
-├── freell-sdk.js          # de enige <script> die de pagina laadt (boot + namespace)
+├── leerpret-sdk.js          # de enige <script> die de pagina laadt (boot + namespace)
 ├── sdk.manifest.json      # ← bron van waarheid: alle component-id's → bestanden
 ├── components/
-│   ├── lego-builder.js    # FreellSDK.register("lego-builder", …)
+│   ├── lego-builder.js    # LeerpretSDK.register("lego-builder", …)
 │   ├── lego-renderer.js
 │   └── lego-editor.js
 └── styles/
@@ -142,12 +142,12 @@ restylen. Dat wil je meestal ook — maar je laat bewust een paar knoppen open v
 
 ```css
 /* in de host-pagina */
-freell-lego { --fs-accent: #e11d48; --fs-radius: 12px; }
+freell-lego { --ls-accent: #e11d48; --ls-radius: 12px; }
 ```
 
 ```css
 /* binnen de component-CSS */
-.brick { border-radius: var(--fs-radius, 8px); }
+.brick { border-radius: var(--ls-radius, 8px); }
 ```
 
 Zo bepaal jij als SDK-bouwer welke stijl-haakjes app-bouwers mogen bedienen. Dat
@@ -157,10 +157,10 @@ is precies het contract dat een SDK hoort te hebben: klein, expliciet, stabiel.
 
 ## 6. Publieke API (afgeleid van de huidige LegoBuilder)
 
-De bestaande `LegoBuilder`-API is al bruikbaar als contract. Onder FreellSDK:
+De bestaande `LegoBuilder`-API is al bruikbaar als contract. Onder LeerpretSDK:
 
 ```js
-const lego = FreellSDK.mount(el, { component: "lego-builder", productId: "A" });
+const lego = LeerpretSDK.mount(el, { component: "lego-builder", productId: "A" });
 
 lego.setProduct(id)
 lego.registerProduct(def)      lego.unregisterProduct(id)
@@ -186,10 +186,10 @@ De pagina blijft dun en expliciet:
 
 ```html
 <div id="lego"><p class="offline">Onderdeel wordt geladen…</p></div>
-<script src="https://backend/sdk/freell-sdk.js"></script>
+<script src="https://backend/sdk/leerpret-sdk.js"></script>
 <script>
-  if (window.FreellSDK) {
-    FreellSDK.mount(document.getElementById("lego"), { component: "lego-builder", productId: "A" });
+  if (window.LeerpretSDK) {
+    LeerpretSDK.mount(document.getElementById("lego"), { component: "lego-builder", productId: "A" });
   } // anders blijft de "wordt geladen / offline"-tekst staan
 </script>
 ```
@@ -221,7 +221,7 @@ def test_alle_sdk_bestanden_zijn_ingeladen_en_gecachet():
     sw   = (ROOT / "service-worker.js").read_text()
     for comp in manifest["components"].values():
         for path in filter(None, [comp.get("js"), comp.get("css")]):
-            assert path in html or "freell-sdk.js" in html  # component óf de bundel
+            assert path in html or "leerpret-sdk.js" in html  # component óf de bundel
             assert path in sw                                # staat in de cachelijst
 ```
 
@@ -297,7 +297,7 @@ Klein en omkeerbaar, één component tegelijk:
 
 1. **`lego-renderer` eerst** — het is de puurste laag (SVG-tekenen, geen state),
    maar let op: **gedeeld** met `isometric-logistics-view.js` (48 verwijzingen).
-   Verplaats het achter `FreellSDK.components["lego-renderer"]` en laat een dunne
+   Verplaats het achter `LeerpretSDK.components["lego-renderer"]` en laat een dunne
    alias `window.LegoTowerRenderer` er tijdelijk naar wijzen, zodat de isometric
    view blijft werken tijdens de overgang.
 2. **`lego-editor`** — geïsoleerd, weinig consumenten. Om te zetten naar shadow
@@ -339,7 +339,7 @@ Op elk tussenpunt draait de app. Nooit meer dan één component "open".
 
 ## Samenvatting
 
-FreellSDK wordt één global die componenten in een Shadow DOM mount en hun CSS
+LeerpretSDK wordt één global die componenten in een Shadow DOM mount en hun CSS
 scoped meelevert. Dat maakt de prefix-vraag overbodig (scope i.p.v. prefix),
 haalt de JS↔CSS-driftfout weg, en geeft je een klein, expliciet stijl-contract
 via CSS-variabelen. De migratie loopt verticaal per component, met de gedeelde
