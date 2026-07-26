@@ -155,13 +155,7 @@
   }
 
   function recoverLocalApiBase() {
-    const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-    if (!loopbackHosts.has(String(location.hostname || "").toLowerCase())) return null;
-    if (location.pathname.startsWith("/tools/leerbox/")) return null;
-    const hostname = location.hostname.includes(":") && !location.hostname.startsWith("[")
-      ? `[${location.hostname}]`
-      : location.hostname;
-    return `${location.protocol === "https:" ? "https:" : "http:"}//${hostname}:8011/api`;
+    return window.LEARNGAME_OM_CONFIG?.apiBase || null;
   }
 
   async function request(path, options = {}, allowLocalRecovery = true) {

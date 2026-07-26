@@ -42,8 +42,8 @@ zonder kopie mounten op:
 /tools/leerbox/learngame-operations-management/
 ```
 
-Standalone draait de game normaal op poort `4173` en gebruikt zij
-LeerpretEngine op poort `8011`. De statische spelkern blijft zonder backend
+Standalone draait de game normaal op poort `47113` en gebruikt zij
+LeerpretEngine op poort `47111`. De statische spelkern blijft zonder backend
 bruikbaar; authenticatie, gedeelde sessies, duurzame profielopslag en
 servertelemetry vereisen de Engine.
 
@@ -122,12 +122,10 @@ beperkte sessie bevat standaard alleen `learner` (`Lerende`).
 dat recht in de getekende sessie heeft opgenomen. Deze cookie wordt niet door
 de engine-, architect- of technologieroutes als autorisatie geaccepteerd.
 
-Lokaal gebruikt de game standaard poort `8011` op dezelfde hostnaam waarmee
-de game is geopend. Bij `http://localhost:4173` wordt dat dus
-`http://localhost:8011/api`; bij `http://127.0.0.1:4173` wordt het
-`http://127.0.0.1:8011/api`. Een eerder opgeslagen afwijkende loopback-host
-wordt automatisch hersteld. Een andere centrale service kan via de
-opstartparameter `?api=...` worden gekozen. De Leerpret-backend
+De game leest `LEERPRET_API_URL` uit de root-`.env`; het gegenereerde
+`runtime-config.js` maakt die waarde beschikbaar aan de browser. De game
+probeert nooit automatisch een andere host of poort. Een tijdelijke centrale
+service kan voor een testsessie via `?api=...` worden gekozen. De Leerpret-backend
 moet voor een afzonderlijke oorsprong die oorsprong opnemen in
 `LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
 `GOOGLE_OAUTH_CLIENT_ID` en `GOOGLE_OAUTH_CLIENT_SECRET` op de backend en de
@@ -246,13 +244,13 @@ Open `index.html` rechtstreeks in de browser. Er is geen server nodig.
 Voor de PWA-functies, zoals installeren op het beginscherm en offline caching, moet de leerbox via `http://localhost` of `https://` worden geopend. Lokaal kan dat vanaf de repo-root bijvoorbeeld met:
 
 ```powershell
-python -m http.server 4173
+python -m http.server 47113
 ```
 
 Open daarna:
 
 ```text
-http://localhost:4173/
+http://localhost:47113/
 ```
 
 De service worker gebruikt een network-first strategie: bij verbinding wordt de nieuwste versie van de server opgehaald, terwijl eerder bezochte bestanden als fallback beschikbaar blijven.
@@ -439,13 +437,13 @@ het compacte transactieresultaat dat voor het leerdoel nodig is.
 Stap 2 is tijdens ontwikkeling rechtstreeks te openen via:
 
 ```text
-http://127.0.0.1:4173/#tutorialStep2
+http://127.0.0.1:47113/#tutorialStep2
 ```
 
 Stap 4 heeft voor gerichte ontwikkeling dezelfde directe route:
 
 ```text
-http://127.0.0.1:4173/#tutorialStep4
+http://127.0.0.1:47113/#tutorialStep4
 ```
 
 Daarna kan de speler een bestelling voor A, B of C kiezen. De catalogus en
@@ -539,7 +537,7 @@ window.LEARNGameOMSimulator.getLogisticsDepartments();
 De view is rechtstreeks te openen via:
 
 ```text
-http://127.0.0.1:4173/#isometricLogistics
+http://127.0.0.1:47113/#isometricLogistics
 ```
 
 ## Productgrens

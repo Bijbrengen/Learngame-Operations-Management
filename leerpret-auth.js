@@ -13,39 +13,16 @@
     googleCodeClient: null
   };
 
-  function loopbackHost(hostname) {
-    return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(String(hostname || "").toLowerCase());
-  }
-
-  function localApiForCurrentPage() {
-    const pageHost = location.hostname || "127.0.0.1";
-    const formattedHost = pageHost.includes(":") && !pageHost.startsWith("[")
-      ? `[${pageHost}]`
-      : pageHost;
-    const protocol = location.protocol === "https:" ? "https:" : "http:";
-    return `${protocol}//${formattedHost}:8011/api`;
-  }
-
-  function alignStoredLoopbackHost(value) {
-    if (!value || !loopbackHost(location.hostname)) return value;
-    try {
-      const url = new URL(String(value), location.origin);
-      if (!loopbackHost(url.hostname)) return value;
-      if (!location.pathname.startsWith("/tools/leerbox/")) {
-        return localApiForCurrentPage();
-      }
-      if (url.hostname === location.hostname) return value;
-      url.hostname = location.hostname;
-      return url.toString().replace(/\/+$/, "");
-    } catch {
-      return value;
+  function configuredApiBase() {
+    const configured = window.LEARNGAME_OM_CONFIG?.apiBase;
+    if (!configured) {
+      throw new Error("LEERPRET_API_URL ontbreekt in runtime-config.js");
     }
+    return configured;
   }
 
   function normalizedApiBase(value) {
-    const fallback = location.pathname.startsWith("/tools/leerbox/")
-      ? `${location.origin}/api`
-      : localApiForCurrentPage();
+    const fallback = configuredApiBase();
     try {
       const url = new URL(String(value || fallback).trim(), location.origin);
       return ["http:", "https:"].includes(url.protocol)
@@ -59,10 +36,7 @@
   function resolveApiBase() {
     const params = new URLSearchParams(location.search);
     const explicitApi = params.get("api");
-    const rememberedApi = localStorage.getItem("api_base") || localStorage.getItem(STORAGE_API);
-    state.apiBase = normalizedApiBase(
-      explicitApi || alignStoredLoopbackHost(rememberedApi)
-    );
+    state.apiBase = normalizedApiBase(explicitApi || configuredApiBase());
     localStorage.setItem("api_base", state.apiBase);
     localStorage.setItem(STORAGE_API, state.apiBase);
     if (params.has("api")) {

@@ -9,13 +9,29 @@ from pathlib import Path
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
 
-# De LeerpretSDK-logica woont nu in de Leerpret-backend (naast deze repo). Override
-# met LEERPRET_SDK_LOGIC; standaard de sibling-repo onder dezelfde parent.
+# De LeerpretSDK-logica woont in LeerpretEngine. Lees het Engine-pad uit dezelfde
+# lokale configuratie als de webapp; LEERPRET_SDK_LOGIC blijft een gerichte override.
 import os
 
+
+def _dotenv(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        values[name.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+_CONFIG = {**_dotenv(PRODUCT_ROOT / ".env.example"), **_dotenv(PRODUCT_ROOT / ".env")}
+_ENGINE_ROOT = Path(os.getenv("LEERPRET_ENGINE_DIR") or _CONFIG["LEERPRET_ENGINE_DIR"])
 SDK_LOGIC_PATH = Path(
     os.getenv("LEERPRET_SDK_LOGIC")
-    or (PRODUCT_ROOT.parent / "Leerpret" / "backend" / "app" / "sdk" / "components" / "lego-builder.logic.js")
+    or (_ENGINE_ROOT / "app" / "sdk" / "components" / "lego-builder.logic.js")
 ).resolve()
 # Pad zoals node het vanuit cwd=PRODUCT_ROOT ziet (voor de vm-tests).
 SDK_LOGIC_JS_FOR_NODE = SDK_LOGIC_PATH.as_posix()
@@ -1242,10 +1258,10 @@ process.stdout.write(JSON.stringify({
         self.assertIn('id="leerpretAuthStatus"', html)
         self.assertIn("https://accounts.google.com/gsi/client", html)
         self.assertIn('credentials: "include"', auth)
-        self.assertIn("localApiForCurrentPage", auth)
-        self.assertIn("alignStoredLoopbackHost", auth)
-        self.assertIn("return localApiForCurrentPage();", auth)
-        self.assertIn("url.hostname = location.hostname", auth)
+        self.assertIn("window.LEARNGAME_OM_CONFIG?.apiBase", auth)
+        self.assertIn("LEERPRET_API_URL ontbreekt in runtime-config.js", auth)
+        self.assertNotIn("localApiForCurrentPage", auth)
+        self.assertNotIn("alignStoredLoopbackHost", auth)
         self.assertIn("/auth/leerbox/session?leerbox_id=", auth)
         self.assertIn("/auth/leerbox/exchange?leerbox_id=", auth)
         self.assertIn('request("/auth/leerbox/google-code"', auth)

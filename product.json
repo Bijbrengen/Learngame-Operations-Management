@@ -30,7 +30,7 @@
       "cookie": "leerpret_leerbox_session",
       "default_role": "learner",
       "optional_entitlement": "attraction",
-      "standalone_api_default": "http://127.0.0.1:8011/api"
+      "standalone_api_config": "runtime-config.js#apiBase"
     },
     "legacy_event_message": "leerpret-preview-events",
     "host_owned_state": "backend/data/leerbox-mutations/leerbox-learngame-operations-management",

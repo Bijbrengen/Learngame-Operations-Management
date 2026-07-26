@@ -1,7 +1,8 @@
-const CACHE_VERSION = "learngame-om-v146";
+const CACHE_VERSION = "learngame-om-v147";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./runtime-config.js",
   "./style.css",
   "./script.js",
   "./game-configuration-store.js",
@@ -54,8 +55,7 @@ self.addEventListener("fetch", event => {
   if (
     url.pathname.includes("/api") ||
     url.pathname.includes("/v1/") ||
-    url.pathname.includes("/auth/") ||
-    url.port === "8011"
+    url.pathname.includes("/auth/")
   ) {
     return;
   }

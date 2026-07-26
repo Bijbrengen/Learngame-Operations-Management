@@ -946,6 +946,7 @@
     </form>
   </dialog>
 
+  <script src="runtime-config.js"></script>
   <script src="lego-tower-renderer.js"></script>
   <script src="tower-editor.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -958,24 +959,11 @@
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>
   <script src="logistics-game-ui.js"></script>
-  <!-- LeerpretSDK-hub: de SDK-logica wordt door de Leerpret-backend geserveerd.
-       Deze loader bepaalt dezelfde backend-basis-URL als leerpret-auth.js (via
-       ?api=, onthouden api_base, of host:8011) en laadt vervolgens de SDK plus
-       de afhankelijke game-scripts in strikte volgorde. Zo werkt het zowel
-       same-origin (via de backend) als op een losse frontend op een andere
-       poort. Override de basis met window.LEERPRET_SDK_BASE. Valt de backend
-       weg, dan toont lego-builder.js een nette fallback. -->
+  <!-- LeerpretSDK-hub: runtime-config.js bepaalt de Engine-URL. Een expliciete
+       ?api= of window.LEERPRET_SDK_BASE kan die voor een testsessie
+       overschrijven. Er wordt nooit automatisch naar een andere poort uitgeweken. -->
   <script>
     (function () {
-      function loopback(h) {
-        return ["localhost", "127.0.0.1", "::1", "[::1]"].indexOf(String(h || "").toLowerCase()) !== -1;
-      }
-      function localApi() {
-        var h = location.hostname || "127.0.0.1";
-        var fh = (h.indexOf(":") !== -1 && h.charAt(0) !== "[") ? "[" + h + "]" : h;
-        var p = location.protocol === "https:" ? "https:" : "http:";
-        return p + "//" + fh + ":8011/api";
-      }
       function clean(value, fallback) {
         try {
           var url = new URL(String(value).trim(), location.origin);
@@ -983,35 +971,19 @@
         } catch (e) { return fallback; }
       }
       function base() {
-        var underTools = location.pathname.indexOf("/tools/leerbox/") === 0;
-        var fallback = underTools ? (location.origin + "/api") : localApi();
+        var fallback = window.LEARNGAME_OM_CONFIG && window.LEARNGAME_OM_CONFIG.apiBase;
+        if (!fallback) throw new Error("LEERPRET_API_URL ontbreekt in runtime-config.js");
         // Expliciete overrides winnen zonder loopback-correctie.
         if (window.LEERPRET_SDK_BASE) return clean(window.LEERPRET_SDK_BASE, fallback);
         var explicit = new URLSearchParams(location.search).get("api");
         if (explicit) return clean(explicit, fallback);
-        // Onthouden basis: op een loopback-pagina buiten /tools forceren we :8011.
-        var remembered;
-        try { remembered = localStorage.getItem("api_base") || localStorage.getItem("leerpret.apiBase"); } catch (e) {}
-        var value = remembered || fallback;
-        try {
-          var url = new URL(String(value).trim(), location.origin);
-          if (["http:", "https:"].indexOf(url.protocol) === -1) return fallback;
-          if (loopback(location.hostname) && loopback(url.hostname) && !underTools) return localApi();
-          return url.toString().replace(/\/+$/, "");
-        } catch (e) { return fallback; }
+        return clean(fallback, fallback);
       }
       // SDK-kandidaten: primaire basis + loopback-variant. Zo vangen we het
       // klassieke localhost/127.0.0.1-verschil op (backend op IPv4 terwijl de
       // pagina localhost → IPv6 ::1 gebruikt, of andersom).
       function sdkCandidates() {
-        var primary = base() + "/sdk/lego-builder/logic.js";
-        var list = [primary];
-        try {
-          var u = new URL(primary, location.origin);
-          if (u.hostname === "localhost") { u.hostname = "127.0.0.1"; list.push(u.toString()); }
-          else if (u.hostname === "127.0.0.1") { u.hostname = "localhost"; list.push(u.toString()); }
-        } catch (e) {}
-        return list;
+        return [base() + "/sdk/lego-builder/logic.js"];
       }
       // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
