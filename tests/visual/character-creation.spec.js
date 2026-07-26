@@ -4,7 +4,7 @@ test.describe("Character Creation & Gedragsscan Wizard", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/accounts.google.com/**", route => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
     await page.route("**/v1/player/behavior-profile**", route => {
-      route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ exists: false }) });
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ exists: false }) });
     });
   });
 
@@ -48,18 +48,18 @@ test.describe("Character Creation & Gedragsscan Wizard", () => {
 
   test("kwaliteitscontrole signaleert te uniforme scans", async ({ page }) => {
     await page.goto("/");
-    await page.waitForFunction(() => window.BehaviorQuality);
+    await page.waitForFunction(() => window.BehaviorResponseQuality);
 
     const result = await page.evaluate(() => {
       const flatScan = Array(10).fill([5, 5, 5, 5]);
-      return window.BehaviorQuality.assessQuality({
+      return window.BehaviorResponseQuality.assess({
         basic_style: flatScan,
         response_style: flatScan
       });
     });
 
     expect(result).not.toBeNull();
-    expect(result.pass).toBe(false);
+    expect(result.doubtful).toBe(true);
     expect(result.reasons.length).toBeGreaterThan(0);
   });
 });

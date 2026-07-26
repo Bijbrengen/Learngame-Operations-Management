@@ -250,7 +250,7 @@ python -m http.server 47113
 Open daarna:
 
 ```text
-http://localhost:47113/
+http://127.0.0.1:47113/
 ```
 
 De service worker gebruikt een network-first strategie: bij verbinding wordt de nieuwste versie van de server opgehaald, terwijl eerder bezochte bestanden als fallback beschikbaar blijven.
