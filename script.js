@@ -1336,6 +1336,8 @@
     customProducts: loadCustomProducts(),
     appView: "player",
     managerTab: "session",
+    insightsTab: "overview",
+    towerTab: "builder",
     attention: {
       mode: "task",
       timer: null,
@@ -1453,11 +1455,8 @@
     chapter9LibraryButton: document.getElementById("chapter9LibraryButton"),
     chapter9LibraryDialog: document.getElementById("chapter9LibraryDialog"),
     chapter9VariantSelect: document.getElementById("chapter9VariantSelect"),
-    chapter9SourceLink: document.getElementById("chapter9SourceLink"),
     chapter9LibrarySummary: document.getElementById("chapter9LibrarySummary"),
     chapter9LibraryInsights: document.getElementById("chapter9LibraryInsights"),
-    chapter9AssetTabs: document.getElementById("chapter9AssetTabs"),
-    chapter9AssetPreview: document.getElementById("chapter9AssetPreview"),
     eventLog: document.getElementById("eventLog"),
     dataModelButton: document.getElementById("dataModelButton"),
     dataModelPanel: document.getElementById("dataModelPanel"),
@@ -1488,7 +1487,6 @@
     hybridProductionTooltip: document.getElementById("hybridProductionTooltip"),
     productTypeCountInput: document.getElementById("productTypeCountInput"),
     playerViewButton: document.getElementById("playerViewButton"),
-    managerViewButton: document.getElementById("managerViewButton"),
     playerWorkbench: document.getElementById("playerWorkbench"),
     managerWorkbench: document.getElementById("managerWorkbench"),
     logisticsGameMount: document.getElementById("logisticsGameMount"),
@@ -1896,9 +1894,47 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["session", "tower-editor", "inventory", "events", "process", "insights"]);
+    const allowed = new Set([
+      "session",
+      "layout",
+      "digital-twin",
+      "history",
+      "roles",
+      "game-presets",
+      "role-presets",
+      "tower-editor",
+      "inventory",
+      "events",
+      "process",
+      "insights"
+    ]);
     const nextTab = allowed.has(tab) ? tab : "session";
     state.managerTab = nextTab;
+    const gameTabs = new Set([
+      "session",
+      "layout",
+      "digital-twin",
+      "history",
+      "roles",
+      "game-presets",
+      "role-presets",
+      "process",
+      "inventory"
+    ]);
+    const menuMode = gameTabs.has(nextTab)
+      ? "game"
+      : nextTab === "insights"
+        ? "insights"
+        : nextTab === "tower-editor"
+          ? "towers"
+          : "none";
+    document.querySelectorAll("[data-manager-menu]").forEach(menu => {
+      menu.hidden = menu.dataset.managerMenu !== menuMode;
+    });
+    if (els.managerWorkbench) {
+      els.managerWorkbench.dataset.managerMenuMode = menuMode;
+      els.managerWorkbench.dataset.managerTab = nextTab;
+    }
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
       const active = button.dataset.managerTab === nextTab;
       button.classList.toggle("is-active", active);
@@ -1913,6 +1949,8 @@
     });
     sessionStorage.setItem("learngame.om.managerTab", nextTab);
     if (nextTab === "process") renderDataModel(true);
+    if (nextTab === "insights") setInsightsTab(state.insightsTab, false);
+    if (nextTab === "tower-editor") setTowerTab(state.towerTab, false);
     syncGlobalMenu();
     if (dispatch) {
       dispatchInteraction({
@@ -1924,8 +1962,66 @@
     }
   }
 
+  function setInsightsTab(tab, dispatch = true) {
+    const nextTab = new Set(["overview", "roles", "debrief"]).has(tab) ? tab : "overview";
+    state.insightsTab = nextTab;
+    document.querySelectorAll("[data-insights-tab]").forEach(button => {
+      const active = button.dataset.insightsTab === nextTab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll("[data-insights-panel]").forEach(panel => {
+      panel.hidden = panel.dataset.insightsPanel !== nextTab;
+    });
+    sessionStorage.setItem("learngame.om.insightsTab", nextTab);
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "change_insights_view",
+        result: nextTab,
+        objectRole: "navigation",
+        role: "Game Master"
+      });
+    }
+  }
+
+  function setTowerTab(tab, dispatch = true) {
+    const nextTab = tab === "assortment" ? "assortment" : "builder";
+    state.towerTab = nextTab;
+    document.querySelectorAll("[data-tower-tab]").forEach(button => {
+      const active = button.dataset.towerTab === nextTab;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    window.TowerEditor?.setView?.(nextTab);
+    const title = document.getElementById("towerEditorTitle");
+    const eyebrow = document.querySelector("#towerEditorPanel .section-head .eyebrow");
+    if (title) title.textContent = nextTab === "builder"
+      ? "Ontwerp een nieuwe LEGO-toren"
+      : "Bekijk het productassortiment";
+    if (eyebrow) eyebrow.textContent = nextTab === "builder" ? "Toreneditor" : "Productassortiment";
+    sessionStorage.setItem("learngame.om.towerTab", nextTab);
+    if (dispatch) {
+      dispatchInteraction({
+        actionType: "change_tower_view",
+        result: nextTab,
+        objectRole: "navigation",
+        role: "Game Master"
+      });
+    }
+  }
+
   function syncGlobalMenu() {
-    const gameTabs = new Set(["session", "process", "inventory"]);
+    const gameTabs = new Set([
+      "session",
+      "layout",
+      "digital-twin",
+      "history",
+      "roles",
+      "game-presets",
+      "role-presets",
+      "process",
+      "inventory"
+    ]);
     document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
       const tab = button.dataset.mainMenuTab;
       const current = state.appView === "manager" && (
@@ -3683,9 +3779,6 @@
     `).join("");
   }
 
-  let chapter9SelectedAssetUrl = "";
-  let chapter9AssetRequest = 0;
-
   function chapter9Analysis() {
     return window.Chapter9Insights?.analyze({
       events: state.interactionBuffer,
@@ -3714,7 +3807,7 @@
     dialog.querySelector("[data-config-help-mechanical]").textContent = insight.signal;
     dialog.querySelector("[data-config-help-learning]").textContent = insight.summary;
     dialog.querySelector("[data-config-help-basis]").textContent =
-      "Onderbouwing: LE-boek Learngames, hoofdstuk 9. Open ‘Alle inzichten & bronnen’ voor de variantvisualisaties en speldocumenten.";
+      "Onderbouwing: de inhoudelijke leerlijn van LEARNGame Operations Management.";
     if (dialog.open) dialog.close();
     dialog.showModal();
   }
@@ -3851,89 +3944,6 @@
     `).join("");
   }
 
-  function parseChapter9Csv(source) {
-    const text = String(source || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
-    const firstLine = text.split("\n", 1)[0] || "";
-    const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length
-      ? ";"
-      : ",";
-    const rows = [];
-    let row = [];
-    let field = "";
-    let quoted = false;
-    for (let index = 0; index < text.length; index += 1) {
-      const character = text[index];
-      if (character === "\"") {
-        if (quoted && text[index + 1] === "\"") {
-          field += "\"";
-          index += 1;
-        } else {
-          quoted = !quoted;
-        }
-      } else if (character === delimiter && !quoted) {
-        row.push(field.trim());
-        field = "";
-      } else if (character === "\n" && !quoted) {
-        row.push(field.trim());
-        if (row.some(value => value !== "")) rows.push(row);
-        row = [];
-        field = "";
-      } else {
-        field += character;
-      }
-    }
-    row.push(field.trim());
-    if (row.some(value => value !== "")) rows.push(row);
-    return rows;
-  }
-
-  async function renderChapter9AssetPreview(asset) {
-    const requestId = ++chapter9AssetRequest;
-    if (!asset || !els.chapter9AssetPreview) {
-      els.chapter9AssetPreview.innerHTML =
-        `<p class="chapter9-empty-state">Voor deze selectie is geen SVG- of CSV-bron beschikbaar.</p>`;
-      return;
-    }
-    els.chapter9AssetPreview.innerHTML = `<p class="chapter9-empty-state">Bron wordt geladen…</p>`;
-    if (asset.type === "svg") {
-      els.chapter9AssetPreview.innerHTML = `
-        <img src="${escapeHtml(asset.url)}"
-             alt="${escapeHtml(asset.title)}"
-             loading="lazy">
-        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open originele SVG</a></p>
-      `;
-      return;
-    }
-    try {
-      const response = await fetch(asset.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const rows = parseChapter9Csv(await response.text());
-      if (requestId !== chapter9AssetRequest) return;
-      if (!rows.length) throw new Error("Het CSV-bestand bevat geen rijen.");
-      const width = Math.max(...rows.map(row => row.length));
-      const normalized = rows.map(row => Array.from({ length: width }, (_, index) => row[index] || ""));
-      const header = normalized[0];
-      const body = normalized.slice(1);
-      els.chapter9AssetPreview.innerHTML = `
-        <div class="chapter9-csv-scroll">
-          <table class="chapter9-csv-table">
-            <thead><tr>${header.map(cell => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead>
-            <tbody>${body.map(row => `
-              <tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>
-            `).join("")}</tbody>
-          </table>
-        </div>
-        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open originele CSV</a></p>
-      `;
-    } catch (error) {
-      if (requestId !== chapter9AssetRequest) return;
-      els.chapter9AssetPreview.innerHTML = `
-        <p class="chapter9-asset-error">Deze bron kon niet worden geladen: ${escapeHtml(error.message)}</p>
-        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open het bronbestand</a></p>
-      `;
-    }
-  }
-
   function renderChapter9Library(selection = els.chapter9VariantSelect?.value || state.config.gameType) {
     const chapter = window.Chapter9Insights;
     if (!chapter || !els.chapter9LibraryDialog) return;
@@ -3944,14 +3954,10 @@
     const variant = selection === "all"
       ? null
       : chapter.variants[insightSelection] || chapter.variants.lo4;
-    const variantAssets = selection === "all"
-      ? chapter.assets
-      : chapter.assets.filter(asset => asset.variant === insightSelection);
     els.chapter9VariantSelect.value = selection === "all" ? "all" : insightSelection;
-    els.chapter9SourceLink.href = chapter.source.url;
     els.chapter9LibrarySummary.textContent = variant
       ? `${variant.label} · ${variant.learningLine}`
-      : `${chapter.assets.length} bestaande SVG- en CSV-bronnen uit alle spelvarianten.`;
+      : `${Object.keys(chapter.variants).length} spelvarianten met uitgewerkte procesinzichten.`;
     els.chapter9LibraryInsights.innerHTML = variant
       ? variant.insights.map(insight => `
           <article class="chapter9-library-insight">
@@ -3967,27 +3973,13 @@
             <small>${item.insights.length} uitgewerkte procesinzichten</small>
           </article>
         `).join("");
-    if (!variantAssets.some(asset => asset.url === chapter9SelectedAssetUrl)) {
-      chapter9SelectedAssetUrl = variantAssets[0]?.url || "";
-    }
-    els.chapter9AssetTabs.innerHTML = variantAssets.map(asset => `
-      <button type="button"
-              class="chapter9-asset-tab${asset.url === chapter9SelectedAssetUrl ? " is-active" : ""}"
-              data-chapter9-asset="${escapeHtml(asset.url)}"
-              title="${escapeHtml(asset.file)}">
-        ${asset.type.toUpperCase()} · ${escapeHtml(asset.title)}
-      </button>
-    `).join("");
-    renderChapter9AssetPreview(
-      variantAssets.find(asset => asset.url === chapter9SelectedAssetUrl) || null
-    );
   }
 
   function initChapter9Insights() {
     const chapter = window.Chapter9Insights;
     if (!chapter || !els.chapter9LibraryDialog) return;
     els.chapter9VariantSelect.innerHTML = [
-      `<option value="all">Alle varianten · volledige bronbibliotheek</option>`,
+      `<option value="all">Alle varianten</option>`,
       ...Object.entries(chapter.variants).map(([id, variant]) =>
         `<option value="${escapeHtml(id)}">${escapeHtml(variant.label)}</option>`
       )
@@ -3997,13 +3989,6 @@
       els.chapter9LibraryDialog.showModal();
     });
     els.chapter9VariantSelect.addEventListener("change", () => {
-      chapter9SelectedAssetUrl = "";
-      renderChapter9Library(els.chapter9VariantSelect.value);
-    });
-    els.chapter9AssetTabs.addEventListener("click", event => {
-      const button = event.target.closest("[data-chapter9-asset]");
-      if (!button) return;
-      chapter9SelectedAssetUrl = button.dataset.chapter9Asset;
       renderChapter9Library(els.chapter9VariantSelect.value);
     });
     document.addEventListener("click", event => {
@@ -6980,6 +6965,12 @@
         setManagerTab(button.dataset.mainMenuTab);
       });
     });
+    document.querySelectorAll("[data-insights-tab]").forEach(button => {
+      button.addEventListener("click", () => setInsightsTab(button.dataset.insightsTab));
+    });
+    document.querySelectorAll("[data-tower-tab]").forEach(button => {
+      button.addEventListener("click", () => setTowerTab(button.dataset.towerTab));
+    });
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
       button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
     });
@@ -7057,7 +7048,7 @@
       if (createSelect && [...createSelect.options].some(option => option.value === nextGameType)) {
         createSelect.value = nextGameType;
         createSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        createSelect.closest(".game-variant-history-session, form")?.scrollIntoView({
+        createSelect.closest("form")?.scrollIntoView({
           behavior: "smooth",
           block: "start"
         });
@@ -7329,6 +7320,8 @@
     syncConfigControls();
     const storedManagerTab = sessionStorage.getItem("learngame.om.managerTab");
     state.managerTab = storedManagerTab === "core" ? "session" : storedManagerTab || "session";
+    state.insightsTab = sessionStorage.getItem("learngame.om.insightsTab") || "overview";
+    state.towerTab = sessionStorage.getItem("learngame.om.towerTab") || "builder";
     state.appView = sessionStorage.getItem("learngame.om.appView") || "player";
     setAppView(state.appView, false);
     updatePriceInput();
@@ -7445,6 +7438,8 @@
     endTutorial,
     setAppView,
     setManagerTab,
+    setInsightsTab,
+    setTowerTab,
     setVisibleLogisticsDepartments,
     setLogisticsOrganizationVariant,
     applyGameTypePreset,

@@ -1634,7 +1634,6 @@ h3,
   background: rgba(0, 0, 0, 0.12);
 }
 
-body[data-app-view="player"] .metric-strip,
 body[data-app-view="player"] .manager-only {
   display: none;
 }
@@ -1668,6 +1667,75 @@ body[data-app-view="player"] .manager-only {
 
 .game-session-heading h2 {
   color: var(--lp-ink);
+}
+
+.game-session-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.game-session-heading-actions .session-config-save {
+  position: relative;
+  margin: 0;
+}
+
+.game-session-heading-actions .session-config-save > summary {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 9px;
+  color: var(--lp-accent);
+  background: rgba(7, 27, 32, 0.9);
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+}
+
+.game-session-heading-actions .session-config-save > summary::-webkit-details-marker {
+  display: none;
+}
+
+.game-session-heading-actions .session-config-save > div {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 10px;
+  background: #071b20;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42);
+}
+
+.game-session-heading-actions .session-config-save:not([open]) > div {
+  display: none;
+}
+
+.game-session-heading-actions .session-config-save label {
+  display: grid;
+  gap: 5px;
+  color: var(--lp-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.game-session-heading-actions .session-config-save input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--lp-line);
+  border-radius: 8px;
+  color: var(--lp-ink);
+  background: #041216;
 }
 
 .game-session-heading .eyebrow {
@@ -1725,7 +1793,6 @@ body[data-app-view="player"] .manager-only {
   background: rgba(3, 14, 18, 0.72);
 }
 
-.manager-create-note,
 .no-open-games,
 .session-vote-progress,
 .session-running-message {
@@ -1906,8 +1973,135 @@ body[data-app-view="player"] .manager-only {
 }
 
 .session-config-field.is-wide,
-.session-config-toggles {
+.session-config-toggles,
+.session-config-select-board,
+.session-config-checkbox-board,
+.session-config-detail-board,
+.session-core-select-board {
   grid-column: 1 / -1;
+}
+
+.session-core-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin-top: 2px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(148, 189, 190, 0.18);
+}
+
+.session-core-fields > label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-core-fields > label[data-config-help] {
+  padding-right: 30px;
+}
+
+.session-core-fields .difficulty-axis-summary {
+  grid-column: 1 / -1;
+}
+
+.session-config-select-board,
+.session-config-checkbox-board,
+.session-core-select-board,
+.role-selector-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(92, 215, 190, 0.25);
+  border-radius: 11px;
+  background: rgba(5, 24, 29, 0.72);
+}
+
+.session-config-select-board {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.session-config-select-board > .session-config-choice-group:first-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.session-config-select-board > .session-config-choice-group:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.session-config-select-board > .session-config-choice-group:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.session-config-detail-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(120px, 0.32fr);
+  grid-template-areas:
+    "finance  finance  finance"
+    "routes   routes   routes"
+    "currency currency products";
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.session-config-detail-board > .financial-detail-settings {
+  grid-area: finance;
+}
+
+.session-config-detail-board > .production-process-fields {
+  grid-area: routes;
+}
+
+.session-config-detail-board > .currency-settings {
+  grid-area: currency;
+  grid-column: auto;
+  align-self: stretch;
+}
+
+.session-config-detail-board > [data-config-help="product-types"] {
+  grid-area: products;
+}
+
+.session-core-select-board {
+  grid-column: 1 / -1;
+}
+
+.session-config-choice-group,
+.role-selector-category {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(148, 189, 190, 0.18);
+  border-radius: 9px;
+  background: rgba(11, 39, 45, 0.68);
+}
+
+.session-config-choice-group > legend,
+.role-selector-category > legend {
+  padding: 0 5px;
+  color: var(--lp-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.session-config-choice-group .session-config-field {
+  padding-right: 0;
+}
+
+.session-config-choice-group .session-play-mode {
+  padding: 10px;
 }
 
 .configuration-layout-preview {
@@ -1929,18 +2123,17 @@ body[data-app-view="player"] .manager-only {
 .configuration-layout-preview-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
 }
 
-.configuration-layout-preview-head > div:first-child {
+.configuration-layout-preview-head > div {
   display: grid;
   gap: 2px;
 }
 
 .configuration-layout-preview-head small,
-.configuration-layout-group > small,
-.configuration-layout-book small {
+.configuration-layout-group > small {
   color: var(--lp-muted);
   font-size: 0.68rem;
   font-weight: 800;
@@ -1951,27 +2144,6 @@ body[data-app-view="player"] .manager-only {
 .configuration-layout-preview-head strong {
   color: var(--lp-ink);
   font-size: 0.94rem;
-}
-
-.configuration-layout-tabs {
-  display: flex;
-  gap: 5px;
-}
-
-.configuration-layout-tabs button {
-  min-height: 30px;
-  padding: 5px 9px;
-  border: 1px solid var(--lp-line);
-  border-radius: 999px;
-  color: var(--lp-muted);
-  background: rgba(4, 19, 23, 0.9);
-  cursor: pointer;
-}
-
-.configuration-layout-tabs button[aria-pressed="true"] {
-  border-color: var(--lp-accent);
-  color: #071b20;
-  background: var(--lp-accent);
 }
 
 .configuration-layout-diagram {
@@ -2069,25 +2241,6 @@ body[data-app-view="player"] .manager-only {
   text-transform: uppercase;
 }
 
-.configuration-layout-book {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-}
-
-.configuration-layout-book[hidden],
-[data-layout-view-panel][hidden] {
-  display: none;
-}
-
-.configuration-layout-book img {
-  width: min(100%, 760px);
-  max-height: 390px;
-  object-fit: contain;
-  border-radius: 8px;
-  background: #fff;
-}
-
 .session-config-field[hidden] {
   display: none;
 }
@@ -2147,6 +2300,111 @@ body[data-app-view="player"] .manager-only {
   width: 18px;
   min-height: 18px;
   accent-color: var(--lp-accent);
+}
+
+.currency-settings {
+  grid-template-columns: minmax(120px, 155px) max-content minmax(0, 1fr);
+  align-items: end;
+  gap: 6px 8px;
+  padding: 7px 9px 9px;
+}
+
+.currency-settings > label:first-of-type {
+  display: grid;
+  grid-template-columns: auto 68px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.currency-settings > label:first-of-type > span {
+  white-space: nowrap;
+}
+
+.currency-settings select {
+  width: 68px;
+  min-height: 32px;
+  padding: 0 7px;
+  border-radius: 7px;
+}
+
+.currency-settings > .session-config-toggle {
+  min-height: 32px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.currency-rate-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(92px, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.currency-rate-options[hidden] {
+  display: none;
+}
+
+.currency-rate-options > label {
+  display: grid;
+  grid-template-columns: 15px 26px minmax(52px, 1fr);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid rgba(148, 189, 190, 0.18);
+  border-radius: 7px;
+  background: rgba(11, 39, 45, 0.68);
+}
+
+.currency-rate-options input[type="checkbox"] {
+  width: 14px;
+  min-height: 14px;
+}
+
+.currency-rate-options input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 5px;
+  border-radius: 6px;
+}
+
+@media (max-width: 1050px) {
+  .currency-settings {
+    grid-template-columns: minmax(120px, 155px) max-content;
+  }
+
+  .currency-rate-options {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 880px) {
+  .session-config-detail-board {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "finance"
+      "routes"
+      "currency"
+      "products";
+  }
+}
+
+@media (max-width: 680px) {
+  .currency-settings {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .currency-settings > .session-config-toggle,
+  .currency-rate-options {
+    grid-column: 1;
+  }
+
+  .currency-rate-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 [data-config-help] {
@@ -2347,8 +2605,22 @@ body[data-app-view="player"] .manager-only {
   color: #9db5b7;
 }
 
-.player-utility-actions .game-session-panel.is-utility-session {
-  min-width: 260px;
+.player-session-metric-mount {
+  grid-column: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.player-session-metric-mount:empty {
+  display: none;
+}
+
+.player-session-metric-mount .game-session-panel.is-metric-session {
+  width: min(100%, 460px);
+  min-width: 0;
+  height: 36px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -2356,35 +2628,63 @@ body[data-app-view="player"] .manager-only {
   box-shadow: none;
 }
 
-.player-utility-actions .is-utility-session .game-session-heading {
+.player-session-metric-mount .is-metric-session .game-session-heading {
   display: none;
 }
 
-.player-utility-actions .is-utility-session .game-session-content {
+.player-session-metric-mount .is-metric-session .game-session-content {
+  height: 100%;
   margin: 0;
 }
 
-.player-utility-actions .is-utility-session .player-running-session {
-  min-height: 40px;
-  padding: 5px 11px;
+.player-session-metric-mount .is-metric-session .player-running-session {
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  gap: 7px;
+  padding: 3px 8px;
   border: 1px solid var(--lp-line);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--lp-surface-soft);
 }
 
-.player-utility-actions .is-utility-session .session-member-token {
-  width: 28px;
-  height: 28px;
+.player-session-metric-mount .is-metric-session .session-member-token {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
-  font-size: 0.7rem;
-}
-
-.player-utility-actions .is-utility-session .player-running-session strong {
-  font-size: 0.78rem;
-}
-
-.player-utility-actions .is-utility-session .player-running-session small {
   font-size: 0.66rem;
+}
+
+.player-session-metric-mount .is-metric-session .player-running-session > span:last-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.player-session-metric-mount .is-metric-session .player-running-session strong {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.player-session-metric-mount .is-metric-session .player-session-context {
+  flex: 0 0 auto;
+  color: var(--lp-accent);
+  font-family: var(--lp-font-heading);
+  font-weight: 850;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.player-session-metric-mount .is-metric-session .player-running-session small {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-member-list li {
@@ -2509,10 +2809,6 @@ body[data-app-view="player"] .manager-only {
 }
 
 @media (max-width: 680px) {
-  .player-utility-actions .game-session-panel.is-utility-session {
-    min-width: min(100%, 260px);
-  }
-
   .game-session-create-form,
   .game-code-join-form,
   .game-master-role-form,
@@ -3784,6 +4080,14 @@ body[data-app-view="player"] .topbar {
     #0a191f;
 }
 
+.sim-factory-overview {
+  height: calc(100dvh - 150px);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  padding: 12px;
+}
+
 .sim-role-picker h2,
 .sim-role-picker p,
 .sim-factory-overview h2,
@@ -3912,9 +4216,11 @@ body[data-app-view="player"] .topbar {
 .sim-waiting-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: clamp(430px, 42vw, 620px);
-  gap: 14px;
-  margin-top: 18px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+  gap: 10px;
+  margin-top: 0;
+  overflow: hidden;
 }
 
 .sim-waiting-view {
@@ -3930,12 +4236,12 @@ body[data-app-view="player"] .topbar {
 }
 
 .sim-waiting-view > header {
-  min-height: 48px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 12px;
+  padding: 6px 10px;
   border-bottom: 1px solid #29434b;
   background: #10242b;
 }
@@ -3944,7 +4250,7 @@ body[data-app-view="player"] .topbar {
   margin: 0;
   color: var(--lp-ink);
   font-family: var(--lp-font-heading);
-  font-size: 0.98rem;
+  font-size: 0.88rem;
 }
 
 .sim-waiting-view > header > strong {
@@ -3960,8 +4266,8 @@ body[data-app-view="player"] .topbar {
 .sim-waiting-view-body {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  padding: 10px;
+  overflow: hidden;
+  padding: 7px;
 }
 
 .sim-waiting-view.is-live-events {
@@ -3985,26 +4291,84 @@ body[data-app-view="player"] .topbar {
   background: rgba(4, 19, 18, 0.16);
 }
 
+.sim-waiting-view.is-live-events .sim-waiting-view-body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .sim-waiting-view .sim-role-status-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-content: start;
+  gap: 6px;
   margin: 0;
 }
 
 .sim-waiting-view .sim-live-feed {
   max-height: none;
-  height: 100%;
+  height: auto;
 }
 
 .sim-waiting-view .sim-process-flow-mount {
+  min-width: 0;
   min-height: 100%;
   height: 100%;
+  overflow: hidden;
   border: 0;
   border-radius: 7px;
 }
 
 .sim-waiting-view .sim-process-flow-mount .iso-logistics-view {
-  min-height: 100%;
-  grid-template-columns: minmax(620px, 1fr) 260px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.sim-waiting-view .sim-process-flow-mount .iso-map-frame {
+  height: 100%;
+  border: 0;
+  border-radius: 7px;
+}
+
+.sim-waiting-view .sim-process-flow-mount .iso-map {
+  height: 100%;
+  min-height: 0;
+}
+
+.sim-waiting-view .sim-process-flow-mount .iso-map-toolbar,
+.sim-waiting-view .sim-process-flow-mount .iso-process-profile,
+.sim-waiting-view .sim-process-flow-mount .iso-department-detail,
+.sim-waiting-view .sim-process-flow-mount .iso-finance-hud,
+.sim-waiting-view .sim-process-flow-mount .iso-finance-summary {
+  display: none;
+}
+
+.sim-waiting-view .sim-fallback-flow {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  gap: 4px;
+  padding: 6px;
+}
+
+.sim-waiting-view .sim-fallback-flow article {
+  width: auto;
+  min-width: 0;
+  min-height: 64px;
+  flex: 1 1 0;
+  padding: 5px;
+}
+
+.sim-waiting-view .sim-fallback-flow article strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.58rem;
+}
+
+.sim-waiting-view .sim-fallback-flow > i {
+  flex: 0 0 auto;
+  font-size: 0.9rem;
 }
 
 .sim-waiting-heatmap-body {
@@ -4016,7 +4380,7 @@ body[data-app-view="player"] .topbar {
 .sim-waiting-heatmap {
   width: 100%;
   height: 100%;
-  min-height: 330px;
+  min-height: 0;
 }
 
 .sim-waiting-heatmap line {
@@ -4086,10 +4450,16 @@ body[data-app-view="player"] .topbar {
   font-size: 9px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 720px) {
+  .sim-factory-overview {
+    height: auto;
+  }
+
   .sim-waiting-overview {
     grid-template-columns: 1fr;
-    grid-auto-rows: clamp(400px, 70vh, 620px);
+    grid-template-rows: none;
+    grid-auto-rows: minmax(300px, 58dvh);
+    overflow: visible;
   }
 }
 
@@ -4772,9 +5142,17 @@ body[data-app-view="player"] .topbar {
 .topbar.game-menu .metric-strip {
   grid-area: statistics;
   display: grid;
-  grid-template-columns: repeat(4, minmax(82px, 90px)) minmax(76px, auto) minmax(150px, auto);
+  grid-template-columns: minmax(210px, 1fr) auto;
+  align-items: end;
   align-self: end;
-  justify-content: start;
+  gap: 5px;
+}
+
+.game-menu .metric-strip-values {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(82px, 90px)) minmax(76px, auto) minmax(150px, auto);
+  justify-content: end;
   gap: 5px;
 }
 
@@ -4783,6 +5161,7 @@ body[data-app-view="player"] .topbar {
 }
 
 .game-menu .metric {
+  height: 36px;
   min-height: 32px;
   margin: 0;
   gap: 0;
@@ -5004,6 +5383,10 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .metric-strip {
+    grid-template-columns: minmax(210px, 1fr) auto;
+  }
+
+  .game-menu .metric-strip-values {
     grid-template-columns: repeat(4, 90px) 78px 160px;
   }
 
@@ -7981,6 +8364,18 @@ select {
   box-shadow: inset 3px 0 rgba(50, 221, 210, 0.16);
 }
 
+.manager-dashboard-menu[hidden] {
+  display: none !important;
+}
+
+.manager-dashboard[data-manager-menu-mode="none"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.manager-dashboard[data-manager-menu-mode="none"] .manager-dashboard-panel {
+  grid-column: 1;
+}
+
 .manager-utility-actions {
   display: grid;
   gap: 7px;
@@ -8147,6 +8542,12 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   border-radius: 14px;
   padding: clamp(14px, 2.5vw, 24px);
   background: rgba(5, 17, 22, 0.58);
+}
+
+.tower-editor-builder[hidden],
+.tower-assortment[hidden],
+[data-insights-panel][hidden] {
+  display: none !important;
 }
 
 .tower-editor-subhead,
@@ -8586,6 +8987,16 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 .manager-dashboard .data-model-panel.is-active {
   display: grid;
   height: clamp(560px, calc(100dvh - 150px), 900px);
+}
+
+.manager-dashboard[data-manager-tab="process"] .data-model-panel.is-active {
+  height: max(680px, calc(100dvh - 112px));
+  min-height: max(680px, calc(100dvh - 112px));
+  padding-block: 10px;
+}
+
+.manager-dashboard[data-manager-tab="process"] .data-model-grid {
+  padding-block: 4px;
 }
 
 .manager-dashboard .section-head {
@@ -9648,35 +10059,6 @@ body.tutorial-focus {
   background: rgba(50, 221, 210, 0.05);
 }
 
-.game-variant-history-main,
-.game-variant-history-session {
-  min-width: 0;
-  margin-top: 12px;
-}
-
-.game-variant-history-session {
-  grid-column: 1 / -1;
-}
-
-.game-variant-history-main details,
-.game-variant-history-session details {
-  border: 1px solid var(--lp-line, #29434b);
-  border-radius: 8px;
-  background: rgba(7, 20, 24, 0.82);
-  overflow: hidden;
-}
-
-.game-variant-history-main summary,
-.game-variant-history-session summary {
-  padding: 10px 14px;
-  color: var(--lp-accent, #32ddd2);
-  background: rgba(16, 40, 48, 0.86);
-  font-family: var(--lp-font-heading);
-  font-size: 0.84rem;
-  font-weight: 850;
-  cursor: pointer;
-}
-
 .game-variant-history-info {
   display: grid;
   gap: 5px;
@@ -9952,6 +10334,44 @@ body.tutorial-focus {
   flex-shrink: 0;
 }
 
+.role-selector-board {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-top: 12px;
+}
+
+.role-selector-category .role-option-field {
+  white-space: normal;
+}
+
+@media (max-width: 680px) {
+  .game-session-heading {
+    align-items: flex-start;
+  }
+
+  .game-session-heading-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .session-config-select-board,
+  .session-config-checkbox-board,
+  .session-core-select-board,
+  .role-selector-board {
+    grid-template-columns: 1fr;
+  }
+
+  .session-config-select-board > .session-config-choice-group:first-child,
+  .session-config-select-board > .session-config-choice-group:nth-child(2),
+  .session-config-select-board > .session-config-choice-group:nth-child(3) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .session-core-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Configuration Selector Header & Action Row */
 .game-type-header-row {
   grid-column: 1 / -1;
@@ -10151,8 +10571,7 @@ body.tutorial-focus {
 .chapter9-indicator-card,
 .chapter9-role-section,
 .chapter9-current-insights,
-.chapter9-library-insight,
-.chapter9-asset-preview {
+.chapter9-library-insight {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--panel);
@@ -10412,70 +10831,6 @@ body.tutorial-focus {
   margin-top: 10px;
   color: #6c598c;
   line-height: 1.45;
-}
-
-.chapter9-asset-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 14px 0;
-}
-
-.chapter9-asset-tab {
-  min-height: 36px;
-  padding: 8px 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font-size: .8rem;
-}
-
-.chapter9-asset-tab.is-active {
-  border-color: var(--purple);
-  background: #eee9f7;
-  color: #49346b;
-}
-
-.chapter9-asset-preview {
-  min-height: 220px;
-  padding: 16px;
-  overflow: auto;
-}
-
-.chapter9-asset-preview > img {
-  display: block;
-  width: 100%;
-  max-height: 580px;
-  object-fit: contain;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.chapter9-csv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: .82rem;
-}
-
-.chapter9-csv-table th,
-.chapter9-csv-table td {
-  max-width: 320px;
-  padding: 8px 10px;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-
-.chapter9-csv-table th {
-  position: sticky;
-  top: -16px;
-  background: #f4f2ee;
-}
-
-.chapter9-asset-error {
-  color: #a64435;
 }
 
 @media (max-width: 900px) {

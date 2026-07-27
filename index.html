@@ -67,9 +67,6 @@
           <button type="button" data-main-menu-tab="session">Game</button>
           <button type="button" data-main-menu-tab="tower-editor">Torens</button>
           <button type="button" data-main-menu-tab="insights">Inzicht</button>
-          <button id="managerViewButton" type="button" data-app-view="manager" aria-pressed="false">
-            Beheer
-          </button>
           <button id="menuTutorialButton"
                   type="button"
                   data-tutorial-launch
@@ -87,33 +84,38 @@
       </div>
 
       <section class="metric-strip" aria-label="Spelstatus">
-        <div class="metric">
-          <span>Invoer</span>
-          <strong id="openOrdersValue">0</strong>
+        <div id="playerSessionMetricMount"
+             class="player-session-metric-mount"
+             aria-live="polite"></div>
+        <div class="metric-strip-values">
+          <div class="metric">
+            <span>Invoer</span>
+            <strong id="openOrdersValue">0</strong>
+          </div>
+          <div class="metric">
+            <span>Bezig</span>
+            <strong id="throughputValue">0</strong>
+          </div>
+          <div class="metric">
+            <span>Gereed</span>
+            <strong id="cashValue">0</strong>
+          </div>
+          <div class="metric">
+            <span>Te laat</span>
+            <strong id="profitValue">0</strong>
+          </div>
+          <button class="metric menu-events-button" type="button" data-main-menu-tab="events">
+            <span>Events</span>
+            <strong id="lateValue">0</strong>
+          </button>
+          <button id="menuExportButton"
+                  class="metric menu-export-button"
+                  type="button"
+                  title="Events als JSON-bestand downloaden">
+            <span aria-hidden="true">{ }</span>
+            <strong>Downloaden Events</strong>
+          </button>
         </div>
-        <div class="metric">
-          <span>Bezig</span>
-          <strong id="throughputValue">0</strong>
-        </div>
-        <div class="metric">
-          <span>Gereed</span>
-          <strong id="cashValue">0</strong>
-        </div>
-        <div class="metric">
-          <span>Te laat</span>
-          <strong id="profitValue">0</strong>
-        </div>
-        <button class="metric menu-events-button" type="button" data-main-menu-tab="events">
-          <span>Events</span>
-          <strong id="lateValue">0</strong>
-        </button>
-        <button id="menuExportButton"
-                class="metric menu-export-button"
-                type="button"
-                title="Events als JSON-bestand downloaden">
-          <span aria-hidden="true">{ }</span>
-          <strong>Downloaden Events</strong>
-        </button>
       </section>
 
       <section id="processIndicatorStrip"
@@ -268,42 +270,134 @@
           data-app-view-panel="manager"
           aria-label="Beheerdersdashboard"
           hidden>
-      <aside class="manager-dashboard-menu" aria-label="Onderdelen beheerdersdashboard">
+      <aside class="manager-dashboard-menu"
+             data-manager-menu="game"
+             aria-label="Onderdelen van Game">
         <div class="manager-menu-heading">
           <p class="eyebrow">Game Master</p>
           <h2>Dashboard</h2>
-          <p>Kies links een werkvenster.</p>
         </div>
         <nav class="manager-tab-list" role="tablist" aria-orientation="vertical">
           <button type="button" class="is-active" role="tab" aria-selected="true" tabindex="0"
                   data-manager-tab="session">
             <span aria-hidden="true">00</span>
-            <strong>Game</strong>
+            <strong>Sessie</strong>
             <small>Game Master &amp; codes</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="layout">
+            <span aria-hidden="true">01</span>
+            <strong>Opstelling</strong>
+            <small>Live logistieke inrichting</small>
           </button>
           <button id="dataModelButton" type="button" role="tab" aria-selected="false"
                   data-manager-tab="process">
-            <span aria-hidden="true">01</span>
+            <span aria-hidden="true">02</span>
             <strong>Procesmodel</strong>
             <small>Graph, route en kaart</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="insights">
-            <span aria-hidden="true">02</span>
-            <strong>Inzicht</strong>
-            <small>Activiteit en systeemeffect</small>
+                  data-manager-tab="digital-twin">
+            <span aria-hidden="true">03</span>
+            <strong>Digital twin</strong>
+            <small>Order- en informatiestroom</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="inventory">
-            <span aria-hidden="true">03</span>
+            <span aria-hidden="true">04</span>
             <strong>Voorraad</strong>
             <small>Materiaal en WIP</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="tower-editor">
+                  data-manager-tab="history">
             <span aria-hidden="true">05</span>
-            <strong>Torens</strong>
-            <small>Productassortiment</small>
+            <strong>Ontwikkelgeschiedenis</strong>
+            <small>1992–2024</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="roles">
+            <span aria-hidden="true">06</span>
+            <strong>Rollen</strong>
+            <small>Rollen per onderwerp</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="game-presets">
+            <span aria-hidden="true">07</span>
+            <strong>Gamepresets</strong>
+            <small>Instellingen vergelijken</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="role-presets">
+            <span aria-hidden="true">08</span>
+            <strong>Rollenpresets</strong>
+            <small>Rollen vergelijken</small>
+          </button>
+        </nav>
+      </aside>
+
+      <aside class="manager-dashboard-menu insights-dashboard-menu"
+             data-manager-menu="insights"
+             aria-label="Onderdelen van Inzicht"
+             hidden>
+        <div class="manager-menu-heading">
+          <p class="eyebrow">Inzicht</p>
+          <h2>Analyse</h2>
+        </div>
+        <nav class="manager-tab-list" aria-label="Inzichtweergaven">
+          <button type="button" class="is-active"
+                  data-insights-tab="overview"
+                  aria-pressed="true">
+            <span aria-hidden="true">00</span>
+            <strong>Overzicht</strong>
+            <small>Variant en systeemsignalen</small>
+          </button>
+          <button type="button"
+                  data-insights-tab="roles"
+                  aria-pressed="false">
+            <span aria-hidden="true">01</span>
+            <strong>Rolactiviteit</strong>
+            <small>Activiteit en bijdrage</small>
+          </button>
+          <button type="button"
+                  data-insights-tab="debrief"
+                  aria-pressed="false">
+            <span aria-hidden="true">02</span>
+            <strong>Nabespreking</strong>
+            <small>Inzichten van de variant</small>
+          </button>
+          <button id="chapter9LibraryButton"
+                  type="button"
+                  aria-label="Alle inzichten"
+                  aria-pressed="false">
+            <span aria-hidden="true">03</span>
+            <strong>Alle inzichten</strong>
+            <small>Bibliotheek per spelvariant</small>
+          </button>
+        </nav>
+      </aside>
+
+      <aside class="manager-dashboard-menu towers-dashboard-menu"
+             data-manager-menu="towers"
+             aria-label="Onderdelen van Torens"
+             hidden>
+        <div class="manager-menu-heading">
+          <p class="eyebrow">Torens</p>
+          <h2>Producten</h2>
+        </div>
+        <nav class="manager-tab-list" aria-label="Torenweergaven">
+          <button type="button" class="is-active"
+                  data-tower-tab="builder"
+                  aria-pressed="true">
+            <span aria-hidden="true">00</span>
+            <strong>Bouwtafel</strong>
+            <small>Nieuwe toren ontwerpen</small>
+          </button>
+          <button type="button"
+                  data-tower-tab="assortment"
+                  aria-pressed="false">
+            <span aria-hidden="true">01</span>
+            <strong>Productassortiment</strong>
+            <small>Torengalerij beheren</small>
           </button>
         </nav>
       </aside>
@@ -317,7 +411,13 @@
             <p class="eyebrow">Game Master &amp; codes</p>
             <h2 id="managerSessionTitle">Gamesessie aanmaken</h2>
           </div>
-          <span id="managerSessionBadge" class="session-status-badge">Geen sessie</span>
+          <div class="game-session-heading-actions">
+            <span id="managerSessionBadge" class="session-status-badge" hidden>Geen sessie</span>
+            <button class="primary-button"
+                    type="submit"
+                    form="gameSessionCreateForm"
+                    data-create-game-session>Sessie aanmaken</button>
+          </div>
         </div>
         <div id="managerSessionContent" class="game-session-content">
           <form id="gameSessionCreateForm" class="game-session-create-form">
@@ -330,16 +430,13 @@
               </select>
             </label>
             <label data-config-help="difficulty">
-              <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
+              <span>Moeilijkheidsgraad</span>
               <select id="gameSessionDifficulty" data-create-difficulty-select>
                 <option value="easy">Makkelijk</option>
                 <option value="normal" selected>Gemiddeld</option>
                 <option value="hard">Moeilijk</option>
               </select>
             </label>
-            <button class="primary-button"
-                    type="submit"
-                    data-create-game-session>Sessie aanmaken</button>
             <div class="difficulty-axis-summary" data-difficulty-summary>
               <span><strong>Aanvragen</strong><small>Normale aanvraagdruk</small></span>
               <span><strong>Foutmarge</strong><small>Incidentele fouten</small></span>
@@ -347,7 +444,7 @@
             </div>
             <fieldset class="session-game-config">
               <legend>Spelvariant en spelregels</legend>
-              <label class="session-config-field session-play-mode is-wide" data-config-help="play-mode">
+              <label class="session-config-field session-play-mode" data-config-help="play-mode">
                 <span>Spelmodus</span>
                 <select name="play_mode" data-game-config-control>
                   <option value="physical" selected>Fysiek · echte LEGO en administratief dashboard</option>
@@ -355,7 +452,7 @@
                 </select>
                 <small>Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie.</small>
               </label>
-              <label class="session-config-field is-wide" data-config-help="game-type">
+              <label class="session-config-field" data-config-help="game-type">
                 <span>Gametype</span>
                 <select name="game_type" data-session-game-type data-game-config-control>
                   <option value="entrepreneurial">Entrepreneurial Game</option>
@@ -368,9 +465,6 @@
                   <option value="lo7">LO Game 7</option>
                 </select>
               </label>
-              <section class="configuration-layout-preview is-wide"
-                       data-configuration-layout-preview
-                       aria-label="Live opstelling voor gekozen gamepreset"></section>
               <label class="session-config-field is-wide" data-config-help="organization-model">
                 <span>Organisatievorm</span>
                 <select name="organization_model" data-game-config-control>
@@ -459,6 +553,71 @@
         </div>
       </section>
 
+      <section class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="history"
+               aria-labelledby="gameVariantHistoryTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Ontwikkelgeschiedenis</p>
+            <h2 id="gameVariantHistoryTitle">LEARNGame 1992–2024</h2>
+          </div>
+          <span class="session-status-badge">Historie</span>
+        </div>
+        <div data-game-variant-history-table></div>
+      </section>
+
+      <section class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="layout"
+               aria-labelledby="sessionLayoutTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Live configuratie</p>
+            <h2 id="sessionLayoutTitle">Logistieke opstelling</h2>
+          </div>
+          <span class="session-status-badge">Live gekoppeld</span>
+        </div>
+        <div data-session-layout-host></div>
+      </section>
+
+      <section class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="roles"
+               aria-labelledby="sessionRolesTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Sessieconfiguratie</p>
+            <h2 id="sessionRolesTitle">Rollen</h2>
+          </div>
+          <span class="session-status-badge">Per onderwerp</span>
+        </div>
+        <div data-session-role-selector></div>
+      </section>
+
+      <section class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="game-presets"
+               aria-labelledby="gamePresetsTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Presetvergelijking</p>
+            <h2 id="gamePresetsTitle">Gamepresets</h2>
+          </div>
+          <span class="session-status-badge">Game 1–7</span>
+        </div>
+        <div data-game-presets-matrix></div>
+      </section>
+
+      <section class="game-session-panel manager-dashboard-panel"
+               data-manager-panel="role-presets"
+               aria-labelledby="rolePresetsTitle">
+        <div class="game-session-heading">
+          <div>
+            <p class="eyebrow">Presetvergelijking</p>
+            <h2 id="rolePresetsTitle">Rollenpresets</h2>
+          </div>
+          <span class="session-status-badge">Game 1–7</span>
+        </div>
+        <div data-role-presets-matrix></div>
+      </section>
+
       <section class="order-band manager-dashboard-panel is-active"
                data-manager-panel="session"
                aria-label="Klantorder">
@@ -507,8 +666,8 @@
         <div id="legoBuilderMount"></div>
       </section>
 
-      <section class="process-panel manager-dashboard-panel is-active"
-               data-manager-panel="session"
+      <section class="process-panel manager-dashboard-panel"
+               data-manager-panel="digital-twin"
                aria-label="Orderstroom">
         <div class="section-head">
           <div>
@@ -552,12 +711,6 @@
               Productgerichte variant met geld, resultaatmeting en opportunity costs.
             </small>
           </label>
-          <section class="game-variant-history-main" aria-label="Geschiedenis van de gekozen spelvariant">
-            <details open>
-              <summary>Ontwikkelgeschiedenis en leerdoel · kies een preset uit de tabel</summary>
-              <div data-game-variant-history-table></div>
-            </details>
-          </section>
         </div>
 
         <div id="rolePreviewBox" class="role-preview-box">
@@ -1011,23 +1164,23 @@
                class="chapter9-insights-panel manager-dashboard-panel"
                data-manager-panel="insights"
                aria-labelledby="chapter9InsightsTitle">
-        <div class="section-head chapter9-insights-head">
-          <div>
-            <p class="eyebrow">LE-boek · hoofdstuk 9</p>
-            <h2 id="chapter9InsightsTitle">Wat maakt deze spelvariant zichtbaar?</h2>
-            <p id="chapter9InsightsSubtitle">Live procesindicatoren met duiding vanuit het LE-boek.</p>
+        <div data-insights-panel="overview">
+          <div class="section-head chapter9-insights-head">
+            <div>
+              <p class="eyebrow">LE-boek · hoofdstuk 9</p>
+              <h2 id="chapter9InsightsTitle">Wat maakt deze spelvariant zichtbaar?</h2>
+              <p id="chapter9InsightsSubtitle">Live procesindicatoren met duiding vanuit het LE-boek.</p>
+            </div>
           </div>
-          <button id="chapter9LibraryButton"
-                  class="secondary-button compact-button"
-                  type="button">
-            Alle inzichten &amp; bronnen
-          </button>
+          <div id="chapter9VariantContrast" class="chapter9-variant-contrast"></div>
+          <div id="chapter9LiveIndicators"
+               class="chapter9-live-indicators"
+               aria-live="polite"></div>
         </div>
-        <div id="chapter9VariantContrast" class="chapter9-variant-contrast"></div>
-        <div id="chapter9LiveIndicators"
-             class="chapter9-live-indicators"
-             aria-live="polite"></div>
-        <section class="chapter9-role-section" aria-labelledby="chapter9RoleActivityTitle">
+        <section class="chapter9-role-section"
+                 data-insights-panel="roles"
+                 aria-labelledby="chapter9RoleActivityTitle"
+                 hidden>
           <div class="chapter9-subhead">
             <div>
               <p class="eyebrow">Activiteiten per rol</p>
@@ -1041,7 +1194,10 @@
           </div>
           <div id="chapter9RoleActivity" class="chapter9-role-activity"></div>
         </section>
-        <section class="chapter9-current-insights" aria-labelledby="chapter9CurrentInsightsTitle">
+        <section class="chapter9-current-insights"
+                 data-insights-panel="debrief"
+                 aria-labelledby="chapter9CurrentInsightsTitle"
+                 hidden>
           <div class="chapter9-subhead">
             <div>
               <p class="eyebrow">Leerlijn van de actieve variant</p>
@@ -1083,7 +1239,7 @@
     <form method="dialog" class="chapter9-library-shell">
       <header>
         <div>
-          <p class="eyebrow">Verdieping en bronmateriaal</p>
+          <p class="eyebrow">Verdieping</p>
           <h2 id="chapter9LibraryTitle">Inzichten uit hoofdstuk 9</h2>
         </div>
         <button type="submit" class="configuration-help-close" aria-label="Bronnen sluiten">×</button>
@@ -1093,20 +1249,9 @@
           <span>Spelvariant</span>
           <select id="chapter9VariantSelect"></select>
         </label>
-        <a id="chapter9SourceLink" target="_blank" rel="noopener">Open hoofdstuk 9</a>
       </div>
       <p id="chapter9LibrarySummary" class="chapter9-library-summary"></p>
       <div id="chapter9LibraryInsights" class="chapter9-library-insights"></div>
-      <section aria-labelledby="chapter9AssetsTitle">
-        <div class="chapter9-subhead">
-          <div>
-            <p class="eyebrow">Bestaande SVG- en CSV-bronnen</p>
-            <h3 id="chapter9AssetsTitle">Visualisaties en speldocumenten</h3>
-          </div>
-        </div>
-        <div id="chapter9AssetTabs" class="chapter9-asset-tabs"></div>
-        <div id="chapter9AssetPreview" class="chapter9-asset-preview"></div>
-      </section>
     </form>
   </dialog>
 

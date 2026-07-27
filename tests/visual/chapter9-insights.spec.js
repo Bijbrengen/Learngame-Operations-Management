@@ -53,9 +53,13 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   await openInsights(page);
 
   await expect(page.locator("#chapter9InsightsPanel")).toBeVisible();
+  await expect(page.locator('[data-manager-menu="game"]')).toBeHidden();
+  await expect(page.locator('[data-manager-menu="insights"]')).toBeVisible();
   await expect(page.locator(".chapter9-indicator-card")).toHaveCount(3);
   expect(await page.locator(".chapter9-role-row").count()).toBeGreaterThanOrEqual(10);
+  await page.getByRole("button", { name: /Nabespreking/ }).click();
   await expect(page.locator("#chapter9CurrentInsightCards")).toContainText("Volume is niet hetzelfde als waarde");
+  await page.getByRole("button", { name: /Overzicht/ }).click();
   await expect(page.locator("#chapter9VariantContrast")).toContainText("Inefficiëntie zichtbaar");
   await expect(page.locator("#chapter9VariantContrast")).toContainText("lost die nog niet op");
   await expect(page.locator("#chapter9VariantContrast .is-active")).toContainText("Versie 4");
@@ -74,37 +78,31 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   });
 
   await expect(page.locator("#chapter9LiveIndicators")).toContainText("Actief: druk met niets");
+  await page.getByRole("button", { name: /Rolactiviteit/ }).click();
   await expect(page.locator("#chapter9RoleActivity")).toContainText("4 acties · 0 productief");
 
   await page.getByRole("button", { name: "Uitleg over de sturingsparadox" }).click();
   const infoDialog = page.locator("#configurationHelpDialog");
   await expect(infoDialog).toContainText("Vergelijk managementactiviteit");
-  await expect(infoDialog).toContainText("hoofdstuk 9");
+  await expect(infoDialog).toContainText("inhoudelijke leerlijn");
   await infoDialog.getByRole("button", { name: "Uitleg sluiten" }).click();
 });
 
-test("bronbibliotheek visualiseert alle bestaande SVG- en CSV-bestanden", async ({ page }) => {
+test("inzichtenbibliotheek wisselt tussen spelvarianten zonder bronbestanden", async ({ page }) => {
   await openInsights(page);
 
-  await page.getByRole("button", { name: "Alle inzichten & bronnen" }).click();
+  await expect(page.locator('[data-manager-menu="game"]')).toBeHidden();
+  await page.getByRole("button", { name: "Alle inzichten" }).click();
   const library = page.getByRole("dialog", { name: "Inzichten uit hoofdstuk 9" });
   await expect(library).toBeVisible();
-  await expect(library.locator(".chapter9-asset-tab")).toHaveCount(2);
 
   await library.locator("#chapter9VariantSelect").selectOption("all");
-  await expect(library.locator(".chapter9-asset-tab")).toHaveCount(22);
+  await expect(library.locator(".chapter9-library-insight")).toHaveCount(10);
 
   await library.locator("#chapter9VariantSelect").selectOption("lo1");
-  await expect(library.locator(".chapter9-asset-tab")).toHaveCount(5);
-  await expect(library.locator("#chapter9AssetPreview img")).toBeVisible();
-  await expect.poll(() => library.locator("#chapter9AssetPreview img").evaluate(image => image.naturalWidth))
-    .toBeGreaterThan(0);
-
-  const csvButton = library.locator(".chapter9-asset-tab").filter({ hasText: "CSV" }).first();
-  await csvButton.scrollIntoViewIfNeeded();
-  await csvButton.click();
-  await expect(library.locator(".chapter9-csv-table")).toBeVisible();
-  await expect(library.locator(".chapter9-csv-table tbody tr").first()).toBeVisible();
+  await expect(library.locator(".chapter9-library-insight")).toHaveCount(2);
+  await expect(library).not.toContainText("SVG");
+  await expect(library).not.toContainText("CSV");
 
   const dialogBox = await library.boundingBox();
   const viewport = page.viewportSize();

@@ -217,7 +217,8 @@
 
   function selectedForHost(host) {
     const formSelect = host.closest("form")?.querySelector("[data-session-game-type]");
-    return formSelect?.value || document.getElementById("gameTypeSelect")?.value || "lo4";
+    const sessionSelect = document.querySelector("#gameSessionCreateForm [data-session-game-type]");
+    return formSelect?.value || sessionSelect?.value || document.getElementById("gameTypeSelect")?.value || "lo4";
   }
 
   function renderHost(host, selectedId = selectedForHost(host)) {
@@ -236,8 +237,7 @@
 
   document.addEventListener("change", event => {
     if (!event.target.matches("[data-session-game-type], #gameTypeSelect")) return;
-    const scope = event.target.closest("form") || document;
-    scope.querySelectorAll("[data-game-variant-history], [data-game-variant-history-table]")
+    document.querySelectorAll("[data-game-variant-history], [data-game-variant-history-table]")
       .forEach(host => renderHost(host, event.target.value));
   });
 
@@ -246,6 +246,7 @@
     if (!button) return;
     const variantId = button.dataset.selectHistoryPreset;
     const select = button.closest("form")?.querySelector("[data-session-game-type]")
+      || document.querySelector("#gameSessionCreateForm [data-session-game-type]")
       || document.getElementById("gameTypeSelect");
     if (!select || ![...select.options].some(option => option.value === variantId)) return;
     select.value = variantId;

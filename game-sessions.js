@@ -27,6 +27,22 @@
     supplier: "Leverancier Grondstoffen",
     transporter: "Transporteur / Freight Forwarder"
   };
+  const SESSION_ROLE_OPTIONS = Object.freeze([
+    { id: "customer", label: "Klant", category: "Extern" },
+    { id: "logistics_manager", label: "Logistiek Manager", category: "Management" },
+    { id: "raw_warehouse", label: "Magazijn Grondstoffen", category: "Magazijn" },
+    { id: "production_1", label: "Productie Afdeling 1 (Stap 1)", category: "F-org" },
+    { id: "production_2", label: "Productie Afdeling 2 (Stap 2)", category: "F-org" },
+    { id: "production_3", label: "Productie Afdeling 3 (Stap 3)", category: "F-org" },
+    { id: "production_a", label: "Afdeling Toren A", category: "P-org" },
+    { id: "production_b", label: "Afdeling Toren B", category: "P-org" },
+    { id: "production_c", label: "Afdeling Toren C", category: "P-org" },
+    { id: "finished_warehouse", label: "Magazijn Gereed Product", category: "Magazijn" },
+    { id: "sales", label: "Verkoop / Sales Director", category: "Commercie" },
+    { id: "finance", label: "Financiële Admin", category: "Financiën" },
+    { id: "supplier", label: "Leverancier Grondstoffen", category: "Extern" },
+    { id: "transporter", label: "Transporteur / Freight Forwarder", category: "Logistiek" }
+  ]);
   const TYPE_LABELS = {
     closed: "Gesloten",
     open: "Open",
@@ -179,12 +195,16 @@
 
   const elements = () => ({
     playerPanel: document.getElementById("playerSessionPanel"),
-    playerUtilityActions: document.querySelector(".player-utility-actions"),
+    playerMetricMount: document.getElementById("playerSessionMetricMount"),
+    playerWorkbench: document.getElementById("playerWorkbench"),
+    logisticsGameMount: document.getElementById("logisticsGameMount"),
     playerTitle: document.getElementById("playerSessionTitle"),
     playerContent: document.getElementById("playerSessionContent"),
     playerBadge: document.getElementById("playerSessionBadge"),
     managerContent: document.getElementById("managerSessionContent"),
     managerBadge: document.getElementById("managerSessionBadge"),
+    managerHeadingActions: document.querySelector(".game-session-heading-actions"),
+    managerCreateButton: document.querySelector("[data-create-game-session]"),
     createForm: document.getElementById("gameSessionCreateForm"),
     sessionType: document.getElementById("gameSessionType"),
     dialog: document.getElementById("gameConsensusDialog"),
@@ -338,22 +358,7 @@
         enabled_roles: []
       }];
     }));
-    const roles = [
-      ["customer", "Klant"],
-      ["logistics_manager", "Logistiek Manager"],
-      ["raw_warehouse", "Magazijn Grondstoffen"],
-      ["production_1", "Productie Afdeling 1"],
-      ["production_2", "Productie Afdeling 2"],
-      ["production_3", "Productie Afdeling 3"],
-      ["production_a", "Productie Toren A"],
-      ["production_b", "Productie Toren B"],
-      ["production_c", "Productie Toren C"],
-      ["finished_warehouse", "Magazijn Gereed Product"],
-      ["sales", "Verkoop / Sales"],
-      ["finance", "Financiën / Admin"],
-      ["supplier", "Leverancier"],
-      ["transporter", "Transporteur"]
-    ];
+    const roles = SESSION_ROLE_OPTIONS.map(role => [role.id, role.label]);
     const yesNo = value => value
       ? '<span class="badge-on" aria-label="Aan">✅</span>'
       : '<span class="badge-excluded" aria-label="Uit">❌</span>';
@@ -390,9 +395,7 @@
       ["Vrije klantorder", config => config.customer_order_mode === "free", "bool"],
       ["Aantal torensoorten", config => config.product_type_count, "text"]
     ];
-    return `
-      <details class="game-matrix-details is-wide">
-        <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
+    const settingsMarkup = `
         <div class="game-matrix-wrapper">
           <table class="game-matrix-table">
             <caption>Automatisch opgebouwd uit de ingebouwde gamesessiepresets.</caption>
@@ -410,9 +413,8 @@
             </tbody>
           </table>
         </div>
-      </details>
-      <details class="game-matrix-details is-wide">
-        <summary class="game-matrix-summary">👥 Bekijk actieve rollen per LO-Game spelvariant</summary>
+    `;
+    const rolesMarkup = `
         <div class="game-matrix-wrapper">
           <table class="game-matrix-table">
             <caption>Rollen per ingebouwde gamesessiepreset.</caption>
@@ -429,11 +431,100 @@
             </tbody>
           </table>
         </div>
-      </details>
+    `;
+    return { settings: settingsMarkup, roles: rolesMarkup };
+  }
+
+  function roleControls(form) {
+    return [...(form?.elements || [])].filter(control => (
+      control.matches?.('input[name^="role_"]')
+    ));
+  }
+
+  function roleSelectorMarkup(config = {}, formId = "gameSessionCreateForm") {
+    const value = normalizedGameConfig(config);
+    const grouped = SESSION_ROLE_OPTIONS.reduce((groups, role) => {
+      if (!groups.has(role.category)) groups.set(role.category, []);
+      groups.get(role.category).push(role);
+      return groups;
+    }, new Map());
+    return `
+      <div class="role-selector-board">
+        ${[...grouped.entries()].map(([category, roles]) => `
+          <fieldset class="role-selector-category">
+            <legend>${escapeHtml(category)}</legend>
+            ${roles.map(role => {
+              const isChecked = !value.enabled_roles || value.enabled_roles.includes(role.id);
+              return `
+                <label class="role-option-field">
+                  <input type="checkbox"
+                         name="role_${role.id}"
+                         form="${escapeHtml(formId)}"
+                         data-game-config-control
+                         ${isChecked ? "checked" : ""}>
+                  <span>${escapeHtml(role.label)}</span>
+                </label>
+              `;
+            }).join("")}
+          </fieldset>
+        `).join("")}
+      </div>
     `;
   }
 
-  function gameConfigFieldsMarkup(config = {}) {
+  function renderGameAuxiliaryPanels(form, config = {}) {
+    if (!form) return;
+    if (!form.id) form.id = "gameSessionActiveConfigForm";
+    const rolesHost = document.querySelector("[data-session-role-selector]");
+    if (rolesHost) rolesHost.innerHTML = roleSelectorMarkup(config, form.id);
+    const matrices = gameComparisonMatricesMarkup();
+    const gamePresetsHost = document.querySelector("[data-game-presets-matrix]");
+    const rolePresetsHost = document.querySelector("[data-role-presets-matrix]");
+    if (gamePresetsHost) gamePresetsHost.innerHTML = matrices.settings;
+    if (rolePresetsHost) rolePresetsHost.innerHTML = matrices.roles;
+    const layoutHost = document.querySelector("[data-session-layout-host]");
+    if (layoutHost) {
+      layoutHost.innerHTML = `
+        <section class="configuration-layout-preview"
+                 data-configuration-layout-preview
+                 aria-label="Live opstelling voor gekozen gamepreset">
+          ${window.ConfigurationLayoutPreview?.markup(normalizedGameConfig(config)) || ""}
+        </section>
+      `;
+    }
+  }
+
+  function updateConfigurationLayout(form, config = null) {
+    const host = document.querySelector("[data-session-layout-host] [data-configuration-layout-preview]");
+    if (!host) return;
+    window.ConfigurationLayoutPreview?.update(host, config || collectGameConfig(form));
+  }
+
+  function sessionCoreFieldsMarkup(draft) {
+    return `
+      <div class="session-core-fields">
+        <label data-config-help="session-access">
+          <span>Toegang</span>
+          <select id="gameSessionType">
+            <option value="closed"${draft.session_type === "closed" ? " selected" : ""}>Gesloten · alleen met gamecode</option>
+            <option value="open"${draft.session_type === "open" ? " selected" : ""}>Open · zichtbaar en direct deelnemen</option>
+            <option value="semi_closed"${draft.session_type === "semi_closed" ? " selected" : ""}>Semi-gesloten · zichtbaar, code vereist</option>
+          </select>
+        </label>
+        <label data-config-help="difficulty">
+          <span>Moeilijkheidsgraad</span>
+          <select id="gameSessionDifficulty" data-create-difficulty-select>
+            ${difficultyOptions(draft.difficulty_level)}
+          </select>
+        </label>
+        <div class="difficulty-axis-summary" data-difficulty-summary>
+          ${difficultyAxesMarkup(draft.difficulty_level)}
+        </div>
+      </div>
+    `;
+  }
+
+  function gameConfigFieldsMarkup(config = {}, sessionFields = "") {
     const value = normalizedGameConfig(config);
     const matchingConfiguration = typeof window !== "undefined" && window.GameConfigurationStore
       ? window.GameConfigurationStore.findMatchingConfiguration(value)
@@ -488,78 +579,136 @@
     return `
       <fieldset class="session-game-config">
         <legend>Spelvariant en spelregels</legend>
-        <label class="session-config-field session-play-mode is-wide" data-config-help="play-mode">
-          <span>Spelmodus</span>
-          <select name="play_mode" data-game-config-control>
-            <option value="physical"${value.play_mode === "physical" ? " selected" : ""}>Fysiek · echte LEGO en administratief dashboard</option>
-            <option value="digital"${value.play_mode === "digital" ? " selected" : ""}>Digitaal · volledig bouwen en verplaatsen op het scherm</option>
-          </select>
-          <small>${value.play_mode === "digital"
-            ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
-            : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
-        </label>
-        <label class="session-config-field is-wide" data-config-help="game-type">
-          <span>Gametype</span>
-          <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
-        </label>
-        <section class="configuration-layout-preview is-wide"
-                 data-configuration-layout-preview
-                 aria-label="Live opstelling voor gekozen gamepreset">
-          ${window.ConfigurationLayoutPreview?.markup(value) || ""}
-        </section>
-        <section class="game-variant-history-session is-wide"
-                 aria-label="Geschiedenis en leerdoel van de gekozen variant">
-          <details>
-            <summary>Ontwikkelgeschiedenis 1992–2024 · klik een variant om deze preset te kiezen</summary>
-            <div data-game-variant-history-table></div>
-          </details>
-        </section>
-        <label class="session-config-field is-wide" data-config-help="organization-model">
-          <span>Organisatievorm</span>
-          <select name="organization_model" data-game-config-control>
-            <option value="single_enterprise"${value.organization_model === "single_enterprise" ? " selected" : ""}>
-              Eén gezamenlijke organisatie · samenwerken als afdelingen
-            </option>
-            <option value="independent_enterprises"${value.organization_model === "independent_enterprises" ? " selected" : ""}>
-              Zelfstandige ondernemingen · handelen in een productieketen
-            </option>
-            <option value="school_learning_path"${value.organization_model === "school_learning_path" ? " selected" : ""}>
-              School / leertraject · budgetgedreven onderwijsproces
-            </option>
-          </select>
-        </label>
-        <label class="session-config-field is-wide"
-               data-school-funding-settings
-               data-config-help="funding-incentive"
-               ${value.organization_model === "school_learning_path" ? "" : "hidden"}>
-          <span>Bekostigingsprikkel</span>
-          <select name="funding_incentive" data-game-config-control>
-            <option value="quality"${value.funding_incentive === "quality" ? " selected" : ""}>
-              Kwaliteit · snelle, goede doorstroom wordt beloond
-            </option>
-            <option value="balanced"${value.funding_incentive === "balanced" ? " selected" : ""}>
-              Gebalanceerd · kwaliteit en bekostiging wegen beide
-            </option>
-            <option value="financing"${value.funding_incentive === "financing" ? " selected" : ""}>
-              Financiering · leerlingvolume en verblijfsduur sturen het budget
-            </option>
-          </select>
-          <small data-funding-incentive-preview></small>
-        </label>
-        <div class="session-config-toggles">
-          ${toggle("money", "Geld")}
-          ${toggle("pnl", "Winst/verlies")}
-          ${toggle("intermediate_stock", "Tussenvoorraad")}
-          ${toggle("opportunity_costs", "Opportunity costs")}
-          ${toggle("role_freedom", "Rolvrijheid")}
-          ${toggle("has_supplier", "Leverancier actief")}
-          ${toggle(
-            "production_planning_enabled",
-            "Productieplanning",
-            "Toon het productieplan A/B/C, valideer de beschikbare grondstoffen en vergelijk plan met werkelijk gereed."
-          )}
+        <div class="session-config-select-board">
+          <fieldset class="session-config-choice-group">
+            <legend>Variant</legend>
+            <label class="session-config-field session-play-mode" data-config-help="play-mode">
+              <span>Spelmodus</span>
+              <select name="play_mode" data-game-config-control>
+                <option value="physical"${value.play_mode === "physical" ? " selected" : ""}>Fysiek · echte LEGO en administratief dashboard</option>
+                <option value="digital"${value.play_mode === "digital" ? " selected" : ""}>Digitaal · volledig bouwen en verplaatsen op het scherm</option>
+              </select>
+              <small>${value.play_mode === "digital"
+                ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
+                : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
+            </label>
+            <label class="session-config-field" data-config-help="game-type">
+              <span>Gametype</span>
+              <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
+            </label>
+            ${sessionFields}
+          </fieldset>
+          <fieldset class="session-config-choice-group">
+            <legend>Organisatie</legend>
+            <label class="session-config-field" data-config-help="organization-model">
+              <span>Organisatievorm</span>
+              <select name="organization_model" data-game-config-control>
+                <option value="single_enterprise"${value.organization_model === "single_enterprise" ? " selected" : ""}>
+                  Eén gezamenlijke organisatie · samenwerken als afdelingen
+                </option>
+                <option value="independent_enterprises"${value.organization_model === "independent_enterprises" ? " selected" : ""}>
+                  Zelfstandige ondernemingen · handelen in een productieketen
+                </option>
+                <option value="school_learning_path"${value.organization_model === "school_learning_path" ? " selected" : ""}>
+                  School / leertraject · budgetgedreven onderwijsproces
+                </option>
+              </select>
+            </label>
+            <label class="session-config-field"
+                   data-school-funding-settings
+                   data-config-help="funding-incentive"
+                   ${value.organization_model === "school_learning_path" ? "" : "hidden"}>
+              <span>Bekostigingsprikkel</span>
+              <select name="funding_incentive" data-game-config-control>
+                <option value="quality"${value.funding_incentive === "quality" ? " selected" : ""}>
+                  Kwaliteit · snelle, goede doorstroom wordt beloond
+                </option>
+                <option value="balanced"${value.funding_incentive === "balanced" ? " selected" : ""}>
+                  Gebalanceerd · kwaliteit en bekostiging wegen beide
+                </option>
+                <option value="financing"${value.funding_incentive === "financing" ? " selected" : ""}>
+                  Financiering · leerlingvolume en verblijfsduur sturen het budget
+                </option>
+              </select>
+              <small data-funding-incentive-preview></small>
+            </label>
+          </fieldset>
+          <fieldset class="session-config-choice-group">
+            <legend>Commercie</legend>
+            <label class="session-config-field" data-config-help="customer-order">
+              <span>Klantorder</span>
+              <select name="customer_order_mode" data-game-config-control>
+                <option value="free"${value.customer_order_mode === "free" ? " selected" : ""}>Vrij · klant kiest toren en aantal</option>
+                <option value="required"${value.customer_order_mode === "required" ? " selected" : ""}>Verplicht · variant bepaalt de order</option>
+              </select>
+            </label>
+            <label class="session-config-field" data-config-help="price">
+              <span>Prijs</span>
+              <select name="price_mode" data-game-config-control>
+                <option value="fixed"${value.price_mode === "fixed" ? " selected" : ""}>Vast</option>
+                <option value="free"${value.price_mode === "free" ? " selected" : ""}>Vrij</option>
+              </select>
+            </label>
+          </fieldset>
         </div>
-        <fieldset class="session-config-field financial-detail-settings is-wide"
+        <div class="session-config-checkbox-board">
+          <fieldset class="session-config-choice-group">
+            <legend>Financiën</legend>
+            ${toggle("money", "Geld")}
+            ${toggle("pnl", "Winst/verlies")}
+            ${toggle("opportunity_costs", "Opportunity costs")}
+          </fieldset>
+          <fieldset class="session-config-choice-group">
+            <legend>Logistiek</legend>
+            ${toggle("intermediate_stock", "Tussenvoorraad")}
+            ${toggle("has_supplier", "Leverancier actief")}
+            ${toggle(
+              "production_planning_enabled",
+              "Productieplanning",
+              "Toon het productieplan A/B/C, valideer de beschikbare grondstoffen en vergelijk plan met werkelijk gereed."
+            )}
+          </fieldset>
+          <fieldset class="session-config-choice-group">
+            <legend>Spelers</legend>
+            ${toggle("role_freedom", "Rolvrijheid")}
+            <fieldset class="session-config-field color-choice-settings" data-config-help="color-freedom">
+              <legend>Kleurvrijheid</legend>
+              <label class="session-config-toggle">
+                <input type="checkbox"
+                       name="multiple_colors"
+                       data-multiple-colors
+                       data-game-config-control
+                       ${value.multiple_colors ? "checked" : ""}
+                       ${window.GameConfigurationStore?.getVariantRules(value.game_type)?.colorModeEditable === false ? "disabled" : ""}>
+                <span>Meerdere kleuren</span>
+              </label>
+              <div class="color-layer-options"
+                   data-editable-color-layers
+                   ${value.multiple_colors ? "" : "hidden"}>
+                <span>Kleur zelf kiezen voor:</span>
+                ${[
+                  ["groundPlate", "Grondplaat"],
+                  ["layer1", "Laag 1"],
+                  ["layer2", "Laag 2"],
+                  ["layer3", "Laag 3"]
+                ].map(([layerId, label]) => `
+                  <label>
+                    <input type="checkbox"
+                           name="color_${layerId}"
+                           data-color-layer="${layerId}"
+                           data-game-config-control
+                           ${editableColorLayers.has(layerId) ? "checked" : ""}
+                           ${value.multiple_colors ? "" : "disabled"}>
+                    ${label}
+                  </label>
+                `).join("")}
+              </div>
+              <small data-color-mode-note>LO-Games 1 t/m 5 gebruiken één vaste kleur; vanaf LO-Game 6 kan de spelleider meerdere kleuren kiezen.</small>
+            </fieldset>
+          </fieldset>
+        </div>
+        <div class="session-config-detail-board">
+        <fieldset class="session-config-field financial-detail-settings"
                   data-financial-detail-settings
                   ${value.money ? "" : "hidden"}>
           <legend>Financiële verdieping</legend>
@@ -587,41 +736,10 @@
                 : "Adviseur: alleen eenvoudige inkomsten, uitgaven en cashflow worden gevolgd."}
           </small>
         </fieldset>
-        <fieldset class="session-config-field color-choice-settings is-wide" data-config-help="color-freedom">
-          <legend>Kleurvrijheid</legend>
-          <label class="session-config-toggle">
-            <input type="checkbox"
-                   name="multiple_colors"
-                   data-multiple-colors
-                   data-game-config-control
-                   ${value.multiple_colors ? "checked" : ""}
-                   ${window.GameConfigurationStore?.getVariantRules(value.game_type)?.colorModeEditable === false ? "disabled" : ""}>
-            <span>Meerdere kleuren</span>
-          </label>
-          <div class="color-layer-options"
-               data-editable-color-layers
-               ${value.multiple_colors ? "" : "hidden"}>
-            <span>Kleur zelf kiezen voor:</span>
-            ${[
-              ["groundPlate", "Grondplaat"],
-              ["layer1", "Laag 1"],
-              ["layer2", "Laag 2"],
-              ["layer3", "Laag 3"]
-            ].map(([layerId, label]) => `
-              <label>
-                <input type="checkbox"
-                       name="color_${layerId}"
-                       data-color-layer="${layerId}"
-                       data-game-config-control
-                       ${editableColorLayers.has(layerId) ? "checked" : ""}
-                       ${value.multiple_colors ? "" : "disabled"}>
-                ${label}
-              </label>
-            `).join("")}
-          </div>
-          <small data-color-mode-note>LO-Games 1 t/m 5 gebruiken één vaste kleur; vanaf LO-Game 6 kan de spelleider meerdere kleuren kiezen.</small>
-        </fieldset>
-        <fieldset class="session-config-field currency-settings is-wide" data-currency-settings ${value.money ? "" : "hidden"}>
+        <fieldset class="session-config-field currency-settings is-wide"
+                  data-currency-settings
+                  title="Koersen zijn uitgedrukt als vreemde valuta per 1 eenheid van de basisvaluta."
+                  ${value.money ? "" : "hidden"}>
           <legend>Valuta en wisselkoersen</legend>
           <label>
             <span>Basisvaluta</span>
@@ -658,22 +776,7 @@
               </label>
             `).join("")}
           </div>
-          <small>Koersen zijn uitgedrukt als vreemde valuta per 1 eenheid van de basisvaluta.</small>
         </fieldset>
-        <label class="session-config-field" data-config-help="customer-order">
-          <span>Klantorder</span>
-          <select name="customer_order_mode" data-game-config-control>
-            <option value="free"${value.customer_order_mode === "free" ? " selected" : ""}>Vrij · klant kiest toren en aantal</option>
-            <option value="required"${value.customer_order_mode === "required" ? " selected" : ""}>Verplicht · variant bepaalt de order</option>
-          </select>
-        </label>
-        <label class="session-config-field" data-config-help="price">
-          <span>Prijs</span>
-          <select name="price_mode" data-game-config-control>
-            <option value="fixed"${value.price_mode === "fixed" ? " selected" : ""}>Vast</option>
-            <option value="free"${value.price_mode === "free" ? " selected" : ""}>Vrij</option>
-          </select>
-        </label>
         <fieldset class="session-config-field production-process-fields">
           <legend>Productieroutes</legend>
           <label class="session-config-toggle" data-config-help="parallel-production">
@@ -701,6 +804,7 @@
                  ${window.GameConfigurationStore?.getVariantRules(value.game_type)?.productTypeCountEditable === false ? "disabled" : ""}>
           <small data-product-type-note></small>
         </label>
+        </div>
         <details class="session-config-save is-wide">
           <summary>Opslaan als nieuwe preset…</summary>
           <div>
@@ -715,37 +819,6 @@
             <button type="button" class="secondary-button" data-save-session-config>Preset opslaan</button>
           </div>
         </details>
-        <details class="role-selector-details is-wide">
-          <summary class="role-selector-summary">⚙️ Rollen af- of aanvinken voor deze sessie (Afwijken van preset)</summary>
-          <div class="role-selector-grid">
-            ${[
-              { id: "customer", label: "Klant", category: "Extern" },
-              { id: "logistics_manager", label: "Logistiek Manager", category: "Management" },
-              { id: "raw_warehouse", label: "Magazijn Grondstoffen", category: "Magazijn" },
-              { id: "production_1", label: "Productie Afdeling 1 (Stap 1)", category: "F-org" },
-              { id: "production_2", label: "Productie Afdeling 2 (Stap 2)", category: "F-org" },
-              { id: "production_3", label: "Productie Afdeling 3 (Stap 3)", category: "F-org" },
-              { id: "production_a", label: "Afdeling Toren A", category: "P-org" },
-              { id: "production_b", label: "Afdeling Toren B", category: "P-org" },
-              { id: "production_c", label: "Afdeling Toren C", category: "P-org" },
-              { id: "finished_warehouse", label: "Magazijn Gereed Product", category: "Magazijn" },
-              { id: "sales", label: "Verkoop / Sales Director", category: "Commercie" },
-              { id: "finance", label: "Financiële Admin", category: "Financiën" },
-              { id: "supplier", label: "Leverancier Grondstoffen", category: "Extern" },
-              { id: "transporter", label: "Transporteur / Freight Forwarder", category: "Logistiek" }
-            ].map(role => {
-              const isChecked = !value.enabled_roles || value.enabled_roles.includes(role.id);
-              return `
-                <label class="role-option-field">
-                  <input type="checkbox" name="role_${role.id}" data-game-config-control ${isChecked ? 'checked' : ''}>
-                  <span>${role.label}</span>
-                  <span class="role-option-category">${role.category}</span>
-                </label>
-              `;
-            }).join("")}
-          </div>
-        </details>
-        ${gameComparisonMatricesMarkup()}
         <details class="game-matrix-details is-wide" hidden aria-hidden="true">
           <summary class="game-matrix-summary">📊 Bekijk overzicht instellingen per LO-Game spelvariant</summary>
           <div class="game-matrix-wrapper">
@@ -1063,6 +1136,7 @@
     const stored = window.GameConfigurationStore?.getConfiguration(configurationId);
     const settings = stored?.settings || GAME_CONFIG_PRESETS[configurationId];
     if (!settings) return;
+    renderGameAuxiliaryPanels(form, settings);
     const gameType = settings.game_type || configurationId;
     form.dataset.gameType = gameType;
     Object.entries(settings).forEach(([name, value]) => {
@@ -1079,7 +1153,7 @@
     form.elements.namedItem("sequential_production").checked = processes.includes("sequential");
     if (Array.isArray(settings.enabled_roles)) {
       const enabledRoles = new Set(settings.enabled_roles);
-      form.querySelectorAll('.role-selector-grid input[name^="role_"]').forEach(control => {
+      roleControls(form).forEach(control => {
         control.checked = enabledRoles.has(control.name.slice("role_".length));
       });
     }
@@ -1097,7 +1171,7 @@
     updateVariantConstraintControls(form);
     updateSupplierRoleControl(form);
     updateCurrencyControls(form);
-    window.ConfigurationLayoutPreview?.update(form);
+    updateConfigurationLayout(form);
   }
 
   function selectedProductionProcesses(form, gameType) {
@@ -1234,7 +1308,7 @@
       || get("game_type")?.value
       || "lo4";
     const productionProcesses = selectedProductionProcesses(form, gameType);
-    const enabledRoles = [...form.querySelectorAll('.role-selector-grid input[name^="role_"]')]
+    const enabledRoles = roleControls(form)
       .filter(control => control.checked)
       .map(control => control.name.slice("role_".length));
     updateHybridProductionTooltip(form);
@@ -1348,8 +1422,27 @@
     }
     select.value = saved.config_id;
     form.dataset.gameType = saved.settings.game_type || saved.base_template;
-    form.querySelector(".session-config-save")?.removeAttribute("open");
+    document.querySelector(
+      `.game-session-heading-actions .session-config-save[data-config-form-id="${form.id}"]`
+    )?.removeAttribute("open");
     return saved;
+  }
+
+  function placePresetSaveAction(form, els) {
+    const actions = els.managerHeadingActions;
+    if (!actions) return;
+    const current = actions.querySelector(".session-config-save");
+    const presetSave = form?.querySelector(".session-config-save");
+    if (!presetSave) {
+      if (!form || current?.dataset.configFormId !== form.id) current?.remove();
+      return;
+    }
+    current?.remove();
+    presetSave.dataset.configFormId = form.id;
+    presetSave.querySelectorAll("input, select, textarea, button").forEach(control => {
+      control.setAttribute("form", form.id);
+    });
+    actions.insertBefore(presetSave, els.managerCreateButton || null);
   }
 
   function memberCards(session) {
@@ -1405,7 +1498,7 @@
     return `
       <div class="game-master-difficulty-form">
         <label data-config-help="difficulty">
-          <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
+          <span>Moeilijkheidsgraad</span>
           <select data-game-difficulty-select>${difficultyOptions(level)}</select>
         </label>
         <div class="difficulty-axis-summary" data-difficulty-summary>
@@ -1419,7 +1512,7 @@
   function gameMasterConfigMarkup(session) {
     if (!session.is_game_master || session.status === "running") return "";
     return `
-      <form class="game-session-config-form" data-active-game-config>
+      <form id="gameSessionActiveConfigForm" class="game-session-config-form" data-active-game-config>
         ${gameConfigFieldsMarkup(session.game_config)}
         <small>Deze spelregels gelden alleen voor deze gamesessie en worden direct opgeslagen.</small>
       </form>
@@ -1429,30 +1522,9 @@
   function createSessionMarkup() {
     const draft = state.createSessionDraft;
     return `
-      <form id="gameSessionCreateForm" class="game-session-create-form">
-        <label data-config-help="session-access">
-          <span>Toegang</span>
-          <select id="gameSessionType">
-            <option value="closed"${draft.session_type === "closed" ? " selected" : ""}>Gesloten · alleen met gamecode</option>
-            <option value="open"${draft.session_type === "open" ? " selected" : ""}>Open · zichtbaar en direct deelnemen</option>
-            <option value="semi_closed"${draft.session_type === "semi_closed" ? " selected" : ""}>Semi-gesloten · zichtbaar, code vereist</option>
-          </select>
-        </label>
-        <label data-config-help="difficulty">
-          <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
-          <select id="gameSessionDifficulty" data-create-difficulty-select>
-            ${difficultyOptions(draft.difficulty_level)}
-          </select>
-        </label>
-        <button class="primary-button"
-                type="submit"
-                data-create-game-session>Sessie aanmaken</button>
-        <div class="difficulty-axis-summary" data-difficulty-summary>
-          ${difficultyAxesMarkup(draft.difficulty_level)}
-        </div>
-        ${gameConfigFieldsMarkup(draft.game_config)}
+      <form id="gameSessionCreateForm" class="game-session-create-form" data-runtime-session-form>
+        ${gameConfigFieldsMarkup(draft.game_config, sessionCoreFieldsMarkup(draft))}
       </form>
-      <p class="manager-create-note">Alleen hier, in Beheer, kan een reguliere gamesessie worden aangemaakt.</p>
     `;
   }
 
@@ -1472,6 +1544,7 @@
         <div class="player-running-session">
           <span class="session-member-token">${escapeHtml(assignedRole.slice(0, 2).toUpperCase())}</span>
           <span>
+            <small class="player-session-context">Gamecode &amp; lobby</small>
             <strong>${escapeHtml(assignedRole)}</strong>
             <small>Gamesessie gestart · ${playModeLabel} · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
           </span>
@@ -1583,15 +1656,16 @@
 
   function placePlayerSessionPanel(running) {
     const els = elements();
-    if (!els.playerPanel || !els.playerUtilityActions) return;
-    if (running) {
-      const characterButton = els.playerUtilityActions.querySelector("[data-character-edit]");
-      els.playerPanel.classList.add("is-utility-session");
-      els.playerUtilityActions.insertBefore(els.playerPanel, characterButton);
+    if (!els.playerPanel) return;
+    if (running && els.playerMetricMount) {
+      els.playerPanel.classList.add("is-metric-session");
+      els.playerMetricMount.append(els.playerPanel);
       return;
     }
-    els.playerPanel.classList.remove("is-utility-session");
-    els.playerUtilityActions.after(els.playerPanel);
+    els.playerPanel.classList.remove("is-metric-session");
+    if (els.playerWorkbench) {
+      els.playerWorkbench.insertBefore(els.playerPanel, els.logisticsGameMount || null);
+    }
   }
 
   function render() {
@@ -1611,6 +1685,8 @@
         : "Lobby van jouw gamesessie";
       els.playerBadge.textContent = state.session.status === "running" ? "Gestart" : "In lobby";
       els.managerBadge.textContent = state.session.is_game_master ? "Game Master" : "Deelnemer";
+      els.managerBadge.hidden = false;
+      if (els.managerCreateButton) els.managerCreateButton.hidden = true;
       els.playerContent.innerHTML = sessionMarkup(state.session, "player");
       els.managerContent.innerHTML = sessionMarkup(state.session, "manager");
       if (state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
@@ -1624,8 +1700,10 @@
       els.playerTitle.textContent = "Neem deel aan een gamesessie";
       els.playerBadge.textContent = "Geen sessie";
       els.managerBadge.textContent = "Geen sessie";
+      els.managerBadge.hidden = true;
+      if (els.managerCreateButton) els.managerCreateButton.hidden = false;
       els.playerContent.innerHTML = availableMarkup(state.availability);
-      if (!els.managerContent.querySelector("#gameSessionCreateForm .session-config-save")) {
+      if (!els.managerContent.querySelector("#gameSessionCreateForm[data-runtime-session-form]")) {
         els.managerContent.innerHTML = createSessionMarkup();
       }
     }
@@ -1634,6 +1712,10 @@
 
     const managerDetails = els.managerContent.querySelectorAll("details");
     openManagerIndices.forEach(i => managerDetails[i]?.setAttribute("open", ""));
+    const configForm = document.querySelector("#gameSessionCreateForm, [data-active-game-config]");
+    const config = state.session?.game_config || state.createSessionDraft.game_config;
+    placePresetSaveAction(configForm, els);
+    renderGameAuxiliaryPanels(configForm, config);
     renderConsensus();
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: {
@@ -1779,16 +1861,18 @@
       const saveConfigurationButton = event.target.closest("[data-save-session-config]");
       if (saveConfigurationButton) {
         event.preventDefault();
-        saveSessionConfiguration(saveConfigurationButton.closest("form"));
+        saveSessionConfiguration(saveConfigurationButton.form || saveConfigurationButton.closest("form"));
         return;
       }
       const createButton = event.target.closest("[data-create-game-session]");
       if (!createButton) return;
       event.preventDefault();
-      createSessionFromForm(createButton.closest("#gameSessionCreateForm"));
+      createSessionFromForm(createButton.form || document.getElementById("gameSessionCreateForm"));
     }, true);
     document.addEventListener("input", event => {
-      const createForm = event.target.closest("#gameSessionCreateForm");
+      const createForm = event.target.form?.matches("#gameSessionCreateForm")
+        ? event.target.form
+        : event.target.closest("#gameSessionCreateForm");
       if (!createForm) return;
       if (
         event.target.matches("[data-game-config-control]")
@@ -1807,7 +1891,7 @@
         updateCurrencyControls(createForm);
         updateSchoolFundingControls(createForm);
         const config = collectGameConfig(createForm);
-        window.ConfigurationLayoutPreview?.update(createForm, config);
+        updateConfigurationLayout(createForm, config);
         syncGameConfigurationSelection(createForm, config);
         state.createSessionDraft.game_config = config;
       } else if (event.target.matches("[data-create-difficulty-select]")) {
@@ -1818,7 +1902,7 @@
     });
     document.addEventListener("change", event => {
       if (event.target.matches("[data-game-config-control]")) {
-        const form = event.target.closest("form");
+        const form = event.target.form || event.target.closest("form");
         const selectedPreset = event.target.matches("[data-session-game-type]")
           ? event.target.value
           : null;
@@ -1835,7 +1919,7 @@
         updateCurrencyControls(form);
         updateSchoolFundingControls(form);
         const config = collectGameConfig(form);
-        window.ConfigurationLayoutPreview?.update(form, config);
+        updateConfigurationLayout(form, config);
         // Een expliciet gekozen preset is al de bron van waarheid. Meteen opnieuw
         // matchen kon op een nog niet gematerialiseerde standaardwaarde (zoals
         // play_mode) uitkomen en de dropdown onterecht naar custom_draft zetten.

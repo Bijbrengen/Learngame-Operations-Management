@@ -217,7 +217,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
     await form.locator('[name="game_type"]').selectOption("lo4");
     await form.locator('[name="play_mode"]').selectOption("digital");
-    await form.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
     await posted;
 
     expect(postedBody.game_config.play_mode).toBe("digital");
@@ -253,6 +253,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
     const editor = page.locator("#towerEditorMount");
     await expect(editor).toBeVisible();
+    await expect(page.locator('[data-manager-menu="game"]')).toBeHidden();
+    await expect(page.locator('[data-manager-menu="towers"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: /Bouwtafel/ })).toHaveClass(/is-active/);
     await expect(editor.locator('[data-ground-plate-color="blue"]')).toBeDisabled();
     await expect(editor.locator('[data-add-tower-part="blue_8"]')).toHaveAttribute(
       "aria-disabled",

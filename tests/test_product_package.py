@@ -77,7 +77,17 @@ class ProductPackageTests(unittest.TestCase):
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
         self.assertEqual(
-            ["session", "process", "insights", "inventory", "events", "tower-editor"],
+            [
+                "session",
+                "layout",
+                "process",
+                "digital-twin",
+                "inventory",
+                "history",
+                "roles",
+                "game-presets",
+                "role-presets",
+            ],
             tabs,
         )
         self.assertNotIn('data-manager-tab="core"', navigation)
@@ -639,21 +649,30 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["hasRawDelay"])
         self.assertTrue(result["hasPeakFlow"])
 
-    def test_waiting_player_can_switch_between_status_feed_and_process_flow(self) -> None:
+    def test_waiting_player_sees_four_scaled_live_views_at_once(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
-        self.assertIn('this.waitingTab = "flow"', ui)
+        self.assertNotIn("data-sim-waiting-tab", ui)
+        self.assertIn('aria-label="Vier gelijktijdige liveweergaven"', ui)
         self.assertLess(
-            ui.index('data-sim-waiting-tab="flow"'),
-            ui.index('data-sim-waiting-tab="departments"'),
+            ui.index('<h3 id="simWaitingFlowTitle">'),
+            ui.index('<h3 id="simWaitingHeatmapTitle">'),
         )
-        self.assertIn('data-sim-waiting-tab="departments"', ui)
-        self.assertIn('data-sim-waiting-tab="events"', ui)
-        self.assertIn('data-sim-waiting-tab="flow"', ui)
+        self.assertLess(
+            ui.index('<h3 id="simWaitingHeatmapTitle">'),
+            ui.index('<h3 id="simWaitingEventsTitle">'),
+        )
+        self.assertLess(
+            ui.index('<h3 id="simWaitingEventsTitle">'),
+            ui.index('<h3 id="simWaitingDepartmentsTitle">'),
+        )
         self.assertIn("Afdelingen", ui)
         self.assertIn("Live gebeurtenissen", ui)
         self.assertIn("Productiestroom", ui)
+        self.assertNotIn("<h2>Live fabrieksoverzicht</h2>", ui)
+        self.assertIn("grid-template-rows: repeat(2, minmax(0, 1fr))", styles)
+        self.assertIn(".sim-waiting-view.is-live-events .sim-waiting-view-body", styles)
         self.assertIn("mountProcessFlow", ui)
         self.assertIn("renderProcessFlow: (target, snapshot) =>", game)
         self.assertIn("standaloneLogisticsScene(snapshot)", game)
@@ -1504,7 +1523,8 @@ process.stdout.write(JSON.stringify({
         self.assertIn('context === "player" && running', runtime)
         self.assertIn("player-running-session", runtime)
         self.assertIn("placePlayerSessionPanel", runtime)
-        self.assertIn("is-utility-session", runtime)
+        self.assertIn('id="playerSessionMetricMount"', html)
+        self.assertIn("is-metric-session", runtime)
         self.assertIn("data-game-master-role-select", runtime)
         self.assertIn("game-master-role", runtime)
         self.assertIn("(rolruil)", runtime)
@@ -1578,7 +1598,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("data-create-game-session", html)
         self.assertIn('event.target.closest("[data-create-game-session]")', runtime)
         self.assertIn(
-            'createSessionFromForm(createButton.closest("#gameSessionCreateForm"))',
+            'createSessionFromForm(createButton.form || document.getElementById("gameSessionCreateForm"))',
             runtime,
         )
 
@@ -1892,8 +1912,11 @@ process.stdout.write(JSON.stringify({{
         renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
         sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
-        self.assertIn('data-manager-tab="tower-editor"', html)
+        self.assertIn('data-main-menu-tab="tower-editor"', html)
         self.assertIn('data-manager-panel="tower-editor"', html)
+        self.assertIn('data-manager-menu="towers"', html)
+        self.assertIn('data-tower-tab="builder"', html)
+        self.assertIn('data-tower-tab="assortment"', html)
         self.assertIn("Productassortiment", html)
         self.assertIn("renderAnimated", editor)
         self.assertIn("tower-assortment-grid", editor)

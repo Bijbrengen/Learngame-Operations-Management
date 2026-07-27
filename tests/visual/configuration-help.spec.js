@@ -38,7 +38,7 @@ async function openManagerSettings(page) {
     window.LEARNGameOMSimulator.setAppView("manager");
     window.LEARNGameOMSimulator.setManagerTab("session");
   });
-  await page.locator("#gameSessionCreateForm .session-config-save").waitFor({ state: "visible" });
+  await page.locator(".game-session-heading-actions .session-config-save").waitFor({ state: "visible" });
 }
 
 test("iedere spelinstelling geeft toegankelijke uitleg over werking en leereffect", async ({ page }) => {

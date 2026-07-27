@@ -1195,18 +1195,9 @@
     }
 
     factoryOverviewMarkup(snapshot) {
-      const humanRole = snapshot.roles[snapshot.humanRoleId];
       const openOrders = snapshot.orders.filter(order => order.status !== "DELIVERED").length;
       return `
         <section class="sim-factory-overview">
-          <header>
-            <div>
-              <p class="eyebrow">Wachten = live meekijken</p>
-              <h2>Live fabrieksoverzicht</h2>
-              <p>Je speelt als <strong>${escapeHtml(humanRole.title)}</strong>. Zodra jouw rol nodig is, verschijnt automatisch het orderformulier.</p>
-            </div>
-            <span class="sim-live-indicator"><i></i> Live</span>
-          </header>
           <div class="sim-waiting-overview" aria-label="Vier gelijktijdige liveweergaven">
             <section class="sim-waiting-view" aria-labelledby="simWaitingFlowTitle">
               <header>
@@ -1219,15 +1210,13 @@
                      aria-label="Productiestromen tussen de afdelingen"></div>
               </div>
             </section>
-            <section class="sim-waiting-view" aria-labelledby="simWaitingDepartmentsTitle">
+            <section class="sim-waiting-view" aria-labelledby="simWaitingHeatmapTitle">
               <header>
-                <h3 id="simWaitingDepartmentsTitle">Afdelingen</h3>
+                <h3 id="simWaitingHeatmapTitle">Heatmap</h3>
                 <strong>${snapshot.roleFlow.length}</strong>
               </header>
-              <div class="sim-waiting-view-body">
-              <div class="sim-role-status-grid">
-                ${snapshot.roleFlow.map(roleId => this.roleStatusMarkup(snapshot, roleId)).join("")}
-              </div>
+              <div class="sim-waiting-view-body sim-waiting-heatmap-body">
+                ${this.waitingHeatmapMarkup(snapshot)}
               </div>
             </section>
             <section class="sim-waiting-view is-live-events" aria-labelledby="simWaitingEventsTitle">
@@ -1248,13 +1237,15 @@
               </div>
               </div>
             </section>
-            <section class="sim-waiting-view" aria-labelledby="simWaitingHeatmapTitle">
+            <section class="sim-waiting-view" aria-labelledby="simWaitingDepartmentsTitle">
               <header>
-                <h3 id="simWaitingHeatmapTitle">Heatmap</h3>
+                <h3 id="simWaitingDepartmentsTitle">Afdelingen</h3>
                 <strong>${snapshot.roleFlow.length}</strong>
               </header>
-              <div class="sim-waiting-view-body sim-waiting-heatmap-body">
-                ${this.waitingHeatmapMarkup(snapshot)}
+              <div class="sim-waiting-view-body">
+              <div class="sim-role-status-grid">
+                ${snapshot.roleFlow.map(roleId => this.roleStatusMarkup(snapshot, roleId)).join("")}
+              </div>
               </div>
             </section>
           </div>

@@ -33,7 +33,7 @@ async function openManagerSettings(page) {
     window.LEARNGameOMSimulator.setAppView("manager");
     window.LEARNGameOMSimulator.setManagerTab("session");
   });
-  await page.locator("#gameSessionCreateForm .session-config-save").waitFor({ state: "visible" });
+  await page.locator(".game-session-heading-actions .session-config-save").waitFor({ state: "visible" });
 }
 
 test.describe("Parallelle en sequentiële productieroutes", () => {
@@ -41,36 +41,36 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await openManagerSettings(page);
   });
 
-  test("de opstelling direct onder de preset verandert meteen mee", async ({ page }) => {
+  test("de aparte Opstelling blijft direct met de gekozen preset gesynchroniseerd", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
-    const preview = form.locator("[data-configuration-layout-preview]");
+    const preview = page.locator('[data-manager-panel="layout"] [data-configuration-layout-preview]');
 
-    await expect(preview).toBeVisible();
     await gameType.selectOption("lo4");
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("layout"));
+    await expect(preview).toBeVisible();
     await expect(preview.locator('[data-layout-topology="parallel"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-a"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-b"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-c"]')).toBeVisible();
 
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("session"));
     await gameType.selectOption("lo5");
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("layout"));
     await expect(preview.locator('[data-layout-topology="sequential"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="supplier"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-1"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="stock-1"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="customer"]')).toBeVisible();
 
-    await preview.getByRole("button", { name: "Boekfiguur" }).click();
-    await expect(preview.locator(".configuration-layout-book img")).toHaveAttribute(
-      "src",
-      /5-functionele-organisatie-lo-game-5\.svg$/
-    );
+    await expect(preview.locator("[data-layout-view]")).toHaveCount(0);
   });
 
   test("historietabel bevat alle ontwikkelvarianten en kiest de aangeklikte preset", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
-    const history = form.locator(".game-variant-history-session");
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("history"));
+    const history = page.locator('[data-manager-panel="history"]');
 
     for (const variantId of [
       "lo5b",
@@ -85,7 +85,6 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       await expect(gameType.locator(`option[value="${variantId}"]`)).toHaveCount(1);
     }
 
-    await history.locator("summary").click();
     await history.locator('[data-select-history-preset="lo5b"]').click();
     await expect(gameType).toHaveValue("lo5b");
     await expect(history.locator("[data-variant-history-info]")).toContainText("decentrale inkoop");
@@ -112,10 +111,11 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(form.locator("[data-hybrid-production-tooltip]")).toBeVisible();
     await expect(gameType).toHaveValue("custom_draft");
 
-    await form.locator(".session-config-save summary").click();
-    await form.locator('[name="configuration_name"]').fill("Hybride klantorderroute");
-    await form.locator('[name="configuration_description"]').fill("Parallel en sequentieel tegelijk.");
-    await form.getByRole("button", { name: "Preset opslaan" }).click();
+    const presetSave = page.locator(".game-session-heading-actions .session-config-save");
+    await presetSave.locator("summary").click();
+    await presetSave.locator('[name="configuration_name"]').fill("Hybride klantorderroute");
+    await presetSave.locator('[name="configuration_description"]').fill("Parallel en sequentieel tegelijk.");
+    await presetSave.getByRole("button", { name: "Preset opslaan" }).click();
 
     await expect(gameType.locator("option:checked")).toContainText("Hybride klantorderroute");
 
@@ -163,8 +163,8 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(form.locator('[name="price_mode"]')).toHaveValue("fixed");
     await expect(form.locator('[name="customer_order_mode"]')).toHaveValue("required");
     await expect(form.locator('[name="product_type_count"]')).toHaveValue("3");
-    await expect(form.locator('[name="role_production_a"]')).toBeChecked();
-    await expect(form.locator('[name="role_production_1"]')).not.toBeChecked();
+    await expect(page.locator('[data-manager-panel="roles"] [name="role_production_a"]')).toBeChecked();
+    await expect(page.locator('[data-manager-panel="roles"] [name="role_production_1"]')).not.toBeChecked();
   });
 
   test("torens, kleuren en leverancier volgen de gekozen LO-Game", async ({ page }) => {
@@ -173,7 +173,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     const productCount = form.locator('[name="product_type_count"]');
     const multipleColors = form.locator('[name="multiple_colors"]');
     const supplier = form.locator('[name="has_supplier"]');
-    const supplierRole = form.locator('[name="role_supplier"]');
+    const supplierRole = page.locator('[data-manager-panel="roles"] [name="role_supplier"]');
 
     await gameType.selectOption("lo1");
     await expect(productCount).toHaveValue("1");
@@ -262,7 +262,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     const form = page.locator("#gameSessionCreateForm");
     await form.locator('[name="game_type"]').selectOption("lo4");
     await form.locator('[name="play_mode"]').selectOption("digital");
-    await form.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
     await requestReceived;
 
     expect(requestPayload.game_config.play_mode).toBe("digital");

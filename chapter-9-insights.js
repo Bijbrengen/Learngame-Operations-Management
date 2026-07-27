@@ -1,34 +1,6 @@
 (() => {
   "use strict";
 
-  const SOURCE_ROOT = "source_docs/LE-boek%20Learngames/";
-  const sourcePath = fileName => `${SOURCE_ROOT}${encodeURIComponent(fileName)}`;
-
-  const assets = Object.freeze([
-    { variant: "lo1", type: "svg", file: "1-informatie-en-goederenstroom-lo-game-1.svg", title: "Informatie- en goederenstroom" },
-    { variant: "lo1", type: "svg", file: "1-logistiek-schema-lo-game-1.svg", title: "Logistiek schema" },
-    { variant: "lo1", type: "csv", file: "1-orderbegeleidingsformulier-lo-game-1.csv", title: "Orderbegeleidingsformulier" },
-    { variant: "lo1", type: "svg", file: "1-productieproces-lo-game-1.svg", title: "Productieproces" },
-    { variant: "lo1", type: "csv", file: "1-rolindeling-deelnemers-lo-game-1.csv", title: "Rolindeling deelnemers" },
-    { variant: "lo2", type: "csv", file: "2-orderformulier-lo-game-2.csv", title: "Orderformulier" },
-    { variant: "lo2", type: "csv", file: "2-rolindeling-deelnemers-lo-game-2.csv", title: "Rolindeling deelnemers" },
-    { variant: "lo3", type: "csv", file: "3-orderformulier-lo-game-3.csv", title: "Orderformulier" },
-    { variant: "lo3", type: "svg", file: "3-productiegeorienteerde-organisatie-lo-game-3.svg", title: "Productgeoriënteerde organisatie" },
-    { variant: "lo3", type: "csv", file: "3-rolindeling-deelnemers-lo-game-3.csv", title: "Rolindeling deelnemers" },
-    { variant: "lo4", type: "csv", file: "4-order-history-analysis-lo-game-4.csv", title: "Orderhistorie en analyse" },
-    { variant: "lo4", type: "svg", file: "4-productgestuurde-organisatie-lo-game-4.svg", title: "Productgestuurde organisatie" },
-    { variant: "lo5", type: "svg", file: "5-functionele-organisatie-lo-game-5.svg", title: "Functionele organisatie" },
-    { variant: "lo5", type: "csv", file: "5-rolindeling-deelnemers-lo-game-5.csv", title: "Rolindeling deelnemers" },
-    { variant: "lo6", type: "svg", file: "6-customer-order-decoupling-points-lo-game-6.svg", title: "Klantorderontkoppelpunten" },
-    { variant: "lo6", type: "svg", file: "6-productieorganisatie-lo-game-6.svg", title: "Productieorganisatie" },
-    { variant: "lo7", type: "svg", file: "7-productieorganisatie-lo-game-7.svg", title: "Digitale productieorganisatie" },
-    { variant: "lo7", type: "svg", file: "7-transport-intermediary-freight-forwarder-lo-game-7.svg", title: "Transportbemiddelaar / freight forwarder" },
-    { variant: "lo8", type: "svg", file: "8-freight-forwarder-lo-game-8.svg", title: "Freight forwarder" },
-    { variant: "lo8", type: "svg", file: "8-functionele-organisatie-lo-game-8.svg", title: "Functionele ketenorganisatie" },
-    { variant: "le_training", type: "svg", file: "9-productieproces-organisatie-le-training.svg", title: "School als productieproces" },
-    { variant: "entrepreneurial", type: "svg", file: "10-organisatiediagram-learngame-entrepreneurship.svg", title: "Keten van zelfstandige ondernemingen" }
-  ].map(asset => Object.freeze({ ...asset, url: sourcePath(asset.file) })));
-
   const variants = Object.freeze({
     lo1: {
       label: "LO Game 1",
@@ -379,8 +351,6 @@
 
     return {
       variant: activeVariant,
-      assets: assets.filter(asset => asset.variant === insightVariantId),
-      allAssets: assets,
       managementActivity,
       systemOutput,
       paradoxActive,
@@ -394,12 +364,7 @@
   }
 
   window.Chapter9Insights = Object.freeze({
-    source: Object.freeze({
-      title: "LE-boek Learngames, hoofdstuk 9",
-      url: sourcePath("Chapter_9_AI_Optimized.md")
-    }),
     variants,
-    assets,
     analyze
   });
 })();

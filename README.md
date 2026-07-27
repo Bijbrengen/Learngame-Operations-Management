@@ -149,7 +149,7 @@ De runtime heeft twee afzonderlijke werkoppervlakken op dezelfde game-state:
 
 - `Speler` toont alleen het actuele rolgebonden formulier. De digitale
   formulieren zijn afgeleid van de orderbegeleidings-, productie-, inkoop- en
-  registratieformulieren in `source_docs/`.
+  registratieformulieren uit de oorspronkelijke spelhandleidingen.
 - `Beheer` bevat de volledige cockpit met orderinvoer, instellingen, voorraad,
   events en de verschillende procesweergaven.
 
@@ -393,9 +393,8 @@ verwijderd.
   opeenvolgende productiestappen per order simuleren;
 - het eerste conceptschema als orderproces met datamodelobjecten bekijken via de knop `Orderproces`;
 - binnen die weergave wisselen tussen `Procesgraph` per afdeling, `Sequentie` als slingerend links-rechts/rechts-links orderpad en `Afdelingsroute` als sequentieel pad binnen vaste afdelingsbanen;
-- via `Isometrische kaart` de indeling uit
-  `source_docs/20260209-LO-Game-spelversie-4-HR.pptx` als aanklikbare
-  SVG-zones bekijken: Magazijn Grondstoffen, Productieafdeling A, B en C,
+- via `Isometrische kaart` de fysieke indeling als aanklikbare SVG-zones
+  bekijken: Magazijn Grondstoffen, Productieafdeling A, B en C,
   Magazijn Gereed Product en de klant;
 - in die kaart de drie afzonderlijke materiaalroutes uit dia 13, 15 en 16
   zien: Grondstoffen -> Afdeling A/B/C -> Gereed Product. Er is dus geen

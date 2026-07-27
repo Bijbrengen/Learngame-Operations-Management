@@ -1,20 +1,6 @@
 (() => {
   "use strict";
 
-  const SOURCE_ROOT = "source_docs/LE-boek%20Learngames/";
-  const BOOK_FIGURES = Object.freeze({
-    lo1: ["1-logistiek-schema-lo-game-1.svg", "Logistiek schema LO Game 1"],
-    lo2: ["1-productieproces-lo-game-1.svg", "Basisproductieproces"],
-    lo3: ["3-productiegeorienteerde-organisatie-lo-game-3.svg", "Productiegeoriënteerde organisatie"],
-    lo4: ["4-productgestuurde-organisatie-lo-game-4.svg", "Productgestuurde organisatie"],
-    lo5: ["5-functionele-organisatie-lo-game-5.svg", "Functionele organisatie"],
-    lo6: ["6-productieorganisatie-lo-game-6.svg", "Productieorganisatie"],
-    lo7: ["7-productieorganisatie-lo-game-7.svg", "Digitale productieorganisatie"],
-    lo8: ["8-functionele-organisatie-lo-game-8.svg", "Functionele ketenorganisatie"],
-    le_training: ["9-productieproces-organisatie-le-training.svg", "School als productieproces"],
-    entrepreneurial: ["10-organisatiediagram-learngame-entrepreneurship.svg", "Zelfstandige ondernemingen"]
-  });
-
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -162,28 +148,8 @@
     `;
   }
 
-  function bookFigure(config = {}) {
+  function markup(config = {}) {
     const value = normalize(config);
-    const variant = value.organization_model === "school_learning_path"
-      ? "le_training"
-      : value.organization_model === "independent_enterprises"
-        ? "entrepreneurial"
-        : value.game_type;
-    const historicalBase = globalThis.GameVariantHistory?.get(variant)?.basePreset;
-    const [file, title] = BOOK_FIGURES[variant]
-      || BOOK_FIGURES[historicalBase]
-      || BOOK_FIGURES.lo4;
-    return {
-      file,
-      title,
-      url: `${SOURCE_ROOT}${encodeURIComponent(file)}`
-    };
-  }
-
-  function markup(config = {}, view = "diagram") {
-    const value = normalize(config);
-    const figure = bookFigure(value);
-    const activeView = view === "book" ? "book" : "diagram";
     return `
       <div class="configuration-layout-preview-shell">
         <div class="configuration-layout-preview-head">
@@ -191,17 +157,9 @@
             <small>Live voorbeeld</small>
             <strong>Logistieke opstelling</strong>
           </div>
-          <div class="configuration-layout-tabs" role="group" aria-label="Weergave logistieke opstelling">
-            <button type="button" data-layout-view="diagram" aria-pressed="${activeView === "diagram"}">Opstelling</button>
-            <button type="button" data-layout-view="book" aria-pressed="${activeView === "book"}">Boekfiguur</button>
-          </div>
         </div>
-        <div data-layout-view-panel="diagram"${activeView === "diagram" ? "" : " hidden"}>
+        <div data-layout-view-panel="diagram">
           ${diagramMarkup(value)}
-        </div>
-        <div class="configuration-layout-book" data-layout-view-panel="book"${activeView === "book" ? "" : " hidden"}>
-          <img src="${escapeHtml(figure.url)}" alt="${escapeHtml(figure.title)}">
-          <small>${escapeHtml(figure.title)} · LE-boek hoofdstuk 9</small>
         </div>
       </div>
     `;
@@ -212,7 +170,8 @@
     const selected = get("game_type")?.value || form?.dataset?.gameType || "lo4";
     const stored = globalThis.GameConfigurationStore?.getConfiguration?.(selected);
     const gameType = form?.dataset?.gameType || stored?.settings?.game_type || selected;
-    const enabledRoles = [...(form?.querySelectorAll?.('.role-selector-grid input[name^="role_"]') || [])]
+    const enabledRoles = [...(form?.elements || [])]
+      .filter(control => control.matches?.('input[name^="role_"]'))
       .filter(control => control.checked)
       .map(control => control.name.slice(5));
     return normalize({
@@ -235,9 +194,7 @@
     if (!host) return null;
     const form = host.closest("form");
     const value = config || configFromForm(form);
-    const view = host.dataset.layoutView || "diagram";
-    host.innerHTML = markup(value, view);
-    host.dataset.layoutView = view;
+    host.innerHTML = markup(value);
     return host;
   }
 
@@ -246,13 +203,6 @@
   }
 
   if (typeof document !== "undefined") {
-    document.addEventListener("click", event => {
-      const button = event.target.closest("[data-layout-view]");
-      const host = button?.closest("[data-configuration-layout-preview]");
-      if (!host) return;
-      host.dataset.layoutView = button.dataset.layoutView;
-      update(host);
-    });
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => updateAll());
     } else {
@@ -263,7 +213,6 @@
   const api = Object.freeze({
     normalize,
     topology,
-    bookFigure,
     diagramMarkup,
     markup,
     configFromForm,

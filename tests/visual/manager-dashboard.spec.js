@@ -23,10 +23,8 @@ test.describe("Manager Dashboard & Perspectives", () => {
     const managerWorkbench = page.locator('#managerWorkbench');
     await expect(managerWorkbench).toBeVisible();
 
-    const managerViewBtn = page.locator('#managerViewButton');
     const playerViewBtn = page.locator('#playerViewButton');
 
-    await expect(managerViewBtn).toHaveAttribute("aria-pressed", "true");
     await expect(playerViewBtn).toHaveAttribute("aria-pressed", "false");
 
     // Schakel terug naar Speler
@@ -38,14 +36,24 @@ test.describe("Manager Dashboard & Perspectives", () => {
     await expect(playerViewBtn).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("navigeren door de 6 beheertabs", async ({ page }) => {
+  test("navigeren door de Game-werkvensters", async ({ page }) => {
     await page.evaluate(() => {
       window.LEARNGameOMSimulator.setAppView("manager");
     });
     const managerWorkbench = page.locator('#managerWorkbench');
     await expect(managerWorkbench).toBeVisible();
 
-    const tabs = ["session", "process", "inventory", "events", "tower-editor"];
+    const tabs = [
+      "session",
+      "layout",
+      "process",
+      "digital-twin",
+      "inventory",
+      "history",
+      "roles",
+      "game-presets",
+      "role-presets"
+    ];
 
     for (const tabKey of tabs) {
       await page.evaluate((key) => {

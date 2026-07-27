@@ -27,6 +27,7 @@
     onAdd: null,
     onDelete: null,
     sessionRunning: false,
+    view: "builder",
     message: ""
   };
 
@@ -243,7 +244,10 @@
     const canAdd = state.sequence.length === required;
     state.mount.innerHTML = `
       <div class="tower-editor-workspace">
-        <section class="tower-editor-builder" aria-labelledby="towerBuilderHeading">
+        <section class="tower-editor-builder"
+                 data-tower-panel="builder"
+                 aria-labelledby="towerBuilderHeading"
+                 ${state.view === "builder" ? "" : "hidden"}>
           <div class="tower-editor-subhead">
             <div>
               <p class="eyebrow">Bouwtafel</p>
@@ -285,7 +289,10 @@
           ${state.message ? `<p class="tower-editor-success" role="status">${escapeHtml(state.message)}</p>` : ""}
         </section>
 
-        <section class="tower-assortment" aria-labelledby="towerAssortmentHeading">
+        <section class="tower-assortment"
+                 data-tower-panel="assortment"
+                 aria-labelledby="towerAssortmentHeading"
+                 ${state.view === "assortment" ? "" : "hidden"}>
           <div class="tower-editor-subhead">
             <div>
               <p class="eyebrow">Productassortiment</p>
@@ -392,6 +399,11 @@
     render();
   }
 
+  function setView(view) {
+    state.view = view === "assortment" ? "assortment" : "builder";
+    render();
+  }
+
   function setColorConfiguration(configuration = {}) {
     state.multipleColors = Boolean(configuration.multipleColors);
     state.editableColorLayers = state.multipleColors
@@ -426,5 +438,5 @@
     render();
   });
 
-  window.TowerEditor = { mount, setProducts, setColorConfiguration };
+  window.TowerEditor = { mount, setProducts, setColorConfiguration, setView };
 })();
