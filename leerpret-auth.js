@@ -56,10 +56,15 @@
   }
 
   async function request(path, options = {}) {
+    const headers = {
+      "bypass-tunnel-reminder": "true",
+      ...(options.headers || {})
+    };
     const response = await fetch(`${state.apiBase}${path}`, {
       cache: "no-store",
       credentials: "include",
-      ...options
+      ...options,
+      headers
     });
     if (!response.ok) {
       const error = new Error(await parseError(response));
