@@ -167,6 +167,54 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(form.locator('[name="role_production_1"]')).not.toBeChecked();
   });
 
+  test("torens, kleuren en leverancier volgen de gekozen LO-Game", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const gameType = form.locator('[name="game_type"]');
+    const productCount = form.locator('[name="product_type_count"]');
+    const multipleColors = form.locator('[name="multiple_colors"]');
+    const supplier = form.locator('[name="has_supplier"]');
+    const supplierRole = form.locator('[name="role_supplier"]');
+
+    await gameType.selectOption("lo1");
+    await expect(productCount).toHaveValue("1");
+    await expect(productCount).toBeDisabled();
+    await expect(multipleColors).not.toBeChecked();
+    await expect(multipleColors).toBeDisabled();
+    await expect(supplier).not.toBeChecked();
+    await expect(supplierRole).not.toBeChecked();
+
+    await gameType.selectOption("lo4");
+    await expect(productCount).toHaveValue("3");
+    await expect(productCount).toBeDisabled();
+    await expect(supplier).toBeChecked();
+    await expect(supplierRole).toBeChecked();
+
+    await gameType.selectOption("lo6");
+    await expect(productCount).toBeEnabled();
+    await productCount.fill("4");
+    await expect(productCount).toHaveValue("4");
+    await expect(multipleColors).toBeEnabled();
+  });
+
+  test("meerdere valuta worden met basisvaluta en wisselkoers verzameld", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    await form.locator('[name="game_type"]').selectOption("lo4");
+    await form.locator('[name="multiple_currencies"]').check();
+    await form.locator('[name="currency_USD_enabled"]').check();
+    await form.locator('[name="exchange_rate_USD"]').fill("1.25");
+
+    await expect(form.locator("[data-currency-rate-options]")).toBeVisible();
+    const config = await form.evaluate(element => {
+      const api = window.LEARNGameInteractionManifest;
+      return {
+        missing: api.validate("game_configuration", element),
+        walkthrough: api.createWalkthrough("game_configuration")
+      };
+    });
+    expect(config.missing).toEqual([]);
+    expect(config.walkthrough.map(step => step.id)).toContain("set_currency_mode");
+  });
+
   test("fysiek en digitaal wisselen verandert de gekozen preset niet", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
@@ -228,7 +276,8 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       "production_c",
       "finished_warehouse",
       "sales",
-      "finance"
+      "finance",
+      "supplier"
     ]);
     expect(dialogs).toEqual([]);
   });
@@ -292,6 +341,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       "6 gepland"
     );
 
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("session"));
     await gameType.selectOption("lo5");
     await expect(planning).toBeChecked();
   });

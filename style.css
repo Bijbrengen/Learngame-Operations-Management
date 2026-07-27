@@ -4518,6 +4518,23 @@ body[data-app-view="player"] .topbar {
   animation: builder-complete-arrive 360ms ease-out;
 }
 
+.builder-customer-decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .7rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent, #2f7a4f) 38%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface, #fff) 92%, #f0d58a);
+}
+
+.builder-customer-decision p {
+  flex: 1 1 22rem;
+  margin: 0;
+}
+
 .builder-step-complete > span {
   width: 42px;
   height: 42px;

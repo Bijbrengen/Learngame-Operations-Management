@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v165";
+const CACHE_VERSION = "learngame-om-v166";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./script.js",
   "./game-configuration-store.js",
   "./configuration-layout-preview.js",
+  "./screen-interaction-manifest.js",
   "./contracts/game-configuration-v1.schema.json",
   "./leerpret-auth.js",
   "./leerpret-theme.js",

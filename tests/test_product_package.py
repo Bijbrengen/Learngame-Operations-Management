@@ -810,7 +810,7 @@ process.stdout.write(JSON.stringify({
         self.assertNotIn("TUTORIAL[state.tutorialStep].sequence", render_section)
 
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
-    def test_tutorial_placement_snaps_forgivingly_through_build_step_two(self) -> None:
+    def test_tutorial_requires_manual_rotation_before_build_step_two(self) -> None:
         node_program = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -824,7 +824,7 @@ vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 const builderSource = fs.readFileSync("lego-builder.js", "utf8").replace(
   "window.LegoBuilder = {\n    mount,",
-  "window.__placeTutorialBrickForTest = placeAt;\n  window.LegoBuilder = {\n    mount,"
+  "window.__placeTutorialBrickForTest = placeAt;\n  window.__rotateTutorialBrickForTest = rotateSelectedPiece;\n  window.LegoBuilder = {\n    mount,"
 );
 vm.runInThisContext(builderSource);
 const container = {
@@ -838,11 +838,16 @@ window.__placeTutorialBrickForTest(0, 0);
 window.__placeTutorialBrickForTest(5, 5);
 const afterFoundation = window.LegoBuilder.getSnapshot();
 window.__placeTutorialBrickForTest(0, 0);
+const beforeRotation = window.LegoBuilder.getSnapshot();
+window.__rotateTutorialBrickForTest();
+window.__placeTutorialBrickForTest(0, 0);
 const afterStepTwo = window.LegoBuilder.getSnapshot();
 const red = afterStepTwo.bricks.find(brick => brick.type === "red_8");
 process.stdout.write(JSON.stringify({
   foundationStep: afterFoundation.tutorialStep,
   foundationPositions: afterFoundation.bricks.map(brick => [brick.x, brick.y]),
+  beforeRotationStep: beforeRotation.tutorialStep,
+  beforeRotationCount: beforeRotation.bricks.length,
   stepTwoAdvanced: afterStepTwo.tutorialStep,
   red
 }));
@@ -858,6 +863,8 @@ process.stdout.write(JSON.stringify({
         result = json.loads(completed_process.stdout)
         self.assertEqual(1, result["foundationStep"])
         self.assertEqual([[1, 1], [3, 1]], result["foundationPositions"])
+        self.assertEqual(1, result["beforeRotationStep"])
+        self.assertEqual(2, result["beforeRotationCount"])
         self.assertEqual(2, result["stepTwoAdvanced"])
         self.assertEqual(
             {

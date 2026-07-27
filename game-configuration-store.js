@@ -9,9 +9,63 @@
     "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
   const REVENUE_BALANCE_PRESET_GAMES = new Set([
-    "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
+    "entrepreneurial", "lo5", "lo5b", "lo6", "lo7", "lo7_digital", "lo8", "lo9", "le_training"
   ]);
   const PRODUCTION_PLANNING_PRESET_GAMES = new Set(["lo5", "lo6", "lo7", "lo8"]);
+  const DEFAULT_CURRENCY = "EUR";
+  const MAX_PRODUCT_TYPES = 9;
+
+  function loGameNumber(gameType) {
+    const match = /^lo(\d+)/i.exec(String(gameType || ""));
+    return match ? Number(match[1]) : null;
+  }
+
+  function variantRulesFor(gameType) {
+    const gameNumber = loGameNumber(gameType);
+    const isLoGame = gameNumber !== null;
+    const flexibleProductsAndColors = isLoGame && gameNumber >= 6;
+    return {
+      gameNumber,
+      productTypeCountEditable: !isLoGame || flexibleProductsAndColors,
+      fixedProductTypeCount: gameNumber === 1
+        ? 1
+        : isLoGame && gameNumber <= 5
+          ? 3
+          : null,
+      colorModeEditable: !isLoGame || flexibleProductsAndColors,
+      defaultHasSupplier: isLoGame ? gameNumber >= 4 : null
+    };
+  }
+
+  function normalizeCurrencyCode(value, fallback = DEFAULT_CURRENCY) {
+    const normalized = String(value || "").trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(normalized) ? normalized : fallback;
+  }
+
+  function normalizeCurrencySettings(settings, money) {
+    const baseCurrency = normalizeCurrencyCode(settings.base_currency);
+    const requestedCurrencies = Array.isArray(settings.enabled_currencies)
+      ? settings.enabled_currencies.map(code => normalizeCurrencyCode(code, "")).filter(Boolean)
+      : [];
+    const enabledCurrencies = [...new Set([baseCurrency, ...requestedCurrencies])];
+    const multiple = money
+      && settings.currency_mode === "multiple"
+      && enabledCurrencies.length > 1;
+    const currencies = multiple ? enabledCurrencies : [baseCurrency];
+    const requestedRates = settings.exchange_rates && typeof settings.exchange_rates === "object"
+      ? settings.exchange_rates
+      : {};
+    const exchangeRates = Object.fromEntries(currencies.map(code => {
+      const requested = Number(requestedRates[code]);
+      return [code, code === baseCurrency || !Number.isFinite(requested) || requested <= 0 ? 1 : requested];
+    }));
+    return {
+      currency_mode: multiple ? "multiple" : "single",
+      base_currency: baseCurrency,
+      enabled_currencies: currencies,
+      exchange_rates: exchangeRates
+    };
+  }
 
   const BUILTIN_PRESETS = [
     {
@@ -99,7 +153,7 @@
         logistics_organization: "product",
         product_type_count: 3,
         customer_order_mode: "required",
-        enabled_roles: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"]
+        enabled_roles: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse", "supplier"]
       }
     },
     {
@@ -267,20 +321,23 @@
     preset.history = history;
     preset.description = `${history.year} · ${history.organization}. Leerdoel: ${history.objective}. ${history.development}`;
     if (preset.settings.money) MONEY_PRESET_GAMES.add(preset.config_id);
-    if (preset.settings.pnl) REVENUE_BALANCE_PRESET_GAMES.add(preset.config_id);
+    if (preset.settings.revenue_balance_enabled === true) {
+      REVENUE_BALANCE_PRESET_GAMES.add(preset.config_id);
+    }
     if (["lo5b", "lo7_digital", "lo9"].includes(preset.config_id)) {
       PRODUCTION_PLANNING_PRESET_GAMES.add(preset.config_id);
     }
   });
 
   function normalizeSettings(settings = {}, gameType = settings.game_type) {
+    const rules = variantRulesFor(gameType);
     const productionProcesses = global.LogisticsProcess?.normalizeProcesses(
       settings.production_processes,
       gameType
     ) || (settings.logistics_organization === "functional"
       ? ["sequential"]
       : ["parallel"]);
-    const multipleColors = Boolean(settings.multiple_colors);
+    const multipleColors = rules.colorModeEditable && Boolean(settings.multiple_colors);
     const editableColorLayers = multipleColors && Array.isArray(settings.editable_color_layers)
       ? [...new Set(settings.editable_color_layers)].filter(layerId => (
           ["groundPlate", "layer1", "layer2", "layer3"].includes(layerId)
@@ -309,6 +366,23 @@
       : (["independent_enterprises", "school_learning_path"].includes(settings.organization_model)
         ? settings.organization_model
         : "single_enterprise");
+    const enabledRoles = Array.isArray(settings.enabled_roles)
+      ? [...new Set(settings.enabled_roles)]
+      : [];
+    const hasSupplier = settings.has_supplier === undefined
+      ? (rules.defaultHasSupplier === null
+        ? enabledRoles.includes("supplier")
+        : rules.defaultHasSupplier)
+      : Boolean(settings.has_supplier);
+    const synchronizedRoles = hasSupplier
+      ? [...new Set([...enabledRoles, "supplier"])]
+      : enabledRoles.filter(roleId => roleId !== "supplier");
+    const requestedProductTypeCount = Math.max(
+      1,
+      Math.min(MAX_PRODUCT_TYPES, Number(settings.product_type_count) || 3)
+    );
+    const productTypeCount = rules.fixedProductTypeCount ?? requestedProductTypeCount;
+    const currencySettings = normalizeCurrencySettings(settings, money);
     return {
       ...settings,
       opening_balance_enabled: openingBalanceEnabled,
@@ -322,6 +396,10 @@
         : "balanced",
       multiple_colors: multipleColors,
       editable_color_layers: editableColorLayers,
+      product_type_count: productTypeCount,
+      has_supplier: hasSupplier,
+      enabled_roles: synchronizedRoles,
+      ...currencySettings,
       production_processes: productionProcesses,
       logistics_organization: productionProcesses.length === 1
         && productionProcesses[0] === "sequential"
@@ -365,6 +443,14 @@
   }
 
   class GameConfigurationStore {
+    getVariantRules(gameType) {
+      return variantRulesFor(gameType);
+    }
+
+    normalizeSettings(settings, gameType = settings?.game_type) {
+      return normalizeSettings(settings, gameType);
+    }
+
     getPresets() {
       return BUILTIN_PRESETS;
     }
@@ -410,6 +496,15 @@
           === Boolean(currentSettings.multiple_colors);
         const editableColorLayersMatch = [...(s.editable_color_layers || [])].sort().join(",")
           === [...(currentSettings.editable_color_layers || [])].sort().join(",");
+        const supplierMatch = Boolean(s.has_supplier) === Boolean(currentSettings.has_supplier);
+        const currencyModeMatch = (s.currency_mode || "single")
+          === (currentSettings.currency_mode || "single");
+        const baseCurrencyMatch = (s.base_currency || DEFAULT_CURRENCY)
+          === (currentSettings.base_currency || DEFAULT_CURRENCY);
+        const enabledCurrenciesMatch = [...(s.enabled_currencies || [DEFAULT_CURRENCY])].sort().join(",")
+          === [...(currentSettings.enabled_currencies || [DEFAULT_CURRENCY])].sort().join(",");
+        const exchangeRatesMatch = JSON.stringify(s.exchange_rates || { [DEFAULT_CURRENCY]: 1 })
+          === JSON.stringify(currentSettings.exchange_rates || { [DEFAULT_CURRENCY]: 1 });
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
         const customerOrderModeMatch = (s.customer_order_mode || "required")
           === (currentSettings.customer_order_mode || "required");
@@ -433,7 +528,9 @@
         if (!moneyMatch || !pnlMatch || !intermediateStockMatch || !opportunityCostsMatch ||
             !roleFreedomMatch || !openingBalanceMatch || !revenueBalanceMatch ||
             !productionPlanningMatch ||
-            !multipleColorsMatch || !editableColorLayersMatch ||
+            !multipleColorsMatch || !editableColorLayersMatch || !supplierMatch ||
+            !currencyModeMatch || !baseCurrencyMatch || !enabledCurrenciesMatch ||
+            !exchangeRatesMatch ||
             !priceModeMatch || !customerOrderModeMatch || !organizationModelMatch ||
             !fundingIncentiveMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {

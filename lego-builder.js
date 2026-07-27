@@ -33,6 +33,7 @@
       restartTutorial: noop,
       setFreeBuildUnlocked: noop,
       setInternalLogisticsComplete: noop,
+      setCustomerDecision: noop,
       skipTutorial: noop,
       validateBuild: () => false,
       getCatalog: () => ({}),
@@ -69,6 +70,9 @@
     selectedType: "yellow_8",
     rotated: false,
     bricks: [],
+    customerDecision: { mode: "strict", tolerance: 0.3 },
+    random: Math.random,
+    pendingDelivery: null,
     stockHintOpen: false,
     feedback: { kind: "info", text: "Lees de klantvraag en kies het eerste blokje." }
   };
@@ -108,12 +112,14 @@
       && !state.bricks.some(brick => canonical(brick) === canonical(candidate));
   }
 
-  function tutorialPlacementTarget(type, x, y) {
+  function tutorialPlacementTarget(piece, x, y) {
     if (state.mode !== "tutorial" || state.tutorialComplete) return null;
     return GOALS.A.bricks
       .slice(0, TUTORIAL[state.tutorialStep].expectedCount)
       .filter(target => (
-        target.type === type
+        target.type === piece.id
+        && target.width === piece.width
+        && target.depth === piece.depth
         && !state.bricks.some(brick => canonical(brick) === canonical(target))
       ))
       .sort((left, right) => (
@@ -179,15 +185,8 @@
       reject(`${piece.label} is niet meer beschikbaar in je bouwvoorraad.`, "tutorial_stock_empty");
       return;
     }
-    const tutorialTarget = tutorialPlacementTarget(piece.id, x, y);
+    const tutorialTarget = tutorialPlacementTarget(piece, x, y);
     if (tutorialTarget) {
-      const basePiece = PIECES[piece.id];
-      state.rotated = (
-        basePiece.width !== basePiece.depth
-        && tutorialTarget.width === basePiece.depth
-        && tutorialTarget.depth === basePiece.width
-      );
-      piece = currentPiece();
       x = tutorialTarget.x;
       y = tutorialTarget.y;
     }
@@ -240,7 +239,7 @@
       state.tutorialStep += 1;
       const nextType = GOALS.A.bricks[state.bricks.length].type;
       state.selectedType = nextType;
-      state.rotated = nextType === "red_8";
+      state.rotated = false;
       state.feedback = { kind: "success", text: `Goed. Stap ${state.tutorialStep + 1} staat klaar.` };
       emit("complete_lego_tutorial_step", { step: state.tutorialStep, productId: "A" });
       return;
@@ -296,6 +295,7 @@
     state.selectedType = GOALS[state.productId].bricks[0].type;
     state.rotated = false;
     state.bricks = [];
+    state.pendingDelivery = null;
     state.feedback = { kind: "info", text: `Nieuwe klantbestelling: bouw ${GOALS[state.productId].name}.` };
     emit("start_lego_build", { productId: state.productId });
     render();
@@ -364,6 +364,7 @@
       });
     }
     state.bricks = [];
+    state.pendingDelivery = null;
     if (state.mode === "tutorial") {
       state.tutorialStep = 0;
       state.tutorialComplete = false;
@@ -391,6 +392,7 @@
     state.selectedType = "yellow_8";
     state.rotated = false;
     state.bricks = [];
+    state.pendingDelivery = null;
     state.feedback = { kind: "info", text: "Lees de klantvraag en kies het eerste blokje." };
     emit("restart_lego_tutorial", { productId: "A" });
     render();
@@ -405,6 +407,50 @@
     state.feedback = { kind: "info", text: `${PIECES[removed.type].label} verwijderd.` };
     emit("undo_lego_brick", { productId: state.productId, brick: removed });
     render();
+  }
+
+  function qualityReflection(check, accepted) {
+    const deviation = check.reason === "quality_orientation_mismatch"
+      ? "De oriëntatie wijkt af van de bestelling."
+      : "De kleuren, maten, posities of lagen wijken af van de bestelling.";
+    return `${deviation} In deze simulatie wordt kwaliteit objectief getoetst aan de klantwens. In de praktijk is kwaliteit contextafhankelijk: de klant mag een afwijking accepteren of weigeren.${accepted ? " Deze klant accepteert de afwijking." : " Deze klant weigert de afwijking."}`;
+  }
+
+  function completeCustomerDecision(accepted, check) {
+    const correct = check.valid;
+    state.pendingDelivery = null;
+    state.feedback = correct
+      ? {
+          kind: "success",
+          text: `${GOALS[state.productId].name} klopt exact qua maten, lagen én oriëntatie (kwaliteitscontrole goedgekeurd).`
+        }
+      : {
+          kind: accepted ? "info" : "error",
+          text: qualityReflection(check, accepted)
+        };
+    emit("validate_lego_delivery", {
+      productId: state.productId,
+      result: accepted ? "accepted" : "rejected",
+      specificationMatch: correct,
+      reason: check.reason,
+      customerDecisionMode: state.customerDecision.mode,
+      brickCount: state.bricks.length
+    });
+    if (typeof options.onDelivered === "function") {
+      options.onDelivered({
+        productId: state.productId,
+        accepted,
+        correct,
+        reason: check.reason,
+        customerDecisionMode: state.customerDecision.mode,
+        bricks: state.bricks.map(brick => ({ ...brick }))
+      });
+    }
+    if (state.mode === "stock_build" && accepted) {
+      state.stockTutorialComplete = true;
+    }
+    render();
+    if (!accepted) animateRejection();
   }
 
   function deliver() {
@@ -434,37 +480,24 @@
       return;
     }
     const check = validateBuildStrict(state.productId, state.bricks);
-    const correct = check.valid;
-    if (correct) {
-      state.feedback = {
-        kind: "success",
-        text: `${GOALS[state.productId].name} klopt exact qua maten, lagen én oriëntatie (kwaliteitscontrole goedgekeurd).`
-      };
-    } else if (check.reason === "quality_orientation_mismatch") {
-      state.feedback = {
-        kind: "error",
-        text: "Kwaliteitscontrole afgekeurd: De toren staat in een foutieve oriëntatie / draairichting. Voldoet niet aan de kwaliteitseisen."
-      };
-    } else {
-      state.feedback = {
-        kind: "error",
-        text: "Kwaliteitscontrole afgekeurd: De levering wijkt af in kleuren, maten, posities of lagen."
-      };
+    if (check.valid) {
+      completeCustomerDecision(true, check);
+      return;
     }
-    emit("validate_lego_delivery", {
-      productId: state.productId,
-      result: correct ? "correct" : "incorrect",
-      reason: check.reason,
-      brickCount: state.bricks.length
-    });
-    if (typeof options.onDelivered === "function") {
-      options.onDelivered({ productId: state.productId, correct, bricks: state.bricks.map(brick => ({ ...brick })) });
+    if (state.customerDecision.mode === "human") {
+      state.pendingDelivery = { check };
+      state.feedback = {
+        kind: "info",
+        text: `${check.reason === "quality_orientation_mismatch" ? "Afwijkende oriëntatie" : "Afwijking van de bestelling"} geconstateerd. De menselijke klant beslist zelf over acceptatie.`
+      };
+      render();
+      return;
     }
-    if (state.mode === "stock_build" && correct) {
-      state.stockTutorialComplete = true;
+    if (state.customerDecision.mode === "agent") {
+      completeCustomerDecision(state.random() < state.customerDecision.tolerance, check);
+      return;
     }
-    render();
-    if (!correct) animateRejection();
+    completeCustomerDecision(false, check);
   }
 
   function brickMarkup(brick) {
@@ -670,6 +703,16 @@
         </section>
       `
       : "";
+    const customerDecision = state.pendingDelivery
+      ? `
+        <section class="builder-customer-decision" role="group" aria-label="Beslissing van de menselijke klant">
+          <strong>Klantcontrole</strong>
+          <p>Het product wijkt af van de bestelling. Accepteert de klant deze levering?</p>
+          <button type="button" class="secondary-button" data-customer-reject>Weigeren</button>
+          <button type="button" class="primary-button" data-customer-accept>Toch accepteren</button>
+        </section>
+      `
+      : "";
     container.innerHTML = `
       <div class="lego-builder-shell">
         ${stockHintMarkup()}
@@ -682,6 +725,10 @@
           ${orderVisual}
         </header>
         ${completion}
+        ${customerDecision}
+        <p class="builder-feedback is-${escapeHtml(state.feedback.kind)}"
+           role="status"
+           aria-live="polite">${escapeHtml(state.feedback.text)}</p>
         ${catalog}
         <div class="builder-workspace">
           <aside class="builder-palette" aria-label="Lego-blokkenpalet">
@@ -730,7 +777,7 @@
         }
         if (state.mode === "tutorial" && !state.tutorialComplete) {
           state.selectedType = button.dataset.pieceType;
-          state.rotated = tutorialRotationForPiece(state.selectedType);
+          state.rotated = false;
           render();
           return;
         }
@@ -738,7 +785,7 @@
           rotateSelectedPiece();
         } else {
           state.selectedType = button.dataset.pieceType;
-          state.rotated = tutorialRotationForPiece(state.selectedType);
+          state.rotated = false;
           render();
         }
       });
@@ -748,7 +795,7 @@
           return;
         }
         state.selectedType = button.dataset.pieceType;
-        state.rotated = tutorialRotationForPiece(state.selectedType);
+        state.rotated = false;
         event.dataTransfer.setData("text/plain", state.selectedType);
         event.dataTransfer.effectAllowed = "copy";
       });
@@ -774,6 +821,11 @@
         const candidate = snapCandidate(event);
         if (candidate) placeAt(candidate.x, candidate.y);
       });
+      board.addEventListener("click", event => {
+        if (event.button !== 0) return;
+        const candidate = snapCandidate(event);
+        if (candidate) placeAt(candidate.x, candidate.y);
+      });
       // Click on board places candidate, or middle click / scroll wheel rotates
       board.addEventListener("mousedown", event => {
         if (event.button === 1) {
@@ -795,6 +847,12 @@
 
     container.querySelector(".builder-rotate")?.addEventListener("click", rotateSelectedPiece);
     container.querySelector(".builder-deliver")?.addEventListener("click", deliver);
+    container.querySelector("[data-customer-accept]")?.addEventListener("click", () => {
+      if (state.pendingDelivery) completeCustomerDecision(true, state.pendingDelivery.check);
+    });
+    container.querySelector("[data-customer-reject]")?.addEventListener("click", () => {
+      if (state.pendingDelivery) completeCustomerDecision(false, state.pendingDelivery.check);
+    });
     container.querySelector(".builder-undo")?.addEventListener("click", undo);
     container.querySelector(".builder-reset")?.addEventListener("click", resetBuild);
 
@@ -877,6 +935,21 @@
     render();
   }
 
+  function setCustomerDecision(configuration = {}) {
+    const mode = ["strict", "human", "agent"].includes(configuration.mode)
+      ? configuration.mode
+      : "strict";
+    state.customerDecision = {
+      mode,
+      tolerance: Math.max(0, Math.min(1, Number(configuration.tolerance) || 0))
+    };
+    state.random = typeof configuration.random === "function"
+      ? configuration.random
+      : Math.random;
+    state.pendingDelivery = null;
+    render();
+  }
+
   function skipTutorial() {
     const productId = GOALS[state.productId] ? state.productId : "A";
     state.tutorialComplete = true;
@@ -900,6 +973,7 @@
     restartTutorial,
     setFreeBuildUnlocked,
     setInternalLogisticsComplete,
+    setCustomerDecision,
     skipTutorial,
     validateBuild,
     getCatalog: () => Object.fromEntries(
@@ -919,6 +993,8 @@
       productId: state.productId,
       selectedType: state.selectedType,
       rotated: state.rotated,
+      customerDecision: { ...state.customerDecision },
+      pendingCustomerDecision: Boolean(state.pendingDelivery),
       bricks: state.bricks.map(brick => ({ ...brick }))
     })
   };

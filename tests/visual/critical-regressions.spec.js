@@ -174,7 +174,14 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       "logistics_organization",
       "product_type_count",
       "customer_order_mode",
-      "enabled_roles"
+      "enabled_roles",
+      "has_supplier",
+      "currency_mode",
+      "base_currency",
+      "enabled_currencies",
+      "exchange_rates",
+      "organization_model",
+      "funding_incentive"
     ]);
     let postedBody;
     let resolvePosted;
@@ -261,11 +268,11 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(editor.locator('[data-ground-plate-color="blue"]')).toBeEnabled();
     await expect(editor.locator('[data-add-tower-part="yellow_8"]')).toHaveAttribute(
       "aria-disabled",
-      "false"
+      "true"
     );
     await expect(editor.locator('[data-add-tower-part="blue_8"]')).toHaveAttribute(
       "aria-disabled",
-      "true"
+      "false"
     );
   });
 

@@ -11,7 +11,21 @@
     pd1: "Productie Afdeling 1",
     pd2: "Productie Afdeling 2",
     pd3: "Productie Afdeling 3",
-    mfp: "Magazijn Gereed Product"
+    mfp: "Magazijn Gereed Product",
+    customer: "Klant",
+    logistics_manager: "Logistiek Manager",
+    raw_warehouse: "Magazijn Grondstoffen",
+    production_1: "Productie Afdeling 1",
+    production_2: "Productie Afdeling 2",
+    production_3: "Productie Afdeling 3",
+    production_a: "Afdeling Toren A",
+    production_b: "Afdeling Toren B",
+    production_c: "Afdeling Toren C",
+    finished_warehouse: "Magazijn Gereed Product",
+    sales: "Verkoop / Sales Director",
+    finance: "Financiële Administratie",
+    supplier: "Leverancier Grondstoffen",
+    transporter: "Transporteur / Freight Forwarder"
   };
   const TYPE_LABELS = {
     closed: "Gesloten",
@@ -130,7 +144,12 @@
       label: definition.label
     };
     if (GAME_CONFIG_PRESETS[definition.id].money) MONEY_PRESET_GAMES.add(definition.id);
-    if (GAME_CONFIG_PRESETS[definition.id].pnl) REVENUE_BALANCE_PRESET_GAMES.add(definition.id);
+    if (
+      REVENUE_BALANCE_PRESET_GAMES.has(definition.basePreset)
+      || GAME_CONFIG_PRESETS[definition.id].revenue_balance_enabled === true
+    ) {
+      REVENUE_BALANCE_PRESET_GAMES.add(definition.id);
+    }
     if (["lo5b", "lo7_digital", "lo9"].includes(definition.id)) {
       PRODUCTION_PLANNING_PRESET_GAMES.add(definition.id);
     }
@@ -269,7 +288,7 @@
     const organizationModel = ["independent_enterprises", "school_learning_path"].includes(
       merged.organization_model
     ) ? merged.organization_model : "single_enterprise";
-    return {
+    const normalized = {
       ...merged,
       play_mode: merged.play_mode === "digital" ? "digital" : "physical",
       game_type: gameType,
@@ -304,6 +323,7 @@
         ? "functional"
         : "product"
     };
+    return window.GameConfigurationStore?.normalizeSettings(normalized, gameType) || normalized;
   }
 
   function gameComparisonMatricesMarkup() {
@@ -532,6 +552,7 @@
           ${toggle("intermediate_stock", "Tussenvoorraad")}
           ${toggle("opportunity_costs", "Opportunity costs")}
           ${toggle("role_freedom", "Rolvrijheid")}
+          ${toggle("has_supplier", "Leverancier actief")}
           ${toggle(
             "production_planning_enabled",
             "Productieplanning",
@@ -573,7 +594,8 @@
                    name="multiple_colors"
                    data-multiple-colors
                    data-game-config-control
-                   ${value.multiple_colors ? "checked" : ""}>
+                   ${value.multiple_colors ? "checked" : ""}
+                   ${window.GameConfigurationStore?.getVariantRules(value.game_type)?.colorModeEditable === false ? "disabled" : ""}>
             <span>Meerdere kleuren</span>
           </label>
           <div class="color-layer-options"
@@ -597,7 +619,46 @@
               </label>
             `).join("")}
           </div>
-          <small>LO Game 6 ontgrendelt standaard alle vier kleurlagen.</small>
+          <small data-color-mode-note>LO-Games 1 t/m 5 gebruiken één vaste kleur; vanaf LO-Game 6 kan de spelleider meerdere kleuren kiezen.</small>
+        </fieldset>
+        <fieldset class="session-config-field currency-settings is-wide" data-currency-settings ${value.money ? "" : "hidden"}>
+          <legend>Valuta en wisselkoersen</legend>
+          <label>
+            <span>Basisvaluta</span>
+            <select name="base_currency" data-game-config-control>
+              ${["EUR", "USD", "GBP", "CHF", "JPY"].map(code => `
+                <option value="${code}"${value.base_currency === code ? " selected" : ""}>${code}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label class="session-config-toggle">
+            <input type="checkbox"
+                   name="multiple_currencies"
+                   data-multiple-currencies
+                   data-game-config-control
+                   ${value.currency_mode === "multiple" ? "checked" : ""}>
+            <span>Meerdere munteenheden</span>
+          </label>
+          <div class="currency-rate-options" data-currency-rate-options ${value.currency_mode === "multiple" ? "" : "hidden"}>
+            ${["EUR", "USD", "GBP", "CHF", "JPY"].map(code => `
+              <label>
+                <input type="checkbox"
+                       name="currency_${code}_enabled"
+                       data-currency-enabled="${code}"
+                       data-game-config-control
+                       ${(value.enabled_currencies || []).includes(code) ? "checked" : ""}>
+                <span>${code}</span>
+                <input type="number"
+                       name="exchange_rate_${code}"
+                       min="0.0001"
+                       step="0.0001"
+                       value="${Number(value.exchange_rates?.[code] || 1)}"
+                       aria-label="Wisselkoers ${code} per eenheid basisvaluta"
+                       data-game-config-control>
+              </label>
+            `).join("")}
+          </div>
+          <small>Koersen zijn uitgedrukt als vreemde valuta per 1 eenheid van de basisvaluta.</small>
         </fieldset>
         <label class="session-config-field" data-config-help="customer-order">
           <span>Klantorder</span>
@@ -631,7 +692,14 @@
         </fieldset>
         <label class="session-config-field" data-config-help="product-types">
           <span>Torensoorten</span>
-          <input name="product_type_count" type="number" min="1" max="9" value="${value.product_type_count}" data-game-config-control>
+          <input name="product_type_count"
+                 type="number"
+                 min="1"
+                 max="9"
+                 value="${value.product_type_count}"
+                 data-game-config-control
+                 ${window.GameConfigurationStore?.getVariantRules(value.game_type)?.productTypeCountEditable === false ? "disabled" : ""}>
+          <small data-product-type-note></small>
         </label>
         <details class="session-config-save is-wide">
           <summary>Opslaan als nieuwe preset…</summary>
@@ -1015,6 +1083,9 @@
         control.checked = enabledRoles.has(control.name.slice("role_".length));
       });
     }
+    if (form.elements.namedItem("has_supplier")) {
+      form.elements.namedItem("has_supplier").checked = Boolean(settings.has_supplier);
+    }
     updateHybridProductionTooltip(form);
     updateFinancialDetailControls(form);
     updateSchoolFundingControls(form);
@@ -1023,6 +1094,9 @@
       control.checked = editableColorLayers.has(control.dataset.colorLayer);
     });
     updateColorLayerControls(form);
+    updateVariantConstraintControls(form);
+    updateSupplierRoleControl(form);
+    updateCurrencyControls(form);
     window.ConfigurationLayoutPreview?.update(form);
   }
 
@@ -1050,11 +1124,63 @@
 
   function updateColorLayerControls(form) {
     if (!form) return;
-    const enabled = Boolean(form.elements.namedItem("multiple_colors")?.checked);
+    const rules = window.GameConfigurationStore?.getVariantRules(form.dataset.gameType);
+    const multipleColors = form.elements.namedItem("multiple_colors");
+    const editable = rules?.colorModeEditable !== false;
+    if (multipleColors) {
+      multipleColors.disabled = !editable;
+      if (!editable) multipleColors.checked = false;
+    }
+    const enabled = editable && Boolean(multipleColors?.checked);
     const layerOptions = form.querySelector("[data-editable-color-layers]");
     if (layerOptions) layerOptions.hidden = !enabled;
     form.querySelectorAll("[data-color-layer]").forEach(control => {
       control.disabled = !enabled;
+    });
+  }
+
+  function updateVariantConstraintControls(form) {
+    if (!form) return;
+    const rules = window.GameConfigurationStore?.getVariantRules(form.dataset.gameType);
+    const productCount = form.elements.namedItem("product_type_count");
+    if (productCount && rules) {
+      if (rules.fixedProductTypeCount !== null) {
+        productCount.value = String(rules.fixedProductTypeCount);
+      }
+      productCount.disabled = !rules.productTypeCountEditable;
+      const note = form.querySelector("[data-product-type-note]");
+      if (note) {
+        note.textContent = rules.productTypeCountEditable
+          ? "Vrij instelbaar van 1 tot en met 9 vanaf LO-Game 6."
+          : `Vast onderdeel van deze preset: ${rules.fixedProductTypeCount} torensoort${rules.fixedProductTypeCount === 1 ? "" : "en"}.`;
+      }
+    }
+    updateColorLayerControls(form);
+  }
+
+  function updateSupplierRoleControl(form) {
+    if (!form) return;
+    const supplierEnabled = Boolean(form.elements.namedItem("has_supplier")?.checked);
+    const supplierRole = form.elements.namedItem("role_supplier");
+    if (supplierRole) supplierRole.checked = supplierEnabled;
+  }
+
+  function updateCurrencyControls(form) {
+    if (!form) return;
+    const moneyEnabled = Boolean(form.elements.namedItem("money")?.checked);
+    const multiple = moneyEnabled
+      && Boolean(form.elements.namedItem("multiple_currencies")?.checked);
+    const settings = form.querySelector("[data-currency-settings]");
+    if (settings) settings.hidden = !moneyEnabled;
+    const multipleControl = form.elements.namedItem("multiple_currencies");
+    if (multipleControl) {
+      multipleControl.disabled = !moneyEnabled;
+      if (!moneyEnabled) multipleControl.checked = false;
+    }
+    const rateOptions = form.querySelector("[data-currency-rate-options]");
+    if (rateOptions) rateOptions.hidden = !multiple;
+    form.querySelectorAll("[data-currency-enabled], [name^='exchange_rate_']").forEach(control => {
+      control.disabled = !multiple;
     });
   }
 
@@ -1070,6 +1196,7 @@
       control.disabled = !moneyEnabled;
       if (!moneyEnabled) control.checked = false;
     });
+    updateCurrencyControls(form);
     const advice = form.querySelector("[data-financial-advisor-preview]");
     if (!advice) return;
     advice.textContent = !moneyEnabled
@@ -1115,6 +1242,24 @@
     updateFinancialDetailControls(form);
     updateSchoolFundingControls(form);
     const multipleColors = Boolean(get("multiple_colors")?.checked);
+    const hasSupplier = Boolean(get("has_supplier")?.checked);
+    const synchronizedRoles = hasSupplier
+      ? [...new Set([...enabledRoles, "supplier"])]
+      : enabledRoles.filter(roleId => roleId !== "supplier");
+    const baseCurrency = String(get("base_currency")?.value || "EUR").toUpperCase();
+    const currencyMode = get("multiple_currencies")?.checked ? "multiple" : "single";
+    const selectedCurrencies = currencyMode === "multiple"
+      ? [baseCurrency, ...[...form.querySelectorAll("[data-currency-enabled]")]
+          .filter(control => control.checked)
+          .map(control => control.dataset.currencyEnabled)]
+      : [baseCurrency];
+    const enabledCurrencies = [...new Set(selectedCurrencies)];
+    const exchangeRates = Object.fromEntries(enabledCurrencies.map(code => [
+      code,
+      code === baseCurrency
+        ? 1
+        : Math.max(0.0001, Number(get(`exchange_rate_${code}`)?.value) || 1)
+    ]));
     const organizationModel = get("organization_model")?.value === "independent_enterprises"
       ? "independent_enterprises"
       : get("organization_model")?.value === "school_learning_path"
@@ -1138,6 +1283,7 @@
         ? get("funding_incentive").value
         : "balanced",
       production_planning_enabled: Boolean(get("production_planning_enabled")?.checked),
+      has_supplier: hasSupplier,
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors
         ? [...form.querySelectorAll("[data-color-layer]")]
@@ -1152,7 +1298,11 @@
         : "product",
       product_type_count: Math.max(1, Math.min(9, Number(get("product_type_count")?.value) || 3)),
       customer_order_mode: get("customer_order_mode")?.value || "required",
-      ...(enabledRoles.length ? { enabled_roles: enabledRoles } : {})
+      currency_mode: currencyMode,
+      base_currency: baseCurrency,
+      enabled_currencies: enabledCurrencies,
+      exchange_rates: exchangeRates,
+      ...(synchronizedRoles.length ? { enabled_roles: synchronizedRoles } : {})
     };
   }
 
@@ -1645,8 +1795,16 @@
         && !event.target.matches("[data-session-game-type]")
       ) {
         updateHybridProductionTooltip(createForm);
+        if (event.target.matches("[name='has_supplier']")) {
+          updateSupplierRoleControl(createForm);
+        } else if (event.target.matches("[name='role_supplier']")) {
+          const supplierToggle = createForm.elements.namedItem("has_supplier");
+          if (supplierToggle) supplierToggle.checked = event.target.checked;
+        }
+        updateVariantConstraintControls(createForm);
         updateColorLayerControls(createForm);
         updateFinancialDetailControls(createForm);
+        updateCurrencyControls(createForm);
         updateSchoolFundingControls(createForm);
         const config = collectGameConfig(createForm);
         window.ConfigurationLayoutPreview?.update(createForm, config);
@@ -1665,8 +1823,16 @@
           ? event.target.value
           : null;
         if (selectedPreset) applyGameConfigPreset(form, selectedPreset);
+        if (event.target.matches("[name='has_supplier']")) {
+          updateSupplierRoleControl(form);
+        } else if (event.target.matches("[name='role_supplier']")) {
+          const supplierToggle = form?.elements.namedItem("has_supplier");
+          if (supplierToggle) supplierToggle.checked = event.target.checked;
+        }
+        updateVariantConstraintControls(form);
         updateColorLayerControls(form);
         updateFinancialDetailControls(form);
+        updateCurrencyControls(form);
         updateSchoolFundingControls(form);
         const config = collectGameConfig(form);
         window.ConfigurationLayoutPreview?.update(form, config);

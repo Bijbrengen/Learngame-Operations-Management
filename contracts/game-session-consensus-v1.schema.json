@@ -14,7 +14,7 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "organization_model", "funding_incentive", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "enabled_roles"],
+      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "organization_model", "funding_incentive", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "has_supplier", "currency_mode", "base_currency", "enabled_currencies", "exchange_rates", "enabled_roles"],
       "properties": {
         "play_mode": {"enum": ["physical", "digital"]},
         "game_type": {"enum": ["entrepreneurial", "entrepreneurial_simple", "entrepreneurial_digital", "lo1", "lo2", "lo3", "lo4", "lo5", "lo5b", "lo6", "lo7", "lo7_digital", "lo8", "lo9", "le_training", "la_game", "learngame_small_2018", "la_game_small_2020"]},
@@ -45,6 +45,19 @@
         },
         "product_type_count": {"type": "integer", "minimum": 1, "maximum": 9},
         "customer_order_mode": {"enum": ["free", "required"]},
+        "has_supplier": {"type": "boolean"},
+        "currency_mode": {"enum": ["single", "multiple"]},
+        "base_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "enabled_currencies": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[A-Z]{3}$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "exchange_rates": {
+          "type": "object",
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        },
         "enabled_roles": {
           "type": "array",
           "items": {

@@ -131,6 +131,26 @@
         "customer_order_mode": {
           "enum": ["free", "required"]
         },
+        "has_supplier": {
+          "type": "boolean"
+        },
+        "currency_mode": {
+          "enum": ["single", "multiple"]
+        },
+        "base_currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "enabled_currencies": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[A-Z]{3}$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "exchange_rates": {
+          "type": "object",
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        },
         "enabled_roles": {
           "type": "array",
           "items": {

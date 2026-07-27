@@ -53,7 +53,7 @@ test("publieke API is aanwezig na laden met SDK-logica", () => {
       "mount", "setProduct", "registerProduct", "unregisterProduct",
       "startFreeBuild", "prepareStockTutorial", "setStockTutorialInventory",
       "reset", "restartTutorial", "setFreeBuildUnlocked",
-      "setInternalLogisticsComplete", "skipTutorial", "validateBuild",
+      "setInternalLogisticsComplete", "setCustomerDecision", "skipTutorial", "validateBuild",
       "getCatalog", "getSnapshot"
     ]) {
       assert.equal(typeof LB[key], "function", `${key} ontbreekt`);
@@ -69,6 +69,18 @@ test("getSnapshot geeft de verwachte begintoestand", () => {
     assert.equal(s.selectedType, "yellow_8");
     assert.equal(s.tutorialStep, 0);
     assert.deepEqual(s.bricks, []);
+  });
+});
+
+test("klantbeslismodus is instelbaar voor mens en agent", () => {
+  withBuilder({ withLogic: true }, (LB) => {
+    LB.setCustomerDecision({ mode: "agent", tolerance: 0.3, random: () => 0.2 });
+    assert.deepEqual(LB.getSnapshot().customerDecision, {
+      mode: "agent",
+      tolerance: 0.3
+    });
+    LB.setCustomerDecision({ mode: "human" });
+    assert.equal(LB.getSnapshot().customerDecision.mode, "human");
   });
 });
 

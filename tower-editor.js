@@ -11,9 +11,9 @@
     { id: "sand", label: "Zandgeel", hex: "#f0d58a" }
   ]);
   const CLASSIC_LAYER_COLORS = Object.freeze({
-    layer1: "yellow",
-    layer2: "red",
-    layer3: "white"
+    layer1: "blue",
+    layer2: "blue",
+    layer3: "blue"
   });
 
   const state = {
@@ -159,7 +159,7 @@
         <small class="tower-ground-plate-note">
           ${groundPlateEditable
             ? "Deze laag is vrijgegeven in de game-instellingen."
-            : "Klassiek groen · geef Grondplaat vrij via Meerdere kleuren om dit te wijzigen."}
+            : "Vast stijlblauw met groene grondplaat · geef Meerdere kleuren vrij om dit te wijzigen."}
         </small>
       </fieldset>
     `;

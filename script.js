@@ -217,6 +217,15 @@
     return [...new Set(value)].filter(layerId => COLOR_LAYER_IDS.includes(layerId));
   }
 
+  function variantRulesFor(gameType) {
+    return window.GameConfigurationStore?.getVariantRules(gameType) || {
+      productTypeCountEditable: true,
+      fixedProductTypeCount: null,
+      colorModeEditable: true,
+      defaultHasSupplier: null
+    };
+  }
+
   const ROLES = [
     { id: "customer1", token: "K1", lane: "customer", title: "Klant 1" },
     { id: "customer2", token: "K2", lane: "customer", title: "Klant 2" },
@@ -227,8 +236,35 @@
     { id: "pd1", token: "PD1", lane: "pd1", title: "Productie Afdeling 1" },
     { id: "pd2", token: "PD2", lane: "pd2", title: "Productie Afdeling 2" },
     { id: "pd3", token: "PD3", lane: "pd3", title: "Productie Afdeling 3" },
-    { id: "mfp", token: "MFP", lane: "finished", title: "Magazijn Gereed Product" }
+    { id: "mfp", token: "MFP", lane: "finished", title: "Magazijn Gereed Product" },
+    { id: "customer", token: "KL", lane: "customer", title: "Klant" },
+    { id: "logistics_manager", token: "LM", lane: "operations", title: "Logistiek Manager" },
+    { id: "raw_warehouse", token: "MG", lane: "raw", title: "Magazijn Grondstoffen" },
+    { id: "production_1", token: "P1", lane: "pd1", title: "Productie Afdeling 1" },
+    { id: "production_2", token: "P2", lane: "pd2", title: "Productie Afdeling 2" },
+    { id: "production_3", token: "P3", lane: "pd3", title: "Productie Afdeling 3" },
+    { id: "production_a", token: "PA", lane: "pd1", title: "Afdeling Toren A" },
+    { id: "production_b", token: "PB", lane: "pd2", title: "Afdeling Toren B" },
+    { id: "production_c", token: "PC", lane: "pd3", title: "Afdeling Toren C" },
+    { id: "finished_warehouse", token: "GP", lane: "finished", title: "Magazijn Gereed Product" },
+    { id: "sales", token: "SA", lane: "operations", title: "Verkoop / Sales Director" },
+    { id: "finance", token: "FI", lane: "operations", title: "Financiële Administratie" },
+    { id: "supplier", token: "LE", lane: "raw", title: "Leverancier Grondstoffen" },
+    { id: "transporter", token: "TR", lane: "archive", title: "Transporteur / Freight Forwarder" }
   ];
+
+  const RUNTIME_ROLE_ALIASES = Object.freeze({
+    customer: "customer1",
+    logistics_manager: "opr",
+    raw_warehouse: "srm",
+    production_1: "pd1",
+    production_2: "pd2",
+    production_3: "pd3",
+    production_a: "pd1",
+    production_b: "pd2",
+    production_c: "pd3",
+    finished_warehouse: "mfp"
+  });
 
   const PARTS = [
     { id: "base_green", name: "groene 6x6 grondplaten", price: 5, color: "green", width: "plate", stock: 8, reorder: 3 },
@@ -1356,11 +1392,16 @@
       fundingIncentive: "balanced",
       multipleColors: false,
       editableColorLayers: [],
+      hasSupplier: true,
+      currencyMode: "single",
+      baseCurrency: "EUR",
+      enabledCurrencies: ["EUR"],
+      exchangeRates: { EUR: 1 },
       customerOrderMode: "required",
       priceMode: "fixed",
       productionProcesses: ["parallel"],
       logisticsOrganization: "product",
-      productTypeCount: MIN_PRODUCT_TYPES,
+      productTypeCount: 3,
       visibleLogisticsDepartments: ISOMETRIC_DEPARTMENT_DEFINITIONS.map(department => department.id),
       processView: "graph"
     }
@@ -1485,6 +1526,10 @@
 
   function roleById(roleId) {
     return ROLES.find(role => role.id === roleId) || ROLES[0];
+  }
+
+  function runtimeRoleId(roleId) {
+    return RUNTIME_ROLE_ALIASES[roleId] || roleId;
   }
 
   function partById(partId) {
@@ -1733,7 +1778,17 @@
 
   function formatMoney(value) {
     const sign = value < 0 ? "-" : "";
-    return `${sign}EUR ${Math.abs(Math.round(value))}`;
+    const baseCurrency = state.config.baseCurrency || "EUR";
+    const baseAmount = Math.abs(Math.round(value));
+    const base = `${sign}${baseCurrency} ${baseAmount}`;
+    if (state.config.currencyMode !== "multiple") return base;
+    const conversions = (state.config.enabledCurrencies || [])
+      .filter(code => code !== baseCurrency)
+      .map(code => {
+        const rate = Number(state.config.exchangeRates?.[code] || 1);
+        return `${sign}${code} ${(baseAmount * rate).toFixed(2)}`;
+      });
+    return conversions.length ? `${base} · ${conversions.join(" · ")}` : base;
   }
 
   function recipeForStage(productId, stageNumber, quantity) {
@@ -1789,8 +1844,9 @@
     if (!openOrders.length) return null;
     const selected = selectedOrder();
     if (!state.assignedRoleId) return selected && !selected.done ? selected : openOrders[0];
-    if (selected && !selected.done && stepRole(selected)?.id === state.assignedRoleId) return selected;
-    return openOrders.find(order => stepRole(order)?.id === state.assignedRoleId) || null;
+    const assignedRuntimeRoleId = runtimeRoleId(state.assignedRoleId);
+    if (selected && !selected.done && stepRole(selected)?.id === assignedRuntimeRoleId) return selected;
+    return openOrders.find(order => stepRole(order)?.id === assignedRuntimeRoleId) || null;
   }
 
   function syncWorkbenchVisibility(view = state.appView) {
@@ -2612,7 +2668,7 @@
             <label>
               <span>Inkoop</span>
               <select name="partId">
-                ${PARTS.map(part => `<option value="${part.id}">${part.name} - EUR ${part.price}</option>`).join("")}
+                ${PARTS.map(part => `<option value="${part.id}">${part.name} - ${formatMoney(part.price)}</option>`).join("")}
               </select>
             </label>
             <label>
@@ -2709,6 +2765,7 @@
 
   function simulationRoleId(roleId) {
     if (!roleId) return null;
+    roleId = runtimeRoleId(roleId);
     if (roleId.startsWith("customer")) return "customer";
     return {
       opr: "operations",
@@ -3302,7 +3359,13 @@
       .filter(part => requirements[part.id] > Number(state.inventory[part.id] || 0))
       .map(part => part.name);
     const total = Object.values(normalized).reduce((sum, value) => sum + value, 0);
-    return { normalized, total, shortages, valid: total > 0 && shortages.length === 0 };
+    return {
+      normalized,
+      total,
+      requirements,
+      shortages,
+      valid: total > 0 && shortages.length === 0
+    };
   }
 
   function renderInventory() {
@@ -3487,7 +3550,7 @@
           ${renderPart(part)}
           <div>
             <h3 class="inventory-name">${escapeHtml(part.name)}</h3>
-            <div class="inventory-meta">inkoop EUR ${part.price} | signaal ${part.reorder}</div>
+            <div class="inventory-meta">inkoop ${formatMoney(part.price)} | signaal ${part.reorder}</div>
           </div>
           <strong class="inventory-count">${count}</strong>
         </article>
@@ -6009,7 +6072,7 @@
       },
       onTutorialNextRequested: () => startLogisticsTutorial(),
       onDelivered: delivery => {
-        if (!delivery.correct) return;
+        if (!delivery.accepted) return;
         const selected = selectedOrder();
         const order = selected?.productId === delivery.productId
           ? selected
@@ -6074,7 +6137,7 @@
     lo1: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"],
     lo2: ["customer", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse"],
     lo3: ["customer", "logistics_manager", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
-    lo4: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
+    lo4: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse", "supplier"],
     lo5: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier"],
     lo6: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
     lo7: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
@@ -6319,6 +6382,11 @@
     state.config.enabledRoles = Array.isArray(settings.enabled_roles)
       ? [...settings.enabled_roles]
       : [...(PRESET_ROLE_IDS[state.config.gameType] || PRESET_ROLE_IDS.lo4)];
+    state.config.hasSupplier = Boolean(settings.has_supplier);
+    state.config.currencyMode = settings.currency_mode || "single";
+    state.config.baseCurrency = settings.base_currency || "EUR";
+    state.config.enabledCurrencies = [...(settings.enabled_currencies || [state.config.baseCurrency])];
+    state.config.exchangeRates = { ...(settings.exchange_rates || { [state.config.baseCurrency]: 1 }) };
 
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
       || LOGISTICS_ORGANIZATION_VARIANTS.product;
@@ -6398,6 +6466,11 @@
     els.sequentialProductionToggle.checked = state.config.productionProcesses.includes("sequential");
     els.hybridProductionTooltip.hidden = state.config.productionProcesses.length !== 2;
     els.productTypeCountInput.value = String(state.config.productTypeCount);
+    const variantRules = variantRulesFor(state.config.gameType);
+    els.productTypeCountInput.disabled = !variantRules.productTypeCountEditable;
+    els.productTypeCountInput.title = variantRules.productTypeCountEditable
+      ? "Vanaf LO-Game 6 zijn 1 tot en met 9 torensoorten instelbaar."
+      : `Deze spelvariant gebruikt vast ${variantRules.fixedProductTypeCount} torensoort${variantRules.fixedProductTypeCount === 1 ? "" : "en"}.`;
     const configDesc = window.GameConfigurationStore
       ? window.GameConfigurationStore.getConfiguration(state.config.currentConfigId || state.config.gameType)?.description
       : GAME_TYPE_PRESETS[state.config.gameType]?.description;
@@ -6422,6 +6495,11 @@
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
       productionProcesses: window.LogisticsProcess?.defaultProcessesForGame(gameType) || ["parallel"],
       enabledRoles: [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
+      hasSupplier: (PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4).includes("supplier"),
+      currencyMode: "single",
+      baseCurrency: "EUR",
+      enabledCurrencies: ["EUR"],
+      exchangeRates: { EUR: 1 },
       customerOrderMode: preset.config.customerOrderMode || "required"
     });
     applyLogisticsProcessContract(gameType);
@@ -6453,51 +6531,66 @@
   function applyGameSessionConfig(config = {}) {
     const gameType = GAME_TYPE_PRESETS[config.game_type] ? config.game_type : "lo4";
     const preset = GAME_TYPE_PRESETS[gameType];
+    const normalized = window.GameConfigurationStore?.normalizeSettings(config, gameType) || config;
+    const variantRules = variantRulesFor(gameType);
     const productTypeCount = Math.max(
       MIN_PRODUCT_TYPES,
-      Math.min(MAX_PRODUCT_TYPES, Number(config.product_type_count) || preset.config.productTypeCount)
+      Math.min(
+        MAX_PRODUCT_TYPES,
+        variantRules.fixedProductTypeCount
+          ?? (Number(normalized.product_type_count) || preset.config.productTypeCount)
+      )
     );
     const productTypeCountChanged = state.config.productTypeCount !== productTypeCount;
     Object.assign(state.config, preset.config, {
-      playMode: config.play_mode === "digital" ? "digital" : "physical",
+      playMode: normalized.play_mode === "digital" ? "digital" : "physical",
       gameType,
-      money: config.money ?? preset.config.money,
-      pnl: config.pnl ?? preset.config.pnl,
+      money: normalized.money ?? preset.config.money,
+      pnl: normalized.pnl ?? preset.config.pnl,
       openingBalance: Boolean(
-        (config.money ?? preset.config.money)
-        && (config.opening_balance_enabled
+        (normalized.money ?? preset.config.money)
+        && (normalized.opening_balance_enabled
           ?? financialDetailDefaults(gameType, preset.config.money).openingBalance)
       ),
       revenueBalance: Boolean(
-        (config.money ?? preset.config.money)
-        && (config.revenue_balance_enabled
+        (normalized.money ?? preset.config.money)
+        && (normalized.revenue_balance_enabled
           ?? financialDetailDefaults(gameType, preset.config.money).revenueBalance)
       ),
       productionPlanning: Boolean(
-        config.production_planning_enabled
+        normalized.production_planning_enabled
           ?? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
       ),
-      intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
-      opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
-      roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
+      intermediateStock: normalized.intermediate_stock ?? preset.config.intermediateStock,
+      opportunityCosts: normalized.opportunity_costs ?? preset.config.opportunityCosts,
+      roleFreedom: normalized.role_freedom ?? preset.config.roleFreedom,
       organizationModel: ["independent_enterprises", "school_learning_path"].includes(
-        config.organization_model
-      ) ? config.organization_model : "single_enterprise",
-      fundingIncentive: ["quality", "balanced", "financing"].includes(config.funding_incentive)
-        ? config.funding_incentive
+        normalized.organization_model
+      ) ? normalized.organization_model : "single_enterprise",
+      fundingIncentive: ["quality", "balanced", "financing"].includes(normalized.funding_incentive)
+        ? normalized.funding_incentive
         : "balanced",
-      multipleColors: config.multiple_colors ?? Boolean(preset.config.multipleColors),
+      multipleColors: variantRules.colorModeEditable
+        && (normalized.multiple_colors ?? Boolean(preset.config.multipleColors)),
       editableColorLayers: normalizeEditableColorLayers(
-        config.editable_color_layers ?? preset.config.editableColorLayers
+        normalized.editable_color_layers ?? preset.config.editableColorLayers
       ),
-      customerOrderMode: config.customer_order_mode === "free" ? "free" : "required",
-      priceMode: config.price_mode || preset.config.priceMode,
+      customerOrderMode: normalized.customer_order_mode === "free" ? "free" : "required",
+      priceMode: normalized.price_mode || preset.config.priceMode,
       productionProcesses: window.LogisticsProcess?.normalizeProcesses(
-        config.production_processes,
+        normalized.production_processes,
         gameType
       ) || ["parallel"],
-      logisticsOrganization: config.logistics_organization || preset.config.logisticsOrganization,
-      productTypeCount
+      logisticsOrganization: normalized.logistics_organization || preset.config.logisticsOrganization,
+      productTypeCount,
+      enabledRoles: Array.isArray(normalized.enabled_roles)
+        ? [...normalized.enabled_roles]
+        : [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
+      hasSupplier: Boolean(normalized.has_supplier),
+      currencyMode: normalized.currency_mode || "single",
+      baseCurrency: normalized.base_currency || "EUR",
+      enabledCurrencies: [...(normalized.enabled_currencies || [normalized.base_currency || "EUR"])],
+      exchangeRates: { ...(normalized.exchange_rates || { EUR: 1 }) }
     });
     if (!state.config.multipleColors) {
       state.config.editableColorLayers = [];
@@ -6562,7 +6655,8 @@
       editableColorLayers: [...state.config.editableColorLayers]
     });
     state.config.priceMode = els.priceModeSelect.value;
-    state.config.productTypeCount = Math.max(
+    const variantRules = variantRulesFor(state.config.gameType);
+    state.config.productTypeCount = variantRules.fixedProductTypeCount ?? Math.max(
       MIN_PRODUCT_TYPES,
       Math.min(MAX_PRODUCT_TYPES, Number(els.productTypeCountInput.value) || 3)
     );
@@ -6582,6 +6676,11 @@
       funding_incentive: state.config.fundingIncentive,
       multiple_colors: state.config.multipleColors,
       editable_color_layers: [...state.config.editableColorLayers],
+      has_supplier: activeRoles.includes("supplier"),
+      currency_mode: state.config.currencyMode || "single",
+      base_currency: state.config.baseCurrency || "EUR",
+      enabled_currencies: [...(state.config.enabledCurrencies || ["EUR"])],
+      exchange_rates: { ...(state.config.exchangeRates || { EUR: 1 }) },
       price_mode: state.config.priceMode,
       production_processes: [...state.config.productionProcesses],
       logistics_organization: state.config.logisticsOrganization,
@@ -6638,7 +6737,8 @@
   }
 
   function applyProductTypeCount(dispatch = true) {
-    const count = Math.max(
+    const variantRules = variantRulesFor(state.config.gameType);
+    const count = variantRules.fixedProductTypeCount ?? Math.max(
       MIN_PRODUCT_TYPES,
       Math.min(MAX_PRODUCT_TYPES, Number(els.productTypeCountInput.value) || MIN_PRODUCT_TYPES)
     );
@@ -6744,9 +6844,25 @@
       objectRole: "configuration",
       role: "Spelkern",
       loginFlow: "qr_code_per_role_language_account_game_code",
-      roles: ROLES.map(role => ({ id: role.id, token: role.token, title: role.title }))
+      roles: getActiveRoles(state.config.gameType)
+        .map(roleById)
+        .map(role => ({ id: role.id, token: role.token, title: role.title }))
     });
     renderAll();
+  }
+
+  function configureCustomerDecision(session) {
+    const customerRoleIds = new Set(["customer", "customer1", "customer2", "customer3", "customer4"]);
+    const agentCustomer = (session?.virtual_agents || []).some(agent => (
+      customerRoleIds.has(agent.role_id)
+    ));
+    const humanCustomer = (session?.members || []).some(member => (
+      member.present && customerRoleIds.has(member.assigned_role_id)
+    ));
+    window.LegoBuilder?.setCustomerDecision({
+      mode: agentCustomer ? "agent" : humanCustomer ? "human" : "strict",
+      tolerance: 0.3
+    });
   }
 
   function wireEvents() {
@@ -6756,6 +6872,7 @@
       if (event.detail?.session?.game_config) {
         applyGameSessionConfig(event.detail.session.game_config);
       }
+      configureCustomerDecision(event.detail?.session);
       if (!state.gameSessionRunning) {
         state.attention.mode = "task";
         logisticsGameController?.stop();
@@ -6770,6 +6887,7 @@
       const member = session.members?.find(item => item.member_id === session.current_member_id);
       if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
       state.gameSessionDifficulty = session.difficulty_level || "normal";
+      configureCustomerDecision(session);
       if (session.game_config) applyGameSessionConfig(session.game_config);
       startStandaloneLogisticsGame(state.gameSessionDifficulty, session.game_config);
       dispatchInteraction({
@@ -6853,7 +6971,7 @@
     });
     els.playerFormMount.addEventListener("submit", event => {
       const purchaseForm = event.target.closest("[data-player-purchase-form]");
-      if (!purchaseForm || !state.gameSessionRunning || state.assignedRoleId !== "srm") return;
+      if (!purchaseForm || !state.gameSessionRunning || runtimeRoleId(state.assignedRoleId) !== "srm") return;
       event.preventDefault();
       const formData = new FormData(purchaseForm);
       purchaseMaterials(
@@ -6863,7 +6981,7 @@
     });
     els.playerFormMount.addEventListener("click", event => {
       const disruptionButton = event.target.closest("[data-player-disruption]");
-      if (!disruptionButton || !state.gameSessionRunning || state.assignedRoleId !== "opr") return;
+      if (!disruptionButton || !state.gameSessionRunning || runtimeRoleId(state.assignedRoleId) !== "opr") return;
       triggerDisruption();
     });
     els.dataModelButton.addEventListener("click", () => {
@@ -6951,6 +7069,7 @@
         objectRole: "production_planning",
         role: "Logistiek Manager",
         plannedQuantities: { ...state.productionPlan.quantities },
+        materialRequirements: { ...validation.requirements },
         shortages: [...validation.shortages]
       });
       renderAll();
