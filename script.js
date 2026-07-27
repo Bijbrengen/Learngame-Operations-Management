@@ -11,6 +11,194 @@
     "sand"
   ]);
   const COLOR_LAYER_IDS = Object.freeze(["groundPlate", "layer1", "layer2", "layer3"]);
+  const CONFIGURATION_HELP = Object.freeze({
+    "session-access": {
+      title: "Toegang tot de sessie",
+      mechanical: "Bepaalt of spelers de sessie kunnen zien en of zij een gamecode nodig hebben om deel te nemen.",
+      learning: "Laat de spelleider kiezen tussen een besloten oefenomgeving en een laagdrempelige, open instroom.",
+      basis: "Praktische sessie-inrichting; dit is geen afzonderlijke LO-Game-leerlaag."
+    },
+    difficulty: {
+      title: "Moeilijkheidsgraad",
+      mechanical: "Verandert de aanvraagdruk, foutkans en reactietijd van gesimuleerde rollen.",
+      learning: "Maakt zichtbaar hoe een proces reageert op systeemdruk en ruis. Fouten zijn hier bewust leermomenten: in een simulatie kunnen spelers de gevolgen ervaren zonder de verstrekkende gevolgen van de werkelijkheid.",
+      basis: "LE-boek: leren van fouten in een veilige spelsimulatie."
+    },
+    "play-mode": {
+      title: "Spelmodus",
+      mechanical: "Fysiek gebruikt echte LEGO en registreert de administratie; digitaal laat bouwen en transport volledig op het scherm plaatsvinden.",
+      learning: "Bepaalt of de nadruk ligt op tastbare samenwerking aan tafel of op digitale informatiestromen, ordertraceerbaarheid en directe terugkoppeling.",
+      basis: "LE-boek: LO-Game 7 maakt informatie- en financiële stromen digitaal en traceerbaar."
+    },
+    "game-type": {
+      title: "Gametype",
+      mechanical: "Laadt een samenhangende preset van spelregels, rollen en procesinstellingen.",
+      learning: "De LO-Games vormen een opbouwende reeks waarin telkens andere organisatiefouten en kenmerken zichtbaar worden: van kwaliteit en effectiviteit naar efficiency, flexibiliteit en digitale besturing.",
+      basis: "LE-boek: de spelvarianten zijn ontwikkeld als een stapsgewijze ‘hiërarchie van fouten’."
+    },
+    money: {
+      title: "Geld en marges",
+      mechanical: "Voegt kosten, opbrengsten, geldstromen en marges toe aan de logistieke handelingen.",
+      learning: "Verschuift de blik van drukte en volume naar waarde. Spelers kunnen zien of een rustige afdeling weinig bijdraagt óf juist met weinig werk een hoge marge maakt, en of een drukke afdeling werkelijk rendabel is. Ook gemiste dekkingsbijdragen door onvoldoende capaciteit worden zichtbaar.",
+      basis: "LE-boek: LO-Game 4 introduceert geldstromen om het verschil tussen effectief en efficiënt en gemiste dekkingsbijdragen zichtbaar te maken."
+    },
+    pnl: {
+      title: "Winst en verlies",
+      mechanical: "Verrekent opbrengsten met materiaal-, productie- en andere geregistreerde kosten.",
+      learning: "Maakt zichtbaar dat omzet, geld in kas en winst verschillende dingen zijn. Spelers ervaren waarom kostprijzen, de waarde van halffabricaten en een verlies-en-winstrekening nodig zijn om de organisatie te beoordelen.",
+      basis: "LE-boek: LO-Game 4 koppelt de productie-ervaring aan kostprijsbepaling en financiële verslaggeving."
+    },
+    "intermediate-stock": {
+      title: "Tussenvoorraad",
+      mechanical: "Halffabricaten worden tussen productiestappen opgeslagen in plaats van direct doorgegeven.",
+      learning: "Maakt wachtrijen en afhankelijkheden tussen deelbewerkingen zichtbaar. Een oplopende voorraad vóór een afdeling kan het knelpunt in de keten aanwijzen; zonder buffers neemt de directe afstemmingsdruk toe.",
+      basis: "LE-boek: de functionele organisatie gebruikt tussenvoorraad 1 en 2; voorraad vóór de zwakste schakel signaleert het knelpunt."
+    },
+    "opportunity-costs": {
+      title: "Opportunity costs",
+      mechanical: "Registreert de gemiste opbrengst van capaciteit of keuzes die niet voor het beste alternatief zijn ingezet.",
+      learning: "Maakt gemiste dekkingsbijdragen zichtbaar. In de productorganisatie kunnen afdelingen A en C weinig werk hebben terwijl B overbelast is; de organisatie verdient dan minder doordat beschikbare capaciteit niet voor de gevraagde toren wordt ingezet.",
+      basis: "LE-boek: LO-Game 4 gebruikt opportunity costs als drijvende kracht voor herinrichting naar een functionele organisatie."
+    },
+    "role-freedom": {
+      title: "Rolvrijheid",
+      mechanical: "Spelers mogen buiten de vaste bevoegdheden en taken van hun toegewezen rol handelen.",
+      learning: "Laat onderzoeken wanneer initiatief de keten helpt en wanneer rolvermenging verantwoordelijkheid vertroebelt. Vaste rollen maken juist ervaarbaar waarom specialisten hun eigen deelproces beheren en management het geheel coördineert.",
+      basis: "LE-boek: rolverantwoordelijkheid, arbeidsdeling en de grenzen tussen management en technische uitvoering."
+    },
+    "production-planning": {
+      title: "Productieplanning",
+      mechanical: "Toont het productieplan, controleert beschikbare grondstoffen en vergelijkt gepland met werkelijk gereed.",
+      learning: "Laat ervaren dat een organisatie volgens een globaal plan moet werken én moet bijsturen wanneer de werkelijkheid afwijkt. Het ondersteunt gesprekken over MRP, push/pull, JIT en produceren op voorraad.",
+      basis: "LE-boek: LO-Game 5 gaat van ordergestuurd naar plangestuurd en maakt planning en aanpassen ervaarbaar."
+    },
+    "opening-balance": {
+      title: "Openingsbalans",
+      mechanical: "Geeft de organisatie een financiële beginpositie voordat de eerste order wordt uitgevoerd.",
+      learning: "Laat zien welke bezittingen, schulden en liquide middelen vóór de eerste order beschikbaar zijn en waarom een winstgevend bedrijf toch te weinig geld kan hebben om door te werken.",
+      basis: "LE-boek: balans, resultaat en liquiditeit zijn verschillende maar samenhangende perspectieven."
+    },
+    "revenue-balance": {
+      title: "Omzetbalans",
+      mechanical: "Vergelijkt omzet met de financiële begin- en eindpositie van de sessie.",
+      learning: "Maakt het verschil zichtbaar tussen verkopen, kasbewegingen en het uiteindelijke financiële resultaat. Liquiditeit is voor het voortbestaan cruciaal, ook wanneer er op papier winst is.",
+      basis: "LE-boek: de ontwikkeling van de geldstroom wordt vaak onderschat, maar is voor de ondernemer essentieel."
+    },
+    "color-freedom": {
+      title: "Kleurvrijheid",
+      mechanical: "Laat spelers zelf kleuren kiezen voor de grondplaat en geselecteerde torenlagen.",
+      learning: "Laat zien hoe ver een specifieke klantwens de productie binnendringt. Meer kleurkeuze verhoogt flexibiliteit en mogelijke dekkingsbijdrage, maar veroorzaakt ook extra materiaal-, informatie- en afstemmingsdruk.",
+      basis: "LE-boek: LO-Game 6 visualiseert flexibiliteit en het klantorderontkoppelpunt met klantspecifieke kleuren."
+    },
+    "customer-order": {
+      title: "Klantorder",
+      mechanical: "Bij een vrije order kiest de klant toren en aantal; bij een verplichte order bepaalt de spelvariant de vraag.",
+      learning: "Een vrije order maakt de grilligheid en specificiteit van klantwensen ervaarbaar. Een verplichte order houdt de vraag beheerst, zodat de werking van de gekozen organisatievorm duidelijker te vergelijken is.",
+      basis: "LE-boek: ordergestuurde productie en het klantorderontkoppelpunt bepalen waar klantvraag de keten beïnvloedt."
+    },
+    price: {
+      title: "Prijs",
+      mechanical: "Een vaste prijs staat vooraf vast; een vrije prijs kan tijdens de game worden bepaald of onderhandeld.",
+      learning: "Maakt zichtbaar hoe prijs, vraag en dekkingsbijdrage samenhangen. Een lagere prijs kan de vraag sterk verhogen; klantspecifieke producten kunnen juist een hogere prijs en marge opleveren.",
+      basis: "LE-boek: LO-Game 4 laat prijsdaling en volumegroei zien; LO-Game 6 koppelt maatwerk aan een hogere dekkingsbijdrage."
+    },
+    "parallel-production": {
+      title: "Parallelle productie",
+      mechanical: "Afdelingen maken complete producten naast elkaar, met een eigen productstroom per afdeling.",
+      learning: "De productgerichte organisatie is effectief en heeft korte doorlooptijden zonder omstellen, maar kan inefficiënt worden wanneer de vraag ongelijk over torens A, B en C is verdeeld.",
+      basis: "LE-boek: LO-Game 3 en 4 tonen een effectieve P-organisatie met onderbenutting bij A en C en overbelasting bij B."
+    },
+    "sequential-production": {
+      title: "Sequentiële productie",
+      mechanical: "Een product doorloopt achtereenvolgens meerdere gespecialiseerde afdelingen.",
+      learning: "De functionele organisatie benut gespecialiseerde capaciteit voor alle gevraagde torens en kan daardoor efficiënter zijn. Tegelijk worden overdrachten, tussenvoorraden en het knelpunt van de hele keten zichtbaar.",
+      basis: "LE-boek: LO-Game 5 zet drie deelbewerkingen in serie en benut capaciteit die in de P-organisatie ongebruikt bleef."
+    },
+    "product-types": {
+      title: "Aantal torensoorten",
+      mechanical: "Bepaalt hoeveel verschillende productvarianten klanten kunnen vragen en de keten moet verwerken.",
+      learning: "Meer varianten vergroten keuze en flexibiliteit, maar veroorzaken meer omstellingen, langere doorlooptijden en complexere informatie- en materiaalstromen.",
+      basis: "LE-boek: de stap van één naar meerdere torens introduceert omsteltijd; extra varianten en kleuren vergroten de turbulentie."
+    }
+  });
+
+  function configurationHelpDialog() {
+    let dialog = document.getElementById("configurationHelpDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "configurationHelpDialog";
+    dialog.className = "configuration-help-dialog";
+    dialog.setAttribute("aria-labelledby", "configurationHelpTitle");
+    dialog.innerHTML = `
+      <form method="dialog" class="configuration-help-card">
+        <div class="configuration-help-head">
+          <p class="eyebrow">Effect van deze instelling</p>
+          <button type="submit" class="configuration-help-close" aria-label="Uitleg sluiten">×</button>
+        </div>
+        <h2 id="configurationHelpTitle"></h2>
+        <section>
+          <h3>Direct effect</h3>
+          <p data-config-help-mechanical></p>
+        </section>
+        <section>
+          <h3>Systeem- en leereffect</h3>
+          <p data-config-help-learning></p>
+        </section>
+        <p class="configuration-help-basis" data-config-help-basis></p>
+      </form>
+    `;
+    dialog.addEventListener("click", event => {
+      if (event.target === dialog) dialog.close();
+    });
+    document.body.append(dialog);
+    return dialog;
+  }
+
+  function openConfigurationHelp(helpId) {
+    const help = CONFIGURATION_HELP[helpId];
+    if (!help) return;
+    const dialog = configurationHelpDialog();
+    dialog.querySelector("#configurationHelpTitle").textContent = help.title;
+    dialog.querySelector("[data-config-help-mechanical]").textContent = help.mechanical;
+    dialog.querySelector("[data-config-help-learning]").textContent = help.learning;
+    dialog.querySelector("[data-config-help-basis]").textContent = help.basis || "";
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+  }
+
+  function enhanceConfigurationHelp(root = document) {
+    const candidates = [];
+    if (root.nodeType === Node.ELEMENT_NODE && root.matches("[data-config-help]")) candidates.push(root);
+    root.querySelectorAll?.("[data-config-help]").forEach(element => candidates.push(element));
+    candidates.forEach(element => {
+      const help = CONFIGURATION_HELP[element.dataset.configHelp];
+      if (!help || element.querySelector(":scope > .configuration-help-button")) return;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "configuration-help-button";
+      button.textContent = "i";
+      button.setAttribute("aria-label", `Uitleg over ${help.title}`);
+      button.title = `Wat is het effect van ${help.title.toLowerCase()}?`;
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openConfigurationHelp(element.dataset.configHelp);
+      });
+      element.append(button);
+    });
+  }
+
+  function initConfigurationHelp() {
+    configurationHelpDialog();
+    enhanceConfigurationHelp();
+    new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) enhanceConfigurationHelp(node);
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  }
 
   function normalizeEditableColorLayers(value) {
     if (!Array.isArray(value)) return [];
@@ -6268,6 +6456,7 @@
     launchTutorial();
   });
 
+  initConfigurationHelp();
   initControls();
   initLegoBuilder();
   initTowerEditor();

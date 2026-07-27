@@ -411,8 +411,18 @@
         <option value="${id}"${value.game_type === id ? " selected" : ""}>${preset.label}</option>
       `).join("");
     }
+    const helpIds = {
+      money: "money",
+      pnl: "pnl",
+      intermediate_stock: "intermediate-stock",
+      opportunity_costs: "opportunity-costs",
+      role_freedom: "role-freedom",
+      production_planning_enabled: "production-planning"
+    };
     const toggle = (name, label, title = "") => `
-      <label class="session-config-toggle"${title ? ` title="${escapeHtml(title)}"` : ""}>
+      <label class="session-config-toggle"
+             data-config-help="${helpIds[name] || name}"
+             ${title ? ` title="${escapeHtml(title)}"` : ""}>
         <input type="checkbox" name="${name}" data-game-config-control ${value[name] ? "checked" : ""}>
         <span>${label}</span>
       </label>
@@ -424,7 +434,7 @@
     return `
       <fieldset class="session-game-config">
         <legend>Spelvariant en spelregels</legend>
-        <label class="session-config-field session-play-mode is-wide">
+        <label class="session-config-field session-play-mode is-wide" data-config-help="play-mode">
           <span>Spelmodus</span>
           <select name="play_mode" data-game-config-control>
             <option value="physical"${value.play_mode === "physical" ? " selected" : ""}>Fysiek · echte LEGO en administratief dashboard</option>
@@ -434,7 +444,7 @@
             ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
             : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
         </label>
-        <label class="session-config-field is-wide">
+        <label class="session-config-field is-wide" data-config-help="game-type">
           <span>Gametype</span>
           <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
         </label>
@@ -454,7 +464,7 @@
                   data-financial-detail-settings
                   ${value.money ? "" : "hidden"}>
           <legend>Financiële verdieping</legend>
-          <label class="session-config-toggle">
+          <label class="session-config-toggle" data-config-help="opening-balance">
             <input type="checkbox"
                    name="opening_balance_enabled"
                    data-game-config-control
@@ -462,7 +472,7 @@
                    ${value.money ? "" : "disabled"}>
             <span>Openingsbalans</span>
           </label>
-          <label class="session-config-toggle">
+          <label class="session-config-toggle" data-config-help="revenue-balance">
             <input type="checkbox"
                    name="revenue_balance_enabled"
                    data-game-config-control
@@ -478,7 +488,7 @@
                 : "Adviseur: alleen eenvoudige inkomsten, uitgaven en cashflow worden gevolgd."}
           </small>
         </fieldset>
-        <fieldset class="session-config-field color-choice-settings is-wide">
+        <fieldset class="session-config-field color-choice-settings is-wide" data-config-help="color-freedom">
           <legend>Kleurvrijheid</legend>
           <label class="session-config-toggle">
             <input type="checkbox"
@@ -511,14 +521,14 @@
           </div>
           <small>LO Game 6 ontgrendelt standaard alle vier kleurlagen.</small>
         </fieldset>
-        <label class="session-config-field">
+        <label class="session-config-field" data-config-help="customer-order">
           <span>Klantorder</span>
           <select name="customer_order_mode" data-game-config-control>
             <option value="free"${value.customer_order_mode === "free" ? " selected" : ""}>Vrij · klant kiest toren en aantal</option>
             <option value="required"${value.customer_order_mode === "required" ? " selected" : ""}>Verplicht · variant bepaalt de order</option>
           </select>
         </label>
-        <label class="session-config-field">
+        <label class="session-config-field" data-config-help="price">
           <span>Prijs</span>
           <select name="price_mode" data-game-config-control>
             <option value="fixed"${value.price_mode === "fixed" ? " selected" : ""}>Vast</option>
@@ -527,11 +537,11 @@
         </label>
         <fieldset class="session-config-field production-process-fields">
           <legend>Productieroutes</legend>
-          <label class="session-config-toggle">
+          <label class="session-config-toggle" data-config-help="parallel-production">
             <input type="checkbox" name="parallel_production" data-production-process data-game-config-control ${hasParallel ? "checked" : ""}>
             <span>Parallelle productie</span>
           </label>
-          <label class="session-config-toggle">
+          <label class="session-config-toggle" data-config-help="sequential-production">
             <input type="checkbox" name="sequential_production" data-production-process data-game-config-control ${hasSequential ? "checked" : ""}>
             <span>Sequentiële productie</span>
           </label>
@@ -541,7 +551,7 @@
             Hybride productie · aangepaste configuratie, nog geen preset
           </small>
         </fieldset>
-        <label class="session-config-field">
+        <label class="session-config-field" data-config-help="product-types">
           <span>Torensoorten</span>
           <input name="product_type_count" type="number" min="1" max="9" value="${value.product_type_count}" data-game-config-control>
         </label>
@@ -1137,7 +1147,7 @@
     const level = session.difficulty_level || "normal";
     return `
       <div class="game-master-difficulty-form">
-        <label>
+        <label data-config-help="difficulty">
           <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
           <select data-game-difficulty-select>${difficultyOptions(level)}</select>
         </label>
@@ -1163,7 +1173,7 @@
     const draft = state.createSessionDraft;
     return `
       <form id="gameSessionCreateForm" class="game-session-create-form">
-        <label>
+        <label data-config-help="session-access">
           <span>Toegang</span>
           <select id="gameSessionType">
             <option value="closed"${draft.session_type === "closed" ? " selected" : ""}>Gesloten · alleen met gamecode</option>
@@ -1171,7 +1181,7 @@
             <option value="semi_closed"${draft.session_type === "semi_closed" ? " selected" : ""}>Semi-gesloten · zichtbaar, code vereist</option>
           </select>
         </label>
-        <label>
+        <label data-config-help="difficulty">
           <span>Moeilijkheidsgraad · Systeemdruk &amp; Ruis</span>
           <select id="gameSessionDifficulty" data-create-difficulty-select>
             ${difficultyOptions(draft.difficulty_level)}
