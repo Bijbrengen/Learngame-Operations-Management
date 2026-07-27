@@ -56,15 +56,14 @@
   }
 
   async function request(path, options = {}) {
-    const headers = {
-      "bypass-tunnel-reminder": "true",
-      ...(options.headers || {})
-    };
-    const response = await fetch(`${state.apiBase}${path}`, {
+    const targetUrl = new URL(`${state.apiBase}${path}`);
+    if (targetUrl.hostname.endsWith(".loca.lt")) {
+      targetUrl.searchParams.set("bypass-tunnel-reminder", "true");
+    }
+    const response = await fetch(targetUrl.toString(), {
       cache: "no-store",
       credentials: "include",
-      ...options,
-      headers
+      ...options
     });
     if (!response.ok) {
       const error = new Error(await parseError(response));
