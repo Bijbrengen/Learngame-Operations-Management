@@ -1413,6 +1413,7 @@
     cashValue: document.getElementById("cashValue"),
     profitValue: document.getElementById("profitValue"),
     lateValue: document.getElementById("lateValue"),
+    metricStrip: document.querySelector(".metric-strip"),
     hudComplexity: document.getElementById("hudComplexity"),
     hudComplexityValue: document.getElementById("hudComplexityValue"),
     hudEfficiency: document.getElementById("hudEfficiency"),
@@ -1467,6 +1468,7 @@
     processSwimlaneViewButton: document.getElementById("processSwimlaneViewButton"),
     processIsometricViewButton: document.getElementById("processIsometricViewButton"),
     exportButton: document.getElementById("exportButton"),
+    menuExportButton: document.getElementById("menuExportButton"),
     resetButton: document.getElementById("resetButton"),
     tutorialExitButton: document.getElementById("tutorialExitButton"),
     tutorialResumeButton: document.getElementById("tutorialResumeButton"),
@@ -1880,6 +1882,7 @@
     sessionStorage.setItem("learngame.om.appView", nextView);
     if (nextView === "player") renderPlayerView();
     if (nextView === "manager") setManagerTab(state.managerTab, false);
+    syncGlobalMenu();
     if (dispatch) {
       dispatchInteraction({
         actionType: "change_game_view",
@@ -1910,6 +1913,7 @@
     });
     sessionStorage.setItem("learngame.om.managerTab", nextTab);
     if (nextTab === "process") renderDataModel(true);
+    syncGlobalMenu();
     if (dispatch) {
       dispatchInteraction({
         actionType: "change_manager_dashboard_tab",
@@ -1918,6 +1922,21 @@
         role: "Game Master"
       });
     }
+  }
+
+  function syncGlobalMenu() {
+    const gameTabs = new Set(["session", "process", "inventory"]);
+    document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
+      const tab = button.dataset.mainMenuTab;
+      const current = state.appView === "manager" && (
+        tab === state.managerTab
+        || (tab === "session" && gameTabs.has(state.managerTab))
+      );
+      button.classList.toggle("is-current", current);
+      if (button.closest(".app-view-switcher")) {
+        button.setAttribute("aria-current", current ? "page" : "false");
+      }
+    });
   }
 
   function activeOrders() {
@@ -3259,7 +3278,7 @@
 
   function renderPlayerDepartmentHeatmap() {
     if (!els.playerDepartmentHeatmap) return;
-    const visible = state.appView === "player" || document.body.classList.contains("tutorial-focus");
+    const visible = state.appView === "player" && state.playerTab === "heatmap";
     els.playerDepartmentHeatmap.hidden = !visible;
     if (!visible) return;
     const grid = els.playerDepartmentHeatmap.querySelector("[data-player-department-heatmap-grid]");
@@ -4219,6 +4238,12 @@
     els.cashValue.textContent = String(done);
     els.profitValue.textContent = String(late);
     els.lateValue.textContent = String(state.interactionBuffer.length);
+    const sessionActive = Boolean(state.gameSessionRunning);
+    els.metricStrip?.classList.toggle("is-inactive", !sessionActive);
+    els.metricStrip?.setAttribute("aria-disabled", String(!sessionActive));
+    els.metricStrip?.querySelectorAll("button").forEach(button => {
+      button.disabled = !sessionActive;
+    });
     renderProcessHud();
     els.clockValue.textContent = formatClock(state.clockMinutes);
     els.eventCountValue.textContent = String(state.interactionBuffer.length);
@@ -6772,7 +6797,15 @@
       contract_events: state.contractEventBuffer
     }, null, 2);
     try {
-      await navigator.clipboard.writeText(payload);
+      const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `learngame-events-${state.sessionId}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
       dispatchInteraction({
         actionType: "export_events",
         result: "success",
@@ -6878,6 +6911,7 @@
         logisticsGameController?.stop();
       }
       renderPlayerView();
+      renderMetrics();
     });
     window.addEventListener("learngame-session-started", event => {
       const session = event.detail?.session;
@@ -6939,6 +6973,12 @@
     });
     document.querySelectorAll("button[data-app-view], a[data-app-view]").forEach(button => {
       button.addEventListener("click", () => setAppView(button.dataset.appView));
+    });
+    document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
+      button.addEventListener("click", () => {
+        setAppView("manager", false);
+        setManagerTab(button.dataset.mainMenuTab);
+      });
     });
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
       button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
@@ -7003,8 +7043,9 @@
     els.processSequenceViewButton.addEventListener("click", () => setProcessView("sequence"));
     els.processSwimlaneViewButton.addEventListener("click", () => setProcessView("swimlane"));
     els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
-    els.exportButton.addEventListener("click", exportEvents);
-    els.resetButton.addEventListener("click", resetState);
+    els.exportButton?.addEventListener("click", exportEvents);
+    els.menuExportButton?.addEventListener("click", exportEvents);
+    els.resetButton?.addEventListener("click", resetState);
     els.nextLevelChallengeButton?.addEventListener("click", () => {
       const nextGameType = els.nextLevelChallengeButton.dataset.nextGamePreset;
       if (!nextGameType) return;

@@ -84,8 +84,13 @@
       gate: document.getElementById("leerpretAuthGate"),
       message: document.getElementById("leerpretAuthMessage"),
       googleMount: document.getElementById("leerpretGoogleSignIn"),
-      statusButton: document.getElementById("leerpretAuthStatus")
+      statusButton: document.getElementById("leerpretAuthStatus"),
+      menuStatusButton: document.getElementById("menuAuthStatus")
     };
+  }
+
+  function statusButtons(els = elements()) {
+    return [els.statusButton, els.menuStatusButton].filter(Boolean);
   }
 
   function roleLabels() {
@@ -128,18 +133,18 @@
     document.body.classList.remove("auth-pending", "auth-required");
     document.body.classList.add("auth-authenticated");
     if (els.gate) els.gate.hidden = true;
-    if (els.statusButton) {
+    statusButtons(els).forEach(statusButton => {
       const identity = state.user?.label || "Aangemeld";
       const activeRoles = roleLabels().join(" + ") || "Lerende";
-      els.statusButton.textContent = "Uitloggen";
-      els.statusButton.classList.add("is-authenticated");
-      els.statusButton.title = `Aangemeld: ${identity} · ${activeRoles}. Klik om uit te loggen.`;
-      els.statusButton.setAttribute(
+      statusButton.textContent = "Uitloggen";
+      statusButton.classList.add("is-authenticated");
+      statusButton.title = `Aangemeld: ${identity} · ${activeRoles}. Klik om uit te loggen.`;
+      statusButton.setAttribute(
         "aria-label",
         `Uitloggen. Aangemeld als ${identity} met rol ${activeRoles}.`
       );
-      els.statusButton.disabled = false;
-    }
+      statusButton.disabled = false;
+    });
     announceSession();
   }
 
@@ -152,13 +157,13 @@
       els.message.textContent = message || "Meld je met Google aan om de LO-game te openen.";
       els.message.className = `auth-message ${online ? "is-info" : "is-error"}`;
     }
-    if (els.statusButton) {
-      els.statusButton.textContent = online ? "Niet aangemeld" : "Service offline";
-      els.statusButton.classList.remove("is-authenticated");
-      els.statusButton.removeAttribute("aria-label");
-      els.statusButton.title = online ? "Meld je aan in dit venster" : "De Leerpret-service is niet bereikbaar";
-      els.statusButton.disabled = true;
-    }
+    statusButtons(els).forEach(statusButton => {
+      statusButton.textContent = online ? "Niet aangemeld" : "Service offline";
+      statusButton.classList.remove("is-authenticated");
+      statusButton.removeAttribute("aria-label");
+      statusButton.title = online ? "Meld je aan in dit venster" : "De Leerpret-service is niet bereikbaar";
+      statusButton.disabled = true;
+    });
     announceSession();
     if (online) initializeGoogleSignIn();
   }
@@ -304,8 +309,10 @@
   }
 
   function wire() {
-    elements().statusButton?.addEventListener("click", () => {
-      if (state.authenticated) logout();
+    statusButtons().forEach(statusButton => {
+      statusButton.addEventListener("click", () => {
+        if (state.authenticated) logout();
+      });
     });
   }
 

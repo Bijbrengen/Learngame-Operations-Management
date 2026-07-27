@@ -67,7 +67,6 @@
       this.signatureStrokes = [];
       this.activeSignaturePointer = null;
       this.transferred = false;
-      this.waitingTab = "flow";
       this.lastFlowSignature = "";
       this.taskKey = null;
       this.customerOrderDraft = null;
@@ -89,7 +88,6 @@
         if (
           event.type === "tick"
           && !this.engine.playerTask()
-          && this.waitingTab === "flow"
           && this.mount.querySelector("[data-sim-process-flow]")
         ) {
           const signature = this.processFlowSignature(event.snapshot);
@@ -126,7 +124,6 @@
 
     start(options = {}) {
       this.resetPlayerInput();
-      this.waitingTab = "flow";
       this.mount.hidden = false;
       this.engine.start(options);
       this.render();
@@ -241,13 +238,6 @@
       if (transferButton && !transferButton.disabled) {
         this.transferred = true;
         this.feedback = "De volledige orderbatch is in één keer overgedragen.";
-        this.render();
-        return;
-      }
-
-      const waitingTabButton = eventTargetClosest(event, "[data-sim-waiting-tab]");
-      if (waitingTabButton) {
-        this.waitingTab = waitingTabButton.dataset.simWaitingTab;
         this.render();
         return;
       }
@@ -506,7 +496,6 @@
     }
 
     mountProcessFlow(snapshot) {
-      if (this.waitingTab !== "flow") return;
       const processMount = this.mount.querySelector("[data-sim-process-flow]");
       if (!processMount) return;
       this.lastFlowSignature = this.processFlowSignature(snapshot);
@@ -1155,6 +1144,56 @@
       `;
     }
 
+    waitingHeatmapMarkup(snapshot) {
+      const roles = snapshot.roleFlow.map(roleId => {
+        const role = snapshot.roles[roleId];
+        const runtime = snapshot.roleRuntime[roleId];
+        const activity = (runtime.queue?.length || 0)
+          + (runtime.activeOrderId ? 2 : 0)
+          + (runtime.state !== "IDLE" ? 1 : 0);
+        return { roleId, role, activity };
+      });
+      const maximum = Math.max(1, ...roles.map(item => item.activity));
+      const center = { x: 250, y: 180 };
+      const radius = { x: 190, y: 125 };
+      const positioned = roles.map((item, index) => {
+        const angle = (-Math.PI / 2) + (index / Math.max(1, roles.length)) * Math.PI * 2;
+        return {
+          ...item,
+          x: center.x + Math.cos(angle) * radius.x,
+          y: center.y + Math.sin(angle) * radius.y,
+          level: item.activity
+            ? Math.max(1, Math.min(4, Math.ceil((item.activity / maximum) * 4)))
+            : 0
+        };
+      });
+      return `
+        <svg class="sim-waiting-heatmap"
+             viewBox="0 0 500 360"
+             role="img"
+             aria-label="Heatmap van actuele activiteit per afdeling">
+          ${positioned.map(item => `
+            <line x1="${center.x}" y1="${center.y}"
+                  x2="${item.x.toFixed(1)}" y2="${item.y.toFixed(1)}"
+                  class="level-${item.level}"></line>
+          `).join("")}
+          <g class="sim-heatmap-center" transform="translate(${center.x} ${center.y})">
+            <circle r="29"></circle>
+            <text y="4">JIJ</text>
+          </g>
+          ${positioned.map(item => `
+            <g class="sim-heatmap-node level-${item.level}"
+               transform="translate(${item.x.toFixed(1)} ${item.y.toFixed(1)})">
+              <title>${escapeHtml(item.role.department)}: ${item.activity} activiteitspunten</title>
+              <circle r="27"></circle>
+              <text y="3">${escapeHtml(item.role.token || item.role.department.slice(0, 3))}</text>
+              <text class="sim-heatmap-count" y="42">× ${item.activity}</text>
+            </g>
+          `).join("")}
+        </svg>
+      `;
+    }
+
     factoryOverviewMarkup(snapshot) {
       const humanRole = snapshot.roles[snapshot.humanRoleId];
       const openOrders = snapshot.orders.filter(order => order.status !== "DELIVERED").length;
@@ -1168,39 +1207,35 @@
             </div>
             <span class="sim-live-indicator"><i></i> Live</span>
           </header>
-          <nav class="sim-waiting-tabs" aria-label="Fabrieksoverzicht" role="tablist">
-            <button type="button"
-                    role="tab"
-                    data-sim-waiting-tab="flow"
-                    aria-selected="${this.waitingTab === "flow"}"
-                    class="${this.waitingTab === "flow" ? "is-active" : ""}">
-              <span>Productiestroom</span>
-              <strong>${openOrders}</strong>
-            </button>
-            <button type="button"
-                    role="tab"
-                    data-sim-waiting-tab="departments"
-                    aria-selected="${this.waitingTab === "departments"}"
-                    class="${this.waitingTab === "departments" ? "is-active" : ""}">
-              <span>Afdelingen</span>
-              <strong>7</strong>
-            </button>
-            <button type="button"
-                    role="tab"
-                    data-sim-waiting-tab="events"
-                    aria-selected="${this.waitingTab === "events"}"
-                    class="${this.waitingTab === "events" ? "is-active" : ""}">
-              <span>Live gebeurtenissen</span>
-              <strong>${snapshot.feed.length}</strong>
-            </button>
-          </nav>
-          <div class="sim-waiting-panel" role="tabpanel">
-            ${this.waitingTab === "departments" ? `
+          <div class="sim-waiting-overview" aria-label="Vier gelijktijdige liveweergaven">
+            <section class="sim-waiting-view" aria-labelledby="simWaitingFlowTitle">
+              <header>
+                <h3 id="simWaitingFlowTitle">Productiestroom</h3>
+                <strong>${openOrders}</strong>
+              </header>
+              <div class="sim-waiting-view-body">
+                <div class="sim-process-flow-mount"
+                     data-sim-process-flow
+                     aria-label="Productiestromen tussen de afdelingen"></div>
+              </div>
+            </section>
+            <section class="sim-waiting-view" aria-labelledby="simWaitingDepartmentsTitle">
+              <header>
+                <h3 id="simWaitingDepartmentsTitle">Afdelingen</h3>
+                <strong>${snapshot.roleFlow.length}</strong>
+              </header>
+              <div class="sim-waiting-view-body">
               <div class="sim-role-status-grid">
                 ${snapshot.roleFlow.map(roleId => this.roleStatusMarkup(snapshot, roleId)).join("")}
               </div>
-            ` : ""}
-            ${this.waitingTab === "events" ? `
+              </div>
+            </section>
+            <section class="sim-waiting-view is-live-events" aria-labelledby="simWaitingEventsTitle">
+              <header>
+                <h3 id="simWaitingEventsTitle">Live gebeurtenissen</h3>
+                <strong>${snapshot.feed.length}</strong>
+              </header>
+              <div class="sim-waiting-view-body">
               <div class="sim-live-feed" role="log" aria-live="polite">
                 ${snapshot.feed.length
                   ? snapshot.feed.slice(0, 30).map(item => `
@@ -1211,12 +1246,17 @@
                     `).join("")
                   : `<p>De fabriek wacht op de eerste order.</p>`}
               </div>
-            ` : ""}
-            ${this.waitingTab === "flow" ? `
-              <div class="sim-process-flow-mount"
-                   data-sim-process-flow
-                   aria-label="Productiestromen tussen de afdelingen"></div>
-            ` : ""}
+              </div>
+            </section>
+            <section class="sim-waiting-view" aria-labelledby="simWaitingHeatmapTitle">
+              <header>
+                <h3 id="simWaitingHeatmapTitle">Heatmap</h3>
+                <strong>${snapshot.roleFlow.length}</strong>
+              </header>
+              <div class="sim-waiting-view-body sim-waiting-heatmap-body">
+                ${this.waitingHeatmapMarkup(snapshot)}
+              </div>
+            </section>
           </div>
         </section>
       `;

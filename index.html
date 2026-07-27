@@ -50,7 +50,7 @@
     </div>
   </aside>
   <div class="app-shell">
-    <header class="topbar">
+    <header class="topbar game-menu">
       <div class="brand-block">
         <div class="learn-games-brand">
           <img
@@ -64,8 +64,24 @@
           <button id="playerViewButton" type="button" data-app-view="player" aria-pressed="true">
             Speler
           </button>
+          <button type="button" data-main-menu-tab="session">Game</button>
+          <button type="button" data-main-menu-tab="tower-editor">Torens</button>
+          <button type="button" data-main-menu-tab="insights">Inzicht</button>
           <button id="managerViewButton" type="button" data-app-view="manager" aria-pressed="false">
             Beheer
+          </button>
+          <button id="menuTutorialButton"
+                  type="button"
+                  data-tutorial-launch
+                  title="Tutorial hervatten of opnieuw starten">
+            <span aria-hidden="true">▶</span>
+            <strong>Tutorial</strong>
+          </button>
+          <button id="menuCharacterEditButton"
+                  type="button"
+                  data-character-edit>
+            <span aria-hidden="true">KA</span>
+            <strong>Karakter</strong>
           </button>
         </nav>
       </div>
@@ -87,42 +103,71 @@
           <span>Te laat</span>
           <strong id="profitValue">0</strong>
         </div>
-        <div class="metric">
+        <button class="metric menu-events-button" type="button" data-main-menu-tab="events">
           <span>Events</span>
           <strong id="lateValue">0</strong>
-        </div>
+        </button>
+        <button id="menuExportButton"
+                class="metric menu-export-button"
+                type="button"
+                title="Events als JSON-bestand downloaden">
+          <span aria-hidden="true">{ }</span>
+          <strong>Downloaden Events</strong>
+        </button>
       </section>
 
       <section id="processIndicatorStrip"
                class="process-indicator-strip"
                aria-label="Procesindicatoren"
                aria-live="polite">
-        <span class="process-hud-meter" id="hudComplexity" title="Complexiteit van de actieve spelvariant">
+        <button class="process-hud-meter" id="hudComplexity" type="button"
+                data-main-menu-tab="insights" title="Complexiteit van de actieve spelvariant">
           <i aria-hidden="true">⬡</i>
           <span class="process-hud-copy"><small>Complexiteit</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudComplexityValue">0%</b>
-        </span>
-        <span class="process-hud-meter is-positive" id="hudEfficiency" title="Waardetoevoegende tijd ten opzichte van de totale doorlooptijd">
+        </button>
+        <button class="process-hud-meter is-positive" id="hudEfficiency" type="button"
+                data-main-menu-tab="insights" title="Waardetoevoegende tijd ten opzichte van de totale doorlooptijd">
           <i aria-hidden="true">⚙</i>
           <span class="process-hud-copy"><small>Efficiëntie</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudEfficiencyValue">–</b>
-        </span>
-        <span class="process-hud-meter" id="hudWaiting" title="Aandeel wachttijd in de totale doorlooptijd">
+        </button>
+        <button class="process-hud-meter" id="hudWaiting" type="button"
+                data-main-menu-tab="insights" title="Aandeel wachttijd in de totale doorlooptijd">
           <i aria-hidden="true">⌛</i>
           <span class="process-hud-copy"><small>Wachttijd</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudWaitingValue">0%</b>
-        </span>
-        <span class="process-hud-meter" id="hudWip" title="Onderhanden werk en wachtrijen in de keten">
+        </button>
+        <button class="process-hud-meter" id="hudWip" type="button"
+                data-main-menu-tab="inventory" title="Onderhanden werk en wachtrijen in de keten">
           <i aria-hidden="true">▤</i>
           <span class="process-hud-copy"><small>Voorraad / WIP</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudWipValue">0</b>
-        </span>
-        <span class="process-hud-meter" id="hudBullwhip" title="Versterking van bestelschommelingen ten opzichte van de klantvraag">
+        </button>
+        <button class="process-hud-meter" id="hudBullwhip" type="button"
+                data-main-menu-tab="insights" title="Versterking van bestelschommelingen ten opzichte van de klantvraag">
           <i aria-hidden="true">∿</i>
           <span class="process-hud-copy"><small>Bullwhip</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudBullwhipValue">0.0×</b>
-        </span>
+        </button>
       </section>
+
+      <aside class="game-menu-account" aria-label="Account en instellingen">
+        <button id="menuAuthStatus"
+                class="auth-status-button"
+                type="button"
+                disabled>
+          Sessie controleren…
+        </button>
+        <button id="menuSettingsButton"
+                class="menu-settings-button"
+                type="button"
+                data-main-menu-tab="session"
+                aria-label="Game-instellingen openen"
+                title="Game-instellingen">
+          ⚙
+        </button>
+      </aside>
 
       <aside id="nextLevelChallenge"
              class="next-level-challenge"
@@ -147,20 +192,6 @@
           class="player-workbench app-view-panel"
           data-app-view-panel="player"
           aria-label="Spelerswerkplek">
-      <nav class="player-utility-actions" aria-label="Profiel en begeleiding">
-        <span>Profiel &amp; begeleiding</span>
-        <button type="button" data-character-edit>
-          <span aria-hidden="true">KA</span>
-          <strong>Karakter aanpassen</strong>
-        </button>
-        <button id="tutorialResumeButton"
-                type="button"
-                data-tutorial-launch
-                title="Tutorial hervatten of opnieuw starten">
-          <span aria-hidden="true">▶</span>
-          <strong data-tutorial-label>Tutorial hervatten</strong>
-        </button>
-      </nav>
       <section id="playerSessionPanel"
                class="game-session-panel"
                aria-labelledby="playerSessionTitle">
@@ -179,19 +210,6 @@
                class="logistics-game-mount"
                aria-label="Logistieke gamesimulatie"
                hidden></section>
-      <section id="playerDepartmentHeatmap"
-               class="player-department-heatmap"
-               aria-labelledby="playerDepartmentHeatmapTitle"
-               hidden>
-        <header>
-          <div>
-            <p class="eyebrow">Jouw interacties</p>
-            <h2 id="playerDepartmentHeatmapTitle">Afdelingsheatmap</h2>
-          </div>
-          <small>Donker = weinig · helder = veel</small>
-        </header>
-        <div data-player-department-heatmap-grid></div>
-      </section>
       <section id="playerTaskPanel" class="player-task-panel">
         <header class="player-stage-header">
           <div id="playerRoleToken" class="player-role-token">--</div>
@@ -260,7 +278,7 @@
           <button type="button" class="is-active" role="tab" aria-selected="true" tabindex="0"
                   data-manager-tab="session">
             <span aria-hidden="true">00</span>
-            <strong>Gamesessie</strong>
+            <strong>Game</strong>
             <small>Game Master &amp; codes</small>
           </button>
           <button id="dataModelButton" type="button" role="tab" aria-selected="false"
@@ -272,7 +290,7 @@
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="insights">
             <span aria-hidden="true">02</span>
-            <strong>Inzichten</strong>
+            <strong>Inzicht</strong>
             <small>Activiteit en systeemeffect</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
@@ -282,53 +300,12 @@
             <small>Materiaal en WIP</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="events">
-            <span aria-hidden="true">04</span>
-            <strong>Events</strong>
-            <small>Acties en meetlijn</small>
-          </button>
-          <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="tower-editor">
             <span aria-hidden="true">05</span>
-            <strong>Toreneditor</strong>
+            <strong>Torens</strong>
             <small>Productassortiment</small>
           </button>
         </nav>
-        <div class="manager-utility-actions" aria-label="Profiel en begeleiding">
-          <span>Profiel &amp; begeleiding</span>
-          <button id="leerpretAuthStatus"
-                  class="auth-status-button"
-                  type="button"
-                  disabled>
-            Sessie controleren…
-          </button>
-          <button id="characterEditButton"
-                  class="character-edit-button"
-                  type="button"
-                  data-character-edit
-                  hidden>
-            <span aria-hidden="true">KA</span>
-            <strong>Karakter aanpassen</strong>
-          </button>
-          <button id="managerTutorialResumeButton"
-                  type="button"
-                  data-tutorial-launch
-                  title="Tutorial hervatten of opnieuw starten">
-            <span aria-hidden="true">▶</span>
-            <strong data-tutorial-label>Tutorial hervatten</strong>
-          </button>
-        </div>
-        <div class="manager-utility-actions" aria-label="Beheeracties">
-          <span>Beheeracties</span>
-          <button id="exportButton" type="button" title="Eventbuffer naar klembord">
-            <span aria-hidden="true">{ }</span>
-            <strong>Events exporteren</strong>
-          </button>
-          <button id="resetButton" class="danger-button" type="button" title="Proefopstelling opnieuw starten">
-            <span aria-hidden="true">R</span>
-            <strong>Spel opnieuw starten</strong>
-          </button>
-        </div>
       </aside>
 
       <section id="managerSessionPanel"
