@@ -1214,7 +1214,9 @@
       // klassieke localhost/127.0.0.1-verschil op (backend op IPv4 terwijl de
       // pagina localhost → IPv6 ::1 gebruikt, of andersom).
       function sdkCandidates() {
-        return [base() + "/sdk/lego-builder/logic.js"];
+        var b = base();
+        var sep = b.indexOf("?") === -1 ? "?" : "&";
+        return [b + "/sdk/lego-builder/logic.js" + sep + "bypass-tunnel-reminder=true"];
       }
       // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
