@@ -1779,6 +1779,184 @@ body[data-app-view="player"] .manager-only {
   grid-column: 1 / -1;
 }
 
+.configuration-layout-preview {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.configuration-layout-preview-shell {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(92, 215, 190, 0.34);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(92, 215, 190, 0.1), transparent 42%),
+    rgba(5, 24, 29, 0.78);
+}
+
+.configuration-layout-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.configuration-layout-preview-head > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.configuration-layout-preview-head small,
+.configuration-layout-group > small,
+.configuration-layout-book small {
+  color: var(--lp-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.configuration-layout-preview-head strong {
+  color: var(--lp-ink);
+  font-size: 0.94rem;
+}
+
+.configuration-layout-tabs {
+  display: flex;
+  gap: 5px;
+}
+
+.configuration-layout-tabs button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+  color: var(--lp-muted);
+  background: rgba(4, 19, 23, 0.9);
+  cursor: pointer;
+}
+
+.configuration-layout-tabs button[aria-pressed="true"] {
+  border-color: var(--lp-accent);
+  color: #071b20;
+  background: var(--lp-accent);
+}
+
+.configuration-layout-diagram {
+  display: grid;
+  grid-template-columns: minmax(105px, 0.8fr) minmax(58px, 0.35fr) minmax(280px, 3fr) minmax(58px, 0.35fr) minmax(105px, 0.8fr);
+  gap: 9px;
+  align-items: stretch;
+  min-width: 720px;
+}
+
+[data-layout-view-panel="diagram"] {
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.configuration-layout-group {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(160, 188, 194, 0.24);
+  border-radius: 9px;
+  background: rgba(10, 35, 41, 0.72);
+}
+
+.configuration-layout-group.is-external {
+  border-style: dashed;
+  border-color: rgba(245, 203, 114, 0.58);
+  background: rgba(76, 52, 15, 0.25);
+}
+
+.configuration-layout-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.configuration-layout-group.is-parallel .configuration-layout-nodes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+}
+
+.configuration-layout-node {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 45px;
+  padding: 7px 9px;
+  border: 1px solid rgba(92, 215, 190, 0.35);
+  border-radius: 7px;
+  color: var(--lp-ink);
+  background: linear-gradient(150deg, #12313a, #0a1d23);
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.configuration-layout-node.is-external {
+  border-color: rgba(245, 203, 114, 0.62);
+  color: #ffe4a4;
+}
+
+.configuration-layout-node.is-stock {
+  border-style: dashed;
+  color: #b9d9de;
+}
+
+.configuration-layout-node.is-enterprise {
+  border-color: rgba(216, 90, 172, 0.55);
+  background: linear-gradient(150deg, #3b1834, #1e1120);
+}
+
+.configuration-layout-distance {
+  display: grid;
+  place-items: center;
+  min-height: 70px;
+  border-inline: 2px dashed rgba(245, 203, 114, 0.46);
+  color: #f5cb72;
+}
+
+.configuration-layout-distance::after {
+  content: "→";
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.configuration-layout-distance span {
+  writing-mode: vertical-rl;
+  color: var(--lp-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.configuration-layout-book {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.configuration-layout-book[hidden],
+[data-layout-view-panel][hidden] {
+  display: none;
+}
+
+.configuration-layout-book img {
+  width: min(100%, 760px);
+  max-height: 390px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .session-config-field[hidden] {
   display: none;
 }
@@ -2236,6 +2414,132 @@ body[data-app-view="player"] .topbar {
   min-height: calc(100vh - 180px);
   width: min(1180px, 100%);
   margin-inline: auto;
+}
+
+.player-department-heatmap {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 13px;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  color: var(--lp-ink);
+  background: rgba(5, 24, 29, 0.82);
+}
+
+.player-department-heatmap[hidden] {
+  display: none;
+}
+
+.player-department-heatmap > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.player-department-heatmap h2,
+.player-department-heatmap p {
+  margin: 0;
+}
+
+.player-department-heatmap h2 {
+  font-size: 1rem;
+}
+
+.player-department-heatmap > header > small {
+  color: var(--lp-muted);
+  font-size: 0.7rem;
+}
+
+[data-player-department-heatmap-grid] {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  overflow-x: auto;
+}
+
+.player-heatmap-network {
+  width: min(100%, 720px);
+  min-width: 540px;
+  height: auto;
+  overflow: visible;
+}
+
+.player-heatmap-link {
+  stroke: #4b6267;
+  stroke-width: 1;
+  opacity: 0.24;
+  transition: stroke-width 160ms ease, opacity 160ms ease;
+}
+
+.player-heatmap-link.level-1 {
+  stroke: #357f8a;
+  stroke-width: 2;
+  opacity: 0.48;
+}
+
+.player-heatmap-link.level-2 {
+  stroke: #6e89c8;
+  stroke-width: 3;
+  opacity: 0.62;
+}
+
+.player-heatmap-link.level-3 {
+  stroke: #4bc7bf;
+  stroke-width: 5;
+  opacity: 0.76;
+}
+
+.player-heatmap-link.level-4 {
+  stroke: #e6ad43;
+  stroke-width: 7;
+  opacity: 0.92;
+}
+
+.player-heatmap-node circle,
+.player-heatmap-center circle {
+  stroke: rgba(255, 255, 255, 0.24);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.3));
+}
+
+.player-heatmap-node.level-4 circle {
+  stroke: #fff1c5;
+  stroke-width: 2.5;
+}
+
+.player-heatmap-name,
+.player-heatmap-center text {
+  fill: #eaf8f7;
+  font-family: var(--lp-font-heading);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.player-heatmap-center text {
+  fill: #071014;
+  font-size: 15px;
+}
+
+.player-heatmap-node.level-0 .player-heatmap-name {
+  fill: #b6c8cb;
+}
+
+.player-heatmap-interactions {
+  fill: #8ca4aa;
+  font-family: var(--lp-font-heading);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-anchor: middle;
+}
+
+.player-heatmap-node.level-4 .player-heatmap-interactions {
+  fill: #e6ad43;
 }
 
 .player-utility-actions {

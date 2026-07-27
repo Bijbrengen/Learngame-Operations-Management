@@ -1396,6 +1396,7 @@
     playerWorkbench: document.getElementById("playerWorkbench"),
     managerWorkbench: document.getElementById("managerWorkbench"),
     logisticsGameMount: document.getElementById("logisticsGameMount"),
+    playerDepartmentHeatmap: document.getElementById("playerDepartmentHeatmap"),
     towerEditorMount: document.getElementById("towerEditorMount"),
     playerTaskPanel: document.getElementById("playerTaskPanel"),
     playerWaitingPanel: document.getElementById("playerWaitingPanel"),
@@ -1855,6 +1856,7 @@
       }, targetOrigin);
     }
     renderChapter9Insights();
+    renderPlayerDepartmentHeatmap();
     return record;
   }
 
@@ -3054,6 +3056,7 @@
       && !document.body.classList.contains("tutorial-focus")
     );
     if (els.logisticsGameMount) els.logisticsGameMount.hidden = !standaloneGameActive;
+    renderPlayerDepartmentHeatmap();
     if (standaloneGameActive) {
       els.playerTaskPanel.hidden = true;
       els.playerWaitingPanel.hidden = true;
@@ -3075,6 +3078,157 @@
       return;
     }
     renderPlayerWaiting();
+  }
+
+  const PLAYER_HEATMAP_DEPARTMENTS = [
+    { id: "supplier", label: "Leverancier", labelLines: ["Leverancier"] },
+    { id: "customer", label: "Klant", labelLines: ["Klant"] },
+    { id: "operations", label: "Operations", labelLines: ["Operations"] },
+    { id: "raw", label: "Grondstoffen", labelLines: ["Grondstoffen"] },
+    { id: "pd1", label: "Productie 1", labelLines: ["Productie", "1"] },
+    { id: "ss1", label: "SS1", labelLines: ["SS1"] },
+    { id: "pd2", label: "Productie 2", labelLines: ["Productie", "2"] },
+    { id: "ss2", label: "SS2", labelLines: ["SS2"] },
+    { id: "pd3", label: "Productie 3", labelLines: ["Productie", "3"] },
+    { id: "finished", label: "Gereed product", labelLines: ["Gereed", "product"] },
+    { id: "archive", label: "Afgehandeld", labelLines: ["Afgehandeld"] }
+  ];
+
+  function interactionDepartmentId(event = {}) {
+    const sources = [
+      event.departmentId,
+      event.humanRoleId,
+      event.role,
+      event.objectRole,
+      event.stage,
+      event.actionType,
+      event.learningObjectID
+    ].filter(Boolean).map(value => String(value).toLowerCase());
+    const explicitDepartment = String(event.departmentId || "").toLowerCase();
+    if (PLAYER_HEATMAP_DEPARTMENTS.some(item => item.id === explicitDepartment)) {
+      return explicitDepartment;
+    }
+    const directAliases = [
+      ["supplier", /supplier|leverancier|purchase|inkoop/],
+      ["customer", /customer|klant/],
+      ["operations", /operations|logistics_manager|\bopr\b/],
+      ["raw", /raw_warehouse|grondstof|\bsrm\b|warehouse_material/],
+      ["ss1", /\bss1\b|stock_1|tussenvoorraad_1/],
+      ["ss2", /\bss2\b|stock_2|tussenvoorraad_2/],
+      ["pd1", /\bpd1\b|production[_ -]?1|productie[_ -]?(afdeling[_ -]?)?1|production[_ -]?a/],
+      ["pd2", /\bpd2\b|production[_ -]?2|productie[_ -]?(afdeling[_ -]?)?2|production[_ -]?b/],
+      ["pd3", /\bpd3\b|production[_ -]?3|productie[_ -]?(afdeling[_ -]?)?3|production[_ -]?c/],
+      ["finished", /finished|\bmfp\b|gereed|quality_control|dispatch/],
+      ["archive", /archive|afgehandeld|delivered|order_delivery/]
+    ];
+    for (const source of sources) {
+      const match = directAliases.find(([, pattern]) => pattern.test(source));
+      if (match) return match[0];
+    }
+    return null;
+  }
+
+  function playerDepartmentHeatmapData(events = state.interactionBuffer) {
+    const counts = Object.fromEntries(PLAYER_HEATMAP_DEPARTMENTS.map(item => [item.id, 0]));
+    events
+      .filter(event => !event.personID || event.personID === PERSON_ID)
+      .forEach(event => {
+        const departmentId = interactionDepartmentId(event);
+        if (departmentId) counts[departmentId] += 1;
+      });
+    const maximum = Math.max(1, ...Object.values(counts));
+    return PLAYER_HEATMAP_DEPARTMENTS.map(department => {
+      const count = counts[department.id];
+      return {
+        ...department,
+        count,
+        level: count ? Math.max(1, Math.min(4, Math.ceil((count / maximum) * 4))) : 0
+      };
+    });
+  }
+
+  function renderPlayerDepartmentHeatmap() {
+    if (!els.playerDepartmentHeatmap) return;
+    const visible = state.appView === "player" || document.body.classList.contains("tutorial-focus");
+    els.playerDepartmentHeatmap.hidden = !visible;
+    if (!visible) return;
+    const grid = els.playerDepartmentHeatmap.querySelector("[data-player-department-heatmap-grid]");
+    if (!grid) return;
+    const data = playerDepartmentHeatmapData();
+    const center = { x: 310, y: 205 };
+    const positions = data.map((item, index) => {
+      const angle = (-Math.PI / 2) + (index / data.length) * Math.PI * 2;
+      return {
+        ...item,
+        x: center.x + Math.cos(angle) * 248,
+        y: center.y + Math.sin(angle) * 158
+      };
+    });
+    const lines = positions.map(item => `
+      <line x1="${center.x}" y1="${center.y}" x2="${item.x.toFixed(1)}" y2="${item.y.toFixed(1)}"
+            class="player-heatmap-link level-${item.level}"
+            data-heatmap-link="${item.id}"></line>
+    `).join("");
+    const nodes = positions.map(item => {
+      const labelLines = item.labelLines
+        .map((line, index) => `<tspan x="0" y="${item.labelLines.length === 1 ? 1 : -5 + (index * 11)}">${escapeHtml(line)}</tspan>`)
+        .join("");
+      return `
+      <g class="player-heatmap-node level-${item.level}"
+         data-heatmap-department="${item.id}"
+         transform="translate(${item.x.toFixed(1)} ${item.y.toFixed(1)})">
+        <title>${escapeHtml(item.label)}: ${item.count} interacties</title>
+        <circle r="31" fill="url(#playerHeatLevel${item.level})"></circle>
+        <text class="player-heatmap-name">${labelLines}</text>
+        <text class="player-heatmap-interactions" y="45">× ${item.count}</text>
+      </g>
+    `;
+    }).join("");
+    grid.innerHTML = `
+      <svg class="player-heatmap-network"
+           viewBox="0 0 620 410"
+           role="img"
+           aria-label="Netwerkheatmap van jouw interacties met afdelingen">
+        <defs>
+          <radialGradient id="playerHeatLevel0" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#52676d"></stop>
+            <stop offset="48%" stop-color="#29434b"></stop>
+            <stop offset="100%" stop-color="#0b171d"></stop>
+          </radialGradient>
+          <radialGradient id="playerHeatLevel1" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#75aeb5"></stop>
+            <stop offset="45%" stop-color="#357f8a"></stop>
+            <stop offset="100%" stop-color="#173b43"></stop>
+          </radialGradient>
+          <radialGradient id="playerHeatLevel2" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#b9c8ef"></stop>
+            <stop offset="45%" stop-color="#6e89c8"></stop>
+            <stop offset="100%" stop-color="#35456f"></stop>
+          </radialGradient>
+          <radialGradient id="playerHeatLevel3" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#c9fff9"></stop>
+            <stop offset="44%" stop-color="#4bc7bf"></stop>
+            <stop offset="100%" stop-color="#176761"></stop>
+          </radialGradient>
+          <radialGradient id="playerHeatLevel4" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#fff1c5"></stop>
+            <stop offset="42%" stop-color="#e6ad43"></stop>
+            <stop offset="100%" stop-color="#81551b"></stop>
+          </radialGradient>
+          <radialGradient id="playerHeatCenter" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#d7fffb"></stop>
+            <stop offset="45%" stop-color="#32ddd2"></stop>
+            <stop offset="100%" stop-color="#176761"></stop>
+          </radialGradient>
+        </defs>
+        ${lines}
+        <g class="player-heatmap-center" transform="translate(${center.x} ${center.y})">
+          <circle r="31" fill="url(#playerHeatCenter)"></circle>
+          <text y="1">JIJ</text>
+        </g>
+        ${nodes}
+      </svg>
+    `;
   }
 
   function validateProductionPlan(quantities = state.productionPlan.quantities) {
@@ -6722,6 +6876,7 @@
   window.LEARNGameOMSimulator = {
     dispatchInteraction,
     getInteractionBuffer: () => [...state.interactionBuffer],
+    getPlayerDepartmentHeatmap: () => playerDepartmentHeatmapData().map(item => ({ ...item })),
     getContractEventBuffer: () => [...state.contractEventBuffer],
     clearInteractionBuffer: () => {
       state.interactionBuffer.length = 0;

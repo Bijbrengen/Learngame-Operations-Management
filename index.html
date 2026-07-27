@@ -139,6 +139,19 @@
                class="logistics-game-mount"
                aria-label="Logistieke gamesimulatie"
                hidden></section>
+      <section id="playerDepartmentHeatmap"
+               class="player-department-heatmap"
+               aria-labelledby="playerDepartmentHeatmapTitle"
+               hidden>
+        <header>
+          <div>
+            <p class="eyebrow">Jouw interacties</p>
+            <h2 id="playerDepartmentHeatmapTitle">Afdelingsheatmap</h2>
+          </div>
+          <small>Donker = weinig · helder = veel</small>
+        </header>
+        <div data-player-department-heatmap-grid></div>
+      </section>
       <section id="playerTaskPanel" class="player-task-panel">
         <header class="player-stage-header">
           <div id="playerRoleToken" class="player-role-token">--</div>
@@ -338,6 +351,9 @@
                   <option value="lo7">LO Game 7</option>
                 </select>
               </label>
+              <section class="configuration-layout-preview is-wide"
+                       data-configuration-layout-preview
+                       aria-label="Live opstelling voor gekozen gamepreset"></section>
               <label class="session-config-field is-wide" data-config-help="organization-model">
                 <span>Organisatievorm</span>
                 <select name="organization_model" data-game-config-control>
@@ -1121,6 +1137,7 @@
   <script src="character-creation.js"></script>
   <script src="logistics-process.js"></script>
   <script src="game-configuration-store.js"></script>
+  <script src="configuration-layout-preview.js"></script>
   <script src="game-sessions.js"></script>
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>

@@ -468,6 +468,11 @@
           <span>Gametype</span>
           <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
         </label>
+        <section class="configuration-layout-preview is-wide"
+                 data-configuration-layout-preview
+                 aria-label="Live opstelling voor gekozen gamepreset">
+          ${window.ConfigurationLayoutPreview?.markup(value) || ""}
+        </section>
         <label class="session-config-field is-wide" data-config-help="organization-model">
           <span>Organisatievorm</span>
           <select name="organization_model" data-game-config-control>
@@ -997,6 +1002,7 @@
       control.checked = editableColorLayers.has(control.dataset.colorLayer);
     });
     updateColorLayerControls(form);
+    window.ConfigurationLayoutPreview?.update(form);
   }
 
   function selectedProductionProcesses(form, gameType) {
@@ -1622,6 +1628,7 @@
         updateFinancialDetailControls(createForm);
         updateSchoolFundingControls(createForm);
         const config = collectGameConfig(createForm);
+        window.ConfigurationLayoutPreview?.update(createForm, config);
         syncGameConfigurationSelection(createForm, config);
         state.createSessionDraft.game_config = config;
       } else if (event.target.matches("[data-create-difficulty-select]")) {
@@ -1641,6 +1648,7 @@
         updateFinancialDetailControls(form);
         updateSchoolFundingControls(form);
         const config = collectGameConfig(form);
+        window.ConfigurationLayoutPreview?.update(form, config);
         // Een expliciet gekozen preset is al de bron van waarheid. Meteen opnieuw
         // matchen kon op een nog niet gematerialiseerde standaardwaarde (zoals
         // play_mode) uitkomen en de dropdown onterecht naar custom_draft zetten.

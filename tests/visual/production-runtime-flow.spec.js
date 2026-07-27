@@ -4,8 +4,34 @@ async function openDeterministicSimulator(page) {
   await page.addInitScript(() => {
     Math.random = () => 0.5;
   });
+  await page.route("**/auth/leerbox/session?**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      authenticated: true,
+      user: { label: "Playwright" },
+      roles: ["learner"]
+    })
+  }));
+  await page.route("**/v1/game-sessions/availability", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      current_session: null,
+      discoverable_sessions: [],
+      open_sessions: [],
+      can_start_free_game: true
+    })
+  }));
+  await page.route("**/v1/player/behavior-profile**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ exists: true, profile: {} })
+  }));
   await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMSimulator);
+  await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+  await page.locator("#characterCreationGate").waitFor({ state: "hidden" });
 }
 
 async function advance(page, count) {
@@ -19,6 +45,26 @@ async function advance(page, count) {
 test.describe("Werkelijke productieflow per LO-Game", () => {
   test.beforeEach(async ({ page }) => {
     await openDeterministicSimulator(page);
+  });
+
+  test("spelersheatmap telt interacties per afdeling en warmt zichtbaar op", async ({ page }) => {
+    const heatmap = await page.evaluate(() => {
+      const simulator = window.LEARNGameOMSimulator;
+      simulator.clearInteractionBuffer();
+      simulator.endTutorial();
+      simulator.setAppView("player", false);
+      simulator.dispatchInteraction({ departmentId: "pd2", actionType: "inspect_department" });
+      simulator.dispatchInteraction({ departmentId: "pd2", actionType: "complete_department_action" });
+      simulator.dispatchInteraction({ role: "Klant", actionType: "customer_order_request" });
+      return simulator.getPlayerDepartmentHeatmap();
+    });
+
+    expect(heatmap.find(item => item.id === "pd2").count).toBe(2);
+    expect(heatmap.find(item => item.id === "customer").count).toBe(1);
+    await expect(page.locator("#playerDepartmentHeatmap")).toBeVisible();
+    await expect(page.locator('[data-heatmap-department="pd2"]')).toContainText("Productie");
+    await expect(page.locator('[data-heatmap-department="pd2"]')).toContainText("× 2");
+    await expect(page.locator('[data-heatmap-department="pd2"]')).toHaveClass(/level-4/);
   });
 
   test("Games 1 t/m 7 kiezen automatisch de voorgeschreven productieroute", async ({ page }) => {

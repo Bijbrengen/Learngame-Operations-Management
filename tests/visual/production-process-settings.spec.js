@@ -41,6 +41,32 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await openManagerSettings(page);
   });
 
+  test("de opstelling direct onder de preset verandert meteen mee", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const gameType = form.locator('[name="game_type"]');
+    const preview = form.locator("[data-configuration-layout-preview]");
+
+    await expect(preview).toBeVisible();
+    await gameType.selectOption("lo4");
+    await expect(preview.locator('[data-layout-topology="parallel"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="production-a"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="production-b"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="production-c"]')).toBeVisible();
+
+    await gameType.selectOption("lo5");
+    await expect(preview.locator('[data-layout-topology="sequential"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="supplier"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="production-1"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="stock-1"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="customer"]')).toBeVisible();
+
+    await preview.getByRole("button", { name: "Boekfiguur" }).click();
+    await expect(preview.locator(".configuration-layout-book img")).toHaveAttribute(
+      "src",
+      /5-functionele-organisatie-lo-game-5\.svg$/
+    );
+  });
+
   test("hybride combinatie wordt aangepast scenario en kan een eigen naam krijgen", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
