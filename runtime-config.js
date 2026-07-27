@@ -3,12 +3,12 @@
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "localhost"
   );
-  var tunnelUrl = "https://intent-carries-travelers-media.trycloudflare.com/api";
+  var prodApi = "https://api.leerpretpark.nl/api";
 
   window.LEARNGAME_OM_CONFIG = Object.freeze({
-    "apiBase": isLocal ? "http://127.0.0.1:47111/api" : tunnelUrl,
+    "apiBase": isLocal ? "http://127.0.0.1:47111/api" : prodApi,
     "appUrl": isLocal ? "http://127.0.0.1:47113/" : "https://bijbrengen.github.io/Learngame-Operations-Management/",
     "dashboardUrl": isLocal ? "http://127.0.0.1:47112/" : "https://bijbrengen.github.io/LeerpretDashboard/",
-    "editorUrl": "http://127.0.0.1:47114/"
+    "editorUrl": isLocal ? "http://127.0.0.1:47114/" : "https://bijbrengen.github.io/LeerboxEditor/"
   });
 })();
