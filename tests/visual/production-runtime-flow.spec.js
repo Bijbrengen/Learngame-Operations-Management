@@ -67,6 +67,42 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
     await expect(page.locator('[data-heatmap-department="pd2"]')).toHaveClass(/level-4/);
   });
 
+  test("proces-HUD toont complexiteit, efficiency, wachttijd, WIP en bullwhip als thermometers", async ({ page }) => {
+    const metrics = await page.evaluate(() => {
+      const simulator = window.LEARNGameOMSimulator;
+      simulator.endTutorial();
+      simulator.setAppView("player", false);
+      simulator.applyGameTypePreset("lo1", false);
+      simulator.createOrder("A", 1, 49, 100);
+      simulator.advanceSelectedOrder();
+      simulator.advanceSelectedOrder();
+      return simulator.getProcessHudMetrics();
+    });
+
+    expect(metrics.complexity).toBe(12);
+    expect(metrics.orderCount).toBe(1);
+    expect(metrics.efficiency).not.toBeNull();
+    expect(metrics.wipItems).toBeGreaterThan(0);
+    await expect(page.locator("#processIndicatorStrip")).toBeVisible();
+    await expect(page.locator("#hudComplexityValue")).toHaveText("12%");
+    await expect(page.locator("#hudEfficiencyValue")).toContainText("%");
+    await expect(page.locator("#hudWaitingValue")).toContainText("%");
+    await expect(page.locator("#hudWip")).toHaveAttribute("title", /bottleneck/i);
+    await expect(page.locator("#hudBullwhipValue")).toHaveText("0.0×");
+
+    await advance(page, 40);
+    await expect(page.locator("#nextLevelChallenge")).toBeVisible();
+    await expect(page.locator("#nextLevelChallengeButton")).toHaveAttribute(
+      "data-next-game-preset",
+      "lo2"
+    );
+
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.applyGameTypePreset("lo9", false);
+    });
+    await expect(page.locator("#hudComplexityValue")).toHaveText("100%");
+  });
+
   test("Games 1 t/m 7 kiezen automatisch de voorgeschreven productieroute", async ({ page }) => {
     const routes = await page.evaluate(() => {
       const simulator = window.LEARNGameOMSimulator;

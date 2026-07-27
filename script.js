@@ -1372,6 +1372,20 @@
     cashValue: document.getElementById("cashValue"),
     profitValue: document.getElementById("profitValue"),
     lateValue: document.getElementById("lateValue"),
+    hudComplexity: document.getElementById("hudComplexity"),
+    hudComplexityValue: document.getElementById("hudComplexityValue"),
+    hudEfficiency: document.getElementById("hudEfficiency"),
+    hudEfficiencyValue: document.getElementById("hudEfficiencyValue"),
+    hudWaiting: document.getElementById("hudWaiting"),
+    hudWaitingValue: document.getElementById("hudWaitingValue"),
+    hudWip: document.getElementById("hudWip"),
+    hudWipValue: document.getElementById("hudWipValue"),
+    hudBullwhip: document.getElementById("hudBullwhip"),
+    hudBullwhipValue: document.getElementById("hudBullwhipValue"),
+    nextLevelChallenge: document.getElementById("nextLevelChallenge"),
+    nextLevelChallengeTitle: document.getElementById("nextLevelChallengeTitle"),
+    nextLevelChallengeText: document.getElementById("nextLevelChallengeText"),
+    nextLevelChallengeButton: document.getElementById("nextLevelChallengeButton"),
     clockValue: document.getElementById("clockValue"),
     eventCountValue: document.getElementById("eventCountValue"),
     productSelect: document.getElementById("productSelect"),
@@ -3921,6 +3935,217 @@
     });
   }
 
+  const GAME_COMPLEXITY_SCORES = Object.freeze({
+    lo1: 12, lo2: 25, lo3: 32, lo4: 38, lo5: 50, lo5b: 56,
+    lo6: 68, lo7: 78, lo7_digital: 82, lo8: 90, lo9: 100,
+    le_training: 60, entrepreneurial: 72, entrepreneurial_simple: 62,
+    la_game: 45, learngame_small_2018: 35, la_game_small_2020: 38,
+    entrepreneurial_digital: 85
+  });
+  const NEXT_LEVEL_SEQUENCE = Object.freeze([
+    "lo1", "lo2", "lo3", "lo4", "lo5", "lo5b", "lo6",
+    "lo7", "lo7_digital", "lo8", "lo9"
+  ]);
+
+  function hudClamp(value, minimum = 0, maximum = 100) {
+    return Math.max(minimum, Math.min(maximum, Number(value) || 0));
+  }
+
+  function hudVariance(values = []) {
+    if (values.length < 2) return 0;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+  }
+
+  function hudColor(value, positive = false) {
+    const score = hudClamp(value);
+    if (positive) {
+      return score >= 67 ? "#32ddd2" : score >= 34 ? "#e6ad43" : "#ff7d62";
+    }
+    return score <= 33 ? "#32ddd2" : score <= 66 ? "#e6ad43" : "#ff7d62";
+  }
+
+  function complexityHudColor(value) {
+    return value < 34 ? "#4bc7bf" : value < 67 ? "#6e89c8" : value < 85 ? "#e6ad43" : "#c17455";
+  }
+
+  function legacyProcessHudMetrics() {
+    const orders = state.orders;
+    const active = orders.filter(order => !order.done);
+    const completed = orders.filter(order => order.done);
+    let processingMinutes = 0;
+    let elapsedMinutes = 0;
+    const queueByRole = new Map();
+    orders.forEach(order => {
+      const endMinute = order.done
+        ? Number(order.history.at(-1)?.minute || state.clockMinutes)
+        : state.clockMinutes;
+      elapsedMinutes += Math.max(0, endMinute - Number(order.acceptedAt || endMinute));
+      const completedSteps = order.history.filter(item => (
+        item.result === "success" || item.result === "complete"
+      )).length;
+      processingMinutes += (order.processSteps || [])
+        .slice(0, completedSteps)
+        .reduce((sum, step) => sum + (Number(step.minutes) || 0), 0);
+    });
+    active.forEach(order => {
+      const step = currentStep(order);
+      const roleId = step?.roleId === "customer1" ? order.customerRoleId : step?.roleId;
+      if (roleId) queueByRole.set(roleId, (queueByRole.get(roleId) || 0) + 1);
+    });
+    const bottleneck = [...queueByRole.entries()]
+      .sort((left, right) => right[1] - left[1])[0] || [null, 0];
+    const bufferItems = [state.ss1, state.ss2, state.finishedGoods]
+      .reduce((total, stock) => total + Object.values(stock || {})
+        .reduce((sum, value) => sum + (Number(value) || 0), 0), 0);
+    const wipItems = bufferItems + active.reduce(
+      (sum, order) => sum + (Number(order.quantity) || 0),
+      0
+    );
+    const waitingMinutes = Math.max(0, elapsedMinutes - processingMinutes);
+    const waitingPercent = elapsedMinutes ? hudClamp(waitingMinutes / elapsedMinutes * 100) : 0;
+    const demand = orders.map(order => Number(order.quantity) || 0);
+    const supply = state.interactionBuffer
+      .filter(event => event.actionType === "purchase_materials")
+      .map(event => Number(event.quantity) || 0);
+    const bullwhipRatio = supply.length >= 2 && demand.length >= 2
+      ? Math.sqrt(hudVariance(supply) / Math.max(hudVariance(demand), 0.25))
+      : 1;
+    return {
+      orderCount: orders.length,
+      activeCount: active.length,
+      completedCount: completed.length,
+      efficiency: elapsedMinutes ? hudClamp(processingMinutes / elapsedMinutes * 100) : null,
+      waitingPercent,
+      waitingMinutes,
+      wipItems,
+      wipPressure: hudClamp(wipItems / Math.max(4, wipItems + completed.length * 2) * 100),
+      bottleneck: bottleneck[0] ? roleById(bottleneck[0])?.title || bottleneck[0] : "Nog niet vastgesteld",
+      bottleneckQueue: bottleneck[1],
+      bullwhip: hudClamp(Math.max(0, bullwhipRatio - 1), 0, 4)
+    };
+  }
+
+  function standaloneProcessHudMetrics(snapshot) {
+    const orders = snapshot.orders || [];
+    const active = orders.filter(order => order.status !== "DELIVERED");
+    const completed = orders.filter(order => order.status === "DELIVERED");
+    const runtimes = Object.values(snapshot.roleRuntime || {});
+    const queued = runtimes.reduce((sum, runtime) => sum + (runtime.queue?.length || 0), 0);
+    const incidents = orders.reduce(
+      (sum, order) => sum + (order.history || []).filter(item => item.type === "incident").length,
+      0
+    );
+    const agePressure = active.length ? active.reduce((sum, order) => {
+      const allowed = Math.max(1, Number(order.dueAt) - Number(order.createdAt));
+      return sum + hudClamp((Date.now() - Number(order.createdAt)) / allowed * 100);
+    }, 0) / active.length : 0;
+    const waitingPercent = orders.length
+      ? hudClamp(
+          queued / Math.max(1, active.length + runtimes.length) * 100
+          + agePressure * 0.28
+          + incidents / Math.max(1, orders.length) * 10
+        )
+      : 0;
+    const bottleneckRuntime = [...runtimes].sort((left, right) => (
+      (right.queue?.length || 0) - (left.queue?.length || 0)
+    ))[0];
+    const customerLoad = (snapshot.roleRuntime?.customer?.queue?.length || 0)
+      + (snapshot.roleRuntime?.customer?.activeOrderId ? 1 : 0);
+    const upstreamLoad = (snapshot.roleRuntime?.srm?.queue?.length || 0)
+      + (snapshot.roleRuntime?.srm?.activeOrderId ? 1 : 0);
+    const wipItems = active.reduce((sum, order) => sum + (Number(order.quantity) || 1), 0);
+    return {
+      orderCount: orders.length,
+      activeCount: active.length,
+      completedCount: completed.length,
+      efficiency: orders.length ? hudClamp(100 - waitingPercent) : null,
+      waitingPercent,
+      waitingMinutes: Math.round(active.reduce(
+        (sum, order) => sum + Math.max(0, Date.now() - Number(order.createdAt)),
+        0
+      ) * waitingPercent / 100 / 60000),
+      wipItems,
+      wipPressure: hudClamp(wipItems / Math.max(4, wipItems + completed.length * 2) * 100),
+      bottleneck: bottleneckRuntime
+        ? snapshot.roles?.[bottleneckRuntime.roleId]?.title || bottleneckRuntime.roleId
+        : "Nog niet vastgesteld",
+      bottleneckQueue: bottleneckRuntime?.queue?.length || 0,
+      bullwhip: hudClamp(Math.max(0, (upstreamLoad + 1) / (customerLoad + 1) - 1), 0, 4)
+    };
+  }
+
+  function processHudMetrics() {
+    const snapshot = logisticsGameController?.engine?.snapshot();
+    return {
+      gameType: state.config.gameType,
+      complexity: GAME_COMPLEXITY_SCORES[state.config.gameType]
+        ?? hudClamp(20 + state.config.productTypeCount * 5),
+      ...(snapshot?.started
+        ? standaloneProcessHudMetrics(snapshot)
+        : legacyProcessHudMetrics())
+    };
+  }
+
+  function setProcessHudMeter(element, output, width, text, color, title) {
+    if (!element || !output) return;
+    element.style.setProperty("--meter-width", `${hudClamp(width)}%`);
+    element.style.setProperty("--meter-color", color);
+    element.title = title;
+    output.textContent = text;
+  }
+
+  function renderProcessHud() {
+    const metrics = processHudMetrics();
+    setProcessHudMeter(
+      els.hudComplexity, els.hudComplexityValue, metrics.complexity,
+      `${Math.round(metrics.complexity)}%`, complexityHudColor(metrics.complexity),
+      `Complexiteit ${Math.round(metrics.complexity)}%: variatie, overdrachten en afhankelijkheden in de actieve variant.`
+    );
+    setProcessHudMeter(
+      els.hudEfficiency, els.hudEfficiencyValue, metrics.efficiency ?? 0,
+      metrics.efficiency === null ? "–" : `${Math.round(metrics.efficiency)}%`,
+      metrics.efficiency === null ? "#8ca4aa" : hudColor(metrics.efficiency, true),
+      metrics.efficiency === null
+        ? "Efficiëntie wordt berekend zodra een order door de keten loopt."
+        : `Efficiëntie ${Math.round(metrics.efficiency)}%: verwerking ten opzichte van verwerking plus wachten.`
+    );
+    setProcessHudMeter(
+      els.hudWaiting, els.hudWaitingValue, metrics.waitingPercent,
+      `${Math.round(metrics.waitingPercent)}%`, hudColor(metrics.waitingPercent),
+      `Wachttijd ${Math.round(metrics.waitingPercent)}% (${metrics.waitingMinutes} min) door wachtrijen, overdrachten en blokkades.`
+    );
+    setProcessHudMeter(
+      els.hudWip, els.hudWipValue, metrics.wipPressure,
+      String(metrics.wipItems), hudColor(metrics.wipPressure),
+      `Voorraad/WIP ${metrics.wipItems}. Grootste wachtrij: ${metrics.bottleneck} (${metrics.bottleneckQueue}); dit is de waarschijnlijke bottleneck.`
+    );
+    const bullwhipWidth = metrics.bullwhip / 4 * 100;
+    setProcessHudMeter(
+      els.hudBullwhip, els.hudBullwhipValue, bullwhipWidth,
+      `${metrics.bullwhip.toFixed(1)}×`, hudColor(bullwhipWidth),
+      metrics.bullwhip
+        ? `Bullwhip ${metrics.bullwhip.toFixed(1)}×: de upstream reactie schommelt sterker dan de klantvraag.`
+        : "Bullwhip 0.0×: klantvraag en ketenreactie lopen nog synchroon."
+    );
+
+    const levelIndex = NEXT_LEVEL_SEQUENCE.indexOf(metrics.gameType);
+    const nextGameType = levelIndex >= 0 ? NEXT_LEVEL_SEQUENCE[levelIndex + 1] : null;
+    const challengeVisible = Boolean(
+      nextGameType && metrics.completedCount && !metrics.activeCount && metrics.efficiency !== null
+    );
+    if (els.nextLevelChallenge) els.nextLevelChallenge.hidden = !challengeVisible;
+    if (challengeVisible) {
+      const nextVariant = window.GameVariantHistory?.get(nextGameType);
+      els.nextLevelChallengeTitle.textContent =
+        `${Math.round(metrics.efficiency)}% efficiënt · klaar voor ${nextVariant?.label || nextGameType}?`;
+      els.nextLevelChallengeText.textContent =
+        `Complexiteit stijgt van ${Math.round(metrics.complexity)}% naar ${GAME_COMPLEXITY_SCORES[nextGameType]}%. Probeer je efficiëntie vast te houden.`;
+      els.nextLevelChallengeButton.dataset.nextGamePreset = nextGameType;
+    }
+    return metrics;
+  }
+
   function renderMetrics() {
     const input = state.orders.filter(order => !order.done && order.stepIndex <= 3).length;
     const busy = state.orders.filter(order => !order.done && order.stepIndex > 3).length;
@@ -3931,6 +4156,7 @@
     els.cashValue.textContent = String(done);
     els.profitValue.textContent = String(late);
     els.lateValue.textContent = String(state.interactionBuffer.length);
+    renderProcessHud();
     els.clockValue.textContent = formatClock(state.clockMinutes);
     els.eventCountValue.textContent = String(state.interactionBuffer.length);
     renderChapter9Insights();
@@ -6661,6 +6887,29 @@
     els.processIsometricViewButton.addEventListener("click", () => setProcessView("isometric"));
     els.exportButton.addEventListener("click", exportEvents);
     els.resetButton.addEventListener("click", resetState);
+    els.nextLevelChallengeButton?.addEventListener("click", () => {
+      const nextGameType = els.nextLevelChallengeButton.dataset.nextGamePreset;
+      if (!nextGameType) return;
+      setAppView("manager");
+      setManagerTab("session");
+      const createSelect = document.querySelector(
+        '#gameSessionCreateForm [data-session-game-type]'
+      );
+      if (createSelect && [...createSelect.options].some(option => option.value === nextGameType)) {
+        createSelect.value = nextGameType;
+        createSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        createSelect.closest(".game-variant-history-session, form")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+        return;
+      }
+      if (els.gameTypeSelect && [...els.gameTypeSelect.options]
+        .some(option => option.value === nextGameType)) {
+        els.gameTypeSelect.value = nextGameType;
+        els.gameTypeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
     els.gameAdvisorButton?.addEventListener("click", () => {
       state.advisorOpen = !state.advisorOpen;
       renderAdvisor();
@@ -6930,6 +7179,7 @@
     dispatchInteraction,
     getInteractionBuffer: () => [...state.interactionBuffer],
     getPlayerDepartmentHeatmap: () => playerDepartmentHeatmapData().map(item => ({ ...item })),
+    getProcessHudMetrics: () => ({ ...processHudMetrics() }),
     getContractEventBuffer: () => [...state.contractEventBuffer],
     clearInteractionBuffer: () => {
       state.interactionBuffer.length = 0;

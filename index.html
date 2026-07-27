@@ -93,6 +93,46 @@
         </div>
       </section>
 
+      <section id="processIndicatorStrip"
+               class="process-indicator-strip"
+               aria-label="Procesindicatoren"
+               aria-live="polite">
+        <span class="process-hud-meter" id="hudComplexity" title="Complexiteit van de actieve spelvariant">
+          <i aria-hidden="true">⬡</i>
+          <span class="process-hud-copy"><small>Complexiteit</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudComplexityValue">0%</b>
+        </span>
+        <span class="process-hud-meter is-positive" id="hudEfficiency" title="Waardetoevoegende tijd ten opzichte van de totale doorlooptijd">
+          <i aria-hidden="true">⚙</i>
+          <span class="process-hud-copy"><small>Efficiëntie</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudEfficiencyValue">–</b>
+        </span>
+        <span class="process-hud-meter" id="hudWaiting" title="Aandeel wachttijd in de totale doorlooptijd">
+          <i aria-hidden="true">⌛</i>
+          <span class="process-hud-copy"><small>Wachttijd</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudWaitingValue">0%</b>
+        </span>
+        <span class="process-hud-meter" id="hudWip" title="Onderhanden werk en wachtrijen in de keten">
+          <i aria-hidden="true">▤</i>
+          <span class="process-hud-copy"><small>Voorraad / WIP</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudWipValue">0</b>
+        </span>
+        <span class="process-hud-meter" id="hudBullwhip" title="Versterking van bestelschommelingen ten opzichte van de klantvraag">
+          <i aria-hidden="true">∿</i>
+          <span class="process-hud-copy"><small>Bullwhip</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudBullwhipValue">0.0×</b>
+        </span>
+      </section>
+
+      <aside id="nextLevelChallenge"
+             class="next-level-challenge"
+             aria-live="polite"
+             hidden>
+        <span aria-hidden="true">▲</span>
+        <p><strong id="nextLevelChallengeTitle">Volgend level</strong><small id="nextLevelChallengeText"></small></p>
+        <button id="nextLevelChallengeButton" type="button">Bekijk volgend level</button>
+      </aside>
+
       <button id="tutorialExitButton"
               class="tool-button tutorial-exit-button"
               type="button"
