@@ -68,7 +68,7 @@
     },
     lo3: {
       label: "LO Game 3",
-      learningLine: "Effectief, maar nog niet efficiënt",
+      learningLine: "De meest effectieve organisatie; efficiëntie is nog niet zichtbaar",
       insights: [
         {
           id: "management-paradox",
@@ -84,16 +84,22 @@
         },
         {
           id: "effective-not-efficient",
-          title: "Gereed is niet hetzelfde als efficiënt",
-          summary: "De productgerichte organisatie kan orders opleveren en tegelijk veel menskracht en tijd verspillen.",
-          signal: "Beoordeel output altijd samen met wachttijd, activiteit en ongebruikte capaciteit."
+          title: "Versie 3 is de meest effectieve",
+          summary: "De productgerichte organisatie is sterk in doelbereik: complete torens kunnen met een korte, directe productstroom worden geleverd.",
+          signal: "Meet hier eerst of de gevraagde output wordt gehaald; zonder financiële laag blijft de verspilde capaciteit nog grotendeels buiten beeld."
         }
       ]
     },
     lo4: {
       label: "LO Game 4",
-      learningLine: "Geld maakt inefficiëntie zichtbaar",
+      learningLine: "Maakt zichtbaar dat de effectieve versie 3 niet de efficiëntste is",
       insights: [
+        {
+          id: "lo3-lo4-contrast",
+          title: "Versie 4 onthult de keerzijde van versie 3",
+          summary: "De productgerichte organisatie blijft effectief, maar geld en opportunity costs tonen dat dezelfde output gepaard kan gaan met onderbenutting, overbelasting en gemiste opbrengsten.",
+          signal: "Vergelijk de gerealiseerde output met kosten, rolbelasting en ongebruikte capaciteit. Versie 4 stelt de diagnose; de herinrichting volgt pas in versie 5."
+        },
         {
           id: "margin-versus-volume",
           title: "Volume is niet hetzelfde als waarde",
@@ -116,12 +122,12 @@
     },
     lo5: {
       label: "LO Game 5",
-      learningLine: "Efficiëntie door functioneel organiseren",
+      learningLine: "De in versie 4 zichtbare inefficiëntie functioneel verbeteren",
       insights: [
         {
           id: "shared-capacity",
           title: "Gedeelde capaciteit verhoogt benutting",
-          summary: "Afdelingen in serie kunnen hun gespecialiseerde capaciteit voor alle gevraagde torens inzetten.",
+          summary: "Na de diagnose in versie 4 worden afdelingen functioneel in serie gezet, zodat gespecialiseerde capaciteit voor alle gevraagde torens kan worden benut.",
           signal: "Vergelijk output en rolbelasting met de productgerichte variant."
         },
         {

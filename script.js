@@ -51,8 +51,8 @@
     money: {
       title: "Geld en marges",
       mechanical: "Voegt kosten, opbrengsten, geldstromen en marges toe aan de logistieke handelingen.",
-      learning: "Verschuift de blik van drukte en volume naar waarde. Spelers kunnen zien of een rustige afdeling weinig bijdraagt óf juist met weinig werk een hoge marge maakt, en of een drukke afdeling werkelijk rendabel is. Ook gemiste dekkingsbijdragen door onvoldoende capaciteit worden zichtbaar.",
-      basis: "LE-boek: LO-Game 4 introduceert geldstromen om het verschil tussen effectief en efficiënt en gemiste dekkingsbijdragen zichtbaar te maken."
+      learning: "Maakt in LO-Game 4 zichtbaar dat de zeer effectieve productorganisatie van versie 3 niet automatisch efficiënt is. Een rustige afdeling kan met weinig werk toch een hoge marge maken, terwijl drukte niet vanzelf waarde betekent. Onderbenutting, overbelasting en gemiste dekkingsbijdragen worden zichtbaar; versie 4 stelt de diagnose, terwijl de herinrichting pas in versie 5 volgt.",
+      basis: "LE-boek: LO-Game 3 is de effectieve P-organisatie; LO-Game 4 voegt geldstromen en opportunity costs toe om haar inefficiëntie zichtbaar te maken."
     },
     pnl: {
       title: "Winst en verlies",
@@ -117,8 +117,8 @@
     "parallel-production": {
       title: "Parallelle productie",
       mechanical: "Afdelingen maken complete producten naast elkaar, met een eigen productstroom per afdeling.",
-      learning: "De productgerichte organisatie is effectief en heeft korte doorlooptijden zonder omstellen, maar kan inefficiënt worden wanneer de vraag ongelijk over torens A, B en C is verdeeld.",
-      basis: "LE-boek: LO-Game 3 en 4 tonen een effectieve P-organisatie met onderbenutting bij A en C en overbelasting bij B."
+      learning: "Dit is in LO-Game 3 de meest effectieve organisatievorm. LO-Game 4 verandert die structuur niet, maar maakt financieel zichtbaar dat ongelijke vraag tot onderbenutting bij A en C en overbelasting bij B leidt.",
+      basis: "LE-boek: LO-Game 3 toont effectiviteit; LO-Game 4 toont waarom diezelfde P-organisatie niet de efficiëntste is."
     },
     "sequential-production": {
       title: "Sequentiële productie",
@@ -866,7 +866,7 @@
     },
     lo3: {
       label: "LO Game 3",
-      description: "Productgerichte organisatie met drie torensoorten en zonder geldstroom.",
+      description: "De meest effectieve productgerichte organisatie; zonder geldstroom is de inefficiënte capaciteitsinzet nog niet zichtbaar.",
       config: {
         money: false,
         pnl: false,
@@ -880,7 +880,7 @@
     },
     lo4: {
       label: "LO Game 4",
-      description: "Productgerichte variant met geld, resultaatmeting en opportunity costs.",
+      description: "Dezelfde effectieve productorganisatie als versie 3, nu met geld en opportunity costs die laten zien dat zij niet de efficiëntste is.",
       config: {
         money: true,
         pnl: true,
@@ -894,7 +894,7 @@
     },
     lo5: {
       label: "LO Game 5",
-      description: "Financiële variant in de functionele keten, gericht op programmatisch produceren.",
+      description: "Functionele herinrichting die de in versie 4 zichtbaar gemaakte inefficiëntie probeert te verbeteren.",
       config: {
         money: true,
         pnl: true,
@@ -1351,6 +1351,7 @@
     gameAdvisorCloseButton: document.getElementById("gameAdvisorCloseButton"),
     gameAdvisorContent: document.getElementById("gameAdvisorContent"),
     chapter9InsightsSubtitle: document.getElementById("chapter9InsightsSubtitle"),
+    chapter9VariantContrast: document.getElementById("chapter9VariantContrast"),
     chapter9LiveIndicators: document.getElementById("chapter9LiveIndicators"),
     chapter9RoleActivity: document.getElementById("chapter9RoleActivity"),
     chapter9CurrentInsightCards: document.getElementById("chapter9CurrentInsightCards"),
@@ -3435,6 +3436,45 @@
     const variant = analysis.variant;
     els.chapter9InsightsSubtitle.textContent =
       `${variant.label} · ${variant.learningLine}`;
+    const contrastStage = {
+      lo3: {
+        active: "lo3",
+        note: "Versie 3 laat zien hoe de productgerichte organisatie de gevraagde output zeer effectief haalt. De kosten van ongebruikte capaciteit zijn nog niet zichtbaar."
+      },
+      lo4: {
+        active: "lo4",
+        note: "Versie 4 houdt de effectieve inrichting van versie 3 intact en voegt de financiële meetlaag toe. Zij toont de inefficiëntie, maar lost die nog niet op."
+      },
+      lo5: {
+        active: "lo5",
+        note: "Versie 5 is de volgende stap: de in versie 4 aangetoonde inefficiëntie wordt aangepakt met een functionele organisatie."
+      }
+    }[state.config.gameType];
+    if (els.chapter9VariantContrast) {
+      els.chapter9VariantContrast.hidden = !contrastStage;
+      els.chapter9VariantContrast.innerHTML = contrastStage ? `
+        <div class="chapter9-contrast-steps" aria-label="Leerlijn van versie 3 naar versie 5">
+          <div class="${contrastStage.active === "lo3" ? "is-active" : ""}">
+            <span>Versie 3</span>
+            <strong>Meest effectief</strong>
+            <small>Productgerichte organisatie</small>
+          </div>
+          <span class="chapter9-contrast-arrow" aria-hidden="true">→</span>
+          <div class="${contrastStage.active === "lo4" ? "is-active" : ""}">
+            <span>Versie 4</span>
+            <strong>Inefficiëntie zichtbaar</strong>
+            <small>Zelfde organisatie + geld</small>
+          </div>
+          <span class="chapter9-contrast-arrow" aria-hidden="true">→</span>
+          <div class="${contrastStage.active === "lo5" ? "is-active" : ""}">
+            <span>Versie 5</span>
+            <strong>Efficiënter organiseren</strong>
+            <small>Functionele herinrichting</small>
+          </div>
+        </div>
+        <p>${escapeHtml(contrastStage.note)}</p>
+      ` : "";
+    }
     const paradoxLabel = analysis.paradoxActive
       ? "Actief: druk met niets"
       : analysis.eventCount < 4

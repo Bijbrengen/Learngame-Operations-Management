@@ -8979,6 +8979,61 @@ body.tutorial-focus {
   gap: 14px;
 }
 
+.chapter9-variant-contrast {
+  padding: 16px;
+  border: 1px solid #cfc6e9;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f7f4fc, #f1f6f4);
+}
+
+.chapter9-variant-contrast[hidden] {
+  display: none;
+}
+
+.chapter9-variant-contrast > p {
+  margin: 13px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.chapter9-contrast-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.chapter9-contrast-steps > div {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.chapter9-contrast-steps > div.is-active {
+  border-color: var(--purple);
+  background: #fff;
+  box-shadow: inset 0 -3px var(--purple);
+}
+
+.chapter9-contrast-steps span,
+.chapter9-contrast-steps small {
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.chapter9-contrast-steps strong {
+  font-size: .9rem;
+}
+
+.chapter9-contrast-arrow {
+  color: var(--purple) !important;
+  font-size: 1.15rem !important;
+  font-weight: 800;
+}
+
 .chapter9-indicator-card,
 .chapter9-role-section,
 .chapter9-current-insights,
@@ -9321,6 +9376,15 @@ body.tutorial-focus {
     gap: 6px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .chapter9-contrast-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter9-contrast-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
   }
 
   .chapter9-role-values {

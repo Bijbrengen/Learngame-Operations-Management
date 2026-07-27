@@ -56,6 +56,9 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   await expect(page.locator(".chapter9-indicator-card")).toHaveCount(3);
   expect(await page.locator(".chapter9-role-row").count()).toBeGreaterThanOrEqual(10);
   await expect(page.locator("#chapter9CurrentInsightCards")).toContainText("Volume is niet hetzelfde als waarde");
+  await expect(page.locator("#chapter9VariantContrast")).toContainText("Inefficiëntie zichtbaar");
+  await expect(page.locator("#chapter9VariantContrast")).toContainText("lost die nog niet op");
+  await expect(page.locator("#chapter9VariantContrast .is-active")).toContainText("Versie 4");
 
   await page.evaluate(() => {
     for (let index = 0; index < 4; index += 1) {

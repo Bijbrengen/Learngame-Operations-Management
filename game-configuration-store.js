@@ -61,7 +61,7 @@
     {
       config_id: "lo3",
       name: "LO Game 3",
-      description: "Productgerichte organisatie met drie torensoorten en zonder geldstroom.",
+      description: "De meest effectieve productgerichte organisatie; zonder geldstroom is de inefficiënte capaciteitsinzet nog niet zichtbaar.",
       is_preset: true,
       base_template: "lo3",
       created_at: "2026-01-01T00:00:00Z",
@@ -83,7 +83,7 @@
     {
       config_id: "lo4",
       name: "LO Game 4",
-      description: "Productgerichte variant met geld, resultaatmeting en opportunity costs.",
+      description: "Dezelfde effectieve productorganisatie als versie 3, nu met geld en opportunity costs die laten zien dat zij niet de efficiëntste is.",
       is_preset: true,
       base_template: "lo4",
       created_at: "2026-01-01T00:00:00Z",
@@ -105,7 +105,7 @@
     {
       config_id: "lo5",
       name: "LO Game 5",
-      description: "Financiële variant in de functionele keten, gericht op programmatisch produceren.",
+      description: "Functionele herinrichting die de in versie 4 zichtbaar gemaakte inefficiëntie probeert te verbeteren.",
       is_preset: true,
       base_template: "lo5",
       created_at: "2026-01-01T00:00:00Z",
