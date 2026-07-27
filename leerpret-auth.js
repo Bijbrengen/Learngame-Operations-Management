@@ -60,10 +60,16 @@
     if (targetUrl.hostname.endsWith(".loca.lt")) {
       targetUrl.searchParams.set("bypass-tunnel-reminder", "true");
     }
+    const token = localStorage.getItem("leerpret.sessionToken");
+    const headers = {
+      ...(token ? { "X-Leerpret-Session": token } : {}),
+      ...(options.headers || {})
+    };
     const response = await fetch(targetUrl.toString(), {
       cache: "no-store",
       credentials: "include",
-      ...options
+      ...options,
+      headers
     });
     if (!response.ok) {
       const error = new Error(await parseError(response));
@@ -102,6 +108,9 @@
   }
 
   function acceptSession(payload) {
+    if (payload && payload.token) {
+      localStorage.setItem("leerpret.sessionToken", payload.token);
+    }
     state.online = true;
     state.authenticated = Boolean(payload.authenticated);
     state.user = payload.user || null;
@@ -283,6 +292,7 @@
     } catch {
       // De lokale vergrendeling wint ook wanneer de service net offline ging.
     }
+    localStorage.removeItem("leerpret.sessionToken");
     state.authenticated = false;
     state.user = null;
     state.roles = [];
