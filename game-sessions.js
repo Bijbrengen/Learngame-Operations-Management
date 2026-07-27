@@ -112,7 +112,12 @@
     le_training: {
       label: "LE-Training",
       money: true, pnl: true, intermediate_stock: false, opportunity_costs: true,
-      role_freedom: false, price_mode: "fixed", logistics_organization: "product",
+      role_freedom: false, organization_model: "school_learning_path",
+      funding_incentive: "financing",
+      multiple_colors: true,
+      editable_color_layers: ["groundPlate", "layer1", "layer2", "layer3"],
+      price_mode: "fixed", logistics_organization: "product",
+      production_processes: ["parallel", "sequential"],
       product_type_count: 3, customer_order_mode: "required"
     }
   };
@@ -236,17 +241,20 @@
     const storedPresetSettings = window.GameConfigurationStore
       ?.getConfiguration(gameType)
       ?.settings || {};
-    const productionProcesses = window.LogisticsProcess?.normalizeProcesses(
-      config.production_processes,
-      gameType
-    ) || ["parallel"];
     const merged = {
       ...GAME_CONFIG_PRESETS[gameType],
       ...storedPresetSettings,
       ...config
     };
+    const productionProcesses = window.LogisticsProcess?.normalizeProcesses(
+      merged.production_processes,
+      gameType
+    ) || ["parallel"];
     const multipleColors = Boolean(merged.multiple_colors);
     const money = Boolean(merged.money);
+    const organizationModel = ["independent_enterprises", "school_learning_path"].includes(
+      merged.organization_model
+    ) ? merged.organization_model : "single_enterprise";
     return {
       ...merged,
       play_mode: config.play_mode === "digital" ? "digital" : "physical",
@@ -264,9 +272,12 @@
       production_planning_enabled: merged.production_planning_enabled === undefined
         ? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
         : Boolean(merged.production_planning_enabled),
-      organization_model: merged.organization_model === "independent_enterprises"
-        ? "independent_enterprises"
-        : "single_enterprise",
+      organization_model: organizationModel,
+      funding_incentive: organizationModel === "school_learning_path"
+        ? (["quality", "balanced", "financing"].includes(merged.funding_incentive)
+          ? merged.funding_incentive
+          : "financing")
+        : "balanced",
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors && Array.isArray(merged.editable_color_layers)
         ? [...new Set(merged.editable_color_layers)].filter(layerId => (
@@ -321,7 +332,9 @@
     const settingRows = [
       ["Organisatievorm", config => config.organization_model === "independent_enterprises"
         ? "Zelfstandige ondernemingen"
-        : "Eén gezamenlijke organisatie", "text"],
+        : config.organization_model === "school_learning_path"
+          ? "School / leertraject"
+          : "Eén gezamenlijke organisatie", "text"],
       ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
       ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
       ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
@@ -464,7 +477,28 @@
             <option value="independent_enterprises"${value.organization_model === "independent_enterprises" ? " selected" : ""}>
               Zelfstandige ondernemingen · handelen in een productieketen
             </option>
+            <option value="school_learning_path"${value.organization_model === "school_learning_path" ? " selected" : ""}>
+              School / leertraject · budgetgedreven onderwijsproces
+            </option>
           </select>
+        </label>
+        <label class="session-config-field is-wide"
+               data-school-funding-settings
+               data-config-help="funding-incentive"
+               ${value.organization_model === "school_learning_path" ? "" : "hidden"}>
+          <span>Bekostigingsprikkel</span>
+          <select name="funding_incentive" data-game-config-control>
+            <option value="quality"${value.funding_incentive === "quality" ? " selected" : ""}>
+              Kwaliteit · snelle, goede doorstroom wordt beloond
+            </option>
+            <option value="balanced"${value.funding_incentive === "balanced" ? " selected" : ""}>
+              Gebalanceerd · kwaliteit en bekostiging wegen beide
+            </option>
+            <option value="financing"${value.funding_incentive === "financing" ? " selected" : ""}>
+              Financiering · leerlingvolume en verblijfsduur sturen het budget
+            </option>
+          </select>
+          <small data-funding-incentive-preview></small>
         </label>
         <div class="session-config-toggles">
           ${toggle("money", "Geld")}
@@ -735,7 +769,7 @@
                 </tr>
                 <tr>
                   <td><strong>LE-Training</strong></td>
-                  <td>Productgericht (budget/lumpsum)</td>
+                  <td>Schoolmatrix · parallel + sequentieel (budget/lumpsum)</td>
                   <td><span class="badge-on">✅ Actief</span></td>
                   <td>✅ Ja</td>
                   <td>✅ Ja</td>
@@ -957,6 +991,7 @@
     }
     updateHybridProductionTooltip(form);
     updateFinancialDetailControls(form);
+    updateSchoolFundingControls(form);
     const editableColorLayers = new Set(settings.editable_color_layers || []);
     form.querySelectorAll("[data-color-layer]").forEach(control => {
       control.checked = editableColorLayers.has(control.dataset.colorLayer);
@@ -1019,6 +1054,22 @@
           : "Adviseur: alleen eenvoudige inkomsten, uitgaven en cashflow worden gevolgd.";
   }
 
+  function updateSchoolFundingControls(form) {
+    if (!form) return;
+    const isSchool = form.elements.namedItem("organization_model")?.value === "school_learning_path";
+    const settings = form.querySelector("[data-school-funding-settings]");
+    if (settings) settings.hidden = !isSchool;
+    const incentive = form.elements.namedItem("funding_incentive");
+    if (incentive) incentive.disabled = !isSchool;
+    const preview = form.querySelector("[data-funding-incentive-preview]");
+    if (!preview) return;
+    preview.textContent = incentive?.value === "quality"
+      ? "Goede en tijdige doorstroom levert de sterkste beloning op."
+      : incentive?.value === "financing"
+        ? "Leerlingvolume, extra verblijfsduur en ondersteuningsbehoefte vergroten de bekostiging; de simulatie maakt de spanning met onderwijskwaliteit zichtbaar."
+        : "Budgetcontinuïteit en goede doorstroom tellen beide mee in de besluitvorming.";
+  }
+
   function collectGameConfig(form) {
     const get = name => form.elements.namedItem(name);
     const selectedConfiguration = window.GameConfigurationStore?.getConfiguration(
@@ -1035,7 +1086,13 @@
     updateHybridProductionTooltip(form);
     updateColorLayerControls(form);
     updateFinancialDetailControls(form);
+    updateSchoolFundingControls(form);
     const multipleColors = Boolean(get("multiple_colors")?.checked);
+    const organizationModel = get("organization_model")?.value === "independent_enterprises"
+      ? "independent_enterprises"
+      : get("organization_model")?.value === "school_learning_path"
+        ? "school_learning_path"
+        : "single_enterprise";
     return {
       play_mode: get("play_mode")?.value === "digital" ? "digital" : "physical",
       game_type: gameType,
@@ -1048,9 +1105,11 @@
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
-      organization_model: get("organization_model")?.value === "independent_enterprises"
-        ? "independent_enterprises"
-        : "single_enterprise",
+      organization_model: organizationModel,
+      funding_incentive: organizationModel === "school_learning_path"
+        && ["quality", "balanced", "financing"].includes(get("funding_incentive")?.value)
+        ? get("funding_incentive").value
+        : "balanced",
       production_planning_enabled: Boolean(get("production_planning_enabled")?.checked),
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors
@@ -1257,7 +1316,9 @@
           <span>${escapeHtml(GAME_CONFIG_PRESETS[session.game_config?.game_type]?.label || "LO Game 4")}</span>
           <span>${session.game_config?.organization_model === "independent_enterprises"
             ? "Zelfstandige ondernemingen"
-            : "Eén gezamenlijke organisatie"}</span>
+            : session.game_config?.organization_model === "school_learning_path"
+              ? "School / leertraject"
+              : "Eén gezamenlijke organisatie"}</span>
           <span>${session.game_config?.customer_order_mode === "free" ? "Vrije klantorders" : "Verplichte klantorders"}</span>
           <span>${session.game_config?.multiple_colors
             ? `Meerdere kleuren · ${(session.game_config.editable_color_layers || []).length}/4 lagen`
@@ -1559,6 +1620,7 @@
         updateHybridProductionTooltip(createForm);
         updateColorLayerControls(createForm);
         updateFinancialDetailControls(createForm);
+        updateSchoolFundingControls(createForm);
         const config = collectGameConfig(createForm);
         syncGameConfigurationSelection(createForm, config);
         state.createSessionDraft.game_config = config;
@@ -1577,6 +1639,7 @@
         if (selectedPreset) applyGameConfigPreset(form, selectedPreset);
         updateColorLayerControls(form);
         updateFinancialDetailControls(form);
+        updateSchoolFundingControls(form);
         const config = collectGameConfig(form);
         // Een expliciet gekozen preset is al de bron van waarheid. Meteen opnieuw
         // matchen kon op een nog niet gematerialiseerde standaardwaarde (zoals

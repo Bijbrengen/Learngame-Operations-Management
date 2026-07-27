@@ -337,7 +337,20 @@
                 <select name="organization_model" data-game-config-control>
                   <option value="single_enterprise" selected>Eén gezamenlijke organisatie · samenwerken als afdelingen</option>
                   <option value="independent_enterprises">Zelfstandige ondernemingen · handelen in een productieketen</option>
+                  <option value="school_learning_path">School / leertraject · budgetgedreven onderwijsproces</option>
                 </select>
+              </label>
+              <label class="session-config-field is-wide"
+                     data-school-funding-settings
+                     data-config-help="funding-incentive"
+                     hidden>
+                <span>Bekostigingsprikkel</span>
+                <select name="funding_incentive" data-game-config-control disabled>
+                  <option value="quality">Kwaliteit · snelle, goede doorstroom wordt beloond</option>
+                  <option value="balanced" selected>Gebalanceerd · kwaliteit en bekostiging wegen beide</option>
+                  <option value="financing">Financiering · leerlingvolume en verblijfsduur sturen het budget</option>
+                </select>
+                <small data-funding-incentive-preview></small>
               </label>
               <div class="session-config-toggles">
                 <label class="session-config-toggle" data-config-help="money"><input type="checkbox" name="money" data-game-config-control checked><span>Geld</span></label>

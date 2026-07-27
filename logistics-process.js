@@ -14,6 +14,7 @@
     lo5: Object.freeze(["sequential"]),
     lo6: Object.freeze(["sequential"]),
     lo7: Object.freeze(["sequential"]),
+    le_training: Object.freeze(["parallel", "sequential"]),
     tutorial: Object.freeze(["parallel"])
   });
 

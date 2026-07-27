@@ -56,6 +56,7 @@
         "opportunity_costs",
         "role_freedom",
         "organization_model",
+        "funding_incentive",
         "price_mode",
         "logistics_organization",
         "product_type_count",
@@ -90,7 +91,10 @@
           "type": "boolean"
         },
         "organization_model": {
-          "enum": ["single_enterprise", "independent_enterprises"]
+          "enum": ["single_enterprise", "independent_enterprises", "school_learning_path"]
+        },
+        "funding_incentive": {
+          "enum": ["quality", "balanced", "financing"]
         },
         "multiple_colors": {
           "type": "boolean",

@@ -45,7 +45,7 @@ test("iedere spelinstelling geeft toegankelijke uitleg over werking en leereffec
   await openManagerSettings(page);
 
   const form = page.locator("#gameSessionCreateForm");
-  await expect(form.locator("[data-config-help] > .configuration-help-button")).toHaveCount(19);
+  await expect(form.locator("[data-config-help] > .configuration-help-button")).toHaveCount(20);
 
   const money = form.locator('[name="money"]');
   await expect(money).toBeChecked();
@@ -69,13 +69,30 @@ test("iedere spelinstelling geeft toegankelijke uitleg over werking en leereffec
   await expect(organizationModel).toHaveValue("independent_enterprises");
   await form.getByRole("button", { name: "Uitleg over Organisatievorm" }).click();
   await expect(page.getByRole("dialog", { name: "Organisatievorm" })).toContainText(
-    "onafhankelijke leveranciers, producenten en handelaren"
+    "zelfstandige ondernemingen in een marktketen"
   );
   await page.getByRole("button", { name: "Uitleg sluiten" }).click();
   await organizationModel.selectOption("single_enterprise");
   await expect(gameType).toHaveValue("custom_draft");
 
+  await gameType.selectOption("le_training");
+  await expect(organizationModel).toHaveValue("school_learning_path");
+  const fundingIncentive = form.locator('[name="funding_incentive"]');
+  await expect(fundingIncentive).toBeVisible();
+  await expect(fundingIncentive).toHaveValue("financing");
+  await expect(form.locator('[name="parallel_production"]')).toBeChecked();
+  await expect(form.locator('[name="sequential_production"]')).toBeChecked();
+  await expect(form.locator("[data-hybrid-production-tooltip]")).toBeVisible();
+  await form.getByRole("button", { name: "Uitleg over Bekostigingsprikkel" }).click();
+  await expect(page.getByRole("dialog", { name: "Bekostigingsprikkel" })).toContainText(
+    "lumpsumprobleem"
+  );
+  await page.getByRole("button", { name: "Uitleg sluiten" }).click();
+  await fundingIncentive.selectOption("quality");
+  await expect(gameType).toHaveValue("custom_draft");
+
   await gameType.selectOption("lo6");
   await expect(organizationModel).toHaveValue("single_enterprise");
+  await expect(fundingIncentive).toBeHidden();
   await expect(form.getByRole("button", { name: "Uitleg over Kleurvrijheid" })).toBeVisible();
 });

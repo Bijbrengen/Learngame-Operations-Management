@@ -277,9 +277,12 @@
       this.parts = deepClone(options.parts || PART_DEFINITIONS);
       this.behaviorPatterns = options.behaviorPatterns || null;
       this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
-      this.organizationModel = options.organizationModel === "independent_enterprises"
-        ? "independent_enterprises"
-        : "single_enterprise";
+      this.organizationModel = ["independent_enterprises", "school_learning_path"].includes(
+        options.organizationModel
+      ) ? options.organizationModel : "single_enterprise";
+      this.fundingIncentive = ["quality", "balanced", "financing"].includes(
+        options.fundingIncentive
+      ) ? options.fundingIncentive : "balanced";
       this.playMode = options.playMode === "digital" ? "digital" : "physical";
       this.productionProcesses = this.normalizeProductionProcesses(options.productionProcesses);
       this.difficultyLevel = "normal";
@@ -366,10 +369,17 @@
     }
 
     setOrganizationModel(model) {
-      this.organizationModel = model === "independent_enterprises"
-        ? "independent_enterprises"
+      this.organizationModel = ["independent_enterprises", "school_learning_path"].includes(model)
+        ? model
         : "single_enterprise";
       return this.organizationModel;
+    }
+
+    setFundingIncentive(incentive) {
+      this.fundingIncentive = ["quality", "balanced", "financing"].includes(incentive)
+        ? incentive
+        : "balanced";
+      return this.fundingIncentive;
     }
 
     setPlayMode(mode) {
@@ -457,6 +467,7 @@
       humanRoleId = null,
       customerOrderMode = this.customerOrderMode,
       organizationModel = this.organizationModel,
+      fundingIncentive = this.fundingIncentive,
       playMode = this.playMode,
       productionProcesses = this.productionProcesses
     } = {}) {
@@ -466,6 +477,7 @@
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
       this.setOrganizationModel(organizationModel);
+      this.setFundingIncentive(fundingIncentive);
       this.setPlayMode(playMode);
       this.setProductionProcesses(productionProcesses);
       this.reset();
@@ -851,6 +863,7 @@
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
         organizationModel: this.organizationModel,
+        fundingIncentive: this.fundingIncentive,
         availableProducts: this.humanRoleId === "customer"
           ? deepClone(Object.values(this.products))
           : []

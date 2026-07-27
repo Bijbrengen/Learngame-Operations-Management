@@ -218,20 +218,25 @@
     {
       config_id: "le_training",
       name: "LE-Training",
-      description: "LEAN Operations management trainingsvariant met resultaatmeting en processturing.",
+      description: "School als budgetgedreven leertraject: leerinhouden lopen parallel per jaarlaag en leerlingen stromen sequentieel door.",
       is_preset: true,
-      base_template: "lo4",
+      base_template: "le_training",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
       settings: {
-        game_type: "lo4",
+        game_type: "le_training",
         money: true,
         pnl: true,
         intermediate_stock: false,
         opportunity_costs: true,
         role_freedom: false,
+        organization_model: "school_learning_path",
+        funding_incentive: "financing",
+        multiple_colors: true,
+        editable_color_layers: ["groundPlate", "layer1", "layer2", "layer3"],
         price_mode: "fixed",
         logistics_organization: "product",
+        production_processes: ["parallel", "sequential"],
         product_type_count: 3,
         customer_order_mode: "required",
         enabled_roles: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"]
@@ -266,16 +271,26 @@
     const productionPlanningEnabled = settings.production_planning_enabled === undefined
       ? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
       : Boolean(settings.production_planning_enabled);
+    const organizationModel = settings.organization_model === undefined
+      ? (gameType === "entrepreneurial"
+        ? "independent_enterprises"
+        : gameType === "le_training"
+          ? "school_learning_path"
+          : "single_enterprise")
+      : (["independent_enterprises", "school_learning_path"].includes(settings.organization_model)
+        ? settings.organization_model
+        : "single_enterprise");
     return {
       ...settings,
       opening_balance_enabled: openingBalanceEnabled,
       revenue_balance_enabled: revenueBalanceEnabled,
       production_planning_enabled: productionPlanningEnabled,
-      organization_model: settings.organization_model === undefined
-        ? (gameType === "entrepreneurial" ? "independent_enterprises" : "single_enterprise")
-        : (settings.organization_model === "independent_enterprises"
-          ? "independent_enterprises"
-          : "single_enterprise"),
+      organization_model: organizationModel,
+      funding_incentive: organizationModel === "school_learning_path"
+        ? (["quality", "balanced", "financing"].includes(settings.funding_incentive)
+          ? settings.funding_incentive
+          : "financing")
+        : "balanced",
       multiple_colors: multipleColors,
       editable_color_layers: editableColorLayers,
       production_processes: productionProcesses,
@@ -369,11 +384,18 @@
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
         const customerOrderModeMatch = (s.customer_order_mode || "required")
           === (currentSettings.customer_order_mode || "required");
-        const organizationModelMatch = (s.organization_model || (
-          s.game_type === "entrepreneurial" ? "independent_enterprises" : "single_enterprise"
-        )) === (currentSettings.organization_model || (
-          currentSettings.game_type === "entrepreneurial" ? "independent_enterprises" : "single_enterprise"
-        ));
+        const defaultOrganizationModel = gameType => gameType === "entrepreneurial"
+          ? "independent_enterprises"
+          : gameType === "le_training"
+            ? "school_learning_path"
+            : "single_enterprise";
+        const organizationModelMatch = (
+          s.organization_model || defaultOrganizationModel(s.game_type)
+        ) === (
+          currentSettings.organization_model || defaultOrganizationModel(currentSettings.game_type)
+        );
+        const fundingIncentiveMatch = (s.funding_incentive || "balanced")
+          === (currentSettings.funding_incentive || "balanced");
         const logisticsOrgMatch = (s.logistics_organization || "functional") === (currentSettings.logistics_organization || "functional");
         const processMatch = [...(s.production_processes || [])].sort().join(",")
           === [...(currentSettings.production_processes || [])].sort().join(",");
@@ -384,6 +406,7 @@
             !productionPlanningMatch ||
             !multipleColorsMatch || !editableColorLayersMatch ||
             !priceModeMatch || !customerOrderModeMatch || !organizationModelMatch ||
+            !fundingIncentiveMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;
         }

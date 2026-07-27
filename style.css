@@ -1779,6 +1779,10 @@ body[data-app-view="player"] .manager-only {
   grid-column: 1 / -1;
 }
 
+.session-config-field[hidden] {
+  display: none;
+}
+
 .session-play-mode {
   padding: 13px;
   border: 1px solid rgba(245, 203, 114, 0.38);

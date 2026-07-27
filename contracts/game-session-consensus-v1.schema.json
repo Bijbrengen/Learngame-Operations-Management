@@ -14,10 +14,10 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "enabled_roles"],
+      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "organization_model", "funding_incentive", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "enabled_roles"],
       "properties": {
         "play_mode": {"enum": ["physical", "digital"]},
-        "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7"]},
+        "game_type": {"enum": ["entrepreneurial", "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "lo7", "le_training"]},
         "money": {"type": "boolean"},
         "pnl": {"type": "boolean"},
         "opening_balance_enabled": {"type": "boolean"},
@@ -26,6 +26,8 @@
         "intermediate_stock": {"type": "boolean"},
         "opportunity_costs": {"type": "boolean"},
         "role_freedom": {"type": "boolean"},
+        "organization_model": {"enum": ["single_enterprise", "independent_enterprises", "school_learning_path"]},
+        "funding_incentive": {"enum": ["quality", "balanced", "financing"]},
         "multiple_colors": {"type": "boolean"},
         "editable_color_layers": {
           "type": "array",

@@ -38,9 +38,15 @@
     },
     "organization-model": {
       title: "Organisatievorm",
-      mechanical: "In één gezamenlijke organisatie zijn spelers afdelingen van hetzelfde bedrijf en zijn overdrachten intern. Bij zelfstandige ondernemingen heeft iedere marktpartij een eigen belang en zijn leveringen echte inkoop- en verkooptransacties tussen bedrijven.",
-      learning: "De gewone LO-Games richten zich op samenwerking en optimalisatie van het totale productieproces. In de Entrepreneurship Game concurreren onafhankelijke leveranciers, producenten en handelaren, onderhandelen zij over prijs en levering en werken zij alleen samen wanneer dat hun eigen onderneming én de keten helpt.",
-      basis: "LE-boek: de digitale LO-Game 7 vormde een ontwikkelrichting naar LEARNGame Entrepreneurship, met zelfstandige leveranciers, producenten en handelaren in onderlinge marktrelaties."
+      mechanical: "Kiest tussen afdelingen binnen één bedrijf, zelfstandige ondernemingen in een marktketen en een budgetgedreven school/leertraject. In het schoolmodel staan de blokjes voor leerinhoud die per schooljaar aan het traject wordt toegevoegd.",
+      learning: "De gewone LO-Games richten zich op gezamenlijke procesoptimalisatie. De Entrepreneurship Game draait om concurrentie en strategische samenwerking. LE-Training behandelt leerlingdoorstroom als een parallel én sequentieel onderwijsproces met budgetuitputting in plaats van gewone verkoopomzet.",
+      basis: "LE-boek: LE-Training simuleert een school als budgetorganisatie; leerlingen doorlopen jaarlagen en krijgen per jaarlaag leerinhoud toegevoegd."
+    },
+    "funding-incentive": {
+      title: "Bekostigingsprikkel",
+      mechanical: "Legt in de sessie en runtime vast of keuzes worden beoordeeld vanuit onderwijskwaliteit, een balans tussen kwaliteit en budget, of leerlingvolume, verblijfsduur en ondersteuningsbekostiging.",
+      learning: "Maakt de mogelijke spanning zichtbaar tussen het inhoudelijke doel—een leerling goed en tijdig laten doorstromen—en een financieringssysteem waarin langer verblijf of extra ondersteuning ook extra middelen kan opleveren. Dit is een simulatieprikkel, geen oordeel dat vertraging altijd financieel gunstig is.",
+      basis: "LE-boek: LE-Training is ontwikkeld rond het lumpsumprobleem en toont budgetuitputting en de financiële gevolgen van keuzes in real time."
     },
     money: {
       title: "Geld en marges",
@@ -946,13 +952,17 @@
     },
     le_training: {
       label: "LE-Training",
-      description: "LEAN Operations management trainingsvariant met resultaatmeting en processturing.",
+      description: "School als budgetgedreven leertraject: leerinhouden lopen parallel per jaarlaag en leerlingen stromen sequentieel door.",
       config: {
         money: true,
         pnl: true,
         intermediateStock: false,
         opportunityCosts: true,
         roleFreedom: false,
+        organizationModel: "school_learning_path",
+        fundingIncentive: "financing",
+        multipleColors: true,
+        editableColorLayers: ["groundPlate", "layer1", "layer2", "layer3"],
         priceMode: "fixed",
         logisticsOrganization: "product",
         productTypeCount: 3
@@ -1304,6 +1314,7 @@
       opportunityCosts: true,
       roleFreedom: false,
       organizationModel: "single_enterprise",
+      fundingIncentive: "balanced",
       multipleColors: false,
       editableColorLayers: [],
       customerOrderMode: "required",
@@ -2990,14 +3001,19 @@
       ? (sessionGameConfig.customer_order_mode === "free" ? "free" : "required")
       : state.config.customerOrderMode;
     const playMode = sessionGameConfig?.play_mode === "digital" ? "digital" : "physical";
-    const organizationModel = sessionGameConfig?.organization_model === "independent_enterprises"
-      ? "independent_enterprises"
-      : state.config.organizationModel;
+    const organizationModel = ["independent_enterprises", "school_learning_path"].includes(
+      sessionGameConfig?.organization_model
+    ) ? sessionGameConfig.organization_model : state.config.organizationModel;
+    const fundingIncentive = ["quality", "balanced", "financing"].includes(
+      sessionGameConfig?.funding_incentive
+    ) ? sessionGameConfig.funding_incentive : state.config.fundingIncentive;
     state.config.customerOrderMode = customerOrderMode;
     state.config.organizationModel = organizationModel;
+    state.config.fundingIncentive = fundingIncentive;
     state.config.playMode = playMode;
     logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
     logisticsGameController.engine.setOrganizationModel(organizationModel);
+    logisticsGameController.engine.setFundingIncentive(fundingIncentive);
     logisticsGameController.engine.setPlayMode(playMode);
     logisticsGameController.engine.setProductionProcesses(state.config.productionProcesses);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
@@ -3005,6 +3021,7 @@
       humanRoleId,
       customerOrderMode,
       organizationModel,
+      fundingIncentive,
       playMode,
       productionProcesses: state.config.productionProcesses
     });
@@ -5337,7 +5354,9 @@
     const settingsRows = [
       ["Organisatievorm", config => config.organization_model === "independent_enterprises"
         ? "Zelfstandige ondernemingen"
-        : "Eén gezamenlijke organisatie", "text"],
+        : config.organization_model === "school_learning_path"
+          ? "School / leertraject"
+          : "Eén gezamenlijke organisatie", "text"],
       ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
       ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
       ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
@@ -5500,9 +5519,12 @@
     state.config.intermediateStock = Boolean(settings.intermediate_stock);
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
-    state.config.organizationModel = settings.organization_model === "independent_enterprises"
-      ? "independent_enterprises"
-      : "single_enterprise";
+    state.config.organizationModel = ["independent_enterprises", "school_learning_path"].includes(
+      settings.organization_model
+    ) ? settings.organization_model : "single_enterprise";
+    state.config.fundingIncentive = ["quality", "balanced", "financing"].includes(
+      settings.funding_incentive
+    ) ? settings.funding_incentive : "balanced";
     state.config.multipleColors = Boolean(settings.multiple_colors);
     state.config.editableColorLayers = state.config.multipleColors
       ? normalizeEditableColorLayers(settings.editable_color_layers)
@@ -5615,7 +5637,10 @@
       gameType,
       organizationModel: gameType === "entrepreneurial"
         ? "independent_enterprises"
-        : "single_enterprise",
+        : gameType === "le_training"
+          ? "school_learning_path"
+          : "single_enterprise",
+      fundingIncentive: gameType === "le_training" ? "financing" : "balanced",
       productionPlanning: PRODUCTION_PLANNING_PRESET_GAMES.has(gameType),
       multipleColors: Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
@@ -5679,9 +5704,12 @@
       intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
       opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
       roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
-      organizationModel: config.organization_model === "independent_enterprises"
-        ? "independent_enterprises"
-        : "single_enterprise",
+      organizationModel: ["independent_enterprises", "school_learning_path"].includes(
+        config.organization_model
+      ) ? config.organization_model : "single_enterprise",
+      fundingIncentive: ["quality", "balanced", "financing"].includes(config.funding_incentive)
+        ? config.funding_incentive
+        : "balanced",
       multipleColors: config.multiple_colors ?? Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(
         config.editable_color_layers ?? preset.config.editableColorLayers
@@ -5775,6 +5803,7 @@
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
       organization_model: state.config.organizationModel,
+      funding_incentive: state.config.fundingIncentive,
       multiple_colors: state.config.multipleColors,
       editable_color_layers: [...state.config.editableColorLayers],
       price_mode: state.config.priceMode,
@@ -6171,6 +6200,7 @@
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
         organization_model: state.config.organizationModel,
+        funding_incentive: state.config.fundingIncentive,
         multiple_colors: state.config.multipleColors,
         editable_color_layers: [...state.config.editableColorLayers],
         price_mode: state.config.priceMode,
