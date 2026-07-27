@@ -77,7 +77,7 @@ class ProductPackageTests(unittest.TestCase):
         navigation = html.split('<nav class="manager-tab-list"', 1)[1].split("</nav>", 1)[0]
         tabs = re.findall(r'data-manager-tab="([^"]+)"', navigation)
         self.assertEqual(
-            ["session", "process", "inventory", "events", "tower-editor"],
+            ["session", "process", "insights", "inventory", "events", "tower-editor"],
             tabs,
         )
         self.assertNotIn('data-manager-tab="core"', navigation)
@@ -546,7 +546,10 @@ process.stdout.write(JSON.stringify({{
         data_script = 'src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"'
         self.assertIn(data_script, html)
         self.assertLess(html.index(data_script), html.index('src="logistics-game-engine.js"'))
-        self.assertIn('state.config.gameType === "entrepreneurial"', game)
+        self.assertIn(
+            'state.config.organizationModel === "independent_enterprises"',
+            game,
+        )
         self.assertIn("setBehaviorPatterns", game)
 
         node_program = f"""

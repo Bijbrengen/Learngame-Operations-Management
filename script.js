@@ -1350,6 +1350,18 @@
     gameAdvisorPanel: document.getElementById("gameAdvisorPanel"),
     gameAdvisorCloseButton: document.getElementById("gameAdvisorCloseButton"),
     gameAdvisorContent: document.getElementById("gameAdvisorContent"),
+    chapter9InsightsSubtitle: document.getElementById("chapter9InsightsSubtitle"),
+    chapter9LiveIndicators: document.getElementById("chapter9LiveIndicators"),
+    chapter9RoleActivity: document.getElementById("chapter9RoleActivity"),
+    chapter9CurrentInsightCards: document.getElementById("chapter9CurrentInsightCards"),
+    chapter9LibraryButton: document.getElementById("chapter9LibraryButton"),
+    chapter9LibraryDialog: document.getElementById("chapter9LibraryDialog"),
+    chapter9VariantSelect: document.getElementById("chapter9VariantSelect"),
+    chapter9SourceLink: document.getElementById("chapter9SourceLink"),
+    chapter9LibrarySummary: document.getElementById("chapter9LibrarySummary"),
+    chapter9LibraryInsights: document.getElementById("chapter9LibraryInsights"),
+    chapter9AssetTabs: document.getElementById("chapter9AssetTabs"),
+    chapter9AssetPreview: document.getElementById("chapter9AssetPreview"),
     eventLog: document.getElementById("eventLog"),
     dataModelButton: document.getElementById("dataModelButton"),
     dataModelPanel: document.getElementById("dataModelPanel"),
@@ -1770,7 +1782,7 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
-    const allowed = new Set(["session", "tower-editor", "inventory", "events", "process"]);
+    const allowed = new Set(["session", "tower-editor", "inventory", "events", "process", "insights"]);
     const nextTab = allowed.has(tab) ? tab : "session";
     state.managerTab = nextTab;
     document.querySelectorAll("[data-manager-tab]").forEach(button => {
@@ -1841,6 +1853,7 @@
         total: state.interactionBuffer.length
       }, targetOrigin);
     }
+    renderChapter9Insights();
     return record;
   }
 
@@ -3380,6 +3393,295 @@
     `).join("");
   }
 
+  let chapter9SelectedAssetUrl = "";
+  let chapter9AssetRequest = 0;
+
+  function chapter9Analysis() {
+    return window.Chapter9Insights?.analyze({
+      events: state.interactionBuffer,
+      orders: state.orders,
+      gameType: state.config.gameType,
+      roleDefinitions: ROLES
+    }) || null;
+  }
+
+  function chapter9InfoById(insightId, preferredVariant = state.config.gameType) {
+    const chapter = window.Chapter9Insights;
+    if (!chapter) return null;
+    const preferred = chapter.variants[preferredVariant]?.insights
+      .find(insight => insight.id === insightId);
+    if (preferred) return preferred;
+    return Object.values(chapter.variants)
+      .flatMap(variant => variant.insights)
+      .find(insight => insight.id === insightId) || null;
+  }
+
+  function openChapter9Info(insightId, preferredVariant = state.config.gameType) {
+    const insight = chapter9InfoById(insightId, preferredVariant);
+    if (!insight) return;
+    const dialog = configurationHelpDialog();
+    dialog.querySelector("#configurationHelpTitle").textContent = insight.title;
+    dialog.querySelector("[data-config-help-mechanical]").textContent = insight.signal;
+    dialog.querySelector("[data-config-help-learning]").textContent = insight.summary;
+    dialog.querySelector("[data-config-help-basis]").textContent =
+      "Onderbouwing: LE-boek Learngames, hoofdstuk 9. Open ‘Alle inzichten & bronnen’ voor de variantvisualisaties en speldocumenten.";
+    if (dialog.open) dialog.close();
+    dialog.showModal();
+  }
+
+  function renderChapter9Insights() {
+    const analysis = chapter9Analysis();
+    if (!analysis || !els.chapter9LiveIndicators) return;
+    const variant = analysis.variant;
+    els.chapter9InsightsSubtitle.textContent =
+      `${variant.label} · ${variant.learningLine}`;
+    const paradoxLabel = analysis.paradoxActive
+      ? "Actief: druk met niets"
+      : analysis.eventCount < 4
+        ? "Nog te weinig spelacties"
+        : "Geen stilstandsparadox";
+    els.chapter9LiveIndicators.innerHTML = `
+      <article class="chapter9-indicator-card${analysis.paradoxActive ? " is-warning" : ""}">
+        <div class="chapter9-indicator-heading">
+          <h3>Sturingsparadox</h3>
+          <button type="button"
+                  class="configuration-help-button chapter9-info-button"
+                  data-chapter9-info="management-paradox"
+                  aria-label="Uitleg over de sturingsparadox"
+                  title="Hoe ontstaat druk management bij stilstaande productie?">i</button>
+        </div>
+        <p><strong>${escapeHtml(paradoxLabel)}</strong></p>
+        <div class="chapter9-meter-stack">
+          <div>
+            <div class="chapter9-meter-label"><span>Managementactiviteit</span><strong>${analysis.managementActivity}%</strong></div>
+            <div class="chapter9-meter" style="--meter-value:${analysis.managementActivity}%"><span></span></div>
+          </div>
+          <div>
+            <div class="chapter9-meter-label"><span>Productieve ketenbijdrage</span><strong>${analysis.systemOutput}%</strong></div>
+            <div class="chapter9-meter is-output" style="--meter-value:${analysis.systemOutput}%"><span></span></div>
+          </div>
+        </div>
+      </article>
+      <article class="chapter9-indicator-card">
+        <div class="chapter9-indicator-heading">
+          <h3>Ketenoutput</h3>
+          <button type="button"
+                  class="configuration-help-button chapter9-info-button"
+                  data-chapter9-info="effective-not-efficient"
+                  aria-label="Uitleg over ketenoutput"
+                  title="Waarom is activiteit niet hetzelfde als output?">i</button>
+        </div>
+        <p><strong>${analysis.productiveSteps} productieve stappen · ${analysis.completedOutput} afrondingen</strong></p>
+        <p>Gebaseerd op de laatste ${analysis.eventCount} betekenisvolle spelacties, niet op muisklikken of schermwissels.</p>
+      </article>
+      <article class="chapter9-indicator-card${analysis.resistance >= 67 ? " is-warning" : ""}">
+        <div class="chapter9-indicator-heading">
+          <h3>Weerstand &amp; frictie</h3>
+          <button type="button"
+                  class="configuration-help-button chapter9-info-button"
+                  data-chapter9-info="changeover-pressure"
+                  aria-label="Uitleg over weerstand en frictie"
+                  title="Waardoor loopt weerstand of procesfrictie op?">i</button>
+        </div>
+        <p><strong>${escapeHtml(analysis.resistanceLevel)} · ${analysis.resistance}%</strong></p>
+        <div class="chapter9-meter is-resistance" style="--meter-value:${analysis.resistance}%"><span></span></div>
+        <p>Variantwissels, blokkades, vertraging en herwerk verhogen het signaal.</p>
+      </article>
+    `;
+
+    els.chapter9RoleActivity.innerHTML = analysis.roleActivity.length
+      ? analysis.roleActivity.map(role => `
+          <div class="chapter9-role-row">
+            <div class="chapter9-role-label">
+              <strong>${escapeHtml(role.role)}</strong>
+              ${role.management ? "<small>management</small>" : ""}
+            </div>
+            <div class="chapter9-role-bars" aria-label="${escapeHtml(role.role)}: ${role.actions} acties, ${role.productive} productief">
+              <div class="chapter9-role-bar" title="Activiteit: ${role.actions} acties">
+                <span style="width:${role.activityPercent}%"></span>
+              </div>
+              <div class="chapter9-role-bar is-productive" title="Productieve bijdrage: ${role.productive} stappen">
+                <span style="width:${role.productivityPercent}%"></span>
+              </div>
+            </div>
+            <div class="chapter9-role-values">${role.actions} acties · ${role.productive} productief</div>
+          </div>
+        `).join("")
+      : `<p class="chapter9-empty-state">Start de gamesessie om rolactiviteit en productieve bijdrage naast elkaar te zien.</p>`;
+
+    els.chapter9CurrentInsightCards.innerHTML = variant.insights.map(insight => `
+      <article class="chapter9-current-insight-card">
+        <h4>${escapeHtml(insight.title)}</h4>
+        <p>${escapeHtml(insight.summary)}</p>
+        <button type="button"
+                class="configuration-help-button"
+                data-chapter9-info="${escapeHtml(insight.id)}"
+                aria-label="Meer uitleg over ${escapeHtml(insight.title)}"
+                title="${escapeHtml(insight.signal)}">i</button>
+      </article>
+    `).join("");
+  }
+
+  function parseChapter9Csv(source) {
+    const text = String(source || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+    const firstLine = text.split("\n", 1)[0] || "";
+    const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length
+      ? ";"
+      : ",";
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index];
+      if (character === "\"") {
+        if (quoted && text[index + 1] === "\"") {
+          field += "\"";
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === delimiter && !quoted) {
+        row.push(field.trim());
+        field = "";
+      } else if (character === "\n" && !quoted) {
+        row.push(field.trim());
+        if (row.some(value => value !== "")) rows.push(row);
+        row = [];
+        field = "";
+      } else {
+        field += character;
+      }
+    }
+    row.push(field.trim());
+    if (row.some(value => value !== "")) rows.push(row);
+    return rows;
+  }
+
+  async function renderChapter9AssetPreview(asset) {
+    const requestId = ++chapter9AssetRequest;
+    if (!asset || !els.chapter9AssetPreview) {
+      els.chapter9AssetPreview.innerHTML =
+        `<p class="chapter9-empty-state">Voor deze selectie is geen SVG- of CSV-bron beschikbaar.</p>`;
+      return;
+    }
+    els.chapter9AssetPreview.innerHTML = `<p class="chapter9-empty-state">Bron wordt geladen…</p>`;
+    if (asset.type === "svg") {
+      els.chapter9AssetPreview.innerHTML = `
+        <img src="${escapeHtml(asset.url)}"
+             alt="${escapeHtml(asset.title)}"
+             loading="lazy">
+        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open originele SVG</a></p>
+      `;
+      return;
+    }
+    try {
+      const response = await fetch(asset.url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const rows = parseChapter9Csv(await response.text());
+      if (requestId !== chapter9AssetRequest) return;
+      if (!rows.length) throw new Error("Het CSV-bestand bevat geen rijen.");
+      const width = Math.max(...rows.map(row => row.length));
+      const normalized = rows.map(row => Array.from({ length: width }, (_, index) => row[index] || ""));
+      const header = normalized[0];
+      const body = normalized.slice(1);
+      els.chapter9AssetPreview.innerHTML = `
+        <div class="chapter9-csv-scroll">
+          <table class="chapter9-csv-table">
+            <thead><tr>${header.map(cell => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead>
+            <tbody>${body.map(row => `
+              <tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>
+            `).join("")}</tbody>
+          </table>
+        </div>
+        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open originele CSV</a></p>
+      `;
+    } catch (error) {
+      if (requestId !== chapter9AssetRequest) return;
+      els.chapter9AssetPreview.innerHTML = `
+        <p class="chapter9-asset-error">Deze bron kon niet worden geladen: ${escapeHtml(error.message)}</p>
+        <p><a href="${escapeHtml(asset.url)}" target="_blank" rel="noopener">Open het bronbestand</a></p>
+      `;
+    }
+  }
+
+  function renderChapter9Library(selection = els.chapter9VariantSelect?.value || state.config.gameType) {
+    const chapter = window.Chapter9Insights;
+    if (!chapter || !els.chapter9LibraryDialog) return;
+    const variant = selection === "all" ? null : chapter.variants[selection] || chapter.variants.lo4;
+    const variantAssets = selection === "all"
+      ? chapter.assets
+      : chapter.assets.filter(asset => asset.variant === selection);
+    els.chapter9VariantSelect.value = selection;
+    els.chapter9SourceLink.href = chapter.source.url;
+    els.chapter9LibrarySummary.textContent = variant
+      ? `${variant.label} · ${variant.learningLine}`
+      : `${chapter.assets.length} bestaande SVG- en CSV-bronnen uit alle spelvarianten.`;
+    els.chapter9LibraryInsights.innerHTML = variant
+      ? variant.insights.map(insight => `
+          <article class="chapter9-library-insight">
+            <h3>${escapeHtml(insight.title)}</h3>
+            <p>${escapeHtml(insight.summary)}</p>
+            <small><strong>Waar let je op?</strong> ${escapeHtml(insight.signal)}</small>
+          </article>
+        `).join("")
+      : Object.values(chapter.variants).map(item => `
+          <article class="chapter9-library-insight">
+            <h3>${escapeHtml(item.label)}</h3>
+            <p>${escapeHtml(item.learningLine)}</p>
+            <small>${item.insights.length} uitgewerkte procesinzichten</small>
+          </article>
+        `).join("");
+    if (!variantAssets.some(asset => asset.url === chapter9SelectedAssetUrl)) {
+      chapter9SelectedAssetUrl = variantAssets[0]?.url || "";
+    }
+    els.chapter9AssetTabs.innerHTML = variantAssets.map(asset => `
+      <button type="button"
+              class="chapter9-asset-tab${asset.url === chapter9SelectedAssetUrl ? " is-active" : ""}"
+              data-chapter9-asset="${escapeHtml(asset.url)}"
+              title="${escapeHtml(asset.file)}">
+        ${asset.type.toUpperCase()} · ${escapeHtml(asset.title)}
+      </button>
+    `).join("");
+    renderChapter9AssetPreview(
+      variantAssets.find(asset => asset.url === chapter9SelectedAssetUrl) || null
+    );
+  }
+
+  function initChapter9Insights() {
+    const chapter = window.Chapter9Insights;
+    if (!chapter || !els.chapter9LibraryDialog) return;
+    els.chapter9VariantSelect.innerHTML = [
+      `<option value="all">Alle varianten · volledige bronbibliotheek</option>`,
+      ...Object.entries(chapter.variants).map(([id, variant]) =>
+        `<option value="${escapeHtml(id)}">${escapeHtml(variant.label)}</option>`
+      )
+    ].join("");
+    els.chapter9LibraryButton?.addEventListener("click", () => {
+      renderChapter9Library(state.config.gameType);
+      els.chapter9LibraryDialog.showModal();
+    });
+    els.chapter9VariantSelect.addEventListener("change", () => {
+      chapter9SelectedAssetUrl = "";
+      renderChapter9Library(els.chapter9VariantSelect.value);
+    });
+    els.chapter9AssetTabs.addEventListener("click", event => {
+      const button = event.target.closest("[data-chapter9-asset]");
+      if (!button) return;
+      chapter9SelectedAssetUrl = button.dataset.chapter9Asset;
+      renderChapter9Library(els.chapter9VariantSelect.value);
+    });
+    document.addEventListener("click", event => {
+      const button = event.target.closest("[data-chapter9-info]");
+      if (!button) return;
+      event.preventDefault();
+      openChapter9Info(button.dataset.chapter9Info);
+    });
+    els.chapter9LibraryDialog.addEventListener("click", event => {
+      if (event.target === els.chapter9LibraryDialog) els.chapter9LibraryDialog.close();
+    });
+  }
+
   function renderMetrics() {
     const input = state.orders.filter(order => !order.done && order.stepIndex <= 3).length;
     const busy = state.orders.filter(order => !order.done && order.stepIndex > 3).length;
@@ -3392,6 +3694,7 @@
     els.lateValue.textContent = String(state.interactionBuffer.length);
     els.clockValue.textContent = formatClock(state.clockMinutes);
     els.eventCountValue.textContent = String(state.interactionBuffer.length);
+    renderChapter9Insights();
   }
 
   function renderEvents() {
@@ -6515,6 +6818,7 @@
   });
 
   initConfigurationHelp();
+  initChapter9Insights();
   initControls();
   initLegoBuilder();
   initTowerEditor();

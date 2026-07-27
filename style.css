@@ -8957,3 +8957,399 @@ body.tutorial-focus {
   gap: 10px;
   margin-top: 6px;
 }
+
+/* Hoofdstuk 9: live inzichten, duiding en bronvisualisaties */
+.chapter9-insights-panel {
+  gap: 22px;
+}
+
+.chapter9-insights-head {
+  align-items: flex-start;
+}
+
+.chapter9-insights-head > div > p:last-child {
+  max-width: 66ch;
+  margin: 7px 0 0;
+  color: var(--muted);
+}
+
+.chapter9-live-indicators {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chapter9-indicator-card,
+.chapter9-role-section,
+.chapter9-current-insights,
+.chapter9-library-insight,
+.chapter9-asset-preview {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+}
+
+.chapter9-indicator-card {
+  min-width: 0;
+  padding: 16px;
+}
+
+.chapter9-indicator-card.is-warning {
+  border-color: #dc8e69;
+  background: #fff7f2;
+}
+
+.chapter9-indicator-heading,
+.chapter9-subhead,
+.chapter9-role-label,
+.chapter9-meter-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chapter9-indicator-heading h3,
+.chapter9-subhead h3,
+.chapter9-library-insight h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chapter9-indicator-heading strong {
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+
+.chapter9-indicator-card p,
+.chapter9-library-insight p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.chapter9-meter-stack {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.chapter9-meter-label {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.chapter9-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7e9e7;
+}
+
+.chapter9-meter > span {
+  display: block;
+  width: var(--meter-value, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--purple);
+  transition: width 220ms ease;
+}
+
+.chapter9-meter.is-output > span {
+  background: #2b8a6e;
+}
+
+.chapter9-meter.is-resistance > span {
+  background: linear-gradient(90deg, #4f9d78, #d8a129 55%, #d7624c);
+}
+
+.chapter9-role-section,
+.chapter9-current-insights {
+  padding: 18px;
+}
+
+.chapter9-info-button {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.chapter9-role-activity {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.chapter9-role-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(180px, 2fr) minmax(96px, .7fr);
+  align-items: center;
+  gap: 13px;
+}
+
+.chapter9-role-label {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.chapter9-role-label strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter9-role-label small,
+.chapter9-role-values,
+.chapter9-empty-state {
+  color: var(--muted);
+}
+
+.chapter9-role-bars {
+  display: grid;
+  gap: 4px;
+}
+
+.chapter9-role-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8e9ed;
+}
+
+.chapter9-role-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #6473d8;
+}
+
+.chapter9-role-bar.is-productive span {
+  background: #2b8a6e;
+}
+
+.chapter9-role-values {
+  font-size: .76rem;
+  text-align: right;
+}
+
+.chapter9-current-insight-cards,
+.chapter9-library-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.chapter9-current-insight-card {
+  position: relative;
+  padding: 14px 42px 14px 14px;
+  border-radius: 14px;
+  background: #f4f2ee;
+}
+
+.chapter9-current-insight-card h4 {
+  margin: 0;
+  font-size: .94rem;
+}
+
+.chapter9-current-insight-card p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.45;
+}
+
+.chapter9-current-insight-card .configuration-help-button {
+  top: 12px;
+  right: 12px;
+}
+
+.chapter9-library-dialog {
+  width: min(1040px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 24px 80px rgba(25, 28, 38, .3);
+}
+
+.chapter9-library-dialog::backdrop {
+  background: rgba(20, 25, 35, .58);
+  backdrop-filter: blur(3px);
+}
+
+.chapter9-library-shell {
+  display: grid;
+  gap: 20px;
+  max-height: calc(100vh - 28px);
+  padding: 24px;
+  overflow: auto;
+  background: var(--panel);
+}
+
+.chapter9-library-shell > header,
+.chapter9-library-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.chapter9-library-shell > header h2 {
+  margin: 2px 0 0;
+}
+
+.chapter9-library-toolbar {
+  align-items: flex-end;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f4f2ee;
+}
+
+.chapter9-library-toolbar label {
+  display: grid;
+  gap: 6px;
+  min-width: min(320px, 100%);
+}
+
+.chapter9-library-toolbar label span {
+  color: var(--muted);
+  font-size: .77rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.chapter9-library-toolbar select {
+  min-height: 42px;
+}
+
+.chapter9-library-toolbar a {
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.chapter9-library-summary {
+  margin: -7px 0 0;
+  color: var(--muted);
+}
+
+.chapter9-library-insight {
+  padding: 16px;
+}
+
+.chapter9-library-insight small {
+  display: block;
+  margin-top: 10px;
+  color: #6c598c;
+  line-height: 1.45;
+}
+
+.chapter9-asset-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.chapter9-asset-tab {
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: .8rem;
+}
+
+.chapter9-asset-tab.is-active {
+  border-color: var(--purple);
+  background: #eee9f7;
+  color: #49346b;
+}
+
+.chapter9-asset-preview {
+  min-height: 220px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.chapter9-asset-preview > img {
+  display: block;
+  width: 100%;
+  max-height: 580px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.chapter9-csv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+
+.chapter9-csv-table th,
+.chapter9-csv-table td {
+  max-width: 320px;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.chapter9-csv-table th {
+  position: sticky;
+  top: -16px;
+  background: #f4f2ee;
+}
+
+.chapter9-asset-error {
+  color: #a64435;
+}
+
+@media (max-width: 900px) {
+  .chapter9-live-indicators,
+  .chapter9-current-insight-cards,
+  .chapter9-library-insights {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter9-role-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .chapter9-role-values {
+    text-align: left;
+  }
+
+  .chapter9-library-shell > header,
+  .chapter9-library-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chapter9-library-shell > header {
+    position: relative;
+    padding-right: 42px;
+  }
+
+  .chapter9-library-shell > header .configuration-help-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .chapter9-library-dialog {
+    overflow: auto;
+  }
+
+  .chapter9-library-shell {
+    max-height: none;
+    overflow: visible;
+  }
+}

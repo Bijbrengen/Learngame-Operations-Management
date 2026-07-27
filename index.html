@@ -217,20 +217,26 @@
             <small>Graph, route en kaart</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="inventory">
+                  data-manager-tab="insights">
             <span aria-hidden="true">02</span>
+            <strong>Inzichten</strong>
+            <small>Activiteit en systeemeffect</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="inventory">
+            <span aria-hidden="true">03</span>
             <strong>Voorraad</strong>
             <small>Materiaal en WIP</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="events">
-            <span aria-hidden="true">03</span>
+            <span aria-hidden="true">04</span>
             <strong>Events</strong>
             <small>Acties en meetlijn</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="tower-editor">
-            <span aria-hidden="true">04</span>
+            <span aria-hidden="true">05</span>
             <strong>Toreneditor</strong>
             <small>Productassortiment</small>
           </button>
@@ -961,6 +967,50 @@
         </div>
         <div id="dataModelGrid" class="data-model-grid"></div>
       </section>
+
+      <section id="chapter9InsightsPanel"
+               class="chapter9-insights-panel manager-dashboard-panel"
+               data-manager-panel="insights"
+               aria-labelledby="chapter9InsightsTitle">
+        <div class="section-head chapter9-insights-head">
+          <div>
+            <p class="eyebrow">LE-boek · hoofdstuk 9</p>
+            <h2 id="chapter9InsightsTitle">Wat maakt deze spelvariant zichtbaar?</h2>
+            <p id="chapter9InsightsSubtitle">Live procesindicatoren met duiding vanuit het LE-boek.</p>
+          </div>
+          <button id="chapter9LibraryButton"
+                  class="secondary-button compact-button"
+                  type="button">
+            Alle inzichten &amp; bronnen
+          </button>
+        </div>
+        <div id="chapter9LiveIndicators"
+             class="chapter9-live-indicators"
+             aria-live="polite"></div>
+        <section class="chapter9-role-section" aria-labelledby="chapter9RoleActivityTitle">
+          <div class="chapter9-subhead">
+            <div>
+              <p class="eyebrow">Activiteiten per rol</p>
+              <h3 id="chapter9RoleActivityTitle">Drukte naast productieve bijdrage</h3>
+            </div>
+            <button type="button"
+                    class="configuration-help-button chapter9-info-button"
+                    data-chapter9-info="management-paradox"
+                    aria-label="Uitleg over activiteit en productiviteit"
+                    title="Waarom vergelijken we activiteit met productiviteit?">i</button>
+          </div>
+          <div id="chapter9RoleActivity" class="chapter9-role-activity"></div>
+        </section>
+        <section class="chapter9-current-insights" aria-labelledby="chapter9CurrentInsightsTitle">
+          <div class="chapter9-subhead">
+            <div>
+              <p class="eyebrow">Leerlijn van de actieve variant</p>
+              <h3 id="chapter9CurrentInsightsTitle">Inzichten om tijdens de nabespreking te gebruiken</h3>
+            </div>
+          </div>
+          <div id="chapter9CurrentInsightCards" class="chapter9-current-insight-cards"></div>
+        </section>
+      </section>
     </main>
   </div>
 
@@ -986,6 +1036,39 @@
     </header>
     <div id="gameAdvisorContent"></div>
   </aside>
+
+  <dialog id="chapter9LibraryDialog"
+          class="chapter9-library-dialog"
+          aria-labelledby="chapter9LibraryTitle">
+    <form method="dialog" class="chapter9-library-shell">
+      <header>
+        <div>
+          <p class="eyebrow">Verdieping en bronmateriaal</p>
+          <h2 id="chapter9LibraryTitle">Inzichten uit hoofdstuk 9</h2>
+        </div>
+        <button type="submit" class="configuration-help-close" aria-label="Bronnen sluiten">×</button>
+      </header>
+      <div class="chapter9-library-toolbar">
+        <label>
+          <span>Spelvariant</span>
+          <select id="chapter9VariantSelect"></select>
+        </label>
+        <a id="chapter9SourceLink" target="_blank" rel="noopener">Open hoofdstuk 9</a>
+      </div>
+      <p id="chapter9LibrarySummary" class="chapter9-library-summary"></p>
+      <div id="chapter9LibraryInsights" class="chapter9-library-insights"></div>
+      <section aria-labelledby="chapter9AssetsTitle">
+        <div class="chapter9-subhead">
+          <div>
+            <p class="eyebrow">Bestaande SVG- en CSV-bronnen</p>
+            <h3 id="chapter9AssetsTitle">Visualisaties en speldocumenten</h3>
+          </div>
+        </div>
+        <div id="chapter9AssetTabs" class="chapter9-asset-tabs"></div>
+        <div id="chapter9AssetPreview" class="chapter9-asset-preview"></div>
+      </section>
+    </form>
+  </dialog>
 
   <section id="gameConsensusDialog"
            class="game-consensus-dialog"
@@ -1040,6 +1123,7 @@
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>
   <script src="logistics-game-ui.js"></script>
+  <script src="chapter-9-insights.js"></script>
   <!-- LeerpretSDK-hub: runtime-config.js bepaalt de Engine-URL. Een expliciete
        ?api= of window.LEERPRET_SDK_BASE kan die voor een testsessie
        overschrijven. Er wordt nooit automatisch naar een andere poort uitgeweken. -->
