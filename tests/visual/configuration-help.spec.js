@@ -1,6 +1,11 @@
 const { test, expect } = require("@playwright/test");
 
 async function openManagerSettings(page) {
+  await page.route("**/sdk/lego-builder/logic.js", route => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: "window.LeerpretSDK = window.LeerpretSDK || {};"
+  }));
   await page.route("**/auth/leerbox/session?**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -40,7 +45,7 @@ test("iedere spelinstelling geeft toegankelijke uitleg over werking en leereffec
   await openManagerSettings(page);
 
   const form = page.locator("#gameSessionCreateForm");
-  await expect(form.locator("[data-config-help] > .configuration-help-button")).toHaveCount(18);
+  await expect(form.locator("[data-config-help] > .configuration-help-button")).toHaveCount(19);
 
   const money = form.locator('[name="money"]');
   await expect(money).toBeChecked();
@@ -58,6 +63,19 @@ test("iedere spelinstelling geeft toegankelijke uitleg over werking en leereffec
   await dialog.getByRole("button", { name: "Uitleg sluiten" }).click();
   await expect(dialog).toBeHidden();
 
-  await form.locator('[name="game_type"]').selectOption("lo6");
+  const gameType = form.locator('[name="game_type"]');
+  const organizationModel = form.locator('[name="organization_model"]');
+  await gameType.selectOption("entrepreneurial");
+  await expect(organizationModel).toHaveValue("independent_enterprises");
+  await form.getByRole("button", { name: "Uitleg over Organisatievorm" }).click();
+  await expect(page.getByRole("dialog", { name: "Organisatievorm" })).toContainText(
+    "onafhankelijke leveranciers, producenten en handelaren"
+  );
+  await page.getByRole("button", { name: "Uitleg sluiten" }).click();
+  await organizationModel.selectOption("single_enterprise");
+  await expect(gameType).toHaveValue("custom_draft");
+
+  await gameType.selectOption("lo6");
+  await expect(organizationModel).toHaveValue("single_enterprise");
   await expect(form.getByRole("button", { name: "Uitleg over Kleurvrijheid" })).toBeVisible();
 });

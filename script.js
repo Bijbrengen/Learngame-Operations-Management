@@ -36,6 +36,12 @@
       learning: "De LO-Games vormen een opbouwende reeks waarin telkens andere organisatiefouten en kenmerken zichtbaar worden: van kwaliteit en effectiviteit naar efficiency, flexibiliteit en digitale besturing.",
       basis: "LE-boek: de spelvarianten zijn ontwikkeld als een stapsgewijze ‘hiërarchie van fouten’."
     },
+    "organization-model": {
+      title: "Organisatievorm",
+      mechanical: "In één gezamenlijke organisatie zijn spelers afdelingen van hetzelfde bedrijf en zijn overdrachten intern. Bij zelfstandige ondernemingen heeft iedere marktpartij een eigen belang en zijn leveringen echte inkoop- en verkooptransacties tussen bedrijven.",
+      learning: "De gewone LO-Games richten zich op samenwerking en optimalisatie van het totale productieproces. In de Entrepreneurship Game concurreren onafhankelijke leveranciers, producenten en handelaren, onderhandelen zij over prijs en levering en werken zij alleen samen wanneer dat hun eigen onderneming én de keten helpt.",
+      basis: "LE-boek: de digitale LO-Game 7 vormde een ontwikkelrichting naar LEARNGame Entrepreneurship, met zelfstandige leveranciers, producenten en handelaren in onderlinge marktrelaties."
+    },
     money: {
       title: "Geld en marges",
       mechanical: "Voegt kosten, opbrengsten, geldstromen en marges toe aan de logistieke handelingen.",
@@ -811,13 +817,14 @@
   const GAME_TYPE_PRESETS = Object.freeze({
     entrepreneurial: {
       label: "Entrepreneurial Game",
-      description: "Vrije ondernemersvariant met geld, resultaatmeting, vrije prijzen en veel rolvrijheid.",
+      description: "Vrije markt met zelfstandige ondernemingen die inkopen, produceren, verkopen, concurreren en strategisch samenwerken.",
       config: {
         money: true,
         pnl: true,
         intermediateStock: true,
         opportunityCosts: true,
         roleFreedom: true,
+        organizationModel: "independent_enterprises",
         priceMode: "free",
         logisticsOrganization: "functional",
         productTypeCount: 3
@@ -1296,6 +1303,7 @@
       intermediateStock: true,
       opportunityCosts: true,
       roleFreedom: false,
+      organizationModel: "single_enterprise",
       multipleColors: false,
       editableColorLayers: [],
       customerOrderMode: "required",
@@ -2973,7 +2981,7 @@
     if (!logisticsGameController) return;
     logisticsGameController.engine.products = standaloneSimulationProducts();
     logisticsGameController.engine.setBehaviorPatterns(
-      state.config.gameType === "entrepreneurial"
+      state.config.organizationModel === "independent_enterprises"
         ? window.EntrepreneurshipAgentPatterns
         : null
     );
@@ -2982,15 +2990,21 @@
       ? (sessionGameConfig.customer_order_mode === "free" ? "free" : "required")
       : state.config.customerOrderMode;
     const playMode = sessionGameConfig?.play_mode === "digital" ? "digital" : "physical";
+    const organizationModel = sessionGameConfig?.organization_model === "independent_enterprises"
+      ? "independent_enterprises"
+      : state.config.organizationModel;
     state.config.customerOrderMode = customerOrderMode;
+    state.config.organizationModel = organizationModel;
     state.config.playMode = playMode;
     logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
+    logisticsGameController.engine.setOrganizationModel(organizationModel);
     logisticsGameController.engine.setPlayMode(playMode);
     logisticsGameController.engine.setProductionProcesses(state.config.productionProcesses);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
     logisticsGameController.start({
       humanRoleId,
       customerOrderMode,
+      organizationModel,
       playMode,
       productionProcesses: state.config.productionProcesses
     });
@@ -5321,6 +5335,9 @@
       </tr></thead>
     `;
     const settingsRows = [
+      ["Organisatievorm", config => config.organization_model === "independent_enterprises"
+        ? "Zelfstandige ondernemingen"
+        : "Eén gezamenlijke organisatie", "text"],
       ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
       ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
       ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
@@ -5483,6 +5500,9 @@
     state.config.intermediateStock = Boolean(settings.intermediate_stock);
     state.config.opportunityCosts = Boolean(settings.opportunity_costs);
     state.config.roleFreedom = Boolean(settings.role_freedom);
+    state.config.organizationModel = settings.organization_model === "independent_enterprises"
+      ? "independent_enterprises"
+      : "single_enterprise";
     state.config.multipleColors = Boolean(settings.multiple_colors);
     state.config.editableColorLayers = state.config.multipleColors
       ? normalizeEditableColorLayers(settings.editable_color_layers)
@@ -5593,6 +5613,9 @@
     const financialDetails = financialDetailDefaults(gameType, preset.config.money);
     Object.assign(state.config, preset.config, financialDetails, {
       gameType,
+      organizationModel: gameType === "entrepreneurial"
+        ? "independent_enterprises"
+        : "single_enterprise",
       productionPlanning: PRODUCTION_PLANNING_PRESET_GAMES.has(gameType),
       multipleColors: Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
@@ -5656,6 +5679,9 @@
       intermediateStock: config.intermediate_stock ?? preset.config.intermediateStock,
       opportunityCosts: config.opportunity_costs ?? preset.config.opportunityCosts,
       roleFreedom: config.role_freedom ?? preset.config.roleFreedom,
+      organizationModel: config.organization_model === "independent_enterprises"
+        ? "independent_enterprises"
+        : "single_enterprise",
       multipleColors: config.multiple_colors ?? Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(
         config.editable_color_layers ?? preset.config.editableColorLayers
@@ -5748,6 +5774,7 @@
       intermediate_stock: state.config.intermediateStock,
       opportunity_costs: state.config.opportunityCosts,
       role_freedom: state.config.roleFreedom,
+      organization_model: state.config.organizationModel,
       multiple_colors: state.config.multipleColors,
       editable_color_layers: [...state.config.editableColorLayers],
       price_mode: state.config.priceMode,
@@ -6143,6 +6170,7 @@
         intermediate_stock: state.config.intermediateStock,
         opportunity_costs: state.config.opportunityCosts,
         role_freedom: state.config.roleFreedom,
+        organization_model: state.config.organizationModel,
         multiple_colors: state.config.multipleColors,
         editable_color_layers: [...state.config.editableColorLayers],
         price_mode: state.config.priceMode,

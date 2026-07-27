@@ -277,6 +277,9 @@
       this.parts = deepClone(options.parts || PART_DEFINITIONS);
       this.behaviorPatterns = options.behaviorPatterns || null;
       this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
+      this.organizationModel = options.organizationModel === "independent_enterprises"
+        ? "independent_enterprises"
+        : "single_enterprise";
       this.playMode = options.playMode === "digital" ? "digital" : "physical";
       this.productionProcesses = this.normalizeProductionProcesses(options.productionProcesses);
       this.difficultyLevel = "normal";
@@ -360,6 +363,13 @@
     setCustomerOrderMode(mode) {
       this.customerOrderMode = mode === "free" ? "free" : "required";
       return this.customerOrderMode;
+    }
+
+    setOrganizationModel(model) {
+      this.organizationModel = model === "independent_enterprises"
+        ? "independent_enterprises"
+        : "single_enterprise";
+      return this.organizationModel;
     }
 
     setPlayMode(mode) {
@@ -446,6 +456,7 @@
     start({
       humanRoleId = null,
       customerOrderMode = this.customerOrderMode,
+      organizationModel = this.organizationModel,
       playMode = this.playMode,
       productionProcesses = this.productionProcesses
     } = {}) {
@@ -454,6 +465,7 @@
       }
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
+      this.setOrganizationModel(organizationModel);
       this.setPlayMode(playMode);
       this.setProductionProcesses(productionProcesses);
       this.reset();
@@ -838,6 +850,7 @@
         requiredParts: this.requiredParts(order, this.humanRoleId),
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
+        organizationModel: this.organizationModel,
         availableProducts: this.humanRoleId === "customer"
           ? deepClone(Object.values(this.products))
           : []

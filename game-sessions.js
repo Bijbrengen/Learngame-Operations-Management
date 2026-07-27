@@ -53,6 +53,7 @@
       intermediate_stock: true,
       opportunity_costs: true,
       role_freedom: true,
+      organization_model: "independent_enterprises",
       price_mode: "free",
       logistics_organization: "functional",
       product_type_count: 3,
@@ -263,6 +264,9 @@
       production_planning_enabled: merged.production_planning_enabled === undefined
         ? PRODUCTION_PLANNING_PRESET_GAMES.has(gameType)
         : Boolean(merged.production_planning_enabled),
+      organization_model: merged.organization_model === "independent_enterprises"
+        ? "independent_enterprises"
+        : "single_enterprise",
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors && Array.isArray(merged.editable_color_layers)
         ? [...new Set(merged.editable_color_layers)].filter(layerId => (
@@ -315,6 +319,9 @@
       </tr></thead>
     `;
     const settingRows = [
+      ["Organisatievorm", config => config.organization_model === "independent_enterprises"
+        ? "Zelfstandige ondernemingen"
+        : "Eén gezamenlijke organisatie", "text"],
       ["Parallelle productie", config => config.production_processes?.includes("parallel"), "bool"],
       ["Sequentiële productie", config => config.production_processes?.includes("sequential"), "bool"],
       ["Productgerichte organisatie", config => config.logistics_organization === "product", "bool"],
@@ -447,6 +454,17 @@
         <label class="session-config-field is-wide" data-config-help="game-type">
           <span>Gametype</span>
           <select name="game_type" data-session-game-type data-game-config-control>${gameTypeOptions}</select>
+        </label>
+        <label class="session-config-field is-wide" data-config-help="organization-model">
+          <span>Organisatievorm</span>
+          <select name="organization_model" data-game-config-control>
+            <option value="single_enterprise"${value.organization_model === "single_enterprise" ? " selected" : ""}>
+              Eén gezamenlijke organisatie · samenwerken als afdelingen
+            </option>
+            <option value="independent_enterprises"${value.organization_model === "independent_enterprises" ? " selected" : ""}>
+              Zelfstandige ondernemingen · handelen in een productieketen
+            </option>
+          </select>
         </label>
         <div class="session-config-toggles">
           ${toggle("money", "Geld")}
@@ -1030,6 +1048,9 @@
       intermediate_stock: Boolean(get("intermediate_stock")?.checked),
       opportunity_costs: Boolean(get("opportunity_costs")?.checked),
       role_freedom: Boolean(get("role_freedom")?.checked),
+      organization_model: get("organization_model")?.value === "independent_enterprises"
+        ? "independent_enterprises"
+        : "single_enterprise",
       production_planning_enabled: Boolean(get("production_planning_enabled")?.checked),
       multiple_colors: multipleColors,
       editable_color_layers: multipleColors
@@ -1234,6 +1255,9 @@
           <span>${escapeHtml(TYPE_LABELS[session.session_type])}</span>
           <span>${escapeHtml(difficultyLevel(session.difficulty_level).label)}</span>
           <span>${escapeHtml(GAME_CONFIG_PRESETS[session.game_config?.game_type]?.label || "LO Game 4")}</span>
+          <span>${session.game_config?.organization_model === "independent_enterprises"
+            ? "Zelfstandige ondernemingen"
+            : "Eén gezamenlijke organisatie"}</span>
           <span>${session.game_config?.customer_order_mode === "free" ? "Vrije klantorders" : "Verplichte klantorders"}</span>
           <span>${session.game_config?.multiple_colors
             ? `Meerdere kleuren · ${(session.game_config.editable_color_layers || []).length}/4 lagen`

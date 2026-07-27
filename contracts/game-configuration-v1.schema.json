@@ -55,6 +55,7 @@
         "intermediate_stock",
         "opportunity_costs",
         "role_freedom",
+        "organization_model",
         "price_mode",
         "logistics_organization",
         "product_type_count",
@@ -87,6 +88,9 @@
         },
         "role_freedom": {
           "type": "boolean"
+        },
+        "organization_model": {
+          "enum": ["single_enterprise", "independent_enterprises"]
         },
         "multiple_colors": {
           "type": "boolean",

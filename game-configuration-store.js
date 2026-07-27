@@ -195,7 +195,7 @@
     {
       config_id: "entrepreneurial",
       name: "Entrepreneurial Game",
-      description: "Vrije markt/ondernemersvariant met geld, resultaatmeting, vrije prijzen en veel rolvrijheid.",
+      description: "Vrije markt met zelfstandige ondernemingen die inkopen, produceren, verkopen, concurreren en strategisch samenwerken.",
       is_preset: true,
       base_template: "entrepreneurial",
       created_at: "2026-01-01T00:00:00Z",
@@ -207,6 +207,7 @@
         intermediate_stock: true,
         opportunity_costs: true,
         role_freedom: true,
+        organization_model: "independent_enterprises",
         price_mode: "free",
         logistics_organization: "functional",
         product_type_count: 3,
@@ -270,6 +271,11 @@
       opening_balance_enabled: openingBalanceEnabled,
       revenue_balance_enabled: revenueBalanceEnabled,
       production_planning_enabled: productionPlanningEnabled,
+      organization_model: settings.organization_model === undefined
+        ? (gameType === "entrepreneurial" ? "independent_enterprises" : "single_enterprise")
+        : (settings.organization_model === "independent_enterprises"
+          ? "independent_enterprises"
+          : "single_enterprise"),
       multiple_colors: multipleColors,
       editable_color_layers: editableColorLayers,
       production_processes: productionProcesses,
@@ -363,6 +369,11 @@
         const priceModeMatch = (s.price_mode || "fixed") === (currentSettings.price_mode || "fixed");
         const customerOrderModeMatch = (s.customer_order_mode || "required")
           === (currentSettings.customer_order_mode || "required");
+        const organizationModelMatch = (s.organization_model || (
+          s.game_type === "entrepreneurial" ? "independent_enterprises" : "single_enterprise"
+        )) === (currentSettings.organization_model || (
+          currentSettings.game_type === "entrepreneurial" ? "independent_enterprises" : "single_enterprise"
+        ));
         const logisticsOrgMatch = (s.logistics_organization || "functional") === (currentSettings.logistics_organization || "functional");
         const processMatch = [...(s.production_processes || [])].sort().join(",")
           === [...(currentSettings.production_processes || [])].sort().join(",");
@@ -372,7 +383,7 @@
             !roleFreedomMatch || !openingBalanceMatch || !revenueBalanceMatch ||
             !productionPlanningMatch ||
             !multipleColorsMatch || !editableColorLayersMatch ||
-            !priceModeMatch || !customerOrderModeMatch ||
+            !priceModeMatch || !customerOrderModeMatch || !organizationModelMatch ||
             !logisticsOrgMatch || !processMatch || !productTypeCountMatch) {
           continue;
         }
