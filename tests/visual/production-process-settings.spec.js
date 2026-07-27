@@ -67,6 +67,36 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     );
   });
 
+  test("historietabel bevat alle ontwikkelvarianten en kiest de aangeklikte preset", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const gameType = form.locator('[name="game_type"]');
+    const history = form.locator(".game-variant-history-session");
+
+    for (const variantId of [
+      "lo5b",
+      "lo7_digital",
+      "lo9",
+      "entrepreneurial_simple",
+      "la_game",
+      "learngame_small_2018",
+      "la_game_small_2020",
+      "entrepreneurial_digital"
+    ]) {
+      await expect(gameType.locator(`option[value="${variantId}"]`)).toHaveCount(1);
+    }
+
+    await history.locator("summary").click();
+    await history.locator('[data-select-history-preset="lo5b"]').click();
+    await expect(gameType).toHaveValue("lo5b");
+    await expect(history.locator("[data-variant-history-info]")).toContainText("decentrale inkoop");
+    await expect(history.locator("[data-variant-history-info]")).toContainText("Effectief en efficiënt, maar inflexibel");
+
+    await history.locator('[data-select-history-preset="lo7_digital"]').click();
+    await expect(gameType).toHaveValue("lo7_digital");
+    await expect(form.locator('[name="play_mode"]')).toHaveValue("digital");
+    await expect(history.locator("[data-variant-history-info]")).toContainText("digitale tracing");
+  });
+
   test("hybride combinatie wordt aangepast scenario en kan een eigen naam krijgen", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');

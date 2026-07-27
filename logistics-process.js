@@ -12,8 +12,18 @@
     lo3: Object.freeze(["parallel"]),
     lo4: Object.freeze(["parallel"]),
     lo5: Object.freeze(["sequential"]),
+    lo5b: Object.freeze(["sequential"]),
     lo6: Object.freeze(["sequential"]),
     lo7: Object.freeze(["sequential"]),
+    lo7_digital: Object.freeze(["sequential"]),
+    lo8: Object.freeze(["sequential"]),
+    lo9: Object.freeze(["sequential"]),
+    entrepreneurial: Object.freeze(["sequential"]),
+    entrepreneurial_simple: Object.freeze(["sequential"]),
+    la_game: Object.freeze(["sequential"]),
+    learngame_small_2018: Object.freeze(["sequential"]),
+    la_game_small_2020: Object.freeze(["sequential"]),
+    entrepreneurial_digital: Object.freeze(["sequential"]),
     le_training: Object.freeze(["parallel", "sequential"]),
     tutorial: Object.freeze(["parallel"])
   });

@@ -121,6 +121,20 @@
       product_type_count: 3, customer_order_mode: "required"
     }
   };
+  window.GameVariantHistory?.derived.forEach(definition => {
+    const base = GAME_CONFIG_PRESETS[definition.basePreset];
+    if (!base || GAME_CONFIG_PRESETS[definition.id]) return;
+    GAME_CONFIG_PRESETS[definition.id] = {
+      ...base,
+      ...definition.settings,
+      label: definition.label
+    };
+    if (GAME_CONFIG_PRESETS[definition.id].money) MONEY_PRESET_GAMES.add(definition.id);
+    if (GAME_CONFIG_PRESETS[definition.id].pnl) REVENUE_BALANCE_PRESET_GAMES.add(definition.id);
+    if (["lo5b", "lo7_digital", "lo9"].includes(definition.id)) {
+      PRODUCTION_PLANNING_PRESET_GAMES.add(definition.id);
+    }
+  });
   const state = {
     authenticated: false,
     apiBase: "",
@@ -257,7 +271,7 @@
     ) ? merged.organization_model : "single_enterprise";
     return {
       ...merged,
-      play_mode: config.play_mode === "digital" ? "digital" : "physical",
+      play_mode: merged.play_mode === "digital" ? "digital" : "physical",
       game_type: gameType,
       opening_balance_enabled: money && (
         merged.opening_balance_enabled === undefined
@@ -472,6 +486,13 @@
                  data-configuration-layout-preview
                  aria-label="Live opstelling voor gekozen gamepreset">
           ${window.ConfigurationLayoutPreview?.markup(value) || ""}
+        </section>
+        <section class="game-variant-history-session is-wide"
+                 aria-label="Geschiedenis en leerdoel van de gekozen variant">
+          <details>
+            <summary>Ontwikkelgeschiedenis 1992–2024 · klik een variant om deze preset te kiezen</summary>
+            <div data-game-variant-history-table></div>
+          </details>
         </section>
         <label class="session-config-field is-wide" data-config-help="organization-model">
           <span>Organisatievorm</span>

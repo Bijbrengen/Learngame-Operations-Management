@@ -820,7 +820,7 @@
     }
   };
 
-  const GAME_TYPE_PRESETS = Object.freeze({
+  const GAME_TYPE_PRESETS = {
     entrepreneurial: {
       label: "Entrepreneurial Game",
       description: "Vrije markt met zelfstandige ondernemingen die inkopen, produceren, verkopen, concurreren en strategisch samenwerken.",
@@ -968,7 +968,7 @@
         productTypeCount: 3
       }
     }
-  });
+  };
   const MONEY_PRESET_GAMES = new Set([
     "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
@@ -976,6 +976,45 @@
     "entrepreneurial", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
   const PRODUCTION_PLANNING_PRESET_GAMES = new Set(["lo5", "lo6", "lo7", "lo8"]);
+
+  function runtimeConfigFromStoredSettings(settings = {}) {
+    return {
+      money: Boolean(settings.money),
+      pnl: Boolean(settings.pnl),
+      intermediateStock: Boolean(settings.intermediate_stock),
+      opportunityCosts: Boolean(settings.opportunity_costs),
+      roleFreedom: Boolean(settings.role_freedom),
+      organizationModel: settings.organization_model,
+      fundingIncentive: settings.funding_incentive,
+      multipleColors: Boolean(settings.multiple_colors),
+      editableColorLayers: settings.editable_color_layers || [],
+      priceMode: settings.price_mode || "fixed",
+      logisticsOrganization: settings.logistics_organization || "functional",
+      productTypeCount: Number(settings.product_type_count) || 3,
+      playMode: settings.play_mode === "digital" ? "digital" : "physical",
+      customerOrderMode: settings.customer_order_mode || "required"
+    };
+  }
+
+  window.GameVariantHistory?.derived.forEach(definition => {
+    const stored = window.GameConfigurationStore?.getConfiguration(definition.id);
+    const base = GAME_TYPE_PRESETS[definition.basePreset];
+    if (!base || GAME_TYPE_PRESETS[definition.id]) return;
+    GAME_TYPE_PRESETS[definition.id] = {
+      label: definition.label,
+      description: stored?.description || definition.development,
+      config: {
+        ...base.config,
+        ...runtimeConfigFromStoredSettings(stored?.settings || definition.settings)
+      }
+    };
+    if (GAME_TYPE_PRESETS[definition.id].config.money) MONEY_PRESET_GAMES.add(definition.id);
+    if (GAME_TYPE_PRESETS[definition.id].config.pnl) REVENUE_BALANCE_PRESET_GAMES.add(definition.id);
+    if (["lo5b", "lo7_digital", "lo9"].includes(definition.id)) {
+      PRODUCTION_PLANNING_PRESET_GAMES.add(definition.id);
+    }
+  });
+  Object.freeze(GAME_TYPE_PRESETS);
 
   function financialDetailDefaults(gameType, money = true) {
     return {
@@ -3802,11 +3841,17 @@
   function renderChapter9Library(selection = els.chapter9VariantSelect?.value || state.config.gameType) {
     const chapter = window.Chapter9Insights;
     if (!chapter || !els.chapter9LibraryDialog) return;
-    const variant = selection === "all" ? null : chapter.variants[selection] || chapter.variants.lo4;
+    const historicalBase = window.GameVariantHistory?.get(selection)?.basePreset;
+    const insightSelection = chapter.variants[selection]
+      ? selection
+      : historicalBase || selection;
+    const variant = selection === "all"
+      ? null
+      : chapter.variants[insightSelection] || chapter.variants.lo4;
     const variantAssets = selection === "all"
       ? chapter.assets
-      : chapter.assets.filter(asset => asset.variant === selection);
-    els.chapter9VariantSelect.value = selection;
+      : chapter.assets.filter(asset => asset.variant === insightSelection);
+    els.chapter9VariantSelect.value = selection === "all" ? "all" : insightSelection;
     els.chapter9SourceLink.href = chapter.source.url;
     els.chapter9LibrarySummary.textContent = variant
       ? `${variant.label} · ${variant.learningLine}`
@@ -5811,6 +5856,15 @@
     le_training: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
     entrepreneurial: ["customer", "sales", "supplier", "finance", "logistics_manager"]
   };
+  window.GameVariantHistory?.derived.forEach(definition => {
+    const roles = window.GameConfigurationStore
+      ?.getConfiguration(definition.id)
+      ?.settings
+      ?.enabled_roles;
+    PRESET_ROLE_IDS[definition.id] = Array.isArray(roles)
+      ? [...roles]
+      : [...(PRESET_ROLE_IDS[definition.basePreset] || PRESET_ROLE_IDS.lo4)];
+  });
 
   function renderGameComparisonMatrices() {
     const settingsTable = document.getElementById("gameSettingsMatrixTable");
@@ -6008,6 +6062,7 @@
     state.config.currentConfigId = configObj.config_id;
     state.config.currentConfigName = configObj.name;
     state.config.gameType = settings.game_type || configId;
+    state.config.playMode = settings.play_mode === "digital" ? "digital" : "physical";
     state.config.money = Boolean(settings.money);
     state.config.pnl = Boolean(settings.pnl);
     state.config.openingBalance = state.config.money && Boolean(settings.opening_balance_enabled);
@@ -6132,18 +6187,16 @@
     const financialDetails = financialDetailDefaults(gameType, preset.config.money);
     Object.assign(state.config, preset.config, financialDetails, {
       gameType,
-      organizationModel: gameType === "entrepreneurial"
-        ? "independent_enterprises"
-        : gameType === "le_training"
-          ? "school_learning_path"
-          : "single_enterprise",
-      fundingIncentive: gameType === "le_training" ? "financing" : "balanced",
+      organizationModel: preset.config.organizationModel
+        || (gameType === "entrepreneurial" ? "independent_enterprises" : "single_enterprise"),
+      fundingIncentive: preset.config.fundingIncentive || "balanced",
+      playMode: preset.config.playMode || "physical",
       productionPlanning: PRODUCTION_PLANNING_PRESET_GAMES.has(gameType),
       multipleColors: Boolean(preset.config.multipleColors),
       editableColorLayers: normalizeEditableColorLayers(preset.config.editableColorLayers),
       productionProcesses: window.LogisticsProcess?.defaultProcessesForGame(gameType) || ["parallel"],
       enabledRoles: [...(PRESET_ROLE_IDS[gameType] || PRESET_ROLE_IDS.lo4)],
-      customerOrderMode: gameType === "entrepreneurial" || gameType === "lo7" || gameType === "lo8" ? "free" : "required"
+      customerOrderMode: preset.config.customerOrderMode || "required"
     });
     applyLogisticsProcessContract(gameType);
     const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];

@@ -364,9 +364,22 @@
       frictionEvents * 14 + Math.max(0, variantSwitches - 1) * 18
     );
 
+    const history = window.GameVariantHistory?.get(gameType);
+    const insightVariantId = variants[gameType]
+      ? gameType
+      : history?.basePreset || "lo4";
+    const baseVariant = variants[insightVariantId] || variants.lo4;
+    const activeVariant = history
+      ? {
+          ...baseVariant,
+          label: history.label,
+          learningLine: history.objective
+        }
+      : baseVariant;
+
     return {
-      variant: variants[gameType] || variants.lo4,
-      assets: assets.filter(asset => asset.variant === gameType),
+      variant: activeVariant,
+      assets: assets.filter(asset => asset.variant === insightVariantId),
       allAssets: assets,
       managementActivity,
       systemOutput,

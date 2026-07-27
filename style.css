@@ -8981,6 +8981,149 @@ body.tutorial-focus {
   background: rgba(50, 221, 210, 0.05);
 }
 
+.game-variant-history-main,
+.game-variant-history-session {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.game-variant-history-session {
+  grid-column: 1 / -1;
+}
+
+.game-variant-history-main details,
+.game-variant-history-session details {
+  border: 1px solid var(--lp-line, #29434b);
+  border-radius: 8px;
+  background: rgba(7, 20, 24, 0.82);
+  overflow: hidden;
+}
+
+.game-variant-history-main summary,
+.game-variant-history-session summary {
+  padding: 10px 14px;
+  color: var(--lp-accent, #32ddd2);
+  background: rgba(16, 40, 48, 0.86);
+  font-family: var(--lp-font-heading);
+  font-size: 0.84rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.game-variant-history-info {
+  display: grid;
+  gap: 5px;
+  margin: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(75, 199, 191, 0.36);
+  border-left: 5px solid #4bc7bf;
+  border-radius: 6px;
+  color: var(--lp-ink);
+  background: linear-gradient(135deg, rgba(23, 50, 58, 0.94), rgba(11, 23, 29, 0.94));
+}
+
+.game-variant-history-info > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.game-variant-history-info p {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.game-variant-history-info b,
+.game-variant-history-info strong {
+  color: var(--lp-ink);
+}
+
+.game-variant-history-year {
+  display: inline-flex;
+  min-width: 48px;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #071014;
+  background: #e6ad43;
+  font-family: var(--lp-font-heading);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.game-variant-history-table-wrap {
+  max-width: 100%;
+  padding: 0 12px 12px;
+  overflow-x: auto;
+}
+
+.game-variant-history-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  color: var(--lp-ink);
+  font-size: 0.75rem;
+}
+
+.game-variant-history-table caption {
+  padding: 4px 0 10px;
+  color: var(--lp-muted);
+  text-align: left;
+}
+
+.game-variant-history-table th,
+.game-variant-history-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(41, 67, 75, 0.62);
+  text-align: left;
+  vertical-align: top;
+}
+
+.game-variant-history-table thead th {
+  color: #8ca4aa;
+  background: #10242b;
+  font-family: var(--lp-font-heading);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.game-variant-history-table tr.is-selected {
+  background: rgba(50, 221, 210, 0.1);
+  box-shadow: inset 4px 0 #32ddd2;
+}
+
+.game-variant-history-select {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  color: #071014;
+  background: #4bc7bf;
+  font-family: var(--lp-font-heading);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.game-variant-history-table tr:nth-child(3n + 2) .game-variant-history-select {
+  background: #e6ad43;
+}
+
+.game-variant-history-table tr:nth-child(3n) .game-variant-history-select {
+  background: #6e89c8;
+}
+
+.game-variant-history-select:hover,
+.game-variant-history-select:focus-visible {
+  filter: brightness(1.12);
+  outline: 2px solid #eaf8f7;
+  outline-offset: 2px;
+}
+
 .badge-on {
   color: #52e0a2;
   font-weight: 600;

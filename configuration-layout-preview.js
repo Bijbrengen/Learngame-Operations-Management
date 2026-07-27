@@ -169,7 +169,10 @@
       : value.organization_model === "independent_enterprises"
         ? "entrepreneurial"
         : value.game_type;
-    const [file, title] = BOOK_FIGURES[variant] || BOOK_FIGURES.lo4;
+    const historicalBase = globalThis.GameVariantHistory?.get(variant)?.basePreset;
+    const [file, title] = BOOK_FIGURES[variant]
+      || BOOK_FIGURES[historicalBase]
+      || BOOK_FIGURES.lo4;
     return {
       file,
       title,

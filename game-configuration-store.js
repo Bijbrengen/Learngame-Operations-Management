@@ -244,6 +244,35 @@
     }
   ];
 
+  global.GameVariantHistory?.derived.forEach(definition => {
+    const base = BUILTIN_PRESETS.find(preset => preset.config_id === definition.basePreset);
+    if (!base || BUILTIN_PRESETS.some(preset => preset.config_id === definition.id)) return;
+    BUILTIN_PRESETS.push({
+      ...base,
+      config_id: definition.id,
+      name: definition.label,
+      description: definition.development,
+      base_template: definition.basePreset,
+      settings: {
+        ...base.settings,
+        ...definition.settings,
+        game_type: definition.id
+      }
+    });
+  });
+
+  BUILTIN_PRESETS.forEach(preset => {
+    const history = global.GameVariantHistory?.get(preset.config_id);
+    if (!history) return;
+    preset.history = history;
+    preset.description = `${history.year} · ${history.organization}. Leerdoel: ${history.objective}. ${history.development}`;
+    if (preset.settings.money) MONEY_PRESET_GAMES.add(preset.config_id);
+    if (preset.settings.pnl) REVENUE_BALANCE_PRESET_GAMES.add(preset.config_id);
+    if (["lo5b", "lo7_digital", "lo9"].includes(preset.config_id)) {
+      PRODUCTION_PLANNING_PRESET_GAMES.add(preset.config_id);
+    }
+  });
+
   function normalizeSettings(settings = {}, gameType = settings.game_type) {
     const productionProcesses = global.LogisticsProcess?.normalizeProcesses(
       settings.production_processes,
