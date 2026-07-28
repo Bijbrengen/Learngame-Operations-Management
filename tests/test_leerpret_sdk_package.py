@@ -21,6 +21,11 @@ class LeerpretSdkWiringTests(unittest.TestCase):
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn(SDK_ASSET_PATH, html, "index.html moet de SDK-loader bevatten")
         self.assertIn("LEERPRET_SDK_BASE", html, "de loader moet een override-hook bieden")
+        self.assertIn(
+            "[base(), configuredBase()]",
+            html,
+            "de runtimeconfiguratie moet als herstelroute beschikbaar blijven",
+        )
         # De scripts worden geketend geladen: SDK vóór lego-builder.js, en script.js erna.
         self.assertIn('"lego-builder.js"', html)
         self.assertIn('"script.js"', html)

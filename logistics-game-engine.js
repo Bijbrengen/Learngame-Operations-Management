@@ -744,7 +744,8 @@
         at: now,
         roleId,
         type: "incident",
-        label: incident.label
+        label: incident.label,
+        delayMs: Number(incident.delayMs || 0)
       });
       this.addFeed("incident", `${incident.label}: ${incident.message}`, order.id, now);
       this.emit("incident", { incident: deepClone(incident), order: deepClone(order), roleId });

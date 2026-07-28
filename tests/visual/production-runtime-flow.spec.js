@@ -52,28 +52,7 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
     await openDeterministicSimulator(page);
   });
 
-  test("spelersheatmap telt interacties per afdeling en warmt zichtbaar op", async ({ page }) => {
-    const heatmap = await page.evaluate(() => {
-      const simulator = window.LEARNGameOMSimulator;
-      simulator.clearInteractionBuffer();
-      simulator.endTutorial();
-      simulator.setAppView("player", false);
-      simulator.dispatchInteraction({ departmentId: "pd2", actionType: "inspect_department" });
-      simulator.dispatchInteraction({ departmentId: "pd2", actionType: "complete_department_action" });
-      simulator.dispatchInteraction({ role: "Klant", actionType: "customer_order_request" });
-      simulator.setPlayerTab("heatmap");
-      return simulator.getPlayerDepartmentHeatmap();
-    });
-
-    expect(heatmap.find(item => item.id === "pd2").count).toBe(2);
-    expect(heatmap.find(item => item.id === "customer").count).toBe(1);
-    await expect(page.locator("#playerDepartmentHeatmap")).toBeVisible();
-    await expect(page.locator('[data-heatmap-department="pd2"]')).toContainText("Productie");
-    await expect(page.locator('[data-heatmap-department="pd2"]')).toContainText("× 2");
-    await expect(page.locator('[data-heatmap-department="pd2"]')).toHaveClass(/level-4/);
-  });
-
-  test("proces-HUD toont complexiteit, efficiency, wachttijd, WIP en bullwhip als thermometers", async ({ page }) => {
+  test("proces-HUD toont complexiteit, efficiency, wachttijd, WIP, bullwhip en opportunity costs", async ({ page }) => {
     const metrics = await page.evaluate(() => {
       const simulator = window.LEARNGameOMSimulator;
       simulator.endTutorial();
@@ -95,6 +74,8 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
     await expect(page.locator("#hudWaitingValue")).toContainText("%");
     await expect(page.locator("#hudWip")).toHaveAttribute("title", /bottleneck/i);
     await expect(page.locator("#hudBullwhipValue")).toHaveText("0.0×");
+    await expect(page.locator("#hudOpportunityCostValue")).toHaveText("Uit");
+    await expect(page.locator("#hudOpportunityCost")).toHaveAttribute("title", /uitgeschakeld/i);
 
     await advance(page, 40);
     await expect(page.locator("#nextLevelChallenge")).toBeVisible();
@@ -166,7 +147,9 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
     expect(delivered.financial.opportunityCostByDepartment.A).toBeGreaterThan(0);
     expect(delivered.financial.opportunityCostByDepartment.C).toBeGreaterThan(0);
 
-    await expect(page.locator('[data-production-finance="B"]')).toContainText("Omzet EUR 58");
+    await expect(page.locator('[data-manager-panel="income-statement"]')).toContainText(
+      "Fictieve nul-verliesrekening"
+    );
   });
 
   test("LO Game 5 bouwt iedere toren laag voor laag door de sequentiële keten", async ({ page }) => {
@@ -202,9 +185,9 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
     expect(delivered.financial.conversionCostByDepartment).toEqual({ A: 2, B: 2, C: 2 });
     expect(delivered.financial.costOfGoodsSold).toBe(23);
 
-    await expect(page.locator('[data-production-stage-finance="1"]')).toContainText("Materiaal laag EUR 13");
-    await expect(page.locator('[data-production-stage-finance="2"]')).toContainText("Materiaal laag EUR 2");
-    await expect(page.locator('[data-production-stage-finance="3"]')).toContainText("Materiaal laag EUR 2");
+    await expect(page.locator('[data-manager-panel="balance-sheet"]')).toContainText(
+      "Fictieve nulbalans"
+    );
   });
 
   test("hybride instelling gebruikt parallelle en sequentiële orders naast elkaar", async ({ page }) => {

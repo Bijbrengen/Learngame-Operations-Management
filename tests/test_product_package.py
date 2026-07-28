@@ -83,6 +83,8 @@ class ProductPackageTests(unittest.TestCase):
                 "process",
                 "digital-twin",
                 "inventory",
+                "balance-sheet",
+                "income-statement",
                 "history",
                 "roles",
                 "game-presets",
@@ -94,6 +96,8 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('class="is-active" role="tab" aria-selected="true"', navigation)
         self.assertNotIn('data-manager-panel="core"', html)
         self.assertIn('data-manager-panel="session"', html)
+        self.assertIn('data-manager-panel="balance-sheet"', html)
+        self.assertIn('data-manager-panel="income-statement"', html)
 
     def test_runtime_exposes_versioned_events_without_dropping_legacy_events(self) -> None:
         script = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -664,7 +668,12 @@ process.stdout.write(JSON.stringify({{
         self.assertNotIn('<h3 id="simWaitingEventsTitle">', ui)
         self.assertNotIn('<h3 id="simWaitingDepartmentsTitle">', ui)
         self.assertIn('id="topDepartmentMiniView"', html)
+        self.assertIn('id="hudOpportunityCost"', html)
+        self.assertIn('id="topDepartmentDetailLayer"', html)
+        self.assertNotIn('id="playerDepartmentHeatmap"', html)
         self.assertIn("renderTopDepartmentMini", ui)
+        self.assertIn("data-top-department-id", ui)
+        self.assertIn("learngame-top-department-select", ui)
         self.assertIn('id="topLiveEventFeed"', html)
         self.assertIn("renderTopLiveEvents", ui)
         self.assertIn("Afdelingen", ui)
@@ -1618,6 +1627,15 @@ process.stdout.write(JSON.stringify({{
         self.assertEqual("lo4", result["mutation"]["body"]["game_config"]["game_type"])
         self.assertEqual(result["draft"], result["mutation"]["body"])
         self.assertIn("data-create-game-session", html)
+        self.assertIn('id="managerSessionActionButton"', html)
+        self.assertIn('getElementById("managerSessionActionButton")', runtime)
+        self.assertIn("Sessie aanmaken", html)
+        self.assertIn('id="topPeopleButton"', html)
+        self.assertIn('id="topAgentsButton"', html)
+        self.assertIn("sessionRoleDistributionMarkup", runtime)
+        self.assertIn("setRunningConfigReadOnly", runtime)
+        self.assertIn("Instellingen van de lopende gamesessie", runtime)
+        self.assertIn('"Sessie afsluiten"', runtime)
         self.assertIn('event.target.closest("[data-create-game-session]")', runtime)
         self.assertIn(
             'createSessionFromForm(createButton.form || document.getElementById("gameSessionCreateForm"))',
@@ -2044,8 +2062,9 @@ console.log(JSON.stringify({
         self.assertIn("populateGameTypeSelect", script)
         self.assertIn("findMatchingConfiguration", script)
         self.assertIn("is-highlighted", script)
-        self.assertIn('data-financial-overview="revenue-balance"', script)
-        self.assertIn("data-financial-advisor", script)
+        self.assertIn("Mutatie liquide middelen", script)
+        self.assertIn("Fictieve nulbalans", script)
+        self.assertIn("Fictieve nul-verliesrekening", script)
 
 
 if __name__ == "__main__":

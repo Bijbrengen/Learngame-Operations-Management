@@ -1942,6 +1942,15 @@ body[data-app-view="player"] .manager-only {
   color: var(--lp-muted);
 }
 
+.game-session-config-form.is-readonly {
+  opacity: 0.9;
+}
+
+.game-session-config-form.is-readonly :is(input, select, textarea):disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
 .session-game-config {
   order: -1;
   grid-column: 1 / -1;
@@ -2607,10 +2616,11 @@ body[data-app-view="player"] .manager-only {
 
 .player-session-metric-mount {
   grid-column: 1;
+  width: 100%;
   min-width: 0;
   display: flex;
   align-items: stretch;
-  justify-content: flex-start;
+  justify-content: stretch;
 }
 
 .player-session-metric-mount:empty {
@@ -2618,7 +2628,7 @@ body[data-app-view="player"] .manager-only {
 }
 
 .player-session-metric-mount .game-session-panel.is-metric-session {
-  width: min(100%, 460px);
+  width: 100%;
   min-width: 0;
   height: 36px;
   margin: 0;
@@ -2728,6 +2738,108 @@ body[data-app-view="player"] .manager-only {
   color: #b8c9ca;
 }
 
+.session-role-distribution {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  background: rgba(7, 27, 32, 0.74);
+}
+
+.session-role-distribution > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.session-role-distribution > header :is(p, h3) {
+  margin: 0;
+}
+
+.session-role-distribution > header > strong {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.session-role-distribution.is-incomplete > header > strong {
+  color: #ffd1c8;
+  background: rgba(191, 63, 50, 0.2);
+}
+
+.session-role-distribution.is-complete > header > strong {
+  color: #b9ebcc;
+  background: rgba(47, 125, 86, 0.2);
+}
+
+.session-role-state-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 7px;
+}
+
+.session-role-state {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--lp-line);
+  border-radius: 8px;
+  background: #0a1d23;
+}
+
+.session-role-state-token {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.session-role-state > span:last-child {
+  min-width: 0;
+  display: grid;
+}
+
+.session-role-state small {
+  color: var(--lp-muted);
+}
+
+.session-role-state.is-human {
+  border-color: rgba(45, 212, 191, 0.42);
+}
+
+.session-role-state.is-human .session-role-state-token {
+  color: #07191b;
+  background: #66d7be;
+}
+
+.session-role-state.is-agent {
+  border-color: rgba(244, 201, 109, 0.45);
+}
+
+.session-role-state.is-agent .session-role-state-token {
+  color: #241900;
+  background: #f4c96d;
+}
+
+.session-role-state.is-vacant {
+  border-color: rgba(255, 125, 98, 0.52);
+  background: rgba(191, 63, 50, 0.1);
+}
+
+.session-role-state.is-vacant .session-role-state-token {
+  color: #ffd1c8;
+  background: rgba(191, 63, 50, 0.32);
+}
+
 .session-running-message {
   color: #8ce5ce;
   font-weight: 800;
@@ -2832,132 +2944,6 @@ body[data-app-view="player"] .topbar {
   min-height: calc(100vh - 180px);
   width: min(1180px, 100%);
   margin-inline: auto;
-}
-
-.player-department-heatmap {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 12px;
-  padding: 13px;
-  border: 1px solid var(--lp-line);
-  border-radius: 12px;
-  color: var(--lp-ink);
-  background: rgba(5, 24, 29, 0.82);
-}
-
-.player-department-heatmap[hidden] {
-  display: none;
-}
-
-.player-department-heatmap > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.player-department-heatmap h2,
-.player-department-heatmap p {
-  margin: 0;
-}
-
-.player-department-heatmap h2 {
-  font-size: 1rem;
-}
-
-.player-department-heatmap > header > small {
-  color: var(--lp-muted);
-  font-size: 0.7rem;
-}
-
-[data-player-department-heatmap-grid] {
-  display: grid;
-  place-items: center;
-  min-height: 260px;
-  overflow-x: auto;
-}
-
-.player-heatmap-network {
-  width: min(100%, 720px);
-  min-width: 540px;
-  height: auto;
-  overflow: visible;
-}
-
-.player-heatmap-link {
-  stroke: #4b6267;
-  stroke-width: 1;
-  opacity: 0.24;
-  transition: stroke-width 160ms ease, opacity 160ms ease;
-}
-
-.player-heatmap-link.level-1 {
-  stroke: #357f8a;
-  stroke-width: 2;
-  opacity: 0.48;
-}
-
-.player-heatmap-link.level-2 {
-  stroke: #6e89c8;
-  stroke-width: 3;
-  opacity: 0.62;
-}
-
-.player-heatmap-link.level-3 {
-  stroke: #4bc7bf;
-  stroke-width: 5;
-  opacity: 0.76;
-}
-
-.player-heatmap-link.level-4 {
-  stroke: #e6ad43;
-  stroke-width: 7;
-  opacity: 0.92;
-}
-
-.player-heatmap-node circle,
-.player-heatmap-center circle {
-  stroke: rgba(255, 255, 255, 0.24);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.3));
-}
-
-.player-heatmap-node.level-4 circle {
-  stroke: #fff1c5;
-  stroke-width: 2.5;
-}
-
-.player-heatmap-name,
-.player-heatmap-center text {
-  fill: #eaf8f7;
-  font-family: var(--lp-font-heading);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.015em;
-  text-anchor: middle;
-  dominant-baseline: middle;
-}
-
-.player-heatmap-center text {
-  fill: #071014;
-  font-size: 15px;
-}
-
-.player-heatmap-node.level-0 .player-heatmap-name {
-  fill: #b6c8cb;
-}
-
-.player-heatmap-interactions {
-  fill: #8ca4aa;
-  font-family: var(--lp-font-heading);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-anchor: middle;
-}
-
-.player-heatmap-node.level-4 .player-heatmap-interactions {
-  fill: #e6ad43;
 }
 
 .player-utility-actions {
@@ -4745,7 +4731,7 @@ body[data-app-view="player"] .topbar {
   min-height: 52px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
   .sim-player-dashboard {
     grid-template-columns: 1fr;
   }
@@ -5128,7 +5114,7 @@ body[data-app-view="player"] .topbar {
 
 /* Tweerijig hoofdmenu, gebaseerd op tmp/LOMmenu.svg. */
 .topbar.game-menu {
-  grid-template-columns: 250px minmax(620px, 1fr) auto;
+  grid-template-columns: 195px minmax(620px, 1fr) auto;
   grid-template-areas:
     "logo indicators account"
     "logo statistics account"
@@ -5151,8 +5137,8 @@ body[data-app-view="player"] .topbar {
 
 .game-menu .learn-games-brand {
   grid-area: logo;
-  width: 250px;
-  height: 60px;
+  width: 195px;
+  height: 50px;
   align-self: start;
   border: 0;
   border-radius: 8px;
@@ -5168,7 +5154,12 @@ body[data-app-view="player"] .topbar {
 .game-menu .process-indicator-strip {
   grid-area: indicators;
   grid-column: auto;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  width: max-content;
+  max-width: 100%;
+  grid-template-columns: repeat(6, minmax(132px, 150px));
+  justify-content: start;
+  justify-self: start;
+  align-self: start;
   gap: 7px;
   padding: 0;
   border: 0;
@@ -5195,6 +5186,8 @@ body[data-app-view="player"] .topbar {
 
 .topbar.game-menu .metric-strip {
   grid-area: statistics;
+  grid-column: 2 / -1;
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(210px, 1fr) auto;
   align-items: end;
@@ -5205,10 +5198,31 @@ body[data-app-view="player"] .topbar {
 .game-menu .metric-strip-values {
   grid-column: 2;
   display: grid;
-  grid-template-columns: minmax(160px, 190px) minmax(108px, 126px);
+  grid-template-columns: 68px 68px minmax(160px, 190px) minmax(108px, 126px);
   justify-self: end;
   justify-content: end;
   gap: 5px;
+}
+
+.game-menu .top-participant-count {
+  width: 68px;
+  cursor: pointer;
+}
+
+.game-menu .top-participant-count strong {
+  color: #5eead4;
+}
+
+.game-menu .top-participant-count.is-agent-count strong {
+  color: #f4c96d;
+}
+
+.game-menu .top-participant-count:hover,
+.game-menu .top-participant-count:focus-visible,
+.game-menu .top-participant-count.is-current {
+  border-color: #2dd4bf;
+  outline: none;
+  background: #10242b;
 }
 
 .top-live-events-control {
@@ -5386,6 +5400,7 @@ body[data-app-view="player"] .topbar {
   top: calc(100% + 7px);
   right: 0;
   width: min(760px, calc(100vw - 32px));
+  height: min(620px, calc(100dvh - 150px));
   max-height: min(620px, calc(100dvh - 150px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -5524,6 +5539,15 @@ body[data-app-view="player"] .topbar {
 .game-menu .metric-strip.is-inactive.has-live-simulation {
   opacity: 1;
   filter: none;
+}
+
+.game-menu .metric-strip.is-inactive.has-session {
+  opacity: 1;
+  filter: none;
+}
+
+.game-menu .metric-strip button:disabled {
+  opacity: 0.42;
 }
 
 .game-menu .metric-strip.is-inactive .metric {
@@ -5743,6 +5767,7 @@ body[data-app-view="player"] .topbar {
   border-radius: 5px;
   color: #dceced;
   background: #07161c;
+  cursor: pointer;
 }
 
 .top-department-mini b {
@@ -5777,9 +5802,39 @@ body[data-app-view="player"] .topbar {
   border-color: #2dd4bf;
 }
 
-@media (max-width: 1180px) {
+.top-department-mini:focus-visible {
+  border-color: #2dd4bf;
+  outline: 2px solid rgba(45, 212, 191, 0.45);
+  outline-offset: 2px;
+}
+
+.top-department-detail-layer {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+}
+
+.top-department-detail-layer[hidden] {
+  display: none;
+}
+
+.top-department-detail-layer > .iso-logistics-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.top-department-detail-layer .iso-map-frame {
+  display: none;
+}
+
+.top-department-detail-layer .iso-department-detail-popup {
+  position: fixed;
+}
+
+@media (max-width: 980px) {
   .topbar.game-menu {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 185px minmax(0, 1fr);
     grid-template-areas:
       "logo account"
       "indicators indicators"
@@ -5788,11 +5843,17 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .learn-games-brand {
-    width: 220px;
+    width: 185px;
   }
 
   .game-menu .process-indicator-strip {
+    width: 100%;
+    justify-self: stretch;
     overflow-x: auto;
+  }
+
+  .topbar.game-menu .metric-strip {
+    grid-column: 1 / -1;
   }
 }
 
@@ -5809,7 +5870,7 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .learn-games-brand {
-    width: min(250px, 100%);
+    width: min(195px, 100%);
   }
 
   .game-menu-account {
@@ -5818,7 +5879,7 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .process-indicator-strip {
-    grid-template-columns: repeat(5, 170px);
+    grid-template-columns: repeat(6, 170px);
   }
 
   .game-menu .metric-strip {
@@ -5831,7 +5892,8 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .metric-strip-values {
-    grid-template-columns: minmax(150px, 1fr) 116px;
+    grid-template-columns: 68px 68px minmax(150px, 1fr) 116px;
+    overflow-x: auto;
   }
 
   .game-menu .app-view-switcher {
@@ -5841,7 +5903,7 @@ body[data-app-view="player"] .topbar {
 
 @media (max-width: 480px) {
   .game-menu .metric-strip-values {
-    grid-template-columns: minmax(130px, 1fr) 108px;
+    grid-template-columns: 68px 68px minmax(130px, 1fr) 108px;
   }
 }
 
@@ -9677,19 +9739,180 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   }
 }
 
-.manager-dashboard .financial-overview-card {
-  grid-column: span 2;
-  border-color: rgba(49, 196, 141, 0.42);
-  background: linear-gradient(135deg, rgba(49, 196, 141, 0.11), rgba(10, 26, 31, 0.92));
+.financial-statement-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: clamp(14px, 2vw, 22px);
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius-panel);
+  color: var(--lp-ink);
+  background: linear-gradient(145deg, #0d1b21, #09151a);
+  box-shadow: inset 3px 0 rgba(50, 221, 210, 0.16);
 }
 
-.manager-dashboard .production-finance-card {
-  border-color: rgba(74, 174, 255, 0.3);
+.financial-statement-content {
+  min-height: 0;
+  overflow: auto;
 }
 
-.manager-dashboard .financial-overview-card .inventory-meta,
-.manager-dashboard .production-finance-card .inventory-meta {
-  line-height: 1.55;
+.financial-statement-status {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px dashed var(--lp-accent-border);
+  border-radius: 8px;
+  color: var(--lp-muted);
+  background: rgba(50, 221, 210, 0.06);
+  font-size: 0.78rem;
+}
+
+.financial-statement-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.financial-statement-columns > section,
+.income-statement-sheet {
+  padding: 14px;
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+  background: rgba(7, 24, 29, 0.82);
+}
+
+.financial-statement-columns h3 {
+  margin: 0 0 10px;
+  color: var(--lp-accent);
+  font-size: 1rem;
+}
+
+.financial-statement-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.financial-statement-content :is(th, td) {
+  padding: 9px 5px;
+  border-bottom: 1px solid rgba(92, 215, 190, 0.15);
+}
+
+.financial-statement-content th {
+  color: var(--lp-ink);
+  font-weight: 650;
+  text-align: left;
+}
+
+.financial-statement-content td {
+  color: #d8f4f1;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.financial-statement-content tr.is-subtotal :is(th, td) {
+  border-top: 1px solid var(--lp-accent-border);
+  font-weight: 800;
+}
+
+.financial-statement-content tr.is-total :is(th, td) {
+  padding-top: 12px;
+  border-top: 2px double var(--lp-accent);
+  border-bottom: 0;
+  color: #fff;
+  font-weight: 900;
+}
+
+.financial-balance-check {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 750;
+}
+
+.financial-balance-check.is-balanced {
+  color: #b9ebcc;
+  background: rgba(47, 125, 86, 0.16);
+}
+
+.financial-balance-check.is-unbalanced {
+  color: #ffd1c8;
+  background: rgba(191, 63, 50, 0.16);
+}
+
+.income-statement-sheet {
+  width: min(760px, 100%);
+  margin-inline: auto;
+}
+
+.financial-statement-support-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.financial-statement-support {
+  width: min(920px, 100%);
+  margin: 14px auto 0;
+  padding: 14px;
+  border: 1px solid var(--lp-line);
+  border-radius: 10px;
+  background: rgba(7, 24, 29, 0.64);
+}
+
+.financial-statement-support-grid .financial-statement-support {
+  width: auto;
+  margin: 0;
+}
+
+.financial-statement-support h3 {
+  margin: 0 0 10px;
+  color: var(--lp-accent);
+  font-size: 0.92rem;
+}
+
+.financial-statement-support > p {
+  margin: 10px 0 0;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+}
+
+.financial-multi-column-table thead th:not(:first-child) {
+  text-align: right;
+}
+
+.management-reconciliation {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px dashed var(--lp-accent-border);
+}
+
+.management-reconciliation > p:not(.eyebrow) {
+  color: var(--lp-muted);
+  font-size: 0.8rem;
+}
+
+.financial-statement-empty {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  padding: 24px;
+  border: 1px dashed var(--lp-line);
+  border-radius: 10px;
+  color: var(--lp-muted);
+  text-align: center;
+}
+
+.financial-statement-empty :is(strong, p) {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .financial-statement-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .manager-dashboard .event-log {

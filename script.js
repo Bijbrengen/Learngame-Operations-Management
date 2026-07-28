@@ -340,6 +340,7 @@
   let logisticsGameController = null;
   let standaloneSelectedDepartmentId = null;
   let standaloneDepartmentDetailOpen = false;
+  let topDepartmentDetailId = null;
 
   const LANES = [
     { id: "customer", title: "Klanten", subtitle: "4 mogelijke klanten" },
@@ -1332,13 +1333,13 @@
     opportunityCost: 0,
     financial: createFinancialState(),
     assignedRoleId: null,
+    gameSessionExists: false,
     gameSessionRunning: false,
     gameSessionDifficulty: "normal",
     customProducts: loadCustomProducts(),
     appView: "player",
     managerTab: "session",
     insightsTab: "overview",
-    playerTab: "heatmap",
     towerTab: "builder",
     attention: {
       mode: "task",
@@ -1418,10 +1419,13 @@
     liveEventsToggle: document.getElementById("liveEventsToggle"),
     liveEventsPopover: document.getElementById("topLiveEventsPopover"),
     liveEventsClose: document.getElementById("topLiveEventsClose"),
+    topDepartmentDetailLayer: document.getElementById("topDepartmentDetailLayer"),
     eventsControl: document.querySelector(".top-events-control"),
     eventsToggle: document.getElementById("eventsToggle"),
     eventsPopover: document.getElementById("topEventsPopover"),
     eventsClose: document.getElementById("topEventsClose"),
+    topPeopleButton: document.getElementById("topPeopleButton"),
+    topAgentsButton: document.getElementById("topAgentsButton"),
     metricStrip: document.querySelector(".metric-strip"),
     hudComplexity: document.getElementById("hudComplexity"),
     hudComplexityValue: document.getElementById("hudComplexityValue"),
@@ -1433,6 +1437,8 @@
     hudWipValue: document.getElementById("hudWipValue"),
     hudBullwhip: document.getElementById("hudBullwhip"),
     hudBullwhipValue: document.getElementById("hudBullwhipValue"),
+    hudOpportunityCost: document.getElementById("hudOpportunityCost"),
+    hudOpportunityCostValue: document.getElementById("hudOpportunityCostValue"),
     nextLevelChallenge: document.getElementById("nextLevelChallenge"),
     nextLevelChallengeTitle: document.getElementById("nextLevelChallengeTitle"),
     nextLevelChallengeText: document.getElementById("nextLevelChallengeText"),
@@ -1448,6 +1454,8 @@
     legoBuilderMount: document.getElementById("legoBuilderMount"),
     laneGrid: document.getElementById("laneGrid"),
     inventoryGrid: document.getElementById("inventoryGrid"),
+    balanceSheetContent: document.getElementById("balanceSheetContent"),
+    incomeStatementContent: document.getElementById("incomeStatementContent"),
     stockSignal: document.getElementById("stockSignal"),
     gameAdvisorButton: document.getElementById("gameAdvisorButton"),
     gameAdvisorBadge: document.getElementById("gameAdvisorBadge"),
@@ -1497,7 +1505,6 @@
     playerWorkbench: document.getElementById("playerWorkbench"),
     managerWorkbench: document.getElementById("managerWorkbench"),
     logisticsGameMount: document.getElementById("logisticsGameMount"),
-    playerDepartmentHeatmap: document.getElementById("playerDepartmentHeatmap"),
     towerEditorMount: document.getElementById("towerEditorMount"),
     playerTaskPanel: document.getElementById("playerTaskPanel"),
     playerWaitingPanel: document.getElementById("playerWaitingPanel"),
@@ -1911,6 +1918,8 @@
       "role-presets",
       "tower-editor",
       "inventory",
+      "balance-sheet",
+      "income-statement",
       "process",
       "insights"
     ]);
@@ -1925,7 +1934,9 @@
       "game-presets",
       "role-presets",
       "process",
-      "inventory"
+      "inventory",
+      "balance-sheet",
+      "income-statement"
     ]);
     const menuMode = gameTabs.has(nextTab)
       ? "game"
@@ -2086,7 +2097,7 @@
       }, targetOrigin);
     }
     renderChapter9Insights();
-    renderPlayerDepartmentHeatmap();
+    if (els.eventsToggle?.getAttribute("aria-expanded") === "true") renderEvents();
     return record;
   }
 
@@ -3221,6 +3232,7 @@
       }
     });
     logisticsGameController.engine.subscribe(event => {
+      if (event.snapshot) renderMetrics();
       const trackedEvents = new Set([
         "order-created",
         "incident",
@@ -3297,7 +3309,6 @@
       && !document.body.classList.contains("tutorial-focus")
     );
     if (els.logisticsGameMount) els.logisticsGameMount.hidden = !standaloneGameActive;
-    renderPlayerDepartmentHeatmap();
     if (standaloneGameActive) {
       els.playerTaskPanel.hidden = true;
       els.playerWaitingPanel.hidden = true;
@@ -3319,157 +3330,6 @@
       return;
     }
     renderPlayerWaiting();
-  }
-
-  const PLAYER_HEATMAP_DEPARTMENTS = [
-    { id: "supplier", label: "Leverancier", labelLines: ["Leverancier"] },
-    { id: "customer", label: "Klant", labelLines: ["Klant"] },
-    { id: "operations", label: "Operations", labelLines: ["Operations"] },
-    { id: "raw", label: "Grondstoffen", labelLines: ["Grondstoffen"] },
-    { id: "pd1", label: "Productie 1", labelLines: ["Productie", "1"] },
-    { id: "ss1", label: "SS1", labelLines: ["SS1"] },
-    { id: "pd2", label: "Productie 2", labelLines: ["Productie", "2"] },
-    { id: "ss2", label: "SS2", labelLines: ["SS2"] },
-    { id: "pd3", label: "Productie 3", labelLines: ["Productie", "3"] },
-    { id: "finished", label: "Gereed product", labelLines: ["Gereed", "product"] },
-    { id: "archive", label: "Afgehandeld", labelLines: ["Afgehandeld"] }
-  ];
-
-  function interactionDepartmentId(event = {}) {
-    const sources = [
-      event.departmentId,
-      event.humanRoleId,
-      event.role,
-      event.objectRole,
-      event.stage,
-      event.actionType,
-      event.learningObjectID
-    ].filter(Boolean).map(value => String(value).toLowerCase());
-    const explicitDepartment = String(event.departmentId || "").toLowerCase();
-    if (PLAYER_HEATMAP_DEPARTMENTS.some(item => item.id === explicitDepartment)) {
-      return explicitDepartment;
-    }
-    const directAliases = [
-      ["supplier", /supplier|leverancier|purchase|inkoop/],
-      ["customer", /customer|klant/],
-      ["operations", /operations|logistics_manager|\bopr\b/],
-      ["raw", /raw_warehouse|grondstof|\bsrm\b|warehouse_material/],
-      ["ss1", /\bss1\b|stock_1|tussenvoorraad_1/],
-      ["ss2", /\bss2\b|stock_2|tussenvoorraad_2/],
-      ["pd1", /\bpd1\b|production[_ -]?1|productie[_ -]?(afdeling[_ -]?)?1|production[_ -]?a/],
-      ["pd2", /\bpd2\b|production[_ -]?2|productie[_ -]?(afdeling[_ -]?)?2|production[_ -]?b/],
-      ["pd3", /\bpd3\b|production[_ -]?3|productie[_ -]?(afdeling[_ -]?)?3|production[_ -]?c/],
-      ["finished", /finished|\bmfp\b|gereed|quality_control|dispatch/],
-      ["archive", /archive|afgehandeld|delivered|order_delivery/]
-    ];
-    for (const source of sources) {
-      const match = directAliases.find(([, pattern]) => pattern.test(source));
-      if (match) return match[0];
-    }
-    return null;
-  }
-
-  function playerDepartmentHeatmapData(events = state.interactionBuffer) {
-    const counts = Object.fromEntries(PLAYER_HEATMAP_DEPARTMENTS.map(item => [item.id, 0]));
-    events
-      .filter(event => !event.personID || event.personID === PERSON_ID)
-      .forEach(event => {
-        const departmentId = interactionDepartmentId(event);
-        if (departmentId) counts[departmentId] += 1;
-      });
-    const maximum = Math.max(1, ...Object.values(counts));
-    return PLAYER_HEATMAP_DEPARTMENTS.map(department => {
-      const count = counts[department.id];
-      return {
-        ...department,
-        count,
-        level: count ? Math.max(1, Math.min(4, Math.ceil((count / maximum) * 4))) : 0
-      };
-    });
-  }
-
-  function renderPlayerDepartmentHeatmap() {
-    if (!els.playerDepartmentHeatmap) return;
-    const visible = state.appView === "player" && state.playerTab === "heatmap";
-    els.playerDepartmentHeatmap.hidden = !visible;
-    if (!visible) return;
-    const grid = els.playerDepartmentHeatmap.querySelector("[data-player-department-heatmap-grid]");
-    if (!grid) return;
-    const data = playerDepartmentHeatmapData();
-    const center = { x: 310, y: 205 };
-    const positions = data.map((item, index) => {
-      const angle = (-Math.PI / 2) + (index / data.length) * Math.PI * 2;
-      return {
-        ...item,
-        x: center.x + Math.cos(angle) * 248,
-        y: center.y + Math.sin(angle) * 158
-      };
-    });
-    const lines = positions.map(item => `
-      <line x1="${center.x}" y1="${center.y}" x2="${item.x.toFixed(1)}" y2="${item.y.toFixed(1)}"
-            class="player-heatmap-link level-${item.level}"
-            data-heatmap-link="${item.id}"></line>
-    `).join("");
-    const nodes = positions.map(item => {
-      const labelLines = item.labelLines
-        .map((line, index) => `<tspan x="0" y="${item.labelLines.length === 1 ? 1 : -5 + (index * 11)}">${escapeHtml(line)}</tspan>`)
-        .join("");
-      return `
-      <g class="player-heatmap-node level-${item.level}"
-         data-heatmap-department="${item.id}"
-         transform="translate(${item.x.toFixed(1)} ${item.y.toFixed(1)})">
-        <title>${escapeHtml(item.label)}: ${item.count} interacties</title>
-        <circle r="31" fill="url(#playerHeatLevel${item.level})"></circle>
-        <text class="player-heatmap-name">${labelLines}</text>
-        <text class="player-heatmap-interactions" y="45">× ${item.count}</text>
-      </g>
-    `;
-    }).join("");
-    grid.innerHTML = `
-      <svg class="player-heatmap-network"
-           viewBox="0 0 620 410"
-           role="img"
-           aria-label="Netwerkheatmap van jouw interacties met afdelingen">
-        <defs>
-          <radialGradient id="playerHeatLevel0" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#52676d"></stop>
-            <stop offset="48%" stop-color="#29434b"></stop>
-            <stop offset="100%" stop-color="#0b171d"></stop>
-          </radialGradient>
-          <radialGradient id="playerHeatLevel1" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#75aeb5"></stop>
-            <stop offset="45%" stop-color="#357f8a"></stop>
-            <stop offset="100%" stop-color="#173b43"></stop>
-          </radialGradient>
-          <radialGradient id="playerHeatLevel2" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#b9c8ef"></stop>
-            <stop offset="45%" stop-color="#6e89c8"></stop>
-            <stop offset="100%" stop-color="#35456f"></stop>
-          </radialGradient>
-          <radialGradient id="playerHeatLevel3" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#c9fff9"></stop>
-            <stop offset="44%" stop-color="#4bc7bf"></stop>
-            <stop offset="100%" stop-color="#176761"></stop>
-          </radialGradient>
-          <radialGradient id="playerHeatLevel4" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#fff1c5"></stop>
-            <stop offset="42%" stop-color="#e6ad43"></stop>
-            <stop offset="100%" stop-color="#81551b"></stop>
-          </radialGradient>
-          <radialGradient id="playerHeatCenter" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#d7fffb"></stop>
-            <stop offset="45%" stop-color="#32ddd2"></stop>
-            <stop offset="100%" stop-color="#176761"></stop>
-          </radialGradient>
-        </defs>
-        ${lines}
-        <g class="player-heatmap-center" transform="translate(${center.x} ${center.y})">
-          <circle r="31" fill="url(#playerHeatCenter)"></circle>
-          <text y="1">JIJ</text>
-        </g>
-        ${nodes}
-      </svg>
-    `;
   }
 
   function validateProductionPlan(quantities = state.productionPlan.quantities) {
@@ -3499,62 +3359,314 @@
     };
   }
 
-  function renderInventory() {
-    const rawInventoryValue = PARTS.reduce(
-      (sum, part) => sum + (state.inventory[part.id] || 0) * part.price,
+  function financialStatementSnapshot() {
+    if (!state.gameSessionExists) {
+      return {
+        cash: 0,
+        rawInventory: 0,
+        workInProgress: 0,
+        finishedGoods: 0,
+        totalAssets: 0,
+        liabilities: 0,
+        openingEquity: 0,
+        accountingResult: 0,
+        totalEquity: 0,
+        totalLiabilitiesAndEquity: 0,
+        revenue: 0,
+        costOfGoodsSold: 0,
+        opportunityCosts: 0,
+        economicResult: 0,
+        departmentAssets: [],
+        departmentResults: []
+      };
+    }
+    const rawInventory = PARTS.reduce(
+      (sum, part) => sum + (Number(state.inventory[part.id]) || 0) * part.price,
       0
     );
-    const parallelWorkInProgress = state.config.productionProcesses.includes("parallel")
+    const openingInventory = PARTS.reduce(
+      (sum, part) => sum + (Number(part.stock) || 0) * part.price,
+      0
+    );
+    const parallelWip = state.config.productionProcesses.includes("parallel")
       ? Object.values(state.financial.wipByDepartment).reduce((sum, value) => sum + value, 0)
       : 0;
-    const sequentialWorkInProgress = state.config.productionProcesses.includes("sequential")
+    const sequentialWip = state.config.productionProcesses.includes("sequential")
       ? Object.values(state.financial.wipByStage).reduce((sum, value) => sum + value, 0)
       : 0;
-    const workInProgressValue = parallelWorkInProgress + sequentialWorkInProgress;
-    const finishedGoodsValue = Object.values(state.financial.finishedGoodsByDepartment)
+    const workInProgress = parallelWip + sequentialWip;
+    const finishedGoods = Object.values(state.financial.finishedGoodsByDepartment)
       .reduce((sum, value) => sum + value, 0);
-    const opportunityCosts = Object.values(state.financial.opportunityCostByDepartment)
-      .reduce((sum, value) => sum + value, 0);
-    const result = state.financial.revenue
-      - state.financial.costOfGoodsSold
-      - opportunityCosts;
-    const cashValue = state.config.money ? state.financial.cash : 0;
-    const totalAssets = cashValue
-      + rawInventoryValue
-      + workInProgressValue
-      + finishedGoodsValue;
-    const items = [
-      state.config.money && state.config.openingBalance ? `
-        <article class="inventory-item financial-overview-card" data-financial-overview="balance">
-          <div>
-            <h3 class="inventory-name">Balans</h3>
-            <div class="inventory-meta">
-              Activa: liquide middelen ${formatMoney(cashValue)} ·
-              grondstoffen ${formatMoney(rawInventoryValue)} ·
-              OHW ${formatMoney(workInProgressValue)} ·
-              gereed product ${formatMoney(finishedGoodsValue)}
-            </div>
-            <div class="inventory-meta">
-              Passiva: eigen vermogen ${formatMoney(totalAssets)} · vreemd vermogen ${formatMoney(0)}
-            </div>
-          </div>
-          <strong class="inventory-count">${formatMoney(totalAssets)}</strong>
-        </article>
-      ` : "",
+    const cash = state.config.money ? state.financial.cash : 0;
+    const totalAssets = cash + rawInventory + workInProgress + finishedGoods;
+    const liabilities = 0;
+    const openingEquity = state.financial.openingCash + openingInventory;
+    const completedProductCost = state.orders
+      .filter(order => order.done)
+      .reduce(
+        (sum, order) => sum
+          + (Number(order.bookedMaterialCost) || 0)
+          + (Number(order.conversionCost) || 0),
+        0
+      );
+    const costOfGoodsSold = Math.max(
+      Number(state.financial.costOfGoodsSold) || 0,
+      completedProductCost
+    );
+    const accountingResult = state.financial.revenue - costOfGoodsSold;
+    const totalEquity = openingEquity + accountingResult;
+    const opportunityCosts = state.config.opportunityCosts
+      ? Math.max(0, Number(state.opportunityCost) || 0)
+      : 0;
+    const departmentAssets = PRODUCTION_DEPARTMENT_IDS.map(departmentId => ({
+      id: departmentId,
+      workInProgress: Number(state.financial.wipByDepartment[departmentId]) || 0,
+      finishedGoods: Number(state.financial.finishedGoodsByDepartment[departmentId]) || 0
+    }));
+    const departmentResults = PRODUCTION_DEPARTMENT_IDS.map(departmentId => {
+      const departmentCostOfGoodsSold = state.orders
+        .filter(order => order.done && (order.productionDepartment || "C") === departmentId)
+        .reduce(
+          (sum, order) => sum
+            + (Number(order.bookedMaterialCost) || 0)
+            + (Number(order.conversionCost) || 0),
+          0
+        );
+      const departmentRevenue = Number(
+        state.financial.revenueByDepartment[departmentId]
+      ) || 0;
+      return {
+        id: departmentId,
+        revenue: departmentRevenue,
+        costOfGoodsSold: departmentCostOfGoodsSold,
+        result: departmentRevenue - departmentCostOfGoodsSold,
+        opportunityCosts: Number(
+          state.financial.opportunityCostByDepartment[departmentId]
+        ) || 0
+      };
+    });
+    return {
+      cash,
+      rawInventory,
+      workInProgress,
+      finishedGoods,
+      totalAssets,
+      liabilities,
+      openingEquity,
+      accountingResult,
+      totalEquity,
+      totalLiabilitiesAndEquity: liabilities + totalEquity,
+      revenue: state.financial.revenue,
+      costOfGoodsSold,
+      opportunityCosts,
+      economicResult: accountingResult - opportunityCosts,
+      departmentAssets,
+      departmentResults
+    };
+  }
+
+  function financialStatementRows(rows) {
+    return rows.map(row => `
+      <tr class="${row.className || ""}">
+        <th scope="row">${escapeHtml(row.label)}</th>
+        <td>${formatMoney(row.value)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderFinancialStatements() {
+    if (!els.balanceSheetContent || !els.incomeStatementContent) return;
+    if (state.gameSessionExists && !state.config.money) {
+      const disabled = `
+        <div class="financial-statement-empty">
+          <strong>Financiële registratie staat uit</strong>
+          <p>Schakel Geld inschakelen in bij de game-instellingen om deze staat op te bouwen.</p>
+        </div>
+      `;
+      els.balanceSheetContent.innerHTML = disabled;
+      els.incomeStatementContent.innerHTML = disabled;
+      return;
+    }
+    const values = financialStatementSnapshot();
+    const balanceDifference = values.totalAssets - values.totalLiabilitiesAndEquity;
+    const fictionalBalanceNotice = !state.gameSessionExists
+      ? `<p class="financial-statement-status">
+          Fictieve nulbalans &middot; er is nog geen gamesessie.
+        </p>`
+      : "";
+    const fictionalIncomeNotice = !state.gameSessionExists
+      ? `<p class="financial-statement-status">
+          Fictieve nul-verliesrekening &middot; er is nog geen gamesessie.
+        </p>`
+      : "";
+    const cashReconciliation = state.gameSessionExists
+      && state.config.revenueBalance
+      ? `
+        <section class="financial-statement-support">
+          <h3>Mutatie liquide middelen</h3>
+          <table>
+            <tbody>
+              ${financialStatementRows([
+                { label: "Beginstand liquide middelen", value: state.financial.openingCash },
+                { label: "Ontvangsten uit omzet", value: state.financial.revenue },
+                {
+                  label: "Overige kasmutaties",
+                  value: state.financial.cash
+                    - state.financial.openingCash
+                    - state.financial.revenue
+                },
+                { label: "Eindstand liquide middelen", value: values.cash, className: "is-total" }
+              ])}
+            </tbody>
+          </table>
+        </section>
       `
-        <article class="inventory-item financial-overview-card" data-financial-overview="profit-loss">
-          <div>
-            <h3 class="inventory-name">Winst- en verliesrekening</h3>
-            <div class="inventory-meta">
-              Omzet ${formatMoney(state.financial.revenue)} ·
-              kostprijs omzet ${formatMoney(state.financial.costOfGoodsSold)} ·
-              opportunity costs ${formatMoney(opportunityCosts)}
-            </div>
-          </div>
-          <strong class="inventory-count">${state.config.pnl ? formatMoney(result) : "W&R uit"}</strong>
-        </article>
+      : "";
+    const departmentAssets = state.gameSessionExists
+      && state.config.productionProcesses.includes("parallel")
+      ? `
+        <section class="financial-statement-support">
+          <h3>Specificatie productievoorraden</h3>
+          <table class="financial-multi-column-table">
+            <thead>
+              <tr>
+                <th scope="col">Afdeling</th>
+                <th scope="col">OHW</th>
+                <th scope="col">Gereed product</th>
+                <th scope="col">Totaal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${values.departmentAssets.map(department => `
+                <tr>
+                  <th scope="row">Productieafdeling ${department.id}</th>
+                  <td>${formatMoney(department.workInProgress)}</td>
+                  <td>${formatMoney(department.finishedGoods)}</td>
+                  <td>${formatMoney(
+                    department.workInProgress + department.finishedGoods
+                  )}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <p>Materiaal- en conversiekosten blijven geactiveerd zolang de toren nog niet is geleverd.</p>
+        </section>
       `
-    ].filter(Boolean);
+      : "";
+    els.balanceSheetContent.innerHTML = `
+      ${fictionalBalanceNotice}
+      <div class="financial-statement-columns">
+        <section>
+          <h3>Activa</h3>
+          <table>
+            <tbody>
+              ${financialStatementRows([
+                { label: "Liquide middelen", value: values.cash },
+                { label: "Voorraad grondstoffen", value: values.rawInventory },
+                { label: "Onderhanden werk", value: values.workInProgress },
+                { label: "Voorraad gereed product", value: values.finishedGoods },
+                { label: "Totaal activa", value: values.totalAssets, className: "is-total" }
+              ])}
+            </tbody>
+          </table>
+        </section>
+        <section>
+          <h3>Passiva</h3>
+          <table>
+            <tbody>
+              ${financialStatementRows([
+                { label: "Beginvermogen", value: values.openingEquity },
+                { label: "Resultaat lopende periode", value: values.accountingResult },
+                { label: "Totaal eigen vermogen", value: values.totalEquity, className: "is-subtotal" },
+                { label: "Vreemd vermogen", value: values.liabilities },
+                {
+                  label: "Totaal passiva",
+                  value: values.totalLiabilitiesAndEquity,
+                  className: "is-total"
+                }
+              ])}
+            </tbody>
+          </table>
+        </section>
+      </div>
+      <p class="financial-balance-check ${Math.abs(balanceDifference) < 0.01 ? "is-balanced" : "is-unbalanced"}">
+        Balanscontrole: activa ${formatMoney(values.totalAssets)} =
+        passiva ${formatMoney(values.totalLiabilitiesAndEquity)}.
+      </p>
+      <div class="financial-statement-support-grid">
+        ${cashReconciliation}
+        ${departmentAssets}
+      </div>
+    `;
+    if (state.gameSessionExists && !state.config.pnl) {
+      els.incomeStatementContent.innerHTML = `
+        <div class="financial-statement-empty">
+          <strong>Verliesrekening staat uit</strong>
+          <p>Schakel Verlies- en winstrekening in bij de game-instellingen om kostprijs en resultaat te boeken.</p>
+        </div>
+      `;
+      return;
+    }
+    const departmentResults = state.gameSessionExists
+      && state.config.productionProcesses.includes("parallel")
+      ? `
+        <section class="financial-statement-support">
+          <h3>Resultaatspecificatie per productieafdeling</h3>
+          <table class="financial-multi-column-table">
+            <thead>
+              <tr>
+                <th scope="col">Afdeling</th>
+                <th scope="col">Omzet</th>
+                <th scope="col">Kostprijs omzet</th>
+                <th scope="col">Resultaat</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${values.departmentResults.map(department => `
+                <tr>
+                  <th scope="row">Productieafdeling ${department.id}</th>
+                  <td>${formatMoney(department.revenue)}</td>
+                  <td>${formatMoney(-department.costOfGoodsSold)}</td>
+                  <td>${formatMoney(department.result)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      `
+      : "";
+    els.incomeStatementContent.innerHTML = `
+      ${fictionalIncomeNotice}
+      <section class="income-statement-sheet">
+        <table>
+          <tbody>
+            ${financialStatementRows([
+              { label: "Omzet", value: values.revenue },
+              { label: "Kostprijs van de omzet", value: -values.costOfGoodsSold },
+              { label: "Boekhoudkundig resultaat", value: values.accountingResult, className: "is-total" }
+            ])}
+          </tbody>
+        </table>
+        <div class="management-reconciliation">
+          <p class="eyebrow">Bedrijfseconomische aanvulling</p>
+          <p>Opportunity costs zijn geen geboekte kosten en staan daarom buiten de formele verliesrekening.</p>
+          <table>
+            <tbody>
+              ${financialStatementRows([
+                { label: "Boekhoudkundig resultaat", value: values.accountingResult },
+                { label: "Opportunity costs (niet geboekt)", value: -values.opportunityCosts },
+                { label: "Economisch resultaat", value: values.economicResult, className: "is-total" }
+              ])}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      ${departmentResults}
+    `;
+  }
+
+  function renderInventory() {
+    const items = [];
 
     if (state.config.productionPlanning) {
       const validation = validateProductionPlan();
@@ -3589,88 +3701,6 @@
           <strong class="inventory-count">${actualTotal}/${planTotal}</strong>
         </article>
       `);
-    }
-
-    if (state.config.money && state.config.revenueBalance) {
-      const otherCashMovements = state.financial.cash
-        - state.financial.openingCash
-        - state.financial.revenue;
-      items.push(`
-        <article class="inventory-item financial-overview-card"
-                 data-financial-overview="revenue-balance">
-          <div>
-            <h3 class="inventory-name">Omzetbalans</h3>
-            <div class="inventory-meta">
-              Beginstand ${formatMoney(state.financial.openingCash)} Â·
-              omzet ${formatMoney(state.financial.revenue)} Â·
-              overige kasmutaties ${formatMoney(otherCashMovements)}
-            </div>
-            <div class="inventory-meta">
-              Controle: beginstand + omzet + overige mutaties = eindsaldo.
-            </div>
-          </div>
-          <strong class="inventory-count">${formatMoney(state.financial.cash)}</strong>
-        </article>
-      `);
-    }
-
-    if (state.config.money && (state.config.openingBalance || state.config.revenueBalance)) {
-      const liquidityEffect = state.financial.cash - state.financial.openingCash;
-      const advice = state.config.revenueBalance
-        ? `Omzet ${formatMoney(state.financial.revenue)} verandert de liquiditeitspositie samen met overige kasmutaties. Het netto-effect sinds de opening is ${formatMoney(liquidityEffect)}.`
-        : `De openingsbalans start met ${formatMoney(state.financial.openingCash)} liquide middelen. Dit is de beschikbare financiÃ«le ruimte voor inkoop, productie en verstoringen.`;
-      items.push(`
-        <article class="inventory-item financial-advisor-card"
-                 data-financial-advisor>
-          <div>
-            <h3 class="inventory-name">Adviseur Â· financiÃ«le impact</h3>
-            <div class="inventory-meta">${advice}</div>
-          </div>
-          <strong class="inventory-count">Advies</strong>
-        </article>
-      `);
-    }
-
-    if (state.config.productionProcesses.includes("parallel")) {
-      PRODUCTION_DEPARTMENT_IDS.forEach(departmentId => {
-        items.push(`
-          <article class="inventory-item production-finance-card"
-                   data-production-finance="${departmentId}">
-            <div>
-              <h3 class="inventory-name">Productieafdeling ${departmentId}</h3>
-              <div class="inventory-meta">
-                Materiaal ${formatMoney(state.financial.materialCostByDepartment[departmentId])} ·
-                conversie ${formatMoney(state.financial.conversionCostByDepartment[departmentId])} ·
-                OHW ${formatMoney(state.financial.wipByDepartment[departmentId])} ·
-                gereed ${formatMoney(state.financial.finishedGoodsByDepartment[departmentId])}
-              </div>
-              <div class="inventory-meta">
-                Omzet ${formatMoney(state.financial.revenueByDepartment[departmentId])} ·
-                opportunity costs ${formatMoney(state.financial.opportunityCostByDepartment[departmentId])}
-              </div>
-            </div>
-            <strong class="inventory-count">${departmentId}</strong>
-          </article>
-        `);
-      });
-    }
-
-    if (state.config.productionProcesses.includes("sequential")) {
-      [1, 2, 3].forEach(stageNumber => {
-        items.push(`
-          <article class="inventory-item production-finance-card"
-                   data-production-stage-finance="${stageNumber}">
-            <div>
-              <h3 class="inventory-name">Laag ${stageNumber} · Productieafdeling ${stageNumber}</h3>
-              <div class="inventory-meta">
-                Materiaal laag ${formatMoney(state.financial.materialCostByStage[stageNumber])} ·
-                cumulatief OHW ${formatMoney(state.financial.wipByStage[stageNumber])}
-              </div>
-            </div>
-            <strong class="inventory-count">L${stageNumber}</strong>
-          </article>
-        `);
-      });
     }
 
     PARTS.forEach(part => {
@@ -4094,6 +4124,13 @@
     const bullwhipRatio = supply.length >= 2 && demand.length >= 2
       ? Math.sqrt(hudVariance(supply) / Math.max(hudVariance(demand), 0.25))
       : 1;
+    const potentialRevenue = orders.reduce(
+      (sum, order) => sum + (Number(order.unitPrice) || 0) * (Number(order.quantity) || 0),
+      0
+    );
+    const opportunityCost = state.config.opportunityCosts
+      ? Math.max(0, Number(state.opportunityCost) || 0)
+      : 0;
     return {
       orderCount: orders.length,
       activeCount: active.length,
@@ -4105,7 +4142,12 @@
       wipPressure: hudClamp(wipItems / Math.max(4, wipItems + completed.length * 2) * 100),
       bottleneck: bottleneck[0] ? roleById(bottleneck[0])?.title || bottleneck[0] : "Nog niet vastgesteld",
       bottleneckQueue: bottleneck[1],
-      bullwhip: hudClamp(Math.max(0, bullwhipRatio - 1), 0, 4)
+      bullwhip: hudClamp(Math.max(0, bullwhipRatio - 1), 0, 4),
+      opportunityCostEnabled: state.config.opportunityCosts,
+      opportunityCost,
+      opportunityCostPressure: potentialRevenue
+        ? hudClamp(opportunityCost / potentialRevenue * 100)
+        : 0
     };
   }
 
@@ -4138,6 +4180,35 @@
     const upstreamLoad = (snapshot.roleRuntime?.srm?.queue?.length || 0)
       + (snapshot.roleRuntime?.srm?.activeOrderId ? 1 : 0);
     const wipItems = active.reduce((sum, order) => sum + (Number(order.quantity) || 1), 0);
+    let potentialRevenue = 0;
+    let opportunityCost = 0;
+    if (state.config.opportunityCosts) {
+      orders.forEach(order => {
+        const product = snapshot.products?.[order.productId];
+        const orderValue = (Number(product?.price) || 0) * (Number(order.quantity) || 1);
+        const plannedMinutes = Math.max(
+          1,
+          (Number(order.dueAt) - Number(order.createdAt)) / 60000
+        );
+        const incidentDelayMinutes = (order.history || [])
+          .filter(item => item.type === "incident")
+          .reduce((sum, item) => sum + (Number(item.delayMs) || 0) / 60000, 0);
+        const completedAt = order.status === "DELIVERED"
+          ? Number(order.deliveredAt || order.dueAt)
+          : Date.now();
+        const overdueMinutes = Math.max(0, completedAt - Number(order.dueAt)) / 60000;
+        potentialRevenue += orderValue;
+        opportunityCost += Math.min(
+          orderValue,
+          (incidentDelayMinutes + overdueMinutes) * (orderValue / plannedMinutes)
+        );
+      });
+    } else {
+      potentialRevenue = orders.reduce((sum, order) => {
+        const product = snapshot.products?.[order.productId];
+        return sum + (Number(product?.price) || 0) * (Number(order.quantity) || 1);
+      }, 0);
+    }
     return {
       orderCount: orders.length,
       activeCount: active.length,
@@ -4154,7 +4225,12 @@
         ? snapshot.roles?.[bottleneckRuntime.roleId]?.title || bottleneckRuntime.roleId
         : "Nog niet vastgesteld",
       bottleneckQueue: bottleneckRuntime?.queue?.length || 0,
-      bullwhip: hudClamp(Math.max(0, (upstreamLoad + 1) / (customerLoad + 1) - 1), 0, 4)
+      bullwhip: hudClamp(Math.max(0, (upstreamLoad + 1) / (customerLoad + 1) - 1), 0, 4),
+      opportunityCostEnabled: state.config.opportunityCosts,
+      opportunityCost,
+      opportunityCostPressure: potentialRevenue
+        ? hudClamp(opportunityCost / potentialRevenue * 100)
+        : 0
     };
   }
 
@@ -4211,6 +4287,27 @@
         ? `Bullwhip ${metrics.bullwhip.toFixed(1)}×: de upstream reactie schommelt sterker dan de klantvraag.`
         : "Bullwhip 0.0×: klantvraag en ketenreactie lopen nog synchroon."
     );
+    const opportunityCurrencyCode = state.config.baseCurrency || "EUR";
+    const opportunityCurrencyLabel = {
+      EUR: "€",
+      USD: "$",
+      GBP: "£",
+      JPY: "¥",
+      CHF: "CHF"
+    }[opportunityCurrencyCode] || opportunityCurrencyCode;
+    const opportunityCostText = metrics.opportunityCostEnabled
+      ? `${opportunityCurrencyLabel} ${Math.round(metrics.opportunityCost)}`
+      : "Uit";
+    setProcessHudMeter(
+      els.hudOpportunityCost,
+      els.hudOpportunityCostValue,
+      metrics.opportunityCostPressure,
+      opportunityCostText,
+      metrics.opportunityCostEnabled ? hudColor(metrics.opportunityCostPressure) : "#8ca4aa",
+      metrics.opportunityCostEnabled
+        ? `Opportunity costs ${formatMoney(metrics.opportunityCost)} (${Math.round(metrics.opportunityCostPressure)}% van de potentiële orderomzet) door vertraging, verstoringen en onbenutte capaciteit.`
+        : "Opportunity costs zijn uitgeschakeld voor deze gamevariant."
+    );
 
     const levelIndex = NEXT_LEVEL_SEQUENCE.indexOf(metrics.gameType);
     const nextGameType = levelIndex >= 0 ? NEXT_LEVEL_SEQUENCE[levelIndex + 1] : null;
@@ -4229,6 +4326,33 @@
     return metrics;
   }
 
+  function closeTopDepartmentDetail() {
+    topDepartmentDetailId = null;
+    if (!els.topDepartmentDetailLayer) return;
+    els.topDepartmentDetailLayer.hidden = true;
+    els.topDepartmentDetailLayer.replaceChildren();
+  }
+
+  function renderTopDepartmentDetail(snapshot, departmentId = topDepartmentDetailId) {
+    if (
+      !els.topDepartmentDetailLayer
+      || !window.IsometricLogisticsView
+      || !snapshot?.started
+      || !departmentId
+    ) {
+      closeTopDepartmentDetail();
+      return;
+    }
+    topDepartmentDetailId = departmentId;
+    const scene = standaloneLogisticsScene(snapshot);
+    scene.selectedDepartmentId = departmentId;
+    els.topDepartmentDetailLayer.hidden = false;
+    window.IsometricLogisticsView.mount(els.topDepartmentDetailLayer, scene, {
+      departmentDetailMode: "popup",
+      onDepartmentClose: closeTopDepartmentDetail
+    });
+  }
+
   function renderMetrics() {
     els.lateValue.textContent = String(state.interactionBuffer.length);
     const sessionActive = Boolean(state.gameSessionRunning);
@@ -4239,6 +4363,8 @@
         button === els.liveEventsToggle
         || button === els.liveEventsClose
         || button === els.eventsClose
+        || button === els.topPeopleButton
+        || button === els.topAgentsButton
       ) return;
       button.disabled = !sessionActive;
     });
@@ -4261,6 +4387,7 @@
   function setEventsOpen(open) {
     if (!els.eventsToggle || !els.eventsPopover) return;
     const nextOpen = Boolean(open);
+    if (nextOpen) renderEvents();
     els.eventsPopover.hidden = !nextOpen;
     els.eventsToggle.setAttribute("aria-expanded", String(nextOpen));
     els.eventsToggle.classList.toggle("is-open", nextOpen);
@@ -4288,6 +4415,8 @@
     const events = [...state.interactionBuffer].reverse();
     const markup = eventRowsMarkup(events);
     els.eventLog.innerHTML = markup;
+    els.lateValue.textContent = String(events.length);
+    els.eventCountValue.textContent = String(events.length);
   }
 
   function renderDataModel(force = false) {
@@ -6077,6 +6206,7 @@
   function renderAll() {
     renderMetrics();
     renderLanes();
+    renderFinancialStatements();
     renderInventory();
     renderEvents();
     renderDataModel(false);
@@ -6925,6 +7055,7 @@
 
   function wireEvents() {
     window.addEventListener("learngame-session-state", event => {
+      state.gameSessionExists = Boolean(event.detail?.session?.session_id);
       state.gameSessionRunning = Boolean(event.detail?.running);
       state.gameSessionDifficulty = event.detail?.session?.difficulty_level || "normal";
       if (event.detail?.session?.game_config) {
@@ -6937,10 +7068,12 @@
       }
       renderPlayerView();
       renderMetrics();
+      renderFinancialStatements();
     });
     window.addEventListener("learngame-session-started", event => {
       const session = event.detail?.session;
       if (!session?.session_id) return;
+      state.gameSessionExists = true;
       state.gameSessionRunning = true;
       state.sessionId = session.session_id;
       const member = session.members?.find(item => item.member_id === session.current_member_id);
@@ -6999,6 +7132,11 @@
     document.querySelectorAll("button[data-app-view], a[data-app-view]").forEach(button => {
       button.addEventListener("click", () => setAppView(button.dataset.appView));
     });
+    window.addEventListener("learngame-top-department-select", event => {
+      const snapshot = logisticsGameController?.engine?.snapshot();
+      renderTopDepartmentDetail(snapshot, event.detail?.departmentId);
+    });
+    window.addEventListener("learngame-top-department-close", closeTopDepartmentDetail);
     document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
       button.addEventListener("click", () => {
         setLiveEventsOpen(false);
@@ -7419,7 +7557,6 @@
   window.LEARNGameOMSimulator = {
     dispatchInteraction,
     getInteractionBuffer: () => [...state.interactionBuffer],
-    getPlayerDepartmentHeatmap: () => playerDepartmentHeatmapData().map(item => ({ ...item })),
     getProcessHudMetrics: () => ({ ...processHudMetrics() }),
     getContractEventBuffer: () => [...state.contractEventBuffer],
     clearInteractionBuffer: () => {
@@ -7525,10 +7662,6 @@
     launchTutorial,
     endTutorial,
     setAppView,
-    setPlayerTab: tabKey => {
-      state.playerTab = tabKey;
-      renderAll();
-    },
     setManagerTab,
     setInsightsTab,
     setTowerTab,

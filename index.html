@@ -93,6 +93,24 @@
              class="player-session-metric-mount"
              aria-live="polite"></div>
         <div class="metric-strip-values">
+          <button id="topPeopleButton"
+                  class="metric top-participant-count"
+                  type="button"
+                  data-main-menu-tab="session"
+                  title="Open de actieve rollen in Sessie"
+                  hidden>
+            <span>Mensen</span>
+            <strong id="topPeopleCount">0</strong>
+          </button>
+          <button id="topAgentsButton"
+                  class="metric top-participant-count is-agent-count"
+                  type="button"
+                  data-main-menu-tab="session"
+                  title="Open de actieve rollen in Sessie"
+                  hidden>
+            <span>Agents</span>
+            <strong id="topAgentCount">0</strong>
+          </button>
           <div class="top-live-events-control">
             <button id="liveEventsToggle"
                     class="metric menu-live-events-button"
@@ -195,6 +213,14 @@
           <span class="process-hud-copy"><small>Bullwhip</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
           <b id="hudBullwhipValue">0.0×</b>
         </button>
+        <button class="process-hud-meter" id="hudOpportunityCost" type="button"
+                data-main-menu-tab="insights"
+                aria-label="Opportunity costs"
+                title="Misgelopen waarde door vertraging, verstoringen en onbenutte capaciteit">
+          <i aria-hidden="true">↘</i>
+          <span class="process-hud-copy"><small>Opp. costs</small><span class="process-meter" aria-hidden="true"><i></i></span></span>
+          <b id="hudOpportunityCostValue">€ 0</b>
+        </button>
       </section>
 
       <aside class="game-menu-account" aria-label="Account en instellingen">
@@ -241,6 +267,10 @@
         ×
       </button>
     </header>
+    <div id="topDepartmentDetailLayer"
+         class="top-department-detail-layer"
+         aria-live="polite"
+         hidden></div>
 
     <main id="playerWorkbench"
           class="player-workbench app-view-panel"
@@ -315,9 +345,6 @@
         </header>
         <div id="playerProcessMount" class="player-process-mount" aria-label="Live simulatie van het productieproces"></div>
       </section>
-      <section id="playerDepartmentHeatmap" class="player-department-heatmap" aria-label="Spelersheatmap" hidden>
-        <div data-player-department-heatmap-grid></div>
-      </section>
     </main>
 
     <main id="managerWorkbench"
@@ -364,26 +391,38 @@
             <small>Materiaal en WIP</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
-                  data-manager-tab="history">
+                  data-manager-tab="balance-sheet">
             <span aria-hidden="true">05</span>
+            <strong>Balans</strong>
+            <small>Activa en passiva</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="income-statement">
+            <span aria-hidden="true">06</span>
+            <strong>Verliesrekening</strong>
+            <small>Opbrengsten en kosten</small>
+          </button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-manager-tab="history">
+            <span aria-hidden="true">07</span>
             <strong>Ontwikkelgeschiedenis</strong>
             <small>1992–2024</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="roles">
-            <span aria-hidden="true">06</span>
+            <span aria-hidden="true">08</span>
             <strong>Rollen</strong>
             <small>Rollen per onderwerp</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="game-presets">
-            <span aria-hidden="true">07</span>
+            <span aria-hidden="true">09</span>
             <strong>Gamepresets</strong>
             <small>Instellingen vergelijken</small>
           </button>
           <button type="button" role="tab" aria-selected="false"
                   data-manager-tab="role-presets">
-            <span aria-hidden="true">08</span>
+            <span aria-hidden="true">10</span>
             <strong>Rollenpresets</strong>
             <small>Rollen vergelijken</small>
           </button>
@@ -468,7 +507,8 @@
           </div>
           <div class="game-session-heading-actions">
             <span id="managerSessionBadge" class="session-status-badge" hidden>Geen sessie</span>
-            <button class="primary-button"
+            <button id="managerSessionActionButton"
+                    class="primary-button"
                     type="submit"
                     form="gameSessionCreateForm"
                     data-create-game-session>Sessie aanmaken</button>
@@ -1182,6 +1222,32 @@
         <div id="inventoryGrid" class="inventory-grid"></div>
       </section>
 
+      <section class="financial-statement-panel manager-dashboard-panel"
+               data-manager-panel="balance-sheet"
+               aria-labelledby="balanceSheetTitle">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Financiële positie</p>
+            <h2 id="balanceSheetTitle">Balans</h2>
+          </div>
+          <span class="clock-pill">Activa = passiva</span>
+        </div>
+        <div id="balanceSheetContent" class="financial-statement-content"></div>
+      </section>
+
+      <section class="financial-statement-panel manager-dashboard-panel"
+               data-manager-panel="income-statement"
+               aria-labelledby="incomeStatementTitle">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Resultaat over de periode</p>
+            <h2 id="incomeStatementTitle">Verliesrekening</h2>
+          </div>
+          <span class="clock-pill">Opbrengsten − kosten</span>
+        </div>
+        <div id="incomeStatementContent" class="financial-statement-content"></div>
+      </section>
+
       <section id="dataModelPanel"
                class="data-model-panel manager-dashboard-panel"
                data-manager-panel="process"
@@ -1366,22 +1432,30 @@
           return ["http:", "https:"].indexOf(url.protocol) !== -1 ? url.toString().replace(/\/+$/, "") : fallback;
         } catch (e) { return fallback; }
       }
-      function base() {
+      function configuredBase() {
         var fallback = window.LEARNGAME_OM_CONFIG && window.LEARNGAME_OM_CONFIG.apiBase;
         if (!fallback) throw new Error("LEERPRET_API_URL ontbreekt in runtime-config.js");
-        // Expliciete overrides winnen zonder loopback-correctie.
+        return clean(fallback, fallback);
+      }
+      function base() {
+        var fallback = configuredBase();
+        // Expliciete overrides worden eerst geprobeerd. De geconfigureerde
+        // Engine-URL blijft daarna beschikbaar als veilige herstelroute.
         if (window.LEERPRET_SDK_BASE) return clean(window.LEERPRET_SDK_BASE, fallback);
         var explicit = new URLSearchParams(location.search).get("api");
         if (explicit) return clean(explicit, fallback);
-        return clean(fallback, fallback);
+        return fallback;
       }
-      // SDK-kandidaten: primaire basis + loopback-variant. Zo vangen we het
-      // klassieke localhost/127.0.0.1-verschil op (backend op IPv4 terwijl de
-      // pagina localhost → IPv6 ::1 gebruikt, of andersom).
+      // Een verouderde testsessie-override mag de actuele runtime-configuratie
+      // nooit volledig blokkeren.
       function sdkCandidates() {
-        var b = base();
-        var sep = b.indexOf("?") === -1 ? "?" : "&";
-        return [b + "/sdk/lego-builder/logic.js" + sep + "bypass-tunnel-reminder=true"];
+        var bases = [base(), configuredBase()].filter(function (value, index, values) {
+          return value && values.indexOf(value) === index;
+        });
+        return bases.map(function (b) {
+          var sep = b.indexOf("?") === -1 ? "?" : "&";
+          return b + "/sdk/lego-builder/logic.js" + sep + "bypass-tunnel-reminder=true";
+        });
       }
       // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit

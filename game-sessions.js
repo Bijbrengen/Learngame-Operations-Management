@@ -202,9 +202,14 @@
     playerContent: document.getElementById("playerSessionContent"),
     playerBadge: document.getElementById("playerSessionBadge"),
     managerContent: document.getElementById("managerSessionContent"),
+    managerTitle: document.getElementById("managerSessionTitle"),
     managerBadge: document.getElementById("managerSessionBadge"),
     managerHeadingActions: document.querySelector(".game-session-heading-actions"),
-    managerCreateButton: document.querySelector("[data-create-game-session]"),
+    managerCreateButton: document.getElementById("managerSessionActionButton"),
+    topPeopleButton: document.getElementById("topPeopleButton"),
+    topPeopleCount: document.getElementById("topPeopleCount"),
+    topAgentsButton: document.getElementById("topAgentsButton"),
+    topAgentCount: document.getElementById("topAgentCount"),
     createForm: document.getElementById("gameSessionCreateForm"),
     sessionType: document.getElementById("gameSessionType"),
     dialog: document.getElementById("gameConsensusDialog"),
@@ -1492,6 +1497,78 @@
     `;
   }
 
+  function sessionRoleDistributionMarkup(session) {
+    const vacancies = new Set(session.role_vacancies || []);
+    const agentsByRole = new Map(
+      (session.virtual_agents || []).map(agent => [agent.role_id, agent])
+    );
+    const membersByRole = new Map(
+      (session.members || [])
+        .filter(member => member.assigned_role_id && member.present !== false)
+        .map(member => [member.assigned_role_id, member])
+    );
+    const roles = (session.required_role_ids || []).map(roleId => {
+      const agent = agentsByRole.get(roleId);
+      const member = membersByRole.get(roleId);
+      const vacant = vacancies.has(roleId) || (!agent && !member);
+      const status = vacant ? "vacant" : agent ? "agent" : "human";
+      const statusLabel = vacant
+        ? "Nog niet vervuld"
+        : agent
+          ? "Virtuele agent"
+          : member.member_id === session.game_master_member_id
+            ? "Game Master · speler aanwezig"
+            : "Speler aanwezig";
+      return `
+        <article class="session-role-state is-${status}">
+          <span class="session-role-state-token">${escapeHtml(
+            status === "agent" ? "AI" : roleLabel(roleId).slice(0, 2).toUpperCase()
+          )}</span>
+          <span>
+            <strong>${escapeHtml(roleLabel(roleId))}</strong>
+            <small>${escapeHtml(statusLabel)}</small>
+          </span>
+        </article>
+      `;
+    }).join("");
+    const incomplete = vacancies.size > 0;
+    return `
+      <section class="session-role-distribution${incomplete ? " is-incomplete" : " is-complete"}"
+               aria-label="Actieve rollenverdeling">
+        <header>
+          <div>
+            <p class="eyebrow">Actieve rollen</p>
+            <h3>Rollenverdeling</h3>
+          </div>
+          <strong>${incomplete
+            ? `${vacancies.size} rol${vacancies.size === 1 ? "" : "len"} nog niet vervuld`
+            : "Alle rollen zijn vervuld"}</strong>
+        </header>
+        <div class="session-role-state-grid">${roles}</div>
+      </section>
+    `;
+  }
+
+  function renderTopParticipation(session) {
+    const els = elements();
+    const visible = Boolean(session);
+    const humanCount = visible
+      ? (session.members || []).filter(member => member.present !== false).length
+      : 0;
+    const agentCount = visible ? (session.virtual_agents || []).length : 0;
+    if (els.topPeopleButton) {
+      els.topPeopleButton.hidden = !visible;
+      els.topPeopleButton.disabled = !visible;
+    }
+    if (els.topAgentsButton) {
+      els.topAgentsButton.hidden = !visible;
+      els.topAgentsButton.disabled = !visible;
+    }
+    if (els.topPeopleCount) els.topPeopleCount.textContent = String(humanCount);
+    if (els.topAgentCount) els.topAgentCount.textContent = String(agentCount);
+    document.querySelector(".metric-strip")?.classList.toggle("has-session", visible);
+  }
+
   function gameMasterDifficultyMarkup(session) {
     if (!session.is_game_master || session.status === "running") return "";
     const level = session.difficulty_level || "normal";
@@ -1510,13 +1587,30 @@
   }
 
   function gameMasterConfigMarkup(session) {
-    if (!session.is_game_master || session.status === "running") return "";
+    if (!session.is_game_master) return "";
+    const running = session.status === "running";
     return `
-      <form id="gameSessionActiveConfigForm" class="game-session-config-form" data-active-game-config>
+      <form id="gameSessionActiveConfigForm"
+            class="game-session-config-form${running ? " is-readonly" : ""}"
+            data-active-game-config
+            ${running ? 'data-session-config-readonly aria-label="Instellingen van de lopende gamesessie"' : ""}>
         ${gameConfigFieldsMarkup(session.game_config)}
-        <small>Deze spelregels gelden alleen voor deze gamesessie en worden direct opgeslagen.</small>
+        <small>${running
+          ? "Dit zijn de vastgelegde instellingen van de lopende gamesessie."
+          : "Deze spelregels gelden alleen voor deze gamesessie en worden direct opgeslagen."}</small>
       </form>
     `;
+  }
+
+  function setRunningConfigReadOnly(form, running) {
+    if (!form || !running) return;
+    form.querySelector(".session-config-save")?.remove();
+    form.querySelectorAll("input, select, textarea").forEach(control => {
+      control.disabled = true;
+    });
+    document.querySelectorAll(`[form="${form.id}"]`).forEach(control => {
+      if (!control.matches(".configuration-help-button")) control.disabled = true;
+    });
   }
 
   function createSessionMarkup() {
@@ -1678,16 +1772,37 @@
       .filter(i => i !== -1);
 
     if (state.session) {
+      renderTopParticipation(state.session);
       placePlayerSessionPanel(state.session.status === "running");
       els.playerTitle.textContent = state.session.status === "running"
         ? "Jouw actieve gamesessie"
         : "Lobby van jouw gamesessie";
       els.playerBadge.textContent = state.session.status === "running" ? "Gestart" : "In lobby";
-      els.managerBadge.textContent = state.session.is_game_master ? "Game Master" : "Deelnemer";
-      els.managerBadge.hidden = false;
-      if (els.managerCreateButton) els.managerCreateButton.hidden = true;
+      els.managerTitle.textContent = "Gamesessie";
+      els.managerBadge.hidden = true;
+      if (els.managerCreateButton) {
+        els.managerCreateButton.hidden = !state.session.is_game_master;
+        els.managerCreateButton.type = "button";
+        els.managerCreateButton.removeAttribute("form");
+        els.managerCreateButton.removeAttribute("data-create-game-session");
+        els.managerCreateButton.removeAttribute("data-request-game-start");
+        els.managerCreateButton.removeAttribute("data-finish-game-session");
+        if (state.session.status === "running") {
+          els.managerCreateButton.setAttribute("data-finish-game-session", "");
+          els.managerCreateButton.textContent = "Sessie afsluiten";
+        } else {
+          els.managerCreateButton.setAttribute("data-request-game-start", "");
+          els.managerCreateButton.textContent = "Sessie starten";
+        }
+      }
       els.playerContent.innerHTML = sessionMarkup(state.session, "player");
-      els.managerContent.innerHTML = sessionMarkup(state.session, "manager");
+      els.managerContent.hidden = false;
+      els.managerContent.innerHTML = [
+        sessionRoleDistributionMarkup(state.session),
+        gameMasterConfigMarkup(state.session),
+        gameMasterDifficultyMarkup(state.session),
+        gameMasterRoleMarkup(state.session)
+      ].join("");
       if (state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
         state.startedSessionId = state.session.session_id;
         window.dispatchEvent(new CustomEvent("learngame-session-started", {
@@ -1695,13 +1810,24 @@
         }));
       }
     } else {
+      renderTopParticipation(null);
       placePlayerSessionPanel(false);
       els.playerTitle.textContent = "Neem deel aan een gamesessie";
       els.playerBadge.textContent = "Geen sessie";
       els.managerBadge.textContent = "Geen sessie";
       els.managerBadge.hidden = true;
-      if (els.managerCreateButton) els.managerCreateButton.hidden = false;
+      els.managerTitle.textContent = "Gamesessie";
+      if (els.managerCreateButton) {
+        els.managerCreateButton.hidden = false;
+        els.managerCreateButton.type = "submit";
+        els.managerCreateButton.setAttribute("form", "gameSessionCreateForm");
+        els.managerCreateButton.setAttribute("data-create-game-session", "");
+        els.managerCreateButton.removeAttribute("data-request-game-start");
+        els.managerCreateButton.removeAttribute("data-finish-game-session");
+        els.managerCreateButton.textContent = "Sessie aanmaken";
+      }
       els.playerContent.innerHTML = availableMarkup(state.availability);
+      els.managerContent.hidden = false;
       if (!els.managerContent.querySelector("#gameSessionCreateForm[data-runtime-session-form]")) {
         els.managerContent.innerHTML = createSessionMarkup();
       }
@@ -1713,8 +1839,9 @@
     openManagerIndices.forEach(i => managerDetails[i]?.setAttribute("open", ""));
     const configForm = document.querySelector("#gameSessionCreateForm, [data-active-game-config]");
     const config = state.session?.game_config || state.createSessionDraft.game_config;
-    placePresetSaveAction(configForm, els);
+    placePresetSaveAction(state.session?.status === "running" ? null : configForm, els);
     renderGameAuxiliaryPanels(configForm, config);
+    setRunningConfigReadOnly(configForm, state.session?.status === "running");
     renderConsensus();
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: {

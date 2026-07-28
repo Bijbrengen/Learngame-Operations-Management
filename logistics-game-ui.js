@@ -113,6 +113,8 @@
       this.handlePointerDown = this.handlePointerDown.bind(this);
       this.handlePointerMove = this.handlePointerMove.bind(this);
       this.handlePointerUp = this.handlePointerUp.bind(this);
+      this.handleTopDepartmentClick = this.handleTopDepartmentClick.bind(this);
+      this.handleTopDepartmentKeydown = this.handleTopDepartmentKeydown.bind(this);
       this.mount.addEventListener("click", this.handleClick);
       this.mount.addEventListener("change", this.handleChange);
       this.mount.addEventListener("submit", this.handleSubmit);
@@ -123,6 +125,10 @@
       this.mount.addEventListener("pointermove", this.handlePointerMove);
       this.mount.addEventListener("pointerup", this.handlePointerUp);
       this.mount.addEventListener("pointercancel", this.handlePointerUp);
+      document.getElementById("topDepartmentMiniView")
+        ?.addEventListener("click", this.handleTopDepartmentClick);
+      document.getElementById("topDepartmentMiniView")
+        ?.addEventListener("keydown", this.handleTopDepartmentKeydown);
       this.render();
     }
 
@@ -165,6 +171,10 @@
       this.mount.removeEventListener("pointermove", this.handlePointerMove);
       this.mount.removeEventListener("pointerup", this.handlePointerUp);
       this.mount.removeEventListener("pointercancel", this.handlePointerUp);
+      document.getElementById("topDepartmentMiniView")
+        ?.removeEventListener("click", this.handleTopDepartmentClick);
+      document.getElementById("topDepartmentMiniView")
+        ?.removeEventListener("keydown", this.handleTopDepartmentKeydown);
       this.mount.innerHTML = "";
     }
 
@@ -508,6 +518,7 @@
       miniView.hidden = !visible;
       if (!visible) {
         miniView.replaceChildren();
+        window.dispatchEvent(new CustomEvent("learngame-top-department-close"));
         return;
       }
       const stateLabels = {
@@ -526,6 +537,10 @@
             const status = stateLabels[runtime.state] || runtime.state;
             return `
               <span class="top-department-mini is-${escapeHtml(stateClass)} ${roleId === snapshot.humanRoleId ? "is-human" : ""}"
+                    role="button"
+                    tabindex="0"
+                    data-top-department-id="${escapeHtml(roleId)}"
+                    aria-label="${escapeHtml(role.department)}: ${escapeHtml(status)}. Open afdelingsinformatie."
                     title="${escapeHtml(role.department)} · ${escapeHtml(status)}${runtime.activeOrderId ? ` · ${escapeHtml(runtime.activeOrderId)}` : ""}">
                 <b>${escapeHtml(role.token)}</b>
                 <i aria-hidden="true"></i>
@@ -534,6 +549,26 @@
           }).join("")}
         </div>
       `;
+    }
+
+    handleTopDepartmentClick(event) {
+      const button = eventTargetClosest(event, "[data-top-department-id]");
+      if (!button) return;
+      this.openTopDepartment(button);
+    }
+
+    handleTopDepartmentKeydown(event) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const button = eventTargetClosest(event, "[data-top-department-id]");
+      if (!button) return;
+      event.preventDefault();
+      this.openTopDepartment(button);
+    }
+
+    openTopDepartment(button) {
+      window.dispatchEvent(new CustomEvent("learngame-top-department-select", {
+        detail: { departmentId: button.dataset.topDepartmentId }
+      }));
     }
 
     renderTopLiveEvents(snapshot) {

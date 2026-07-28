@@ -317,10 +317,18 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
 
     await page.evaluate(() => {
       window.LEARNGameOMSimulator.applyGameTypePreset("lo5", false);
-      window.LEARNGameOMSimulator.setManagerTab("inventory");
+      window.LEARNGameOMSimulator.setManagerTab("balance-sheet");
     });
-    await expect(page.locator('[data-financial-overview="revenue-balance"]')).toBeVisible();
-    await expect(page.locator("[data-financial-advisor]")).toContainText("netto-effect");
+    await expect(page.locator('[data-manager-panel="balance-sheet"]')).toContainText(
+      "Fictieve nulbalans"
+    );
+    await expect(page.locator('[data-manager-panel="balance-sheet"]')).toContainText(
+      "Totaal activa"
+    );
+    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("income-statement"));
+    await expect(page.locator('[data-manager-panel="income-statement"]')).toContainText(
+      "Boekhoudkundig resultaat"
+    );
   });
 
   test("productieplanning volgt de gamepreset en kan via de adviseur worden geactiveerd", async ({ page }) => {
