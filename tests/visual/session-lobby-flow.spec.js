@@ -38,7 +38,7 @@ test.describe("Sessiebeheer & Lobby Flow", () => {
     const managerWorkbench = page.locator('#managerWorkbench');
     await expect(managerWorkbench).toBeVisible();
 
-    const sessionTab = page.locator('[data-manager-tab="session"]');
+    const sessionTab = page.locator('button[data-manager-tab="session"]');
     await expect(sessionTab).toHaveClass(/is-active/);
   });
 });

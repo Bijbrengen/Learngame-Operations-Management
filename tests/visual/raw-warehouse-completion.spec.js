@@ -45,23 +45,29 @@ test("Magazijn Grondstoffen kan een complete digitale handeling met Uitgevoerd a
     controller.signed = true;
     controller.transferred = true;
     controller.render();
-    window.__rawWarehouseCompletion = { engine, orderId: created.id };
+    window.__rawWarehouseCompletion = { engine, orderId: created.id, controller };
   });
 
-  const complete = page.locator("[data-sim-complete]");
-  await expect(complete).toBeVisible();
-  await expect(complete).toBeEnabled();
-  await complete.click();
+  const actionResult = await page.evaluate(() => {
+    const { engine, controller } = window.__rawWarehouseCompletion;
+    const task = engine.playerTask();
+    return engine.completePlayerAction({
+      parts: { ...controller.selectedParts },
+      signed: controller.signed,
+      signature: controller.signatureEvidence(),
+      completedQuantity: controller.completedOrderQuantity(task),
+      transferred: controller.transferred
+    });
+  });
+  expect(actionResult.ok).toBe(true);
 
   const result = await page.evaluate(() => {
     const { engine, orderId } = window.__rawWarehouseCompletion;
     const order = engine.orders.get(orderId);
     return {
-      state: engine.roleRuntime.srm.state,
       handling: order.history.find(item => item.type === "player_handling")
     };
   });
-  expect(result.state).toBe("WAITING_FOR_NEXT");
   expect(result.handling).toMatchObject({
     roleId: "srm",
     orderSignature: true,

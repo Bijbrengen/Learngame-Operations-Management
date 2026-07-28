@@ -1338,6 +1338,7 @@
     appView: "player",
     managerTab: "session",
     insightsTab: "overview",
+    playerTab: "heatmap",
     towerTab: "builder",
     attention: {
       mode: "task",
@@ -7524,6 +7525,10 @@
     launchTutorial,
     endTutorial,
     setAppView,
+    setPlayerTab: tabKey => {
+      state.playerTab = tabKey;
+      renderAll();
+    },
     setManagerTab,
     setInsightsTab,
     setTowerTab,

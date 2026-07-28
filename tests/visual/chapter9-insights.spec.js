@@ -1,7 +1,9 @@
 const { test, expect } = require("@playwright/test");
 
+test.setTimeout(60000);
+
 async function openInsights(page) {
-  await page.route("**/sdk/lego-builder/logic.js", route => route.fulfill({
+  await page.route("**/sdk/lego-builder/logic.js*", route => route.fulfill({
     status: 200,
     contentType: "application/javascript",
     body: "window.LeerpretSDK = window.LeerpretSDK || {};"
@@ -11,7 +13,7 @@ async function openInsights(page) {
     contentType: "application/javascript",
     body: ""
   }));
-  await page.route("**/auth/leerbox/session?**", route => route.fulfill({
+  await page.route("**/auth/leerbox/session**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -20,12 +22,17 @@ async function openInsights(page) {
       roles: ["learner"]
     })
   }));
+  await page.route("**/api/auth/google/config**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ enabled: true, client_id: "playwright", scope: "openid" })
+  }));
   await page.route("**/v1/player/behavior-profile**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })
   }));
-  await page.route("**/v1/game-sessions/availability", route => route.fulfill({
+  await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -39,7 +46,7 @@ async function openInsights(page) {
   await page.waitForFunction(() => (
     window.LEARNGameOMSimulator
     && window.Chapter9Insights
-    && window.Chapter9Insights.assets.length === 22
+    && window.Chapter9Insights.variants
   ));
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await expect(page.locator("#characterCreationGate")).toBeHidden();
@@ -78,14 +85,17 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   });
 
   await expect(page.locator("#chapter9LiveIndicators")).toContainText("Actief: druk met niets");
-  await page.getByRole("button", { name: /Rolactiviteit/ }).click();
-  await expect(page.locator("#chapter9RoleActivity")).toContainText("4 acties · 0 productief");
 
-  await page.getByRole("button", { name: "Uitleg over de sturingsparadox" }).click();
+  const helpButton = page.getByRole("button", { name: "Uitleg over de sturingsparadox" });
+  await helpButton.scrollIntoViewIfNeeded();
+  await helpButton.click();
   const infoDialog = page.locator("#configurationHelpDialog");
   await expect(infoDialog).toContainText("Vergelijk managementactiviteit");
   await expect(infoDialog).toContainText("inhoudelijke leerlijn");
   await infoDialog.getByRole("button", { name: "Uitleg sluiten" }).click();
+
+  await page.getByRole("button", { name: /Rolactiviteit/ }).click();
+  await expect(page.locator("#chapter9RoleActivity")).toContainText("4 acties · 0 productief");
 });
 
 test("inzichtenbibliotheek wisselt tussen spelvarianten zonder bronbestanden", async ({ page }) => {

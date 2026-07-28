@@ -35,7 +35,7 @@ test.describe("Leerpret-aanmelding", () => {
         body: JSON.stringify({ detail: "No active Leerpret session" })
       });
     });
-    await page.route("**/api/auth/google/config", route => {
+    await page.route("**/api/auth/google/config**", route => {
       route.fulfill({
         status: 200,
         contentType: "application/json",

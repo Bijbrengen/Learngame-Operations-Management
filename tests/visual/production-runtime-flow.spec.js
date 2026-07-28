@@ -4,7 +4,7 @@ async function openDeterministicSimulator(page) {
   await page.addInitScript(() => {
     Math.random = () => 0.5;
   });
-  await page.route("**/auth/leerbox/session?**", route => route.fulfill({
+  await page.route("**/auth/leerbox/session**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -13,7 +13,12 @@ async function openDeterministicSimulator(page) {
       roles: ["learner"]
     })
   }));
-  await page.route("**/v1/game-sessions/availability", route => route.fulfill({
+  await page.route("**/api/auth/google/config**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ enabled: true, client_id: "playwright", scope: "openid" })
+  }));
+  await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -56,6 +61,7 @@ test.describe("Werkelijke productieflow per LO-Game", () => {
       simulator.dispatchInteraction({ departmentId: "pd2", actionType: "inspect_department" });
       simulator.dispatchInteraction({ departmentId: "pd2", actionType: "complete_department_action" });
       simulator.dispatchInteraction({ role: "Klant", actionType: "customer_order_request" });
+      simulator.setPlayerTab("heatmap");
       return simulator.getPlayerDepartmentHeatmap();
     });
 

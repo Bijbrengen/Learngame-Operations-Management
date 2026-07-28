@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
 async function openManagerSettings(page) {
-  await page.route("**/sdk/lego-builder/logic.js", route => route.fulfill({
+  await page.route("**/sdk/lego-builder/logic.js*", route => route.fulfill({
     status: 200,
     contentType: "application/javascript",
     body: "window.LeerpretSDK = window.LeerpretSDK || {};"
@@ -15,7 +15,7 @@ async function openManagerSettings(page) {
       roles: ["learner"]
     })
   }));
-  await page.route("**/v1/game-sessions/availability", route => route.fulfill({
+  await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -25,7 +25,7 @@ async function openManagerSettings(page) {
       can_start_free_game: true
     })
   }));
-  await page.route("**/v1/player/behavior-profile", route => route.fulfill({
+  await page.route("**/v1/player/behavior-profile**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })

@@ -3,6 +3,9 @@ const { test, expect } = require("@playwright/test");
 test.describe("Klantorder Acceptance Flow", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/accounts.google.com/**", route => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
+    await page.route("**/auth/leerbox/session**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { label: "Playwright" }, roles: ["learner"] }) }));
+    await page.route("**/api/auth/google/config**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ enabled: true }) }));
+    await page.route("**/v1/game-sessions/availability**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ current_session: null, discoverable_sessions: [], open_sessions: [], can_start_free_game: true }) }));
     await page.goto("/");
     await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
   });

@@ -60,7 +60,7 @@ test.describe("Manager Dashboard & Perspectives", () => {
         window.LEARNGameOMSimulator.setManagerTab(key);
       }, tabKey);
 
-      const tabButton = page.locator(`[data-manager-tab="${tabKey}"]`);
+      const tabButton = page.locator(`button[data-manager-tab="${tabKey}"]`);
       await expect(tabButton).toHaveClass(/is-active/);
     }
   });

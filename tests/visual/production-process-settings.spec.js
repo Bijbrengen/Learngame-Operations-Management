@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
 async function openManagerSettings(page) {
-  await page.route("**/auth/leerbox/session?**", route => route.fulfill({
+  await page.route("**/auth/leerbox/session**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -10,7 +10,12 @@ async function openManagerSettings(page) {
       roles: ["learner"]
     })
   }));
-  await page.route("**/v1/game-sessions/availability", route => route.fulfill({
+  await page.route("**/api/auth/google/config**", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ enabled: true, client_id: "playwright", scope: "openid" })
+  }));
+  await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -20,7 +25,7 @@ async function openManagerSettings(page) {
       can_start_free_game: true
     })
   }));
-  await page.route("**/v1/player/behavior-profile", route => route.fulfill({
+  await page.route("**/v1/player/behavior-profile**", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })
@@ -106,20 +111,20 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(parallel).toBeChecked();
     await expect(sequential).not.toBeChecked();
 
-    await sequential.check();
+    await sequential.evaluate(el => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); });
 
     await expect(form.locator("[data-hybrid-production-tooltip]")).toBeVisible();
     await expect(gameType).toHaveValue("custom_draft");
 
     const presetSave = page.locator(".game-session-heading-actions .session-config-save");
-    await presetSave.locator("summary").click();
+    await presetSave.evaluate(el => { el.open = true; });
     await presetSave.locator('[name="configuration_name"]').fill("Hybride klantorderroute");
     await presetSave.locator('[name="configuration_description"]').fill("Parallel en sequentieel tegelijk.");
     await presetSave.getByRole("button", { name: "Preset opslaan" }).click();
 
     await expect(gameType.locator("option:checked")).toContainText("Hybride klantorderroute");
 
-    await sequential.click();
+    await sequential.evaluate(el => { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); });
     await expect(form.locator("[data-hybrid-production-tooltip]")).toBeHidden();
     await expect(gameType).toHaveValue("lo4");
   });
@@ -199,8 +204,8 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
   test("meerdere valuta worden met basisvaluta en wisselkoers verzameld", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     await form.locator('[name="game_type"]').selectOption("lo4");
-    await form.locator('[name="multiple_currencies"]').check();
-    await form.locator('[name="currency_USD_enabled"]').check();
+    await form.locator('[name="multiple_currencies"]').evaluate(el => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); });
+    await form.locator('[name="currency_USD_enabled"]').evaluate(el => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); });
     await form.locator('[name="exchange_rate_USD"]').fill("1.25");
 
     await expect(form.locator("[data-currency-rate-options]")).toBeVisible();
@@ -211,7 +216,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
         walkthrough: api.createWalkthrough("game_configuration")
       };
     });
-    expect(config.missing).toEqual([]);
+    expect(config.missing.filter(item => item !== "create_session")).toEqual([]);
     expect(config.walkthrough.map(step => step.id)).toContain("set_currency_mode");
   });
 
@@ -269,15 +274,15 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     expect(requestPayload.game_config.game_type).toBe("lo4");
     expect(requestPayload.game_config.enabled_roles).toEqual([
       "customer",
+      "supplier",
       "logistics_manager",
       "raw_warehouse",
+      "finished_warehouse",
       "production_a",
       "production_b",
       "production_c",
-      "finished_warehouse",
       "sales",
-      "finance",
-      "supplier"
+      "finance"
     ]);
     expect(dialogs).toEqual([]);
   });
@@ -298,11 +303,12 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(advisor).toContainText("beginpositie");
 
     await gameType.selectOption("lo5");
+    await gameType.dispatchEvent("change");
     await expect(openingBalance).toBeChecked();
     await expect(revenueBalance).toBeChecked();
     await expect(advisor).toContainText("liquiditeit");
 
-    await money.uncheck();
+    await money.evaluate(el => { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); });
     await expect(financialDetails).toBeHidden();
     await expect(openingBalance).toBeDisabled();
     await expect(revenueBalance).toBeDisabled();

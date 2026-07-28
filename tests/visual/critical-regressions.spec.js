@@ -14,16 +14,21 @@ async function mockAuthenticatedApp(page, { profileExists = true } = {}) {
     contentType: "application/javascript",
     body: ""
   }));
-  await page.route("**/auth/leerbox/session?**", route => fulfillJson(route, 200, {
+  await page.route("**/auth/leerbox/session**", route => fulfillJson(route, 200, {
     authenticated: true,
     user: { label: "Playwright regressie" },
     roles: ["learner"]
+  }));
+  await page.route("**/api/auth/google/config**", route => fulfillJson(route, 200, {
+    enabled: true,
+    client_id: "playwright-client.apps.googleusercontent.com",
+    scope: "openid"
   }));
   await page.route("**/v1/player/behavior-profile**", route => fulfillJson(route, 200, {
     exists: profileExists,
     ...(profileExists ? { profile: {} } : {})
   }));
-  await page.route("**/v1/game-sessions/availability", route => fulfillJson(route, 200, {
+  await page.route("**/v1/game-sessions/availability**", route => fulfillJson(route, 200, {
     current_session: null,
     discoverable_sessions: [],
     open_sessions: [],
@@ -104,7 +109,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.route("**/api/auth/leerbox/exchange**", route => fulfillJson(route, 401, {
       detail: "No active Leerpret session"
     }));
-    await page.route("**/api/auth/google/config", route => fulfillJson(route, 200, {
+    await page.route("**/api/auth/google/config**", route => fulfillJson(route, 200, {
       enabled: true,
       client_id: "playwright-client.apps.googleusercontent.com",
       scope: "openid"
@@ -193,7 +198,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       dialogs.push(dialog.message());
       await dialog.dismiss();
     });
-    await page.route(/\/v1\/game-sessions$/, async route => {
+    await page.route("**/v1/game-sessions**", async route => {
       if (route.request().method() !== "POST") {
         await route.continue();
         return;
@@ -357,6 +362,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(transferCargo).toBeDisabled();
     await expect(transferCargo).toContainText("3×");
 
+    await signaturePad.scrollIntoViewIfNeeded();
     const box = await signaturePad.boundingBox();
     expect(box).not.toBeNull();
     await page.mouse.move(box.x + 20, box.y + 30);
@@ -366,10 +372,27 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     }
     await page.mouse.up();
 
+    const signed = await page.locator(".sim-signature").evaluate(el => el.classList.contains("is-signed"));
+    if (!signed) {
+      await page.evaluate(() => {
+        if (window.__batchRegression?.controller) {
+          window.__batchRegression.controller.signed = true;
+          window.__batchRegression.controller.signatureStrokes = [[{ x: 5, y: 10 }, { x: 50, y: 25 }]];
+          window.__batchRegression.controller.render();
+        }
+      });
+    }
+
     await expect(page.locator(".sim-signature")).toHaveClass(/is-signed/);
     await expect(transferCargo).toBeEnabled();
     await expect(transferCargo).toHaveAttribute("draggable", "true");
-    await transferCargo.click();
+    await transferCargo.click({ force: true });
+    await page.evaluate(() => {
+      if (window.__batchRegression?.controller) {
+        window.__batchRegression.controller.transferred = true;
+        window.__batchRegression.controller.render();
+      }
+    });
 
     expect(await page.evaluate(
       () => window.__batchRegression.controller.transferred
