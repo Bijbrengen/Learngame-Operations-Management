@@ -339,6 +339,7 @@
   let PRODUCTS = {};
   let logisticsGameController = null;
   let standaloneSelectedDepartmentId = null;
+  let standaloneDepartmentDetailOpen = false;
 
   const LANES = [
     { id: "customer", title: "Klanten", subtitle: "4 mogelijke klanten" },
@@ -1410,11 +1411,16 @@
   };
 
   const els = {
-    openOrdersValue: document.getElementById("openOrdersValue"),
-    throughputValue: document.getElementById("throughputValue"),
-    cashValue: document.getElementById("cashValue"),
-    profitValue: document.getElementById("profitValue"),
     lateValue: document.getElementById("lateValue"),
+    liveEventCountValue: document.getElementById("liveEventCountValue"),
+    liveEventsControl: document.querySelector(".top-live-events-control"),
+    liveEventsToggle: document.getElementById("liveEventsToggle"),
+    liveEventsPopover: document.getElementById("topLiveEventsPopover"),
+    liveEventsClose: document.getElementById("topLiveEventsClose"),
+    eventsControl: document.querySelector(".top-events-control"),
+    eventsToggle: document.getElementById("eventsToggle"),
+    eventsPopover: document.getElementById("topEventsPopover"),
+    eventsClose: document.getElementById("topEventsClose"),
     metricStrip: document.querySelector(".metric-strip"),
     hudComplexity: document.getElementById("hudComplexity"),
     hudComplexityValue: document.getElementById("hudComplexityValue"),
@@ -1904,7 +1910,6 @@
       "role-presets",
       "tower-editor",
       "inventory",
-      "events",
       "process",
       "insights"
     ]);
@@ -3195,9 +3200,18 @@
       renderProcessFlow: (target, snapshot) => {
         if (!window.IsometricLogisticsView) return;
         const renderScene = () => {
-          window.IsometricLogisticsView.mount(target, standaloneLogisticsScene(snapshot), {
+          const scene = standaloneLogisticsScene(snapshot);
+          if (!standaloneDepartmentDetailOpen) scene.selectedDepartmentId = null;
+          window.IsometricLogisticsView.mount(target, scene, {
+            centerDepartments: true,
+            departmentDetailMode: "popup",
             onDepartmentSelect: departmentId => {
               standaloneSelectedDepartmentId = departmentId;
+              standaloneDepartmentDetailOpen = true;
+              renderScene();
+            },
+            onDepartmentClose: () => {
+              standaloneDepartmentDetailOpen = false;
               renderScene();
             }
           });
@@ -3252,6 +3266,7 @@
     state.config.organizationModel = organizationModel;
     state.config.fundingIncentive = fundingIncentive;
     state.config.playMode = playMode;
+    standaloneDepartmentDetailOpen = false;
     logisticsGameController.engine.setCustomerOrderMode(customerOrderMode);
     logisticsGameController.engine.setOrganizationModel(organizationModel);
     logisticsGameController.engine.setFundingIncentive(fundingIncentive);
@@ -4214,30 +4229,48 @@
   }
 
   function renderMetrics() {
-    const input = state.orders.filter(order => !order.done && order.stepIndex <= 3).length;
-    const busy = state.orders.filter(order => !order.done && order.stepIndex > 3).length;
-    const done = state.orders.filter(order => order.done).length;
-    const late = state.orders.filter(order => order.late).length;
-    els.openOrdersValue.textContent = String(input);
-    els.throughputValue.textContent = String(busy);
-    els.cashValue.textContent = String(done);
-    els.profitValue.textContent = String(late);
     els.lateValue.textContent = String(state.interactionBuffer.length);
     const sessionActive = Boolean(state.gameSessionRunning);
     els.metricStrip?.classList.toggle("is-inactive", !sessionActive);
     els.metricStrip?.setAttribute("aria-disabled", String(!sessionActive));
     els.metricStrip?.querySelectorAll("button").forEach(button => {
+      if (
+        button === els.liveEventsToggle
+        || button === els.liveEventsClose
+        || button === els.eventsClose
+      ) return;
       button.disabled = !sessionActive;
     });
+    if (!sessionActive) setEventsOpen(false);
     renderProcessHud();
     els.clockValue.textContent = formatClock(state.clockMinutes);
     els.eventCountValue.textContent = String(state.interactionBuffer.length);
     renderChapter9Insights();
   }
 
-  function renderEvents() {
-    const recent = [...state.interactionBuffer].slice(-26).reverse();
-    els.eventLog.innerHTML = recent.map(event => {
+  function setLiveEventsOpen(open) {
+    if (!els.liveEventsToggle || !els.liveEventsPopover) return;
+    const nextOpen = Boolean(open);
+    els.liveEventsPopover.hidden = !nextOpen;
+    els.liveEventsToggle.setAttribute("aria-expanded", String(nextOpen));
+    els.liveEventsToggle.classList.toggle("is-open", nextOpen);
+    if (nextOpen) setEventsOpen(false);
+  }
+
+  function setEventsOpen(open) {
+    if (!els.eventsToggle || !els.eventsPopover) return;
+    const nextOpen = Boolean(open);
+    els.eventsPopover.hidden = !nextOpen;
+    els.eventsToggle.setAttribute("aria-expanded", String(nextOpen));
+    els.eventsToggle.classList.toggle("is-open", nextOpen);
+    if (nextOpen) setLiveEventsOpen(false);
+  }
+
+  function eventRowsMarkup(events) {
+    if (!events.length) {
+      return '<p class="event-log-empty">Er zijn nog geen gebeurtenissen in deze sessie.</p>';
+    }
+    return events.map(event => {
       const resultClass = String(event.result || "").toLowerCase();
       const label = event.stageLabel || event.screen || event.actionType;
       return `
@@ -4248,6 +4281,12 @@
         </div>
       `;
     }).join("");
+  }
+
+  function renderEvents() {
+    const events = [...state.interactionBuffer].reverse();
+    const markup = eventRowsMarkup(events);
+    els.eventLog.innerHTML = markup;
   }
 
   function renderDataModel(force = false) {
@@ -6961,9 +7000,57 @@
     });
     document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
       button.addEventListener("click", () => {
+        setLiveEventsOpen(false);
+        setEventsOpen(false);
         setAppView("manager", false);
         setManagerTab(button.dataset.mainMenuTab);
       });
+    });
+    els.liveEventsToggle?.addEventListener("click", event => {
+      event.stopPropagation();
+      setLiveEventsOpen(els.liveEventsToggle.getAttribute("aria-expanded") !== "true");
+    });
+    els.liveEventsClose?.addEventListener("click", () => {
+      setLiveEventsOpen(false);
+      els.liveEventsToggle?.focus();
+    });
+    els.eventsToggle?.addEventListener("click", event => {
+      event.stopPropagation();
+      setEventsOpen(els.eventsToggle.getAttribute("aria-expanded") !== "true");
+    });
+    els.eventsClose?.addEventListener("click", () => {
+      setEventsOpen(false);
+      els.eventsToggle?.focus();
+    });
+    document.addEventListener("click", event => {
+      if (
+        els.liveEventsToggle?.getAttribute("aria-expanded") === "true"
+        && !els.liveEventsControl?.contains(event.target)
+      ) {
+        setLiveEventsOpen(false);
+      }
+      if (
+        els.eventsToggle?.getAttribute("aria-expanded") === "true"
+        && !els.eventsControl?.contains(event.target)
+      ) {
+        setEventsOpen(false);
+      }
+    });
+    document.addEventListener("keydown", event => {
+      if (
+        event.key === "Escape"
+        && els.liveEventsToggle?.getAttribute("aria-expanded") === "true"
+      ) {
+        setLiveEventsOpen(false);
+        els.liveEventsToggle.focus();
+      }
+      if (
+        event.key === "Escape"
+        && els.eventsToggle?.getAttribute("aria-expanded") === "true"
+      ) {
+        setEventsOpen(false);
+        els.eventsToggle.focus();
+      }
     });
     document.querySelectorAll("[data-insights-tab]").forEach(button => {
       button.addEventListener("click", () => setInsightsTab(button.dataset.insightsTab));

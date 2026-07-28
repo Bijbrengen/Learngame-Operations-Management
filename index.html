@@ -80,6 +80,11 @@
             <span aria-hidden="true">KA</span>
             <strong>Karakter</strong>
           </button>
+          <section id="topDepartmentMiniView"
+                   class="top-department-mini-view"
+                   aria-label="Live status van afdelingen"
+                   aria-live="polite"
+                   hidden></section>
         </nav>
       </div>
 
@@ -88,33 +93,71 @@
              class="player-session-metric-mount"
              aria-live="polite"></div>
         <div class="metric-strip-values">
-          <div class="metric">
-            <span>Invoer</span>
-            <strong id="openOrdersValue">0</strong>
+          <div class="top-live-events-control">
+            <button id="liveEventsToggle"
+                    class="metric menu-live-events-button"
+                    type="button"
+                    aria-expanded="false"
+                    aria-controls="topLiveEventsPopover">
+              <span><i aria-hidden="true"></i>Live gebeurtenissen</span>
+              <strong id="liveEventCountValue">0</strong>
+            </button>
+            <section id="topLiveEventsPopover"
+                     class="top-live-events-popover"
+                     aria-label="Live gebeurtenissen uit de logistieke simulatie"
+                     hidden>
+              <header>
+                <div>
+                  <small>Simulatie · live</small>
+                  <strong>Live gebeurtenissen</strong>
+                </div>
+                <button id="topLiveEventsClose"
+                        type="button"
+                        aria-label="Live gebeurtenissen sluiten">×</button>
+              </header>
+              <div id="topLiveEventFeed"
+                   class="sim-live-feed"
+                   role="log"
+                   aria-live="polite"></div>
+            </section>
           </div>
-          <div class="metric">
-            <span>Bezig</span>
-            <strong id="throughputValue">0</strong>
+          <div class="top-events-control">
+            <div class="menu-events-split" role="group" aria-label="Events">
+              <button id="eventsToggle"
+                      class="metric menu-events-button"
+                      type="button"
+                      aria-expanded="false"
+                      aria-controls="topEventsPopover">
+                <span>Events</span>
+                <strong id="lateValue">0</strong>
+              </button>
+              <button id="menuExportButton"
+                      class="menu-events-download"
+                      type="button"
+                      aria-label="Events als JSON-bestand downloaden"
+                      title="Events als JSON-bestand downloaden">
+                <span aria-hidden="true">↓</span>
+              </button>
+            </div>
+            <section id="topEventsPopover"
+                     class="top-events-popover ledger-panel"
+                     aria-label="Meetlog"
+                     hidden>
+              <header>
+                <div>
+                  <small>Events</small>
+                  <strong>Kale meetlijn</strong>
+                </div>
+                <div class="top-events-popover-actions">
+                  <span id="eventCountValue" class="clock-pill">0</span>
+                  <button id="topEventsClose"
+                          type="button"
+                          aria-label="Events sluiten">×</button>
+                </div>
+              </header>
+              <div id="eventLog" class="event-log"></div>
+            </section>
           </div>
-          <div class="metric">
-            <span>Gereed</span>
-            <strong id="cashValue">0</strong>
-          </div>
-          <div class="metric">
-            <span>Te laat</span>
-            <strong id="profitValue">0</strong>
-          </div>
-          <button class="metric menu-events-button" type="button" data-main-menu-tab="events">
-            <span>Events</span>
-            <strong id="lateValue">0</strong>
-          </button>
-          <button id="menuExportButton"
-                  class="metric menu-export-button"
-                  type="button"
-                  title="Events als JSON-bestand downloaden">
-            <span aria-hidden="true">{ }</span>
-            <strong>Downloaden Events</strong>
-          </button>
         </div>
       </section>
 
@@ -155,20 +198,29 @@
       </section>
 
       <aside class="game-menu-account" aria-label="Account en instellingen">
-        <button id="menuAuthStatus"
-                class="auth-status-button"
-                type="button"
-                disabled>
-          Sessie controleren…
-        </button>
-        <button id="menuSettingsButton"
-                class="menu-settings-button"
-                type="button"
-                data-main-menu-tab="session"
-                aria-label="Game-instellingen openen"
-                title="Game-instellingen">
-          ⚙
-        </button>
+        <div class="account-settings-control">
+          <button id="menuSettingsButton"
+                  class="menu-settings-button"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="accountSettingsMenu"
+                  aria-label="Accountinstellingen"
+                  title="Accountinstellingen">
+            <span aria-hidden="true">⚙</span>
+          </button>
+          <section id="accountSettingsMenu"
+                   class="account-settings-menu"
+                   aria-label="Accountinstellingen"
+                   hidden>
+            <small>Account</small>
+            <button id="menuAuthStatus"
+                    class="auth-status-button"
+                    type="button"
+                    disabled>
+              Sessie controleren…
+            </button>
+          </section>
+        </div>
       </aside>
 
       <aside id="nextLevelChallenge"
@@ -1125,19 +1177,6 @@
           <div id="stockSignal" class="stock-signal">OK</div>
         </div>
         <div id="inventoryGrid" class="inventory-grid"></div>
-      </section>
-
-      <section class="ledger-panel manager-dashboard-panel"
-               data-manager-panel="events"
-               aria-label="Meetlog">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">Events</p>
-            <h2>Kale meetlijn</h2>
-          </div>
-          <div id="eventCountValue" class="clock-pill">0</div>
-        </div>
-        <div id="eventLog" class="event-log"></div>
       </section>
 
       <section id="dataModelPanel"

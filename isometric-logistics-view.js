@@ -88,6 +88,35 @@
     };
   }
 
+  function centeredDepartmentViewBox(departments, aspectRatio = VIEWBOX.width / VIEWBOX.height) {
+    if (!departments.length) return `0 0 ${VIEWBOX.width} ${VIEWBOX.height}`;
+    const projectedPoints = departments.flatMap(department => {
+      const geometry = zoneGeometry(department);
+      return [...geometry.floor, ...geometry.roof];
+    });
+    const minX = Math.min(...projectedPoints.map(point => point.x));
+    const maxX = Math.max(...projectedPoints.map(point => point.x));
+    const minY = Math.min(...projectedPoints.map(point => point.y));
+    const maxY = Math.max(...projectedPoints.map(point => point.y));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const contentWidth = Math.max(760, (maxX - minX) + 180);
+    const contentHeight = Math.max(560, (maxY - minY) + 170);
+    const ratio = Math.max(0.65, Math.min(2.4, Number(aspectRatio) || 1));
+    let width = contentWidth;
+    let height = width / ratio;
+    if (height < contentHeight) {
+      height = contentHeight;
+      width = height * ratio;
+    }
+    return [
+      centerX - width / 2,
+      centerY - height / 2,
+      width,
+      height
+    ].map(value => value.toFixed(2)).join(" ");
+  }
+
   function flowPoint(referenceId, departmentById, offset = {}) {
     const department = departmentById.get(referenceId);
     if (!department) return null;
@@ -362,7 +391,7 @@
     `;
   }
 
-  function detailMarkup(department) {
+  function detailMarkup(department, options = {}) {
     if (!department) {
       return `
         <aside class="iso-department-detail" aria-live="polite">
@@ -397,14 +426,25 @@
     const feedback = department.feedback
       ? `<p class="iso-detail-feedback is-${escapeHtml(department.feedback.kind || "info")}">${escapeHtml(department.feedback.text)}</p>`
       : "";
+    const closeButton = options.closeable
+      ? `<button type="button"
+                 class="iso-detail-close"
+                 data-department-detail-close
+                 aria-label="Afdelingsinformatie sluiten">×</button>`
+      : "";
     return `
-      <aside class="iso-department-detail" aria-live="polite">
+      <aside class="iso-department-detail"
+             aria-live="polite"
+             ${options.closeable ? 'aria-labelledby="isoDepartmentDetailTitle"' : ""}>
         <div class="iso-detail-heading">
           <div>
             <p class="eyebrow">Afdelingsinformatie</p>
-            <h3>${escapeHtml(department.title)}</h3>
+            <h3${options.closeable ? ' id="isoDepartmentDetailTitle"' : ""}>${escapeHtml(department.title)}</h3>
           </div>
-          <span class="iso-detail-status status-${escapeHtml(department.status)}">${statusText(department.status)}</span>
+          <div class="iso-detail-heading-actions">
+            <span class="iso-detail-status status-${escapeHtml(department.status)}">${statusText(department.status)}</span>
+            ${closeButton}
+          </div>
         </div>
         <p>${escapeHtml(department.description)}</p>
         <div class="iso-detail-facts">${facts}</div>
@@ -413,6 +453,22 @@
         <h4>Lopende orders</h4>
         <ul class="iso-detail-orders">${orders}</ul>
       </aside>
+    `;
+  }
+
+  function detailPopupMarkup(department) {
+    if (!department) return "";
+    return `
+      <section class="iso-department-detail-popup"
+               role="dialog"
+               aria-modal="true"
+               aria-labelledby="isoDepartmentDetailTitle">
+        <button type="button"
+                class="iso-detail-backdrop"
+                data-department-detail-close
+                aria-label="Afdelingsinformatie sluiten"></button>
+        ${detailMarkup(department, { closeable: true })}
+      </section>
     `;
   }
 
@@ -554,6 +610,10 @@
           ? { ...department, forceSelectedRender: true }
           : department
       ));
+    const mapAspectRatio = container.clientWidth / Math.max(1, container.clientHeight);
+    const mapViewBox = options.centerDepartments
+      ? centeredDepartmentViewBox(departments, mapAspectRatio)
+      : `0 0 ${VIEWBOX.width} ${VIEWBOX.height}`;
     const departmentById = new Map(departments.map(department => [department.id, department]));
     const selected = departmentById.get(scene.selectedDepartmentId) || null;
     const minX = Math.min(...departments.map(department => department.layout.x), 0) - 2;
@@ -590,7 +650,7 @@
     `).join("");
 
     container.innerHTML = `
-      <div class="iso-logistics-view${scene.tutorial?.active ? " is-tutorial" : ""}">
+      <div class="iso-logistics-view${scene.tutorial?.active ? " is-tutorial" : ""}${options.departmentDetailMode === "popup" ? " has-detail-popup" : ""}">
         <div class="iso-map-frame">
           <div class="iso-map-toolbar">
             <div>
@@ -603,7 +663,7 @@
           ${tutorialMarkup(scene.tutorial)}
           ${financeHudMarkup(scene.finance)}
           <svg class="iso-map"
-               viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}"
+               viewBox="${mapViewBox}"
                preserveAspectRatio="xMidYMid meet"
                role="img"
                aria-label="Isometrische kaart van de logistieke afdelingen">
@@ -633,7 +693,11 @@
           </svg>
           ${financeSummaryMarkup(scene.finance)}
         </div>
-        ${scene.tutorial?.active ? "" : detailMarkup(selected)}
+        ${scene.tutorial?.active
+          ? ""
+          : options.departmentDetailMode === "popup"
+            ? detailPopupMarkup(selected)
+            : detailMarkup(selected)}
       </div>
     `;
 
@@ -652,6 +716,22 @@
         }
       });
     });
+    const closeDepartmentDetail = () => {
+      if (typeof options.onDepartmentClose === "function") options.onDepartmentClose();
+    };
+    container.querySelectorAll("[data-department-detail-close]").forEach(button => {
+      button.addEventListener("click", closeDepartmentDetail);
+    });
+    const detailPopup = container.querySelector(".iso-department-detail-popup");
+    if (detailPopup) {
+      detailPopup.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeDepartmentDetail();
+        }
+      });
+      container.querySelector(".iso-detail-close")?.focus?.();
+    }
     let stockDrag = null;
     const clearDropTarget = () => {
       container.querySelector(".iso-department.is-drag-over")?.classList.remove("is-drag-over");

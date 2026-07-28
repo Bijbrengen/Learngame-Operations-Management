@@ -1544,7 +1544,6 @@
         <div class="player-running-session">
           <span class="session-member-token">${escapeHtml(assignedRole.slice(0, 2).toUpperCase())}</span>
           <span>
-            <small class="player-session-context">Gamecode &amp; lobby</small>
             <strong>${escapeHtml(assignedRole)}</strong>
             <small>Gamesessie gestart · ${playModeLabel} · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
           </span>

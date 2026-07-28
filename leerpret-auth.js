@@ -85,12 +85,23 @@
       message: document.getElementById("leerpretAuthMessage"),
       googleMount: document.getElementById("leerpretGoogleSignIn"),
       statusButton: document.getElementById("leerpretAuthStatus"),
-      menuStatusButton: document.getElementById("menuAuthStatus")
+      menuStatusButton: document.getElementById("menuAuthStatus"),
+      accountControl: document.querySelector(".account-settings-control"),
+      accountButton: document.getElementById("menuSettingsButton"),
+      accountMenu: document.getElementById("accountSettingsMenu")
     };
   }
 
   function statusButtons(els = elements()) {
     return [els.statusButton, els.menuStatusButton].filter(Boolean);
+  }
+
+  function setAccountMenuOpen(open, els = elements()) {
+    if (!els.accountButton || !els.accountMenu) return;
+    const nextOpen = Boolean(open);
+    els.accountMenu.hidden = !nextOpen;
+    els.accountButton.setAttribute("aria-expanded", String(nextOpen));
+    els.accountButton.classList.toggle("is-open", nextOpen);
   }
 
   function roleLabels() {
@@ -158,11 +169,14 @@
       els.message.className = `auth-message ${online ? "is-info" : "is-error"}`;
     }
     statusButtons(els).forEach(statusButton => {
-      statusButton.textContent = online ? "Niet aangemeld" : "Service offline";
+      statusButton.textContent = online ? "Aanmelden" : "Service offline";
       statusButton.classList.remove("is-authenticated");
-      statusButton.removeAttribute("aria-label");
+      statusButton.setAttribute(
+        "aria-label",
+        online ? "Aanmelden met een Google-account." : "Aanmelden niet mogelijk: de service is offline."
+      );
       statusButton.title = online ? "Meld je aan in dit venster" : "De Leerpret-service is niet bereikbaar";
-      statusButton.disabled = true;
+      statusButton.disabled = !online;
     });
     announceSession();
     if (online) initializeGoogleSignIn();
@@ -309,10 +323,37 @@
   }
 
   function wire() {
-    statusButtons().forEach(statusButton => {
+    const els = elements();
+    statusButtons(els).forEach(statusButton => {
       statusButton.addEventListener("click", () => {
-        if (state.authenticated) logout();
+        setAccountMenuOpen(false, els);
+        if (state.authenticated) {
+          logout();
+          return;
+        }
+        if (state.online) {
+          els.gate?.scrollIntoView({ block: "start" });
+          els.googleMount?.querySelector("button, [tabindex]")?.focus();
+        }
       });
+    });
+    els.accountButton?.addEventListener("click", event => {
+      event.stopPropagation();
+      setAccountMenuOpen(els.accountButton.getAttribute("aria-expanded") !== "true", els);
+    });
+    document.addEventListener("click", event => {
+      if (
+        els.accountButton?.getAttribute("aria-expanded") === "true"
+        && !els.accountControl?.contains(event.target)
+      ) {
+        setAccountMenuOpen(false, els);
+      }
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && els.accountButton?.getAttribute("aria-expanded") === "true") {
+        setAccountMenuOpen(false, els);
+        els.accountButton.focus();
+      }
     });
   }
 

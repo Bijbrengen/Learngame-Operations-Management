@@ -649,32 +649,36 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["hasRawDelay"])
         self.assertTrue(result["hasPeakFlow"])
 
-    def test_waiting_player_sees_four_scaled_live_views_at_once(self) -> None:
+    def test_waiting_player_sees_two_large_live_views_and_top_departments(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        isometric = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         self.assertNotIn("data-sim-waiting-tab", ui)
-        self.assertIn('aria-label="Vier gelijktijdige liveweergaven"', ui)
+        self.assertIn('aria-label="Twee gelijktijdige liveweergaven"', ui)
         self.assertLess(
             ui.index('<h3 id="simWaitingFlowTitle">'),
             ui.index('<h3 id="simWaitingHeatmapTitle">'),
         )
-        self.assertLess(
-            ui.index('<h3 id="simWaitingHeatmapTitle">'),
-            ui.index('<h3 id="simWaitingEventsTitle">'),
-        )
-        self.assertLess(
-            ui.index('<h3 id="simWaitingEventsTitle">'),
-            ui.index('<h3 id="simWaitingDepartmentsTitle">'),
-        )
+        self.assertNotIn('<h3 id="simWaitingEventsTitle">', ui)
+        self.assertNotIn('<h3 id="simWaitingDepartmentsTitle">', ui)
+        self.assertIn('id="topDepartmentMiniView"', html)
+        self.assertIn("renderTopDepartmentMini", ui)
+        self.assertIn('id="topLiveEventFeed"', html)
+        self.assertIn("renderTopLiveEvents", ui)
         self.assertIn("Afdelingen", ui)
-        self.assertIn("Live gebeurtenissen", ui)
         self.assertIn("Productiestroom", ui)
         self.assertNotIn("<h2>Live fabrieksoverzicht</h2>", ui)
-        self.assertIn("grid-template-rows: repeat(2, minmax(0, 1fr))", styles)
-        self.assertIn(".sim-waiting-view.is-live-events .sim-waiting-view-body", styles)
+        self.assertIn("grid-template-rows: minmax(0, 1fr)", styles)
         self.assertIn("mountProcessFlow", ui)
         self.assertIn("renderProcessFlow: (target, snapshot) =>", game)
+        self.assertIn("centerDepartments: true", game)
+        self.assertIn('departmentDetailMode: "popup"', game)
+        self.assertIn("onDepartmentClose", game)
+        self.assertIn("centeredDepartmentViewBox", isometric)
+        self.assertIn("iso-department-detail-popup", isometric)
+        self.assertIn("data-department-detail-close", isometric)
         self.assertIn("standaloneLogisticsScene(snapshot)", game)
         self.assertIn("window.IsometricLogisticsView.mount(target", game)
         self.assertIn("processFlowSignature", ui)
@@ -1435,7 +1439,10 @@ process.stdout.write(JSON.stringify({
         worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         self.assertIn('src="leerpret-auth.js"', html)
         self.assertIn('id="leerpretGoogleSignIn"', html)
-        self.assertIn('id="leerpretAuthStatus"', html)
+        self.assertIn('id="menuSettingsButton"', html)
+        self.assertIn('id="accountSettingsMenu"', html)
+        self.assertIn('id="menuAuthStatus"', html)
+        self.assertIn("setAccountMenuOpen", auth)
         self.assertIn("https://accounts.google.com/gsi/client", html)
         self.assertIn('credentials: "include"', auth)
         self.assertIn("window.LEARNGAME_OM_CONFIG?.apiBase", auth)
@@ -1524,6 +1531,21 @@ process.stdout.write(JSON.stringify({
         self.assertIn("player-running-session", runtime)
         self.assertIn("placePlayerSessionPanel", runtime)
         self.assertIn('id="playerSessionMetricMount"', html)
+        self.assertIn('id="liveEventsToggle"', html)
+        self.assertNotIn('id="liveEventsPopover"', html)
+        self.assertIn('id="topLiveEventsPopover"', html)
+        self.assertIn('id="topEventsPopover"', html)
+        self.assertIn('id="eventsToggle"', html)
+        self.assertNotRegex(
+            html,
+            r'id="eventsToggle"[^>]*data-main-menu-tab',
+        )
+        self.assertNotRegex(
+            html,
+            r'id="liveEventsToggle"[^>]*data-main-menu-tab',
+        )
+        self.assertNotIn('id="openOrdersValue"', html)
+        self.assertNotIn("Gamecode &amp; lobby", runtime)
         self.assertIn("is-metric-session", runtime)
         self.assertIn("data-game-master-role-select", runtime)
         self.assertIn("game-master-role", runtime)

@@ -76,6 +76,10 @@
         ? options.renderProcessFlow
         : null;
       this.unsubscribe = this.engine.subscribe(event => {
+        if (event.snapshot) {
+          this.renderTopDepartmentMini(event.snapshot);
+          this.renderTopLiveEvents(event.snapshot);
+        }
         if (
           event.type === "tick"
           && this.engine.playerTask()
@@ -472,6 +476,8 @@
 
     render() {
       const snapshot = this.engine.snapshot();
+      this.renderTopDepartmentMini(snapshot);
+      this.renderTopLiveEvents(snapshot);
       if (!snapshot.started) {
         this.mount.innerHTML = "";
         return;
@@ -493,6 +499,75 @@
       this.taskKey = null;
       this.mount.innerHTML = this.factoryOverviewMarkup(snapshot);
       this.mountProcessFlow(snapshot);
+    }
+
+    renderTopDepartmentMini(snapshot) {
+      const miniView = document.getElementById("topDepartmentMiniView");
+      if (!miniView) return;
+      const visible = Boolean(snapshot?.started);
+      miniView.hidden = !visible;
+      if (!visible) {
+        miniView.replaceChildren();
+        return;
+      }
+      const stateLabels = {
+        IDLE: "Wacht op input",
+        PROCESSING: "Verwerkt order",
+        WAITING_FOR_NEXT: "Bereidt overdracht voor",
+        AWAITING_PLAYER: "Wacht op speler"
+      };
+      miniView.innerHTML = `
+        <small>Afdelingen</small>
+        <div>
+          ${snapshot.roleFlow.map(roleId => {
+            const role = snapshot.roles[roleId];
+            const runtime = snapshot.roleRuntime[roleId];
+            const stateClass = String(runtime.state || "IDLE").toLowerCase();
+            const status = stateLabels[runtime.state] || runtime.state;
+            return `
+              <span class="top-department-mini is-${escapeHtml(stateClass)} ${roleId === snapshot.humanRoleId ? "is-human" : ""}"
+                    title="${escapeHtml(role.department)} · ${escapeHtml(status)}${runtime.activeOrderId ? ` · ${escapeHtml(runtime.activeOrderId)}` : ""}">
+                <b>${escapeHtml(role.token)}</b>
+                <i aria-hidden="true"></i>
+              </span>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    renderTopLiveEvents(snapshot) {
+      const count = document.getElementById("liveEventCountValue");
+      const feed = document.getElementById("topLiveEventFeed");
+      const toggle = document.getElementById("liveEventsToggle");
+      const popover = document.getElementById("topLiveEventsPopover");
+      const metricStrip = document.querySelector(".metric-strip");
+      const live = Boolean(snapshot?.started);
+      const items = live && Array.isArray(snapshot.feed) ? snapshot.feed : [];
+      metricStrip?.classList.toggle("has-live-simulation", live);
+      if (live) metricStrip?.setAttribute("aria-disabled", "false");
+      if (toggle) {
+        toggle.disabled = !live;
+        if (!live) {
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.classList.remove("is-open");
+          if (popover) popover.hidden = true;
+        }
+      }
+      if (count) count.textContent = String(items.length);
+      if (!feed) return;
+      feed.innerHTML = items.length
+        ? items.map(item => `
+            <div class="sim-feed-item is-${escapeHtml(item.kind)}">
+              <time>${formatClock(item.at)}</time>
+              <span>${escapeHtml(item.message)}</span>
+            </div>
+          `).join("")
+        : `<p class="top-live-events-empty">${
+            snapshot?.started
+              ? "De simulatie wacht op de eerste live gebeurtenis."
+              : "Start een gamesessie om live gebeurtenissen te zien."
+          }</p>`;
     }
 
     mountProcessFlow(snapshot) {
@@ -1198,7 +1273,7 @@
       const openOrders = snapshot.orders.filter(order => order.status !== "DELIVERED").length;
       return `
         <section class="sim-factory-overview">
-          <div class="sim-waiting-overview" aria-label="Vier gelijktijdige liveweergaven">
+          <div class="sim-waiting-overview" aria-label="Twee gelijktijdige liveweergaven">
             <section class="sim-waiting-view" aria-labelledby="simWaitingFlowTitle">
               <header>
                 <h3 id="simWaitingFlowTitle">Productiestroom</h3>
@@ -1217,35 +1292,6 @@
               </header>
               <div class="sim-waiting-view-body sim-waiting-heatmap-body">
                 ${this.waitingHeatmapMarkup(snapshot)}
-              </div>
-            </section>
-            <section class="sim-waiting-view is-live-events" aria-labelledby="simWaitingEventsTitle">
-              <header>
-                <h3 id="simWaitingEventsTitle">Live gebeurtenissen</h3>
-                <strong>${snapshot.feed.length}</strong>
-              </header>
-              <div class="sim-waiting-view-body">
-              <div class="sim-live-feed" role="log" aria-live="polite">
-                ${snapshot.feed.length
-                  ? snapshot.feed.slice(0, 30).map(item => `
-                      <div class="sim-feed-item is-${escapeHtml(item.kind)}">
-                        <time>${formatClock(item.at)}</time>
-                        <span>${escapeHtml(item.message)}</span>
-                      </div>
-                    `).join("")
-                  : `<p>De fabriek wacht op de eerste order.</p>`}
-              </div>
-              </div>
-            </section>
-            <section class="sim-waiting-view" aria-labelledby="simWaitingDepartmentsTitle">
-              <header>
-                <h3 id="simWaitingDepartmentsTitle">Afdelingen</h3>
-                <strong>${snapshot.roleFlow.length}</strong>
-              </header>
-              <div class="sim-waiting-view-body">
-              <div class="sim-role-status-grid">
-                ${snapshot.roleFlow.map(roleId => this.roleStatusMarkup(snapshot, roleId)).join("")}
-              </div>
               </div>
             </section>
           </div>
@@ -1270,26 +1316,6 @@
       `;
     }
 
-    roleStatusMarkup(snapshot, roleId) {
-      const role = snapshot.roles[roleId];
-      const runtime = snapshot.roleRuntime[roleId];
-      const stateLabels = {
-        IDLE: "Wacht op input",
-        PROCESSING: "Verwerkt order",
-        WAITING_FOR_NEXT: "Bereidt overdracht voor",
-        AWAITING_PLAYER: "Wacht op speler"
-      };
-      return `
-        <article class="sim-role-status is-${runtime.state.toLowerCase()} ${roleId === snapshot.humanRoleId ? "is-human" : ""}">
-          <span>${escapeHtml(role.token)}</span>
-          <div>
-            <strong>${escapeHtml(role.department)}</strong>
-            <small>${escapeHtml(stateLabels[runtime.state] || runtime.state)}${runtime.activeOrderId ? ` · ${escapeHtml(runtime.activeOrderId)}` : ""}</small>
-          </div>
-          <i aria-hidden="true"></i>
-        </article>
-      `;
-    }
   }
 
   window.LogisticsGameUI = Object.freeze({
