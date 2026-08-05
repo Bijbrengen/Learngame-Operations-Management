@@ -287,6 +287,210 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     expect(dialogs).toEqual([]);
   });
 
+  test("tijdelijke service-isolatie toont geen blokkerende technische popup", async ({ page }) => {
+    let requestCount = 0;
+    const dialogs = [];
+    page.on("dialog", async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+    await page.route(/\/v1\/game-sessions$/, async route => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      requestCount += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Service tijdelijk geïsoleerd" })
+      });
+    });
+
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await expect.poll(() => requestCount).toBeGreaterThanOrEqual(3);
+    await page.waitForTimeout(100);
+
+    expect(dialogs).toEqual([]);
+    await expect(page.locator("#gameSessionCreateForm")).toBeVisible();
+  });
+
+  test("afgebroken sessieverzoek toont geen signal-aborted-popup", async ({ page }) => {
+    const dialogs = [];
+    page.on("dialog", async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+    await page.evaluate(() => {
+      const fetchBeforeAbortTest = window.fetch;
+      window.fetch = (input, options = {}) => {
+        const url = typeof input === "string" ? input : input.url;
+        if (url.endsWith("/v1/game-sessions") && options.method === "POST") {
+          return Promise.reject(new DOMException("signal is aborted without reason", "AbortError"));
+        }
+        return fetchBeforeAbortTest(input, options);
+      };
+    });
+
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await page.waitForTimeout(100);
+
+    expect(dialogs).toEqual([]);
+    await expect(page.locator("#gameSessionCreateForm")).toBeVisible();
+    await expect(page.locator('script[src^="game-sessions.js"]')).toHaveAttribute(
+      "src",
+      /game-sessions\.js\?v=/
+    );
+  });
+
+  test("aangepast scenario verstuurt altijd een contractueel gametype", async ({ page }) => {
+    let requestPayload;
+    await page.route(/\/v1\/game-sessions$/, async route => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      requestPayload = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "finished" })
+      });
+    });
+
+    const form = page.locator("#gameSessionCreateForm");
+    await form.locator('[name="game_type"]').selectOption("lo4");
+    await form.locator('[name="price_mode"]').selectOption("free");
+    await expect(form.locator('[name="game_type"]')).toHaveValue("custom_draft");
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await expect.poll(() => requestPayload?.game_config?.game_type).toBe("lo4");
+  });
+
+  test("gamesessie afsluiten gebruikt tweemaal klikken zonder browserpopup", async ({ page }) => {
+    const activeSession = {
+      session_id: "session-running",
+      status: "running",
+      is_game_master: true,
+      join_code: "ABC123",
+      session_type: "closed",
+      difficulty_level: "normal",
+      current_member_id: "member-1",
+      game_master_member_id: "member-1",
+      members: [{
+        member_id: "member-1",
+        assigned_role_id: "production_a",
+        present: true
+      }],
+      virtual_agents: [],
+      required_role_ids: ["production_a"],
+      role_vacancies: [],
+      game_config: {
+        game_type: "lo4",
+        play_mode: "digital",
+        customer_order_mode: "required"
+      }
+    };
+    await page.unroute("**/v1/game-sessions/availability**");
+    await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        current_session: activeSession,
+        discoverable_sessions: [],
+        open_sessions: [],
+        can_start_free_game: false
+      })
+    }));
+    let finishRequests = 0;
+    await page.route("**/v1/game-sessions/session-running/finish", route => {
+      finishRequests += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "finished" })
+      });
+    });
+    const dialogs = [];
+    page.on("dialog", async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+
+    await page.reload();
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.setAppView("manager");
+      window.LEARNGameOMSimulator.setManagerTab("session");
+    });
+    const finishButton = page.locator("#managerSessionActionButton");
+    await expect(finishButton).toBeVisible();
+    await expect(finishButton).toHaveText("Sessie afsluiten");
+    await finishButton.click();
+    await expect(finishButton).toHaveText("Nogmaals klikken om af te sluiten");
+    expect(finishRequests).toBe(0);
+    expect(dialogs).toEqual([]);
+
+    await finishButton.click();
+    await expect.poll(() => finishRequests).toBe(1);
+    expect(dialogs).toEqual([]);
+  });
+
+  test("een al afgehandeld startverzoek synchroniseert zonder browserpopup", async ({ page }) => {
+    let voteHandled = false;
+    const session = {
+      session_id: "session-consensus",
+      status: "lobby",
+      is_game_master: false,
+      join_code: "ABC123",
+      session_type: "closed",
+      difficulty_level: "normal",
+      current_member_id: "member-1",
+      game_master_member_id: "member-2",
+      members: [{ member_id: "member-1", assigned_role_id: "production_a", present: true }],
+      virtual_agents: [],
+      required_role_ids: ["production_a", "production_b"],
+      role_vacancies: ["production_b"],
+      game_config: { game_type: "lo4", play_mode: "digital" },
+      consensus: {
+        status: "open",
+        required_member_ids: ["member-1"],
+        approved_member_ids: []
+      }
+    };
+    await page.unroute("**/v1/game-sessions/availability**");
+    await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        current_session: voteHandled ? { ...session, consensus: null } : session,
+        discoverable_sessions: [],
+        open_sessions: [],
+        can_start_free_game: false
+      })
+    }));
+    await page.route("**/v1/game-sessions/session-consensus/consensus", route => {
+      voteHandled = true;
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Er staat geen startverzoek open." })
+      });
+    });
+    const dialogs = [];
+    page.on("dialog", async dialog => {
+      dialogs.push(dialog.message());
+      await dialog.dismiss();
+    });
+
+    await page.reload();
+    await expect(page.locator("#gameConsensusDialog")).toBeVisible();
+    await page.locator("#gameConsensusWaitButton").click();
+
+    await expect.poll(() => voteHandled).toBe(true);
+    await expect(page.locator("#gameConsensusDialog")).toBeHidden();
+    expect(dialogs).toEqual([]);
+  });
+
   test("openingsbalans en omzetbalans volgen Geld en de gekozen gamepreset", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');

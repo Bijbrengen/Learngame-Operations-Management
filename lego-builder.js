@@ -118,8 +118,6 @@
       .slice(0, TUTORIAL[state.tutorialStep].expectedCount)
       .filter(target => (
         target.type === piece.id
-        && target.width === piece.width
-        && target.depth === piece.depth
         && !state.bricks.some(brick => canonical(brick) === canonical(target))
       ))
       .sort((left, right) => (
@@ -187,6 +185,13 @@
     }
     const tutorialTarget = tutorialPlacementTarget(piece, x, y);
     if (tutorialTarget) {
+      // De tutorial leert de blokvolgorde, niet pixelprecisie. Klikken of droppen
+      // op het bouwvlak lijnt daarom positie én oriëntatie uit met het hulpblok.
+      piece = {
+        ...piece,
+        width: tutorialTarget.width,
+        depth: tutorialTarget.depth
+      };
       x = tutorialTarget.x;
       y = tutorialTarget.y;
     }

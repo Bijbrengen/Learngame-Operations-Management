@@ -180,6 +180,9 @@
     mutationQueue: Promise.resolve(),
     pendingGameConfig: null,
     savingGameConfig: false,
+    refreshPromise: null,
+    finishConfirmationUntil: 0,
+    finishConfirmationTimer: null,
     createSessionDraft: {
       session_type: "closed",
       difficulty_level: "normal",
@@ -227,6 +230,18 @@
       .replaceAll("'", "&#39;");
   }
 
+  function isTransientRequestError(error) {
+    const message = String(error?.message || error || "");
+    return error?.name === "AbortError"
+      || error?.status === 503
+      || /signal is aborted|operation was aborted|service tijdelijk ge.{0,4}soleerd/i.test(message);
+  }
+
+  function isStaleSessionStateError(error) {
+    return error?.status === 409
+      && error?.message === "Er staat geen startverzoek open.";
+  }
+
   function recoverLocalApiBase() {
     return window.LEARNGAME_OM_CONFIG?.apiBase || null;
   }
@@ -237,6 +252,8 @@
       cache: "no-store",
       credentials: "include",
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      service: "lom-game-sessions",
+      timeoutMs: 30000,
       ...options
     });
     if (response.status === 501 && allowLocalRecovery) {
@@ -1308,10 +1325,12 @@
     const selectedConfiguration = window.GameConfigurationStore?.getConfiguration(
       get("game_type")?.value
     );
-    const gameType = form.dataset.gameType
+    const requestedGameType = form.dataset.gameType
       || selectedConfiguration?.settings?.game_type
       || get("game_type")?.value
       || "lo4";
+    const gameType = GAME_CONFIG_PRESETS[requestedGameType] ? requestedGameType : "lo4";
+    form.dataset.gameType = gameType;
     const productionProcesses = selectedProductionProcesses(form, gameType);
     const enabledRoles = roleControls(form)
       .filter(control => control.checked)
@@ -1400,8 +1419,34 @@
     if (![...select.options].some(option => option.value === "custom_draft")) {
       select.add(new Option("⚙️ Aangepast scenario (nog niet opgeslagen)", "custom_draft"));
     }
+    form.dataset.gameType = GAME_CONFIG_PRESETS[config.game_type]
+      ? config.game_type
+      : GAME_CONFIG_PRESETS[form.dataset.gameType]
+        ? form.dataset.gameType
+        : "lo4";
     select.value = "custom_draft";
     return null;
+  }
+
+  function resetFinishConfirmation(button = elements().managerCreateButton) {
+    state.finishConfirmationUntil = 0;
+    clearTimeout(state.finishConfirmationTimer);
+    state.finishConfirmationTimer = null;
+    if (button?.hasAttribute("data-finish-game-session")) {
+      button.textContent = "Sessie afsluiten";
+    }
+  }
+
+  function requestFinishConfirmation(button) {
+    if (state.finishConfirmationUntil > Date.now()) {
+      resetFinishConfirmation(button);
+      mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/finish`);
+      return;
+    }
+    state.finishConfirmationUntil = Date.now() + 5000;
+    button.textContent = "Nogmaals klikken om af te sluiten";
+    clearTimeout(state.finishConfirmationTimer);
+    state.finishConfirmationTimer = setTimeout(() => resetFinishConfirmation(button), 5000);
   }
 
   function saveSessionConfiguration(form) {
@@ -1789,8 +1834,11 @@
         els.managerCreateButton.removeAttribute("data-finish-game-session");
         if (state.session.status === "running") {
           els.managerCreateButton.setAttribute("data-finish-game-session", "");
-          els.managerCreateButton.textContent = "Sessie afsluiten";
+          els.managerCreateButton.textContent = state.finishConfirmationUntil > Date.now()
+            ? "Nogmaals klikken om af te sluiten"
+            : "Sessie afsluiten";
         } else {
+          resetFinishConfirmation(els.managerCreateButton);
           els.managerCreateButton.setAttribute("data-request-game-start", "");
           els.managerCreateButton.textContent = "Sessie starten";
         }
@@ -1818,6 +1866,7 @@
       els.managerBadge.hidden = true;
       els.managerTitle.textContent = "Gamesessie";
       if (els.managerCreateButton) {
+        resetFinishConfirmation(els.managerCreateButton);
         els.managerCreateButton.hidden = false;
         els.managerCreateButton.type = "submit";
         els.managerCreateButton.setAttribute("form", "gameSessionCreateForm");
@@ -1853,19 +1902,29 @@
 
   async function refresh() {
     if (!state.authenticated || state.busy) return;
+    if (state.refreshPromise) return state.refreshPromise;
     const refreshVersion = state.mutationVersion;
-    try {
-      const availability = await request("/v1/game-sessions/availability");
-      if (refreshVersion !== state.mutationVersion) return;
-      state.availability = availability;
-      state.session = availability.current_session;
-      render();
-    } catch (error) {
-      if (!state.session) {
-        elements().playerContent.innerHTML = `<p class="session-error">${escapeHtml(error.message)}</p>`;
-      } else {
-        console.warn("Gamesessie verversen mislukt:", error);
+    const operation = (async () => {
+      try {
+        const availability = await request("/v1/game-sessions/availability");
+        if (refreshVersion !== state.mutationVersion) return;
+        state.availability = availability;
+        state.session = availability.current_session;
+        render();
+      } catch (error) {
+        if (isTransientRequestError(error)) return;
+        if (!state.session) {
+          elements().playerContent.innerHTML = `<p class="session-error">${escapeHtml(error.message)}</p>`;
+        } else {
+          console.warn("Gamesessie verversen mislukt:", error);
+        }
       }
+    })();
+    state.refreshPromise = operation;
+    try {
+      await operation;
+    } finally {
+      if (state.refreshPromise === operation) state.refreshPromise = null;
     }
   }
 
@@ -1900,6 +1959,21 @@
         console.warn("Gamesessie is bijgewerkt, maar verversen mislukte:", refreshError);
       }
     } catch (error) {
+      if (isTransientRequestError(error)) {
+        console.warn("Gamesessieactie tijdelijk niet bevestigd; de huidige toestand blijft behouden.", error);
+        return;
+      }
+      if (isStaleSessionStateError(error)) {
+        // Een andere deelnemer of poll heeft het startverzoek al afgehandeld.
+        // Synchroniseer de actuele sessie zonder de gebruiker met een popup te blokkeren.
+        try {
+          await refreshAfterMutation();
+          render();
+        } catch (refreshError) {
+          console.warn("De actuele startstatus kon niet worden opgehaald:", refreshError);
+        }
+        return;
+      }
       if (
         error.status === 409
         && new Set([
@@ -2096,9 +2170,7 @@
       } else if (target.hasAttribute("data-request-game-start") && state.session) {
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/start-requests`);
       } else if (target.hasAttribute("data-finish-game-session") && state.session) {
-        if (window.confirm("Wil je deze gamesessie sluiten?")) {
-          mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/finish`);
-        }
+        requestFinishConfirmation(target);
       } else if (target.dataset.copyGameCode) {
         navigator.clipboard?.writeText(target.dataset.copyGameCode);
         target.textContent = "Gekopieerd";

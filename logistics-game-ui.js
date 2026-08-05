@@ -961,10 +961,18 @@
     digitalBuildState(task) {
       const stageOrder = ["pd1", "pd2", "pd3"];
       const currentIndex = stageOrder.indexOf(task.role.id);
-      const previous = stageOrder
-        .slice(0, Math.max(0, currentIndex))
-        .flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index));
-      const targets = currentIndex >= 0 ? this.digitalLayerBricks(task, task.role.id, currentIndex) : [];
+      const handlesCompleteTower = task.order?.productionRoute === "parallel"
+        && task.order?.productionDepartment === task.role.id;
+      const previous = handlesCompleteTower
+        ? []
+        : stageOrder
+          .slice(0, Math.max(0, currentIndex))
+          .flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index));
+      const targets = handlesCompleteTower
+        ? stageOrder.flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index))
+        : currentIndex >= 0
+          ? this.digitalLayerBricks(task, task.role.id, currentIndex)
+          : [];
       const selectedCount = [...new Set(targets.map(target => target.type))].reduce(
         (total, partId) => total + Number(this.selectedParts[partId] || 0),
         0

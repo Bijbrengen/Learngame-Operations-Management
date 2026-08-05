@@ -30,10 +30,7 @@ body {
   font-family: var(--lp-font-body);
   color: var(--ink);
   background-color: var(--bg);
-  background-image:
-    var(--lego-grid-bg),
-    radial-gradient(circle at 50% -20%, rgba(56, 189, 248, 0.18), transparent 48%);
-  background-size: var(--lego-stud-gap) var(--lego-stud-gap), auto;
+  background-image: radial-gradient(circle at 50% -20%, rgba(56, 189, 248, 0.18), transparent 48%);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -1429,7 +1426,7 @@ h3,
   --meter-color: #32ddd2;
   min-width: 0;
   display: grid;
-  grid-template-columns: 22px minmax(70px, 1fr) 42px;
+  grid-template-columns: 22px minmax(0, 1fr) 42px;
   gap: 7px;
   align-items: center;
   padding: 7px 9px;
@@ -11563,7 +11560,63 @@ body.tutorial-focus {
 }
 
 .brand-block { align-content: start; }
-.brand-block .lp-brand-badge { width: max-content; max-width: 100%; }
+
+.topbar.game-menu {
+  grid-template-columns: 259px minmax(620px, 1fr) auto;
+}
+
+.brand-logo-row {
+  grid-area: logo;
+  width: 259px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.game-menu .brand-logo-row .learn-games-brand {
+  grid-area: auto;
+  width: 195px;
+  flex: 0 0 195px;
+  align-self: center;
+}
+
+.brand-brain-mark {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border: 1px solid #29434b;
+  border-radius: 8px;
+  background-color: #e5e7eb;
+  background-size: calc(100% - 8px) auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-width: 980px) {
+  .topbar.game-menu {
+    grid-template-columns: 249px minmax(0, 1fr);
+  }
+
+  .brand-logo-row {
+    width: 249px;
+  }
+
+  .game-menu .brand-logo-row .learn-games-brand {
+    width: 185px;
+    flex-basis: 185px;
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar.game-menu {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .brand-logo-row {
+    width: min(100%, 249px);
+  }
+}
 
 .app-view-switcher button,
 .primary-button,

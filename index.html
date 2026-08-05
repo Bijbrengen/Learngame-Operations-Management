@@ -27,7 +27,7 @@
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="auth-pending lego-stud-grid">
+<body class="auth-pending">
   <section id="leerpretAuthGate" class="auth-gate" aria-labelledby="leerpretAuthTitle">
     <div class="auth-card">
       <div class="auth-shield" aria-hidden="true">LP</div>
@@ -61,17 +61,16 @@
   <div class="app-shell">
     <header class="topbar game-menu lcars-capsule">
       <div class="brand-block">
-        <div class="lp-brand-badge" aria-label="Leerpretpark">
-          <span class="lp-brand-brain" aria-hidden="true"></span>
-          <span>Leerpretpark</span>
-        </div>
-        <div class="learn-games-brand">
-          <img
-            src="assets/brand/learn-games-logo.svg"
-            alt="Learn Games Operations Management"
-            width="2048"
-            height="1536"
-          >
+        <div class="brand-logo-row">
+          <div class="learn-games-brand">
+            <img
+              src="assets/brand/learn-games-logo.svg"
+              alt="Learn Games Operations Management"
+              width="2048"
+              height="1536"
+            >
+          </div>
+          <span class="lp-brand-brain brand-brain-mark" role="img" aria-label="Leerpretpark"></span>
         </div>
         <nav class="app-view-switcher" aria-label="Kies gameweergave">
           <button id="playerViewButton" type="button" data-app-view="player" aria-pressed="true">
@@ -1428,10 +1427,10 @@
   <script src="game-configuration-store.js"></script>
   <script src="configuration-layout-preview.js"></script>
   <script src="screen-interaction-manifest.js"></script>
-  <script src="game-sessions.js"></script>
+  <script src="game-sessions.js?v=20260805.4"></script>
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js"></script>
-  <script src="logistics-game-ui.js"></script>
+  <script src="logistics-game-ui.js?v=20260805.1"></script>
   <script src="chapter-9-insights.js"></script>
   <!-- LeerpretSDK-hub: runtime-config.js bepaalt de Engine-URL. Een expliciete
        ?api= of window.LEERPRET_SDK_BASE kan die voor een testsessie
