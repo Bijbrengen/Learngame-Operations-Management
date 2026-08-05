@@ -1,6 +1,7 @@
 (() => {
-  const LEARNING_OBJECT_ID = "leerbox-learngame-operations-management";
-  const PERSON_ID = `person-${Math.random().toString(36).slice(2, 8)}`;
+  const LEARNING_BOX_ID = "learngame-operations-management";
+  const LEARNING_OBJECT_ID = "lom.interface";
+  const PERSON_ID = `lom-session-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 12)}`;
   const CUSTOM_PRODUCTS_STORAGE = "learngame.om.customProducts.v1";
   const GROUND_PLATE_COLORS = new Set([
     "green",
@@ -2076,7 +2077,7 @@
     const record = {
       personID: event.personID || PERSON_ID,
       learningObjectID,
-      learningBoxID: event.learningBoxID || LEARNING_OBJECT_ID,
+      learningBoxID: event.learningBoxID || LEARNING_BOX_ID,
       sessionID: state.sessionId,
       timestamp: event.timestamp || new Date().toISOString(),
       simulatedMinute: state.clockMinutes,
@@ -2087,6 +2088,13 @@
     state.interactionBuffer.push(record);
     const contractEvent = toInteractionEventV1(record, state.interactionBuffer.length);
     state.contractEventBuffer.push(contractEvent);
+    window.LeerpretSDKReady
+      ?.then(bridge => bridge.track(record))
+      .catch(error => {
+        record.deliveryStatus = "failed";
+        record.deliveryError = String(error?.message || error);
+        window.dispatchEvent(new CustomEvent("learngame-om-interaction-error", { detail: { record, error } }));
+      });
     if (window.parent !== window && !window.__LEERPRET_PREVIEW_BRIDGE__) {
       const targetOrigin = document.referrer ? new URL(document.referrer).origin : "*";
       window.parent.postMessage({

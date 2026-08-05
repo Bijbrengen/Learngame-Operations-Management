@@ -76,11 +76,27 @@ test.describe("Leerpret-aanmelding", () => {
 
     const hosts = await page.evaluate(() => ({
       page: new URL(window.LEARNGAME_OM_CONFIG.appUrl).hostname,
-      api: new URL(window.LEARNGAME_OM_CONFIG.apiBase).hostname,
-      dashboard: new URL(window.LEARNGAME_OM_CONFIG.dashboardUrl).hostname,
-      editor: new URL(window.LEARNGAME_OM_CONFIG.editorUrl).hostname
+      api: new URL(window.LEARNGAME_OM_CONFIG.apiBase).hostname
     }));
 
     expect(new Set(Object.values(hosts))).toEqual(new Set(["127.0.0.1"]));
+  });
+
+  test("laadt het centrale Engine-thema en het canonieke merkbrein", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => document.documentElement.dataset.themeSource === "leerpret-engine");
+
+    const theme = await page.evaluate(() => ({
+      origin: document.querySelector('link[data-leerpret-theme="engine"]')?.href,
+      orange: getComputedStyle(document.documentElement).getPropertyValue("--lp-color-orange").trim(),
+      border: getComputedStyle(document.documentElement).getPropertyValue("--toyist-border").trim(),
+      brain: getComputedStyle(document.documentElement).getPropertyValue("--lp-brand-brain-url").trim(),
+    }));
+
+    expect(theme.origin).toBe("http://127.0.0.1:47111/api/ui/leerpret-theme.css");
+    expect(theme.orange).toBe("#F97316");
+    expect(theme.border).toBe("3px solid #000000");
+    expect(theme.brain).toContain("brand-brain.svg");
+    await expect(page.locator(".lp-brand-badge")).toHaveCount(1);
   });
 });

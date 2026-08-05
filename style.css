@@ -1,41 +1,23 @@
 :root {
-  --lp-bg: #071014;
-  --lp-panel: #0b171d;
-  --lp-surface-soft: #102830;
-  --lp-ink: #eaf8f7;
-  --lp-muted: #8ca4aa;
-  --lp-line: #29434b;
-  --lp-accent: #32ddd2;
-  --lp-accent-soft: #0e2f2d;
-  --lp-accent-border: #28aa9e;
-  --lp-blue: #59bce8;
-  --lp-coral: #ff7d62;
-  --lp-amber: #e6ad43;
-  --lp-violet: #8d83df;
-  --brick-yellow: #e7b72d;
-  --brick-red: #d84c3f;
-  --brick-white: #f0eee8;
-  --brick-blue: #3c7ec3;
-  --brick-green: #3b9467;
-  --lp-font-heading: "Rajdhani", "Arial Narrow", sans-serif;
-  --lp-font-body: "Plus Jakarta Sans", system-ui, sans-serif;
-  --lp-radius-small: 8px;
-  --lp-radius-panel: 14px;
-  --lp-touch-target: 48px;
   --bg: var(--lp-bg);
-  --ink: #171717;
-  --muted: #5f6268;
-  --panel: #ffffff;
-  --panel-2: #eef3f4;
-  --line: #d8e2e4;
+  --ink: var(--lp-ink);
+  --muted: var(--lp-muted);
+  --panel: var(--lp-panel);
+  --panel-2: var(--lp-surface-soft);
+  --line: var(--lp-line);
   --dark: var(--lp-panel);
-  --green: #2f7d56;
-  --blue: #2f6fb0;
-  --red: #bf3f32;
-  --yellow: #d3a622;
-  --white: #f6f4ef;
-  --purple: #6b5fb5;
-  --shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  --green: var(--lp-color-green-dark);
+  --blue: var(--lp-color-blue-dark);
+  --red: var(--lp-color-orange-dark);
+  --yellow: var(--lp-color-yellow-dark);
+  --white: var(--lp-color-text-light);
+  --purple: var(--lp-color-purple);
+  --brick-yellow: var(--lp-color-yellow);
+  --brick-red: var(--lp-color-orange);
+  --brick-white: var(--lp-color-text-light);
+  --brick-blue: var(--lp-color-blue);
+  --brick-green: var(--lp-color-green);
+  --shadow: var(--toyist-shadow-lg);
 }
 
 * {
@@ -49,10 +31,9 @@ body {
   color: var(--ink);
   background-color: var(--bg);
   background-image:
-    linear-gradient(rgba(50, 221, 210, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(50, 221, 210, 0.025) 1px, transparent 1px),
-    radial-gradient(circle at 50% -20%, rgba(50, 221, 210, 0.13), transparent 48%);
-  background-size: 32px 32px, 32px 32px, auto;
+    var(--lego-grid-bg),
+    radial-gradient(circle at 50% -20%, rgba(56, 189, 248, 0.18), transparent 48%);
+  background-size: var(--lego-stud-gap) var(--lego-stud-gap), auto;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -11558,4 +11539,62 @@ body.tutorial-focus {
     max-height: none;
     overflow: visible;
   }
+}
+
+/* Finale componentlaag; bewaakt de fusiestijl boven oudere componentregels. */
+.topbar,
+.order-band,
+.lego-builder-panel,
+.process-panel,
+.control-panel,
+.inventory-panel,
+.ledger-panel,
+.data-model-panel,
+.auth-card,
+.game-consensus-card {
+  border: var(--toyist-border);
+  border-radius: var(--lcars-radius-segment);
+  box-shadow: var(--toyist-shadow);
+}
+
+.topbar {
+  border-radius: var(--lcars-radius-capsule);
+  box-shadow: var(--toyist-shadow-lg), inset 0 3px 0 var(--lp-color-blue);
+}
+
+.brand-block { align-content: start; }
+.brand-block .lp-brand-badge { width: max-content; max-width: 100%; }
+
+.app-view-switcher button,
+.primary-button,
+.secondary-button,
+.tool-button,
+.danger-button,
+.free-game-button,
+.open-game-list button {
+  border: var(--toyist-border);
+  border-radius: var(--lcars-radius-capsule);
+  box-shadow: var(--toyist-shadow);
+  font-family: var(--lp-font-brand);
+  font-weight: 800;
+}
+
+.app-view-switcher button.is-active,
+.primary-button { color: #000; background: var(--lp-color-orange); }
+
+.metric,
+.process-hud-meter,
+.session-status-badge,
+.clock-pill {
+  border: var(--toyist-border);
+  border-radius: var(--lcars-radius-capsule);
+  font-family: var(--lp-font-lcars);
+}
+
+.lego-builder-panel,
+.configuration-layout-preview,
+.isometric-logistics-scene,
+.data-model-canvas {
+  background-image: var(--lego-grid-bg);
+  background-size: var(--lego-stud-gap) var(--lego-stud-gap);
 }

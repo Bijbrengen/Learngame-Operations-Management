@@ -17,14 +17,14 @@ const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUILDER_PATH = require.resolve("../../lego-builder.js");
 
-// De SDK-logica woont nu in de Leerpret-backend (naast deze repo).
-// Override met LEERPRET_SDK_LOGIC; standaard de sibling-repo onder dezelfde parent.
+// Een optionele contracttest kan een expliciet aangeleverde SDK-asset gebruiken.
+// Zonder override zoekt deze zelfstandige repository nooit in een buurrepository.
 const LOGIC_PATH = process.env.LEERPRET_SDK_LOGIC
   ? path.resolve(process.env.LEERPRET_SDK_LOGIC)
-  : path.resolve(HERE, "../../../Leerpret/backend/app/sdk/components/lego-builder.logic.js");
+  : null;
 
-const SKIP = !existsSync(LOGIC_PATH)
-  ? { skip: "LeerpretSDK-logica niet gevonden (zet LEERPRET_SDK_LOGIC of plaats Leerpret-repo ernaast)" }
+const SKIP = !LOGIC_PATH || !existsSync(LOGIC_PATH)
+  ? { skip: "Optionele SDK-contractasset niet ingesteld via LEERPRET_SDK_LOGIC" }
   : {};
 
 // Alle tests overslaan i.p.v. hard falen als de backend-SDK niet naast de repo staat.

@@ -9,29 +9,13 @@ from pathlib import Path
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
 
-# De LeerpretSDK-logica woont in LeerpretEngine. Lees het Engine-pad uit dezelfde
-# lokale configuratie als de webapp; LEERPRET_SDK_LOGIC blijft een gerichte override.
+# SDK-contracttests mogen optioneel tegen een expliciet aangeleverde SDK-asset
+# draaien. De repository zoekt nooit zelf in een buurrepository.
 import os
 
-
-def _dotenv(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not path.is_file():
-        return values
-    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, value = line.split("=", 1)
-        values[name.strip()] = value.strip().strip('"').strip("'")
-    return values
-
-
-_CONFIG = {**_dotenv(PRODUCT_ROOT / ".env.example"), **_dotenv(PRODUCT_ROOT / ".env")}
-_ENGINE_ROOT = Path(os.getenv("LEERPRET_ENGINE_DIR") or _CONFIG["LEERPRET_ENGINE_DIR"])
 SDK_LOGIC_PATH = Path(
     os.getenv("LEERPRET_SDK_LOGIC")
-    or (_ENGINE_ROOT / "app" / "sdk" / "components" / "lego-builder.logic.js")
+    or (PRODUCT_ROOT / ".external-sdk-not-configured.js")
 ).resolve()
 # Pad zoals node het vanuit cwd=PRODUCT_ROOT ziet (voor de vm-tests).
 SDK_LOGIC_JS_FOR_NODE = SDK_LOGIC_PATH.as_posix()
@@ -106,6 +90,23 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('specversion: "1.0"', script)
         self.assertIn("contract_events", script)
 
+    def test_engine_delivers_theme_runtime_and_leerobject_classes_over_http(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        sdk = (PRODUCT_ROOT / "leerpret-sdk.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn("/ui/leerpret-theme.css", html)
+        self.assertIn('theme.dataset.leerpretTheme = "engine"', html)
+        self.assertIn("/sdk/manifest.json", sdk)
+        self.assertIn('loadComponent(manifest, "leerobject")', sdk)
+        self.assertIn("/leerbox-runtime/", sdk)
+        self.assertIn("SelfStartingLeerobject", sdk)
+        self.assertIn("SuccesLeerobject", sdk)
+        self.assertIn("WeerstandLeerobject", sdk)
+        self.assertIn("OverigLeerobject", sdk)
+        self.assertIn("bridge.track(record)", (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertNotIn("--lp-color-orange:", styles)
+        self.assertIn("var(--toyist-border)", styles)
+
     def test_character_creation_runs_both_ipsative_scans_before_tutorial(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         wizard = (PRODUCT_ROOT / "character-creation.js").read_text(encoding="utf-8")
@@ -118,8 +119,8 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('id="playerFormMount"', html)
         self.assertIn('id="playerProcessMount"', html)
         self.assertIn('data-app-view="player"', html)
-        self.assertIn('id="characterEditButton"', html)
-        self.assertIn("Karakter aanpassen", html)
+        self.assertIn('id="menuCharacterEditButton"', html)
+        self.assertIn("Karakter", html)
         self.assertIn('src="character-creation.js"', html)
         self.assertIn('src="behavior-quality.js"', html)
         # script.js wordt nu via de LeerpretSDK-laadketen ingeladen (niet meer als
@@ -1042,6 +1043,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn(".iso-stock-brick.is-draggable", styles)
         self.assertIn(".iso-department.is-drop-target.is-drag-over", styles)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "Optionele externe SDK-contractasset niet ingesteld")
     def test_tutorial_step_two_renderer_never_produces_an_empty_screen(self) -> None:
         node_program = r"""
 const fs = require("fs");
@@ -1156,6 +1158,7 @@ process.stdout.write(JSON.stringify({ focused, normal }));
         self.assertFalse(result["normal"]["playerHidden"])
         self.assertTrue(result["normal"]["managerHidden"])
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "Optionele externe SDK-contractasset niet ingesteld")
     def test_parallel_logistics_views_keep_stock_bricks_filled(self) -> None:
         node_program = r"""
 const fs = require("fs");
@@ -1341,7 +1344,8 @@ process.stdout.write(JSON.stringify({
         builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn('id="tutorialExitButton"', html)
-        self.assertIn('id="tutorialResumeButton"', html)
+        self.assertIn('id="menuTutorialButton"', html)
+        self.assertIn("data-tutorial-label", html)
         self.assertIn("Tutorial hervatten", html)
         self.assertIn("setTutorialFocus", game)
         self.assertIn("leaveTutorialFocus", game)
@@ -1564,7 +1568,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn("data-create-difficulty-select", runtime)
         self.assertIn("data-game-difficulty-select", runtime)
         self.assertIn("difficulty_level", runtime)
-        self.assertIn("Systeemdruk &amp; Ruis", runtime)
+        self.assertIn("Moeilijkheidsgraad", runtime)
         self.assertIn("data-active-game-config", runtime)
         self.assertIn("customer_order_mode", runtime)
         self.assertIn("play_mode", runtime)

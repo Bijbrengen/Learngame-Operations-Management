@@ -1,28 +1,7 @@
 const { test, expect } = require("@playwright/test");
-const fs = require("node:fs");
-const path = require("node:path");
-
-const LEGO_LOGIC_PATH = path.resolve(
-  __dirname,
-  "../../../LeerpretEngine/app/sdk/components/lego-builder.logic.js"
-);
-const LEGO_BUILDER_PATH = path.resolve(__dirname, "../../lego-builder.js");
 
 async function mountBuilder(page, options = {}) {
-  await page.route("**/sdk/lego-builder/logic.js*", route => route.fulfill({
-    status: 200,
-    contentType: "application/javascript; charset=utf-8",
-    body: fs.readFileSync(LEGO_LOGIC_PATH, "utf8")
-  }));
   await page.goto("/");
-  const catalogLoaded = await page.evaluate(() => (
-    window.LegoBuilder
-    && Object.keys(window.LegoBuilder.getCatalog()).length >= 3
-  ));
-  if (!catalogLoaded) {
-    await page.addScriptTag({ path: LEGO_LOGIC_PATH });
-    await page.addScriptTag({ path: LEGO_BUILDER_PATH });
-  }
   await page.waitForFunction(() => (
     window.LegoBuilder
     && Object.keys(window.LegoBuilder.getCatalog()).length >= 3

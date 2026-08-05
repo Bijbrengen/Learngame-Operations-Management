@@ -33,8 +33,6 @@ local = dotenv(ROOT / ".env")
 config = {
     "apiBase": setting("LEERPRET_API_URL", defaults, local),
     "appUrl": setting("LEARNGAME_OM_URL", defaults, local),
-    "dashboardUrl": setting("LEERPRET_DASHBOARD_URL", defaults, local),
-    "editorUrl": setting("LEERBOX_EDITOR_URL", defaults, local),
 }
 payload = (
     "window.LEARNGAME_OM_CONFIG = Object.freeze("

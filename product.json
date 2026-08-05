@@ -7,7 +7,7 @@
   "entrypoint": "index.html",
   "runtime": {
     "kind": "static-pwa",
-    "external_dependencies": [],
+    "external_dependencies": ["LeerpretEngine HTTP API"],
     "supported_delivery": ["file", "http", "https"]
   },
   "public_contracts": [
@@ -19,8 +19,11 @@
     "fixtures/learngame-operations-management-orderproces-engine-input.json",
     "fixtures/learngame-operations-management-orderproces-contactberichten.json"
   ],
-  "host_integration": {
-    "compatibility_url": "/tools/leerbox/learngame-operations-management/",
+  "engine_integration": {
+    "transport": "https",
+    "runtime_endpoint": "/api/leerbox-runtime/learngame-operations-management",
+    "interaction_endpoint": "/api/engine/evaluate",
+    "sdk_components": ["api-client", "leerobject", "lego-builder"],
     "auth": {
       "strategy": "google-and-leerpret-scoped-session-v1",
       "session_endpoint": "/api/auth/leerbox/session",
@@ -31,9 +34,6 @@
       "default_role": "learner",
       "optional_entitlement": "attraction",
       "standalone_api_config": "runtime-config.js#apiBase"
-    },
-    "legacy_event_message": "leerpret-preview-events",
-    "host_owned_state": "backend/data/leerbox-mutations/leerbox-learngame-operations-management",
-    "host_owned_source_archive": "info/LEARNGame Operations Management"
+    }
   }
 }
