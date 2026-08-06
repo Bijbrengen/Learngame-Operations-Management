@@ -953,6 +953,13 @@
       setEditButtonVisible(false);
       return;
     }
+    // Een herhaalde auth-notificatie mag een lopende scan niet terugzetten.
+    // Dit kan gebeuren wanneer sessiecontrole en handmatige initialisatie kort
+    // na elkaar afronden, bijvoorbeeld bij een trage backend of in een test.
+    if (state.checking || ["basic", "response", "overview", "quality_warning"].includes(state.phase)) {
+      state.apiBase = session.apiBase || state.apiBase;
+      return;
+    }
     checkAccountProfile(session);
   }
 

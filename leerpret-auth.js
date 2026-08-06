@@ -183,6 +183,15 @@
   }
 
   async function waitForGoogleLibrary() {
+    let script = document.querySelector('script[data-google-identity-services]');
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleIdentityServices = "true";
+      document.head.append(script);
+    }
     for (let attempt = 0; attempt < 80; attempt += 1) {
       if (window.google?.accounts?.oauth2) return window.google.accounts.oauth2;
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -240,6 +249,9 @@
       if (!config.enabled || !config.client_id) {
         throw new Error("Google Sign-In is nog niet geconfigureerd op de Leerpret-backend.");
       }
+      // Laad de externe Google-library pas nadat de backend bevestigt dat
+      // aanmelden is geconfigureerd. De initiële pagina-load blijft daardoor
+      // zelfstandig en kan niet op een externe host blijven wachten.
       const googleOAuth = await waitForGoogleLibrary();
       state.googleCodeClient = googleOAuth.initCodeClient({
         client_id: config.client_id,
