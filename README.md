@@ -125,10 +125,13 @@ beperkte sessie bevat standaard alleen `learner` (`Lerende`).
 dat recht in de getekende sessie heeft opgenomen. Deze cookie wordt niet door
 de engine-, architect- of technologieroutes als autorisatie geaccepteerd.
 
-De game leest `LEERPRET_API_URL` uit de root-`.env`; het gegenereerde
-`runtime-config.js` maakt die waarde beschikbaar aan de browser. De game
-probeert nooit automatisch een andere host of poort. Een tijdelijke centrale
-service kan voor een testsessie via `?api=...` worden gekozen. De Leerpret-backend
+De game leest de lokale adressen uit `LEERPRET_API_URL` en
+`LEARNGAME_OM_URL`. Voor GitHub Pages gebruikt de generator afzonderlijk
+`LEERPRET_PRODUCTION_API_URL` en `LEARNGAME_OM_PRODUCTION_URL`.
+`runtime-config.js` kiest op basis van de browserhost de lokale of
+productie-adressen en valt nooit terug op een tijdelijke tunnel of andere
+poort. Een tijdelijke centrale service kan voor een testsessie via `?api=...`
+worden gekozen. De Leerpret-backend
 moet voor een afzonderlijke oorsprong die oorsprong opnemen in
 `LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
 `GOOGLE_OAUTH_CLIENT_ID` en `GOOGLE_OAUTH_CLIENT_SECRET` op de backend en de

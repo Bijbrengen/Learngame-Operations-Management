@@ -31,14 +31,24 @@ def setting(name: str, defaults: dict[str, str], local: dict[str, str]) -> str:
 defaults = dotenv(ROOT / ".env.example")
 local = dotenv(ROOT / ".env")
 config = {
-    "apiBase": setting("LEERPRET_API_URL", defaults, local),
-    "appUrl": setting("LEARNGAME_OM_URL", defaults, local),
+    "localApiBase": setting("LEERPRET_API_URL", defaults, local),
+    "localAppUrl": setting("LEARNGAME_OM_URL", defaults, local),
+    "productionApiBase": setting("LEERPRET_PRODUCTION_API_URL", defaults, local),
+    "productionAppUrl": setting("LEARNGAME_OM_PRODUCTION_URL", defaults, local),
 }
-payload = (
-    "window.LEARNGAME_OM_CONFIG = Object.freeze("
-    + json.dumps(config, ensure_ascii=False, indent=2)
-    + ");\n"
-)
+serialized = json.dumps(config, ensure_ascii=False, indent=2).replace("\n", "\n  ")
+payload = f"""(function() {{
+  var endpoints = Object.freeze({serialized});
+  var isLocal = typeof window !== "undefined" && (
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost"
+  );
+  window.LEARNGAME_OM_CONFIG = Object.freeze({{
+    apiBase: isLocal ? endpoints.localApiBase : endpoints.productionApiBase,
+    appUrl: isLocal ? endpoints.localAppUrl : endpoints.productionAppUrl
+  }});
+}})();
+"""
 target = ROOT / "runtime-config.js"
 target.write_text(payload, encoding="utf-8")
 print(f"Runtimeconfiguratie geschreven: {target}")
