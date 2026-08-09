@@ -70,6 +70,11 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   await expect(page.locator("#chapter9VariantContrast")).toContainText("Inefficiëntie zichtbaar");
   await expect(page.locator("#chapter9VariantContrast")).toContainText("lost die nog niet op");
   await expect(page.locator("#chapter9VariantContrast .is-active")).toContainText("Versie 4");
+  await expect(page.locator("#chapter9VariantContrast")).toHaveCSS("background-color", "rgb(66, 88, 77)");
+  await expect(page.locator(".chapter9-current-insight-card").first()).toHaveCSS(
+    "background-color",
+    "rgb(66, 88, 77)"
+  );
 
   await page.evaluate(() => {
     for (let index = 0; index < 4; index += 1) {
@@ -105,6 +110,10 @@ test("inzichtenbibliotheek wisselt tussen spelvarianten zonder bronbestanden", a
   await page.getByRole("button", { name: "Alle inzichten" }).click();
   const library = page.getByRole("dialog", { name: "Inzichten uit hoofdstuk 9" });
   await expect(library).toBeVisible();
+  await expect(library.locator(".chapter9-library-toolbar")).toHaveCSS(
+    "background-color",
+    "rgb(66, 88, 77)"
+  );
 
   await library.locator("#chapter9VariantSelect").selectOption("all");
   await expect(library.locator(".chapter9-library-insight")).toHaveCount(10);

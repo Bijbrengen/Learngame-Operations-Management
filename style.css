@@ -11199,9 +11199,9 @@ body.tutorial-focus {
 
 .chapter9-variant-contrast {
   padding: 16px;
-  border: 1px solid #cfc6e9;
+  border: 1px solid #6f8279;
   border-radius: 18px;
-  background: linear-gradient(135deg, #f7f4fc, #f1f6f4);
+  background: #42584d;
 }
 
 .chapter9-variant-contrast[hidden] {
@@ -11210,7 +11210,7 @@ body.tutorial-focus {
 
 .chapter9-variant-contrast > p {
   margin: 13px 0 0;
-  color: var(--muted);
+  color: #eef4f0;
   line-height: 1.5;
 }
 
@@ -11225,29 +11225,30 @@ body.tutorial-focus {
   display: grid;
   gap: 3px;
   padding: 11px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(247, 244, 238, .28);
   border-radius: 12px;
-  background: rgba(255, 255, 255, .72);
+  background: rgba(16, 11, 16, .42);
 }
 
 .chapter9-contrast-steps > div.is-active {
-  border-color: var(--purple);
-  background: #fff;
-  box-shadow: inset 0 -3px var(--purple);
+  border-color: #e97a5f;
+  background: #251a24;
+  box-shadow: inset 0 -3px #e97a5f;
 }
 
 .chapter9-contrast-steps span,
 .chapter9-contrast-steps small {
-  color: var(--muted);
+  color: #dce8e1;
   font-size: .75rem;
 }
 
 .chapter9-contrast-steps strong {
+  color: #fff;
   font-size: .9rem;
 }
 
 .chapter9-contrast-arrow {
-  color: var(--purple) !important;
+  color: #f2c14e !important;
   font-size: 1.15rem !important;
   font-weight: 800;
 }
@@ -11414,18 +11415,20 @@ body.tutorial-focus {
 .chapter9-current-insight-card {
   position: relative;
   padding: 14px 42px 14px 14px;
+  border: 1px solid #6f8279;
   border-radius: 14px;
-  background: #f4f2ee;
+  background: #42584d;
 }
 
 .chapter9-current-insight-card h4 {
   margin: 0;
+  color: #fff;
   font-size: .94rem;
 }
 
 .chapter9-current-insight-card p {
   margin: 7px 0 0;
-  color: var(--muted);
+  color: #dce8e1;
   font-size: .84rem;
   line-height: 1.45;
 }
@@ -11474,8 +11477,9 @@ body.tutorial-focus {
 .chapter9-library-toolbar {
   align-items: flex-end;
   padding: 14px;
+  border: 1px solid #6f8279;
   border-radius: 14px;
-  background: #f4f2ee;
+  background: #42584d;
 }
 
 .chapter9-library-toolbar label {
@@ -11485,7 +11489,7 @@ body.tutorial-focus {
 }
 
 .chapter9-library-toolbar label span {
-  color: var(--muted);
+  color: #dce8e1;
   font-size: .77rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -11494,6 +11498,9 @@ body.tutorial-focus {
 
 .chapter9-library-toolbar select {
   min-height: 42px;
+  border-color: #8fa398;
+  color: #fff;
+  background: #251a24;
 }
 
 .chapter9-library-toolbar a {
