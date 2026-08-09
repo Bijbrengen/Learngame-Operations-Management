@@ -5,7 +5,8 @@
     "productionApiBase": "https://api.leerpretpark.nl/api",
     "productionAppUrl": "https://bijbrengen.github.io/Learngame-Operations-Management/"
   });
-  var isLocal = typeof window !== "undefined" && (
+  var isCiPreview = typeof window !== "undefined" && window.location.port === "47913";
+  var isLocal = !isCiPreview && typeof window !== "undefined" && (
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "localhost"
   );

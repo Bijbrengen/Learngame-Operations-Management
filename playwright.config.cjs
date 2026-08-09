@@ -51,6 +51,7 @@ module.exports = defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "off",
+    serviceWorkers: "block",
     reducedMotion: "reduce"
   },
   reporter: [

@@ -2,6 +2,30 @@ const { test, expect } = require("@playwright/test");
 
 test.describe("Leerpret-aanmelding", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = typeof input === "string" ? input : input?.url || String(input);
+        const json = (status, body) => Promise.resolve(new Response(JSON.stringify(body), {
+          status,
+          headers: { "Content-Type": "application/json" }
+        }));
+        if (url.includes("/auth/leerbox/session")) {
+          return json(401, { detail: "No active session for this leerbox" });
+        }
+        if (url.includes("/auth/leerbox/exchange")) {
+          return json(401, { detail: "No active Leerpret session" });
+        }
+        if (url.includes("/auth/google/config")) {
+          return json(200, {
+            enabled: true,
+            client_id: "playwright-client.apps.googleusercontent.com",
+            scope: "openid"
+          });
+        }
+        return nativeFetch(input, init);
+      };
+    });
     await page.route("**/accounts.google.com/gsi/client", route => {
       route.fulfill({
         status: 200,
@@ -21,35 +45,10 @@ test.describe("Leerpret-aanmelding", () => {
         `
       });
     });
-    await page.route("**/api/auth/leerbox/session**", route => {
-      route.fulfill({
-        status: 401,
-        contentType: "application/json",
-        body: JSON.stringify({ detail: "No active session for this leerbox" })
-      });
-    });
-    await page.route("**/api/auth/leerbox/exchange**", route => {
-      route.fulfill({
-        status: 401,
-        contentType: "application/json",
-        body: JSON.stringify({ detail: "No active Leerpret session" })
-      });
-    });
-    await page.route("**/api/auth/google/config**", route => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          enabled: true,
-          client_id: "playwright-client.apps.googleusercontent.com",
-          scope: "openid"
-        })
-      });
-    });
   });
 
   test("bereikbare service toont Google-aanmelding in plaats van offline-melding", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?api=http://127.0.0.1:47111/api");
 
     await expect(page.locator("#leerpretAuthMessage")).toHaveText(
       "Meld je hier met je Google-account aan."
@@ -71,15 +70,20 @@ test.describe("Leerpret-aanmelding", () => {
     expect(session.authenticated).toBe(false);
   });
 
-  test("app en API gebruiken dezelfde loopback-hostnaam", async ({ page }) => {
+  test("runtime kiest lokaal de lokale Engine en in CI de productie-Engine", async ({ page }) => {
     await page.goto("/");
 
-    const hosts = await page.evaluate(() => ({
-      page: new URL(window.LEARNGAME_OM_CONFIG.appUrl).hostname,
-      api: new URL(window.LEARNGAME_OM_CONFIG.apiBase).hostname
-    }));
+    const endpoints = await page.evaluate(() => ({ ...window.LEARNGAME_OM_CONFIG }));
 
-    expect(new Set(Object.values(hosts))).toEqual(new Set(["127.0.0.1"]));
+    expect(endpoints).toEqual(process.env.CI
+      ? {
+          appUrl: "https://bijbrengen.github.io/Learngame-Operations-Management/",
+          apiBase: "https://api.leerpretpark.nl/api"
+        }
+      : {
+          appUrl: "http://127.0.0.1:47113/",
+          apiBase: "http://127.0.0.1:47111/api"
+        });
   });
 
   test("laadt het centrale Engine-thema en het canonieke merkbrein zonder Phile-raster", async ({ page }) => {
@@ -93,7 +97,9 @@ test.describe("Leerpret-aanmelding", () => {
       brain: getComputedStyle(document.documentElement).getPropertyValue("--lp-brand-brain-url").trim(),
     }));
 
-    expect(theme.origin).toBe("http://127.0.0.1:47111/api/ui/leerpret-theme.css");
+    expect(theme.origin).toBe(process.env.CI
+      ? "https://api.leerpretpark.nl/api/ui/leerpret-theme.css"
+      : "http://127.0.0.1:47111/api/ui/leerpret-theme.css");
     expect(theme.orange).toBe("#E97A5F");
     expect(theme.border).toBe("3px solid #684564");
     expect(theme.brain).toContain("brand-brain.svg");

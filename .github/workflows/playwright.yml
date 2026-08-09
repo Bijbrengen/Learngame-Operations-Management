@@ -18,17 +18,14 @@ jobs:
 
     env:
       CI: "true"
-      LEARNGAME_OM_URL: http://127.0.0.1:47113/
+      # Poort 47913 is de expliciete CI-preview: de statische app draait lokaal,
+      # maar runtime-config.js kiest de productie-Engine. Normale lokale
+      # ontwikkeling blijft op 47113 en gebruikt Engine-poort 47111.
+      LEARNGAME_OM_URL: http://127.0.0.1:47913/
 
     steps:
       - name: Repository ophalen
         uses: actions/checkout@v7
-
-      - name: LeerpretEngine ophalen
-        uses: actions/checkout@v7
-        with:
-          repository: Bijbrengen/LeerpretEngine
-          path: LeerpretEngine
 
       - name: Node.js instellen
         uses: actions/setup-node@v7
@@ -38,29 +35,6 @@ jobs:
 
       - name: Dependencies installeren
         run: npm ci
-
-      - name: Python instellen
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: LeerpretEngine/requirements.txt
-
-      - name: Engine-dependencies installeren
-        run: python -m pip install -r LeerpretEngine/requirements.txt
-
-      - name: Engine starten
-        run: |
-          cd LeerpretEngine
-          python -m uvicorn app.main:app --host 127.0.0.1 --port 47111 > ../leerpret-engine.log 2>&1 &
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:47111/api/health > /dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat ../leerpret-engine.log
-          exit 1
 
       - name: Chromium en systeemdependencies installeren
         run: npx playwright install --with-deps chromium
@@ -76,6 +50,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            leerpret-engine.log
           if-no-files-found: warn
           retention-days: 14

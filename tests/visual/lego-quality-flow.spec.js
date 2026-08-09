@@ -1,8 +1,11 @@
 const { test, expect } = require("@playwright/test");
 
 async function mountBuilder(page, options = {}) {
+  const sdkBase = process.env.CI
+    ? "https://api.leerpretpark.nl/api"
+    : "http://127.0.0.1:47111/api";
   const sdkResponse = await page.request.get(
-    "http://127.0.0.1:47111/api/sdk/lego-builder/logic.js?bypass-tunnel-reminder=true"
+    `${sdkBase}/sdk/lego-builder/logic.js?bypass-tunnel-reminder=true`
   );
   expect(sdkResponse.ok()).toBe(true);
   const sdkBody = await sdkResponse.text();

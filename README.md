@@ -130,7 +130,9 @@ De game leest de lokale adressen uit `LEERPRET_API_URL` en
 `LEERPRET_PRODUCTION_API_URL` en `LEARNGAME_OM_PRODUCTION_URL`.
 `runtime-config.js` kiest op basis van de browserhost de lokale of
 productie-adressen en valt nooit terug op een tijdelijke tunnel of andere
-poort. Een tijdelijke centrale service kan voor een testsessie via `?api=...`
+poort. De GitHub Actions-preview draait herkenbaar op poort `47913` en gebruikt
+de productie-Engine; de normale lokale app op `47113` gebruikt de lokale Engine
+op `47111`. Een tijdelijke centrale service kan voor een testsessie via `?api=...`
 worden gekozen. De Leerpret-backend
 moet voor een afzonderlijke oorsprong die oorsprong opnemen in
 `LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
