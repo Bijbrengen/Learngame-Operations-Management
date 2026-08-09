@@ -411,4 +411,78 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       playMode: "digital"
     });
   });
+
+  test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }) => {
+    await page.goto("/style.css");
+    await page.setContent('<!doctype html><html><head></head><body><main id="drag-test"></main></body></html>');
+    await page.addStyleTag({ url: "/style.css" });
+    await page.addScriptTag({ url: "/lego-tower-renderer.js" });
+    await page.addScriptTag({ url: "/isometric-logistics-view.js" });
+    await page.evaluate(() => {
+      window.__slowDragDrop = null;
+      window.IsometricLogisticsView.mount(document.getElementById("drag-test"), {
+        title: "Langzame sleepregressie",
+        legend: [],
+        connections: [],
+        departments: [
+          {
+            id: "source",
+            title: "Magazijn",
+            shortTitle: "Magazijn",
+            departmentColor: "tutorial-blue",
+            status: "active",
+            openRoof: true,
+            layout: { x: 1, y: 2, width: 3, depth: 3, height: 58 },
+            stockVisuals: [{
+              partId: "blue_8",
+              color: "blue",
+              width: 2,
+              depth: 4,
+              count: 1,
+              draggable: true,
+              label: "blauw blok"
+            }]
+          },
+          {
+            id: "target",
+            title: "Bouwvoorraad",
+            shortTitle: "Bouwvoorraad",
+            departmentColor: "tutorial-transit",
+            status: "active",
+            openRoof: true,
+            acceptsStockDrop: true,
+            layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+          }
+        ],
+        tutorial: { active: true, visualOnly: true, stepLabel: "2 / 5" }
+      }, {
+        onStockDrop: payload => {
+          window.__slowDragDrop = payload;
+          return true;
+        }
+      });
+    });
+
+    const brick = page.locator(".iso-stock-brick.is-draggable");
+    const target = page.locator('[data-department-id="target"]');
+    const brickBox = await brick.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(brickBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    await brick.hover();
+    await page.mouse.down();
+    await page.waitForTimeout(1200);
+    await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
+    await expect(brick).toHaveCSS("cursor", "grabbing");
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.locator(".iso-logistics-view")).not.toHaveClass(/is-stock-dragging/);
+    await expect.poll(() => page.evaluate(() => window.__slowDragDrop)).toMatchObject({
+      sourceDepartmentId: "source",
+      targetDepartmentId: "target",
+      partId: "blue_8"
+    });
+  });
 });

@@ -700,6 +700,7 @@
             : detailMarkup(selected)}
       </div>
     `;
+    const dragSurface = container.querySelector(".iso-logistics-view");
 
     const activate = element => {
       const departmentId = element?.dataset.departmentId;
@@ -737,7 +738,13 @@
       container.querySelector(".iso-department.is-drag-over")?.classList.remove("is-drag-over");
     };
     const dropTargetAt = (clientX, clientY, dragKind) => {
-      const target = document.elementFromPoint(clientX, clientY)?.closest(".iso-department.is-drop-target");
+      // Houd het gesleepte SVG-object zelf onder de pointer. `pointer-events: none`
+      // maakte de grijpcursor onderweg weer een vingercursor en kon in browsers de
+      // pointer-capture verbreken. elementsFromPoint laat ons toch door het blok
+      // heen naar de onderliggende dropzone kijken.
+      const target = document.elementsFromPoint(clientX, clientY)
+        .map(element => element.closest?.(".iso-department.is-drop-target"))
+        .find(Boolean);
       return target
         && container.contains(target)
         && target.dataset.acceptsDragKind === dragKind
@@ -750,6 +757,7 @@
       const target = cancelled ? null : dropTargetAt(event.clientX, event.clientY, dragKind);
       clearDropTarget();
       element.classList.remove("is-dragging");
+      dragSurface?.classList.remove("is-stock-dragging");
       element.style.translate = "";
       if (element.hasPointerCapture(event.pointerId)) {
         element.releasePointerCapture(event.pointerId);
@@ -783,6 +791,7 @@
         event.stopPropagation();
         element.setPointerCapture(event.pointerId);
         element.classList.add("is-dragging");
+        dragSurface?.classList.add("is-stock-dragging");
         stockDrag = {
           element,
           pointerId: event.pointerId,

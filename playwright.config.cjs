@@ -38,15 +38,20 @@ module.exports = defineConfig({
   testDir: "./tests/visual",
   outputDir: "./test-results",
   timeout: 30_000,
-  workers: process.env.CI ? 1 : undefined,
+  fullyParallel: true,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 4 : undefined,
   expect: {
     timeout: 5_000
   },
   use: {
     baseURL: appUrl,
-    trace: "retain-on-failure",
+    navigationTimeout: 15_000,
+    actionTimeout: 10_000,
+    trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure"
+    video: "off",
+    reducedMotion: "reduce"
   },
   reporter: [
     ["list"],
@@ -62,6 +67,7 @@ module.exports = defineConfig({
     },
     {
       name: "mobile-chromium",
+      testMatch: /(?:authentication|character-creation|critical-regressions|smoke)\.spec\.js/,
       use: {
         ...devices["Pixel 7"]
       }

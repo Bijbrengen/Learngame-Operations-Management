@@ -11,13 +11,25 @@
       return Promise.reject(new Error("LeerpretSDK-component ontbreekt: " + name));
     }
     return new Promise(function (resolve, reject) {
+      // De losse LEGO-logica kan tegelijk met de algemene API-client laden.
+      // api-client.js installeert een nieuw window.LeerpretSDK-object; bewaar
+      // daarom reeds geladen componenten en zet ze na die installatie terug.
+      var existingComponents = window.LeerpretSDK && window.LeerpretSDK.components;
       var script = document.createElement("script");
       script.src = apiBase + "/sdk/" + name + "/client.js?v=" + encodeURIComponent(manifest.version);
       if (component.integrity && component.integrity["client.js"]) {
         script.integrity = component.integrity["client.js"];
         script.crossOrigin = "anonymous";
       }
-      script.onload = resolve;
+      script.onload = function () {
+        if (existingComponents && window.LeerpretSDK) {
+          window.LeerpretSDK.components = Object.assign(
+            window.LeerpretSDK.components || {},
+            existingComponents
+          );
+        }
+        resolve();
+      };
       script.onerror = function () { reject(new Error("LeerpretSDK-component kon niet laden: " + name)); };
       document.head.appendChild(script);
     });

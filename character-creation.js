@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = "learngame-om.behavior-profile.v1";
   const DRAFT_KEY = "learngame-om.behavior-draft.v1";
+  const DISMISS_KEY = "learngame-om.behavior-profile-dismissed.v1";
   const PROFILE_ENDPOINT = "/v1/player/behavior-profile";
   const AXES = ["Daadkracht", "Dynamiek", "Verbinding", "Structuur"];
   const AXIS_ICONS = ["◆", "✦", "●", "▦"];
@@ -702,6 +703,27 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function dismiss() {
+    commitCategoryTiming();
+    state.lookupSequence += 1;
+    state.checking = false;
+    state.lookupError = "";
+    try {
+      sessionStorage.setItem(DISMISS_KEY, "true");
+    } catch {
+      // De test blijft ook zonder beschikbare sessieopslag overslaanbaar.
+    }
+    finish();
+  }
+
+  function dismissedForSession() {
+    try {
+      return sessionStorage.getItem(DISMISS_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
   function goPrevious() {
     commitCategoryTiming();
     if (state.category > 0) {
@@ -953,6 +975,11 @@
       setEditButtonVisible(false);
       return;
     }
+    if (dismissedForSession()) {
+      state.apiBase = session.apiBase || state.apiBase;
+      setEditButtonVisible(true);
+      return;
+    }
     // Een herhaalde auth-notificatie mag een lopende scan niet terugzetten.
     // Dit kan gebeuren wanneer sessiecontrole en handmatige initialisatie kort
     // na elkaar afronden, bijvoorbeeld bij een trage backend of in een test.
@@ -966,6 +993,11 @@
   function edit() {
     const session = window.LeerpretAuth?.getSession?.() || {};
     if (!session.authenticated) return;
+    try {
+      sessionStorage.removeItem(DISMISS_KEY);
+    } catch {
+      // Zonder sessieopslag kan de test nog steeds handmatig worden geopend.
+    }
     checkAccountProfile(session, { forceEdit: true });
   }
 
@@ -978,6 +1010,7 @@
     mount.addEventListener("click", handleClick);
     mount.addEventListener("input", handleInput);
     mount.addEventListener("change", handleChange);
+    document.getElementById("characterCreationDismiss")?.addEventListener("click", dismiss);
     editButtons().forEach(button => button.addEventListener("click", edit));
     window.addEventListener("leerpret-auth-changed", event => start(event.detail || {}));
     const session = window.LeerpretAuth?.getSession?.();

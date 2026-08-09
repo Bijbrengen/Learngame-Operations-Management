@@ -3,6 +3,14 @@ const { test, expect } = require("@playwright/test");
 test.describe("Character Creation & Gedragsscan Wizard", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/accounts.google.com/**", route => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
+    await page.route("**/leerpret-auth.js", route => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: `window.LeerpretAuth = {
+        getSession: () => ({ authenticated: false, apiBase: window.LEARNGAME_OM_CONFIG.apiBase }),
+        checkSession: async () => ({ authenticated: false })
+      };`
+    }));
     await page.route("**/v1/player/behavior-profile**", route => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ exists: false }) });
     });
@@ -44,6 +52,24 @@ test.describe("Character Creation & Gedragsscan Wizard", () => {
 
     await nextBtn.click({ force: true });
     await expect(page.locator(".category-heading")).toContainText("Attribuutnode 2 van 10");
+  });
+
+  test("gedragsstijltest kan met de X worden overgeslagen", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => window.BehaviorCharacterCreation);
+
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.getElementById("leerpretAuthGate").hidden = true;
+      window.BehaviorCharacterCreation.start({ authenticated: true });
+    });
+
+    const gate = page.locator("#characterCreationGate");
+    await expect(gate).toBeVisible();
+    await page.getByRole("button", { name: "Gedragsstijltest sluiten en overslaan" }).click();
+    await expect(gate).toBeHidden();
+    await expect(page.locator("body")).not.toHaveClass(/character-creation-active/);
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem("learngame-om.behavior-profile-dismissed.v1"))).toBe("true");
   });
 
   test("kwaliteitscontrole signaleert te uniforme scans", async ({ page }) => {

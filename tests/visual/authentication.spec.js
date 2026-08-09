@@ -94,8 +94,8 @@ test.describe("Leerpret-aanmelding", () => {
     }));
 
     expect(theme.origin).toBe("http://127.0.0.1:47111/api/ui/leerpret-theme.css");
-    expect(theme.orange).toBe("#F97316");
-    expect(theme.border).toBe("3px solid #000000");
+    expect(theme.orange).toBe("#E97A5F");
+    expect(theme.border).toBe("3px solid #684564");
     expect(theme.brain).toContain("brand-brain.svg");
     await expect(page.locator(".brand-logo-row > .brand-brain-mark")).toHaveCount(1);
     await expect(page.locator(".lp-brand-badge")).toHaveCount(0);
