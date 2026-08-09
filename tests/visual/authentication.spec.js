@@ -53,6 +53,8 @@ test.describe("Leerpret-aanmelding", () => {
     await expect(page.locator("#leerpretAuthMessage")).toHaveText(
       "Meld je hier met je Google-account aan."
     );
+    await expect(page.locator(".auth-card")).toHaveCSS("background-color", "rgb(66, 88, 77)");
+    await expect(page.locator("#leerpretAuthTitle")).toHaveCSS("color", "rgb(247, 244, 238)");
     await expect(
       page.getByRole("button", { name: "Pseudoniem aanmelden met Google" })
     ).toBeVisible();

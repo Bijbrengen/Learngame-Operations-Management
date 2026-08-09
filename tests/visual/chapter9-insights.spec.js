@@ -110,6 +110,7 @@ test("inzichtenbibliotheek wisselt tussen spelvarianten zonder bronbestanden", a
   await page.getByRole("button", { name: "Alle inzichten" }).click();
   const library = page.getByRole("dialog", { name: "Inzichten uit hoofdstuk 9" });
   await expect(library).toBeVisible();
+  await expect(library.locator("#chapter9LibraryTitle")).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(library.locator(".chapter9-library-toolbar")).toHaveCSS(
     "background-color",
     "rgb(66, 88, 77)"
@@ -120,6 +121,10 @@ test("inzichtenbibliotheek wisselt tussen spelvarianten zonder bronbestanden", a
 
   await library.locator("#chapter9VariantSelect").selectOption("lo1");
   await expect(library.locator(".chapter9-library-insight")).toHaveCount(2);
+  await expect(library.locator(".chapter9-library-insight h3").first()).toHaveCSS(
+    "color",
+    "rgb(255, 255, 255)"
+  );
   await expect(library).not.toContainText("SVG");
   await expect(library).not.toContainText("CSV");
 

@@ -98,9 +98,10 @@ h3,
   display: grid;
   gap: 16px;
   padding: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid #6f8279;
   border-radius: 16px;
-  background: #fffdf8;
+  color: #f7f4ee;
+  background: #42584d;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
 }
 
@@ -110,11 +111,11 @@ h3,
 }
 
 .auth-card .eyebrow {
-  color: var(--green);
+  color: #f2c14e;
 }
 
 .auth-card small {
-  color: var(--muted);
+  color: #dce8e1;
   line-height: 1.45;
 }
 
@@ -11289,6 +11290,10 @@ body.tutorial-focus {
   font-size: 1rem;
 }
 
+.chapter9-library-insight h3 {
+  color: #fff;
+}
+
 .chapter9-indicator-heading strong {
   color: var(--ink);
   font-size: 1.25rem;
@@ -11472,6 +11477,7 @@ body.tutorial-focus {
 
 .chapter9-library-shell > header h2 {
   margin: 2px 0 0;
+  color: #fff;
 }
 
 .chapter9-library-toolbar {
