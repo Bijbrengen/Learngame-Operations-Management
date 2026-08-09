@@ -42,7 +42,7 @@ async function openInsights(page) {
       can_start_free_game: true
     })
   }));
-  await page.goto("/");
+  await page.goto("/?api=http://127.0.0.1:47111/api");
   await page.waitForFunction(() => (
     window.LEARNGameOMSimulator
     && window.Chapter9Insights

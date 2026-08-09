@@ -38,7 +38,7 @@ async function mockAuthenticatedApp(page, { profileExists = true } = {}) {
 
 async function openManagerSessionSettings(page) {
   await mockAuthenticatedApp(page);
-  await page.goto("/");
+  await page.goto("/?api=http://127.0.0.1:47111/api");
   await page.waitForFunction(() => window.LEARNGameOMSimulator && window.GameConfigurationStore);
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await expect(page.locator("#characterCreationGate")).toBeHidden();
@@ -59,7 +59,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       response.url().includes("/v1/player/behavior-profile")
       && response.status() === 200
     ));
-    await page.goto("/");
+    await page.goto("/?api=http://127.0.0.1:47111/api");
     await profileResponse;
 
     const beginScans = page.locator('[data-action="begin-scans"]');
@@ -115,7 +115,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       scope: "openid"
     }));
 
-    await page.goto("/");
+    await page.goto("/?api=http://127.0.0.1:47111/api");
     expect(new URL(page.url()).hostname).toBe("127.0.0.1");
     await expect(page.locator("#leerpretAuthMessage")).toHaveText(
       "Meld je hier met je Google-account aan."

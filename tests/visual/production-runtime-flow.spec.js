@@ -33,7 +33,7 @@ async function openDeterministicSimulator(page) {
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })
   }));
-  await page.goto("/");
+  await page.goto("/?api=http://127.0.0.1:47111/api");
   await page.waitForFunction(() => window.LEARNGameOMSimulator);
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await page.locator("#characterCreationGate").waitFor({ state: "hidden" });
