@@ -308,8 +308,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     });
 
     await page.getByRole("button", { name: "Sessie aanmaken" }).click();
-    await expect.poll(() => requestCount).toBeGreaterThanOrEqual(3);
-    await page.waitForTimeout(100);
+    await expect.poll(() => requestCount).toBe(1);
 
     expect(dialogs).toEqual([]);
     await expect(page.locator("#gameSessionCreateForm")).toBeVisible();
@@ -416,7 +415,8 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       await dialog.dismiss();
     });
 
-    await page.reload();
+    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.waitForFunction(() => window.LEARNGameOMSimulator);
     await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await page.evaluate(() => {
       window.LEARNGameOMSimulator.setAppView("manager");
@@ -482,7 +482,9 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       await dialog.dismiss();
     });
 
-    await page.reload();
+    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.waitForFunction(() => window.LEARNGameOMSimulator);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await expect(page.locator("#gameConsensusDialog")).toBeVisible();
     await page.locator("#gameConsensusWaitButton").click();
 
