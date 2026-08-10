@@ -1,5 +1,5 @@
 /**
- * Integratie-/regressietest op het ECHTE browserbestand lego-builder.js.
+ * Integratie-/regressietest op de door LeerpretEngine gepubliceerde bouwer.
  * Laadt het (met een minimale window-shim) samen met de SDK-logica en
  * controleert de publieke, DOM-loze API. Zo bewijzen we dat de herbedrading
  * naar LeerpretSDK het gedrag niet heeft veranderd — en dat de fallback werkt.
@@ -15,16 +15,18 @@ import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const BUILDER_PATH = require.resolve("../../lego-builder.js");
 
 // Een optionele contracttest kan een expliciet aangeleverde SDK-asset gebruiken.
 // Zonder override zoekt deze zelfstandige repository nooit in een buurrepository.
 const LOGIC_PATH = process.env.LEERPRET_SDK_LOGIC
   ? path.resolve(process.env.LEERPRET_SDK_LOGIC)
   : null;
+const BUILDER_PATH = process.env.LEERPRET_SDK_COMPONENT_DIR
+  ? path.resolve(process.env.LEERPRET_SDK_COMPONENT_DIR, "lego-builder.mount.js")
+  : null;
 
-const SKIP = !LOGIC_PATH || !existsSync(LOGIC_PATH)
-  ? { skip: "Optionele SDK-contractasset niet ingesteld via LEERPRET_SDK_LOGIC" }
+const SKIP = !LOGIC_PATH || !BUILDER_PATH || !existsSync(LOGIC_PATH) || !existsSync(BUILDER_PATH)
+  ? { skip: "Optionele SDK-contractassets zijn niet ingesteld" }
   : {};
 
 // Alle tests overslaan i.p.v. hard falen als de backend-SDK niet naast de repo staat.

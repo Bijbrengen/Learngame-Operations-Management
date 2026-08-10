@@ -456,13 +456,15 @@ De PDF is gebruikt om de volledige orderstroom te controleren. De HTML bevatte b
 Deze digital twin kiest bewust voor een kleine, testbare kern:
 
 - `script.js` bevat de speldata, configuratie, engine-acties en eventdispatch;
-- `lego-tower-renderer.js` bevat de vaste en geanimeerde isometrische
-  LEGO-torenrenderer voor de vaste 6x6-grondplaat, instelbare
-  grondplaatkleuren en 2x4- en 2x2-blokken;
-- `tower-editor.js` laat de Game Master naast de torenlagen ook de kleur van
-  de vaste 6x6-grondplaat kiezen. De keuze wordt in `groundPlate.color`
+- LeerpretEngine publiceert via `/api/sdk/lego-renderer/renderer.js` de vaste
+  en geanimeerde isometrische LEGO-torenrenderer voor de 6x6-grondplaat,
+  instelbare grondplaatkleuren en 2x4- en 2x2-blokken;
+- LeerpretEngine publiceert via `/api/sdk/lego-tower-editor/editor.js` de
+  toreneditor waarmee de Game Master naast de torenlagen ook de kleur van
+  de vaste 6x6-grondplaat kan kiezen. De keuze wordt in `groundPlate.color`
   opgeslagen en in previews, klantorders en de bouwmodule hergebruikt;
-- `lego-builder.js` bevat de tutorialstate, het herbruikte blokkenpalet,
+- LeerpretEngine publiceert de bouwlogica en -UI via de assets van
+  `/api/sdk/lego-builder/`; daarin staan tutorialstate, blokkenpalet,
   klik/drag-and-drop, grid-snapping, steuncontrole en levervalidatie;
 - `index.html` bevat alleen de statische werkbank;
 - `style.css` maakt de orderstroom, voorraad en torens visueel inspecteerbaar.

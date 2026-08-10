@@ -1420,8 +1420,6 @@
   </dialog>
 
   <script src="leerpret-sdk.js"></script>
-  <script src="lego-tower-renderer.js"></script>
-  <script src="tower-editor.js"></script>
   <script src="leerpret-auth.js"></script>
   <script src="leerpret-theme.js"></script>
   <script src="behavior-quality.js"></script>
@@ -1463,19 +1461,22 @@
       }
       // Een verouderde testsessie-override mag de actuele runtime-configuratie
       // nooit volledig blokkeren.
-      function sdkCandidates() {
+      function sdkBases() {
         var bases = [base(), configuredBase()].filter(function (value, index, values) {
           return value && values.indexOf(value) === index;
         });
-        return bases.map(function (b) {
-          var sep = b.indexOf("?") === -1 ? "?" : "&";
-          return b + "/sdk/lego-builder/logic.js" + sep + "bypass-tunnel-reminder=true";
-        });
+        return bases;
       }
       // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
       // werkt ook op een losse frontend op een andere poort.
-      var tail = ["lego-builder.js", "isometric-logistics-view.js", "script.js"];
+      var sdkAssets = [
+        "/sdk/lego-renderer/renderer.js",
+        "/sdk/lego-tower-editor/editor.js",
+        "/sdk/lego-builder/logic.js",
+        "/sdk/lego-builder/mount.js"
+      ];
+      var tail = ["isometric-logistics-view.js", "script.js"];
       function loadTail(i) {
         if (i >= tail.length) return;
         var s = document.createElement("script");
@@ -1485,22 +1486,36 @@
         s.onerror = function () { loadTail(i + 1); };
         document.head.appendChild(s);
       }
-      var candidates = sdkCandidates();
-      (function trySdk(i) {
+      var candidates = sdkBases();
+      function loadSdkAsset(baseUrl, assetIndex, candidateIndex, version) {
+        if (assetIndex >= sdkAssets.length) {
+          loadTail(0);
+          return;
+        }
+        var script = document.createElement("script");
+        script.src = baseUrl + sdkAssets[assetIndex] + "?v=" + encodeURIComponent(version) + "&bypass-tunnel-reminder=true";
+        script.async = false;
+        script.onload = function () { loadSdkAsset(baseUrl, assetIndex + 1, candidateIndex, version); };
+        script.onerror = function () { trySdk(candidateIndex + 1); };
+        document.head.appendChild(script);
+      }
+      function trySdk(i) {
         if (i >= candidates.length) {
-          window.__LEERPRET_SDK_LOAD_ERROR = candidates[0];
+          window.__LEERPRET_SDK_LOAD_ERROR = candidates[0] + sdkAssets[0];
           console.warn("LeerpretSDK: kon de SDK niet laden (geprobeerd: " + candidates.join(", ") +
             "; pagina-origin " + location.origin + "). Mogelijk onbereikbare backend, verkeerde poort of mixed-content (https-pagina → http-backend).");
           loadTail(0);
           return;
         }
-        var s = document.createElement("script");
-        s.src = candidates[i];
-        s.async = false;
-        s.onload = function () { loadTail(0); };
-        s.onerror = function () { trySdk(i + 1); };
-        document.head.appendChild(s);
-      })(0);
+        fetch(candidates[i] + "/sdk/manifest.json", { credentials: "include", cache: "no-store" })
+          .then(function (response) {
+            if (!response.ok) throw new Error("SDK-manifest niet beschikbaar");
+            return response.json();
+          })
+          .then(function (manifest) { loadSdkAsset(candidates[i], 0, i, manifest.version); })
+          .catch(function () { trySdk(i + 1); });
+      }
+      trySdk(0);
     })();
   </script>
 </body>

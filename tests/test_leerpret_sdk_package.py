@@ -1,9 +1,4 @@
-"""Packaging-regressietests voor de LeerpretSDK-bedrading in de frontend.
-
-De SDK-broncode woont niet meer in deze repo maar in de Leerpret-backend, die
-'m achter /api/sdk/... serveert. Deze test bewaakt dat de frontend de SDK van
-de API laadt (in de juiste volgorde) en niet terugvalt op een lokaal bestand.
-"""
+"""Regressietests voor de centrale LeerpretSDK-bedrading in LOM."""
 from __future__ import annotations
 
 import re
@@ -12,45 +7,44 @@ from pathlib import Path
 
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
-# De loader stelt de asset-URL samen als <backend-basis> + dit pad.
-SDK_ASSET_PATH = "/sdk/lego-builder/logic.js"
+SDK_ASSETS = (
+    "/sdk/lego-renderer/renderer.js",
+    "/sdk/lego-tower-editor/editor.js",
+    "/sdk/lego-builder/logic.js",
+    "/sdk/lego-builder/mount.js",
+)
 
 
 class LeerpretSdkWiringTests(unittest.TestCase):
-    def test_frontend_loads_sdk_from_the_api_before_the_component(self) -> None:
+    def test_frontend_loads_complete_lego_sdk_before_the_product(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn(SDK_ASSET_PATH, html, "index.html moet de SDK-loader bevatten")
-        self.assertIn("LEERPRET_SDK_BASE", html, "de loader moet een override-hook bieden")
-        self.assertIn(
-            "[base(), configuredBase()]",
-            html,
-            "de runtimeconfiguratie moet als herstelroute beschikbaar blijven",
-        )
-        # De scripts worden geketend geladen: SDK vóór lego-builder.js, en script.js erna.
-        self.assertIn('"lego-builder.js"', html)
-        self.assertIn('"script.js"', html)
-        self.assertLess(
-            html.index(SDK_ASSET_PATH),
-            html.index('"lego-builder.js"'),
-            "de SDK-logica moet vóór lego-builder.js in de laadketen staan",
-        )
-        self.assertLess(
-            html.index('"lego-builder.js"'),
-            html.index('"script.js"'),
-            "lego-builder.js moet vóór script.js geladen worden",
-        )
+        self.assertIn("LEERPRET_SDK_BASE", html)
+        self.assertIn("[base(), configuredBase()]", html)
+        for asset in SDK_ASSETS:
+            self.assertIn(asset, html)
+        positions = [html.index(asset) for asset in SDK_ASSETS]
+        self.assertEqual(sorted(positions), positions)
+        self.assertLess(html.index(SDK_ASSETS[-1]), html.index('"script.js"'))
 
-    def test_no_local_sdk_copy_remains(self) -> None:
-        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertNotIn("sdk/components/lego-builder.logic.js", html,
-                         "de frontend mag niet meer naar een lokale SDK-kopie wijzen")
-        self.assertFalse((PRODUCT_ROOT / "sdk" / "components" / "lego-builder.logic.js").exists(),
-                         "de lokale SDK-kopie hoort verwijderd te zijn (backend is eigenaar)")
+    def test_no_local_lego_implementation_remains(self) -> None:
+        for relative_path in (
+            "lego-builder.js",
+            "lego-tower-renderer.js",
+            "tower-editor.js",
+            "sdk/components/lego-builder.logic.js",
+        ):
+            self.assertFalse((PRODUCT_ROOT / relative_path).exists(), relative_path)
 
-    def test_service_worker_does_not_cache_a_local_sdk_file(self) -> None:
+    def test_service_worker_does_not_cache_local_lego_code(self) -> None:
         sw = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
-        cached = set(re.findall(r"""["']\./([^"']+)["']""", sw))
-        self.assertNotIn("sdk/components/lego-builder.logic.js", cached)
+        cached = set(re.findall(r'''["']\./([^"']+)["']''', sw))
+        for path in (
+            "lego-builder.js",
+            "lego-tower-renderer.js",
+            "tower-editor.js",
+            "sdk/components/lego-builder.logic.js",
+        ):
+            self.assertNotIn(path, cached)
 
 
 if __name__ == "__main__":

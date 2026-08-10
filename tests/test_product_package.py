@@ -17,9 +17,24 @@ SDK_LOGIC_PATH = Path(
     os.getenv("LEERPRET_SDK_LOGIC")
     or (PRODUCT_ROOT / ".external-sdk-not-configured.js")
 ).resolve()
+SDK_COMPONENT_DIR = Path(
+    os.getenv("LEERPRET_SDK_COMPONENT_DIR")
+    or (PRODUCT_ROOT / ".external-sdk-components-not-configured")
+).resolve()
+SDK_RENDERER_PATH = SDK_COMPONENT_DIR / "lego-renderer.js"
+SDK_BUILDER_PATH = SDK_COMPONENT_DIR / "lego-builder.mount.js"
+SDK_EDITOR_PATH = SDK_COMPONENT_DIR / "lego-tower-editor.js"
 # Pad zoals node het vanuit cwd=PRODUCT_ROOT ziet (voor de vm-tests).
 SDK_LOGIC_JS_FOR_NODE = SDK_LOGIC_PATH.as_posix()
-_SDK_AVAILABLE = SDK_LOGIC_PATH.is_file()
+_SDK_AVAILABLE = all(path.is_file() for path in (
+    SDK_LOGIC_PATH,
+    SDK_RENDERER_PATH,
+    SDK_BUILDER_PATH,
+    SDK_EDITOR_PATH,
+))
+os.environ.setdefault("SDK_RENDERER", SDK_RENDERER_PATH.as_posix())
+os.environ.setdefault("SDK_BUILDER", SDK_BUILDER_PATH.as_posix())
+os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 
 class ProductPackageTests(unittest.TestCase):
@@ -707,13 +722,13 @@ process.stdout.write(JSON.stringify({{
 
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
     def test_interactive_lego_builder_uses_the_three_source_products(self) -> None:
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
-        renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
+        renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
-        self.assertIn('"lego-builder.js"', html)  # via de LeerpretSDK-laadketen
+        self.assertIn('/sdk/lego-builder/mount.js', html)
         self.assertIn('id="legoBuilderMount"', html)
         self.assertIn("window.LegoTowerRenderer.renderPart", builder)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
@@ -730,6 +745,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("supportedLayer", builder)
         self.assertIn("boardProjection", builder)
         self.assertIn("snapCandidate", builder)
+        self.assertIn("updateHoverPreview", builder)
+        self.assertIn("data-builder-hover-preview", builder)
         self.assertIn("LegoTowerRenderer.brick", builder)
         self.assertIn("builder-isometric-scene", builder)
         self.assertIn("validateBuild", builder)
@@ -756,9 +773,9 @@ global.document = { activeElement: null };
 global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
-vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
-vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_BUILDER, "utf8"));
 const container = {
   innerHTML: "",
   offsetParent: {},
@@ -836,8 +853,9 @@ process.stdout.write(JSON.stringify({
         self.assertIn("opacity: 0.58", target_css)
         self.assertNotIn("filter", target_css)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_tutorial_order_preview_always_shows_the_complete_tower(self) -> None:
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         render_section = builder.split("function render() {", 1)[1].split(
             "function wire() {",
             1,
@@ -847,7 +865,7 @@ process.stdout.write(JSON.stringify({
         self.assertNotIn("TUTORIAL[state.tutorialStep].sequence", render_section)
 
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
-    def test_tutorial_requires_manual_rotation_before_build_step_two(self) -> None:
+    def test_tutorial_target_aligns_rotation_before_build_step_two(self) -> None:
         node_program = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -857,11 +875,11 @@ global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
-const builderSource = fs.readFileSync("lego-builder.js", "utf8").replace(
-  "window.LegoBuilder = {\n    mount,",
-  "window.__placeTutorialBrickForTest = placeAt;\n  window.__rotateTutorialBrickForTest = rotateSelectedPiece;\n  window.LegoBuilder = {\n    mount,"
+const builderSource = fs.readFileSync(process.env.SDK_BUILDER, "utf8").replace(
+  "const publicApi = {\n    mount,",
+  "window.__placeTutorialBrickForTest = placeAt;\n  window.__rotateTutorialBrickForTest = rotateSelectedPiece;\n  const publicApi = {\n    mount,"
 );
 vm.runInThisContext(builderSource);
 const container = {
@@ -900,8 +918,8 @@ process.stdout.write(JSON.stringify({
         result = json.loads(completed_process.stdout)
         self.assertEqual(1, result["foundationStep"])
         self.assertEqual([[1, 1], [3, 1]], result["foundationPositions"])
-        self.assertEqual(1, result["beforeRotationStep"])
-        self.assertEqual(2, result["beforeRotationCount"])
+        self.assertEqual(2, result["beforeRotationStep"])
+        self.assertEqual(3, result["beforeRotationCount"])
         self.assertEqual(2, result["stepTwoAdvanced"])
         self.assertEqual(
             {
@@ -926,9 +944,9 @@ global.document = { activeElement: null };
 global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
-vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
-vm.runInThisContext(fs.readFileSync("lego-builder.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_BUILDER, "utf8"));
 const container = {
   innerHTML: "",
   offsetParent: {},
@@ -969,10 +987,11 @@ process.stdout.write(JSON.stringify({
         self.assertEqual(0, result["targetCount"])
         self.assertEqual(1, result["boardBrickCount"])
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_tutorial_step_two_collects_stock_in_the_isometric_view(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn("LOGISTICS_TUTORIAL_REQUIREMENTS", game)
         self.assertIn('blue_8: 2', game)
@@ -1059,7 +1078,7 @@ const vm = require("vm");
 global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const container = {
@@ -1174,7 +1193,7 @@ const vm = require("vm");
 global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync("lego-tower-renderer.js", "utf8"));
+vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const makeContainer = () => ({
@@ -1278,9 +1297,10 @@ process.stdout.write(JSON.stringify({
             self.assertTrue(colors)
             self.assertEqual({expected_color}, set(colors))
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_tutorial_step_three_transfers_the_semi_finished_product(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         readme = (PRODUCT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("INTERNAL_LOGISTICS_TUTORIAL_DEPARTMENTS", game)
         self.assertIn('"tutorial_production"', game)
@@ -1346,10 +1366,11 @@ process.stdout.write(JSON.stringify({
         self.assertIn("@keyframes iso-cash-debit", styles)
         self.assertIn("Financieel & Transactie", readme)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_authenticated_experience_starts_in_tutorial_focus_mode(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn('id="tutorialExitButton"', html)
         self.assertIn('id="menuTutorialButton"', html)
@@ -1409,10 +1430,10 @@ process.stdout.write(JSON.stringify({
     def test_tutorial_uses_visual_drag_only_guidance(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
-        tower_renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
+        tower_renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn("Je bent leverancier van LEGO-torens.", builder)
         self.assertIn("Een klant wil deze toren.", builder)
@@ -1665,10 +1686,11 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("displayProduct", ui)
         self.assertIn("selectedProductId", ui)
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_physical_and_digital_modes_require_different_player_actions(self) -> None:
         engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
         ui_path = PRODUCT_ROOT / "logistics-game-ui.js"
-        renderer_path = PRODUCT_ROOT / "lego-tower-renderer.js"
+        renderer_path = SDK_RENDERER_PATH
         ui = ui_path.read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn("physicalActionPanelMarkup", ui)
@@ -1957,12 +1979,13 @@ process.stdout.write(JSON.stringify({{
             - result["easy"]["difficulty"]["reactionJitter"][0],
         )
 
+    @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_tower_editor_adds_animated_products_to_the_assortment(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        editor = (PRODUCT_ROOT / "tower-editor.js").read_text(encoding="utf-8")
-        renderer = (PRODUCT_ROOT / "lego-tower-renderer.js").read_text(encoding="utf-8")
-        builder = (PRODUCT_ROOT / "lego-builder.js").read_text(encoding="utf-8")
+        editor = SDK_EDITOR_PATH.read_text(encoding="utf-8")
+        renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
+        builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
         self.assertIn('data-main-menu-tab="tower-editor"', html)
         self.assertIn('data-manager-panel="tower-editor"', html)
