@@ -5,32 +5,12 @@
   var nativeFetch = window.fetch.bind(window);
   var apiBase = String(window.LEARNGAME_OM_CONFIG.apiBase || "").replace(/\/+$/, "");
 
-  function loadComponent(manifest, name) {
-    var component = manifest.components[name];
-    if (!component || !component.assets || !component.assets["client.js"]) {
-      return Promise.reject(new Error("LeerpretSDK-component ontbreekt: " + name));
-    }
+  function loadSdkLoader() {
     return new Promise(function (resolve, reject) {
-      // De losse LEGO-logica kan tegelijk met de algemene API-client laden.
-      // api-client.js installeert een nieuw window.LeerpretSDK-object; bewaar
-      // daarom reeds geladen componenten en zet ze na die installatie terug.
-      var existingComponents = window.LeerpretSDK && window.LeerpretSDK.components;
       var script = document.createElement("script");
-      script.src = apiBase + "/sdk/" + name + "/client.js?v=" + encodeURIComponent(manifest.version);
-      if (component.integrity && component.integrity["client.js"]) {
-        script.integrity = component.integrity["client.js"];
-        script.crossOrigin = "anonymous";
-      }
-      script.onload = function () {
-        if (existingComponents && window.LeerpretSDK) {
-          window.LeerpretSDK.components = Object.assign(
-            window.LeerpretSDK.components || {},
-            existingComponents
-          );
-        }
-        resolve();
-      };
-      script.onerror = function () { reject(new Error("LeerpretSDK-component kon niet laden: " + name)); };
+      script.src = apiBase + "/sdk/sdk-loader/loader.js";
+      script.onload = resolve;
+      script.onerror = function () { reject(new Error("LeerpretSDK-loader kon niet laden")); };
       document.head.appendChild(script);
     });
   }
@@ -67,23 +47,17 @@
     return normalized.indexOf("lom.") === 0 ? normalized : "lom." + normalized;
   }
 
-  var ready = nativeFetch(apiBase + "/sdk/manifest.json", { credentials: "include", cache: "no-store" })
-    .then(function (response) {
-      if (!response.ok) throw new Error("LeerpretSDK-manifest niet beschikbaar");
-      return response.json();
+  var ready = loadSdkLoader()
+    .then(function () {
+      return window.LeerpretSDK.Loader.create({ base: apiBase, fetch: nativeFetch }).load(["api-client", "leerobject"]);
     })
-    .then(function (manifest) {
-      return loadComponent(manifest, "api-client")
-        .then(function () {
-          var client = window.LeerpretSDK.create({
-            apiBase: apiBase,
-            clientId: "learngame-om",
-            fetch: nativeFetch
-          });
-          return client.bootstrap().then(function () {
-            return loadComponent(manifest, "leerobject").then(function () { return client; });
-          });
-        });
+    .then(function () {
+      var client = window.LeerpretSDK.create({
+        apiBase: apiBase,
+        clientId: "learngame-om",
+        fetch: nativeFetch
+      });
+      return client.bootstrap().then(function () { return client; });
     })
     .then(function (client) {
       return client.get("/leerbox-runtime/" + LEERBOX_ID).then(function (runtime) {
