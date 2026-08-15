@@ -47,9 +47,14 @@
     return normalized.indexOf("lom.") === 0 ? normalized : "lom." + normalized;
   }
 
-  var ready = loadSdkLoader()
-    .then(function () {
-      return window.LeerpretSDK.Loader.create({ base: apiBase, fetch: nativeFetch }).load(["api-client", "leerobject"]);
+  var loaderReady = loadSdkLoader().then(function () {
+    return window.LeerpretSDK.Loader.create({ base: apiBase, fetch: nativeFetch });
+  });
+  window.LeerpretSDKLoaderReady = loaderReady;
+
+  var ready = loaderReady
+    .then(function (loader) {
+      return loader.load(["api-client", "leerobject"]);
     })
     .then(function () {
       var client = window.LeerpretSDK.create({

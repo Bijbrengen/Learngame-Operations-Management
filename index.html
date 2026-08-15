@@ -1470,12 +1470,7 @@
       // Afhankelijke scripts, in strikte volgorde ná de SDK. DOM-geïnjecteerde
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
       // werkt ook op een losse frontend op een andere poort.
-      var sdkAssets = [
-        "/sdk/lego-renderer/renderer.js",
-        "/sdk/lego-tower-editor/editor.js",
-        "/sdk/lego-builder/logic.js",
-        "/sdk/lego-builder/mount.js"
-      ];
+      var sdkComponents = ["lego-renderer", "lego-tower-editor", "lego-builder"];
       var tail = ["isometric-logistics-view.js", "script.js"];
       function loadTail(i) {
         if (i >= tail.length) return;
@@ -1487,32 +1482,47 @@
         document.head.appendChild(s);
       }
       var candidates = sdkBases();
-      function loadSdkAsset(baseUrl, assetIndex, candidateIndex, version) {
-        if (assetIndex >= sdkAssets.length) {
-          loadTail(0);
-          return;
+      function injectSdkLoader(baseUrl) {
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement("script");
+          script.src = baseUrl + "/sdk/sdk-loader/loader.js";
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+      function ensureSdkLoader(baseUrl) {
+        function loaderForBase(loader) {
+          if (loader && loader.base === baseUrl.replace(/\/+$/, "")) return loader;
+          return window.LeerpretSDK.Loader.create({ base: baseUrl });
         }
-        var script = document.createElement("script");
-        script.src = baseUrl + sdkAssets[assetIndex] + "?v=" + encodeURIComponent(version) + "&bypass-tunnel-reminder=true";
-        script.async = false;
-        script.onload = function () { loadSdkAsset(baseUrl, assetIndex + 1, candidateIndex, version); };
-        script.onerror = function () { trySdk(candidateIndex + 1); };
-        document.head.appendChild(script);
+        if (window.LeerpretSDK && window.LeerpretSDK.Loader) {
+          return Promise.resolve(window.LeerpretSDKLoaderReady)
+            .then(loaderForBase, function () { return loaderForBase(null); });
+        }
+        var configuredLoader = window.LeerpretSDKLoaderReady || Promise.reject();
+        return configuredLoader
+          .then(loaderForBase)
+          .catch(function () {
+            return injectSdkLoader(baseUrl).then(function () { return loaderForBase(null); });
+          });
       }
       function trySdk(i) {
         if (i >= candidates.length) {
-          window.__LEERPRET_SDK_LOAD_ERROR = candidates[0] + sdkAssets[0];
+          window.__LEERPRET_SDK_LOAD_ERROR = candidates[0] + "/sdk/lego-renderer";
           console.warn("LeerpretSDK: kon de SDK niet laden (geprobeerd: " + candidates.join(", ") +
             "; pagina-origin " + location.origin + "). Mogelijk onbereikbare backend, verkeerde poort of mixed-content (https-pagina → http-backend).");
           loadTail(0);
           return;
         }
-        fetch(candidates[i] + "/sdk/manifest.json", { credentials: "include", cache: "no-store" })
-          .then(function (response) {
-            if (!response.ok) throw new Error("SDK-manifest niet beschikbaar");
-            return response.json();
+        ensureSdkLoader(candidates[i])
+          .then(function (loader) {
+            if (!window.LeerpretSDK || !window.LeerpretSDK.Loader) {
+              throw new Error("SDK-loader kon niet starten");
+            }
+            return loader.load(sdkComponents);
           })
-          .then(function (manifest) { loadSdkAsset(candidates[i], 0, i, manifest.version); })
+          .then(function () { loadTail(0); })
           .catch(function () { trySdk(i + 1); });
       }
       trySdk(0);
