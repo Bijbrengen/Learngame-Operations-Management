@@ -165,16 +165,16 @@
   });
 
   const PART_DEFINITIONS = Object.freeze({
-    base_green: { id: "base_green", label: "Plaat groen", color: "green", size: "6×6" },
-    yellow_8: { id: "yellow_8", label: "Steen geel", color: "yellow", size: "2×4" },
-    yellow_4: { id: "yellow_4", label: "Steen geel", color: "yellow", size: "2×2" },
-    blue_8: { id: "blue_8", label: "Steen blauw", color: "blue", size: "2×4" },
-    blue_4: { id: "blue_4", label: "Steen blauw", color: "blue", size: "2×2" },
-    red_8: { id: "red_8", label: "Steen rood", color: "red", size: "2×4" },
-    red_4: { id: "red_4", label: "Steen rood", color: "red", size: "2×2" },
-    white_8: { id: "white_8", label: "Steen wit", color: "white", size: "2×4" },
-    white_4: { id: "white_4", label: "Steen wit", color: "white", size: "2×2" },
-    green_4: { id: "green_4", label: "Steen groen", color: "green", size: "2×2" }
+    base_green: { id: "base_green", label: "Grondplaat groen", color: "green", size: "6×6", blokId: "element.ground-plate.6x6.green", blokFile: "elements/element_grondplaat_6x6_groen.blok" },
+    yellow_8: { id: "yellow_8", label: "Steen geel", color: "yellow", size: "2×4", blokId: "element.brick.2x4.yellow", blokFile: "elements/element_blok_2x4_geel.blok" },
+    yellow_4: { id: "yellow_4", label: "Steen geel", color: "yellow", size: "2×2", blokId: "element.brick.2x2.yellow", blokFile: "elements/element_blok_2x2_geel.blok" },
+    blue_8: { id: "blue_8", label: "Steen blauw", color: "blue", size: "2×4", blokId: "element.brick.2x4.blue", blokFile: "elements/element_blok_2x4_blauw.blok" },
+    blue_4: { id: "blue_4", label: "Steen blauw", color: "blue", size: "2×2", blokId: "element.brick.2x2.blue", blokFile: "elements/element_blok_2x2_blauw.blok" },
+    red_8: { id: "red_8", label: "Steen rood", color: "red", size: "2×4", blokId: "element.brick.2x4", blokFile: "elements/element_blok_2x4.blok" },
+    red_4: { id: "red_4", label: "Steen rood", color: "red", size: "2×2", blokId: "element.brick.2x2", blokFile: "elements/element_blok_2x2.blok" },
+    white_8: { id: "white_8", label: "Steen wit", color: "white", size: "2×4", blokId: "element.brick.2x4.white", blokFile: "elements/element_blok_2x4_wit.blok" },
+    white_4: { id: "white_4", label: "Steen wit", color: "white", size: "2×2", blokId: "element.brick.2x2.white", blokFile: "elements/element_blok_2x2_wit.blok" },
+    green_4: { id: "green_4", label: "Steen groen", color: "green", size: "2×2", blokId: "element.brick.2x2.green", blokFile: "elements/element_blok_2x2_groen.blok" }
   });
 
   const DEFAULT_CONFIG = Object.freeze({
