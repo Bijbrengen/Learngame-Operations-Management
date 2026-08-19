@@ -25,7 +25,7 @@
       document.head.append(theme);
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260819b">
+  <link rel="stylesheet" href="style.css?v=20260819c">
 </head>
 <body class="auth-pending">
   <section id="leerpretAuthGate" class="auth-gate" aria-labelledby="leerpretAuthTitle">
@@ -1471,7 +1471,7 @@
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
       // werkt ook op een losse frontend op een andere poort.
       var sdkComponents = ["lego-renderer", "lego-tower-editor", "lego-builder"];
-      var tail = ["isometric-logistics-view.js", "script.js"];
+      var tail = ["isometric-logistics-view.js?v=20260819b", "script.js"];
       function loadTail(i) {
         if (i >= tail.length) return;
         var s = document.createElement("script");

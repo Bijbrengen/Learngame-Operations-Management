@@ -485,4 +485,28 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       partId: "blue_8"
     });
   });
+
+  test("8. open magazijnen zijn gedeelde LEGO-containers met voorraad tussen de wanden", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");
+    await page.waitForFunction(() => (
+      window.LegoTowerRenderer?.openContainerLayers
+      && window.IsometricLogisticsView
+      && window.LEARNGameOMSimulator
+    ));
+    const container = page.locator(".iso-lego-open-container").first();
+    const geometry = await container.evaluate(element => (
+      ({
+        rearBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
+        frontBricks: element.querySelectorAll(".iso-lego-container-front .iso-brick").length,
+        stockBricks: element.querySelectorAll(".iso-visible-stock .iso-brick").length
+      })
+    ));
+    expect(geometry.rearBricks).toBe(3);
+    expect(geometry.frontBricks).toBe(2);
+    expect(geometry.stockBricks).toBeGreaterThan(0);
+    expect(await container.locator(":scope > g").evaluateAll(layers => (
+      layers.map(layer => layer.getAttribute("class") || "")
+    ))).toEqual(["", "iso-visible-stock", "iso-lego-container-front"]);
+  });
 });

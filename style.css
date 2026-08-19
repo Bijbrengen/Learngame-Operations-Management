@@ -8056,6 +8056,14 @@ select {
   filter: none;
 }
 
+.iso-lego-open-container .iso-brick {
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.24));
+}
+
+.iso-lego-open-container .iso-lego-container-front {
+  pointer-events: none;
+}
+
 .iso-department.is-open-roof.department-tutorial-blue .iso-building-interior {
   fill: #0c2e49;
   stroke: #4aafe8;

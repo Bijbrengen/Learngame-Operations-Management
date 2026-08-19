@@ -207,7 +207,7 @@
         })
       )
     )).slice(0, 8);
-    const scale = department.compactStock ? 0.3 : 0.34;
+    const scale = department.compactStock ? 0.42 : 0.5;
     const offsets = [
       { x: -49, y: 14 },
       { x: -17, y: 1 },
@@ -256,6 +256,31 @@
                y="${center.y + 7}"
                text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
       : "";
+    const containerColor = {
+      "tutorial-blue": "blue",
+      "tutorial-yellow": "yellow",
+      "tutorial-transit": "dark_gray",
+      finished: "blue"
+    }[department.departmentColor] || "green";
+    const container = window.LegoTowerRenderer?.openContainerLayers?.(
+      -1,
+      -1,
+      0,
+      8,
+      8,
+      containerColor,
+      legoGradientScope
+    );
+    if (container) {
+      const containerTransform = `translate(${center.x - 90} ${center.y - 90})`;
+      return `
+        <g class="iso-lego-open-container" data-container-grid="8x8">
+          <g transform="${containerTransform}">${container.base}${container.rear}</g>
+          <g class="iso-visible-stock">${bricks}${cargo}${empty}</g>
+          <g class="iso-lego-container-front" transform="${containerTransform}">${container.front}</g>
+        </g>
+      `;
+    }
     return `
       <polygon class="iso-building-interior"
                points="${points(opening)}"
@@ -330,6 +355,8 @@
       ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
       : null;
     const selectedRenderState = selected || Boolean(palette) || department.forceSelectedRender;
+    const usesLegoContainer = department.openRoof
+      && typeof window.LegoTowerRenderer?.openContainerLayers === "function";
     return `
       <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
          data-department-id="${escapeHtml(department.id)}"
@@ -339,7 +366,7 @@
          aria-disabled="${department.locked ? "true" : "false"}"
         aria-label="${escapeHtml(`${department.title}: ${statusText(department.status)}, ${department.badgeLabel || `${orderCount} lopende orders`}`)}">
         <g class="iso-building">
-          <polygon class="iso-zone-floor"
+          ${usesLegoContainer ? "" : `<polygon class="iso-zone-floor"
                    points="${points(geometry.floor)}"
                    ${palette ? `style="fill:${palette.floor};stroke:${palette.rim};stroke-width:4"` : ""}></polygon>
           <polygon class="iso-building-left"
@@ -351,7 +378,7 @@
                    points="${points([
             geometry.floor[1], geometry.floor[2], geometry.roof[2], geometry.roof[1]
           ])}"
-                   ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>
+                   ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>`}
           ${department.openRoof
             ? openWarehouseMarkup(department, geometry, legoGradientScope)
             : `

@@ -43,8 +43,8 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260819b"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v226"', service_worker)
+        self.assertIn('href="style.css?v=20260819c"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v227"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -70,6 +70,14 @@ class ProductPackageTests(unittest.TestCase):
                 r"background:\s*(?:#fff(?:fff)?|#fffbeb|#f0fdf4|#fff7f2|white)\s*;",
                 selector,
             )
+
+    def test_warehouses_use_the_shared_open_lego_container_primitive(self) -> None:
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        self.assertIn("LegoTowerRenderer?.openContainerLayers", renderer)
+        self.assertIn('class="iso-lego-open-container"', renderer)
+        self.assertIn("container.base}${container.rear}", renderer)
+        self.assertIn("${bricks}${cargo}${empty}", renderer)
+        self.assertIn("container.front", renderer)
 
     def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")
@@ -1385,7 +1393,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn("FINANCIAL_TUTORIAL_DISTRACTORS", game)
         self.assertIn('actionType: "reject_financial_tutorial_material"', game)
         self.assertIn('reason: "not_in_tower_b_bill_of_materials"', game)
-        self.assertIn("department.compactStock ? 0.3 : 0.34", renderer)
+        self.assertIn("department.compactStock ? 0.42 : 0.5", renderer)
         self.assertIn("slice(0, 8)", renderer)
         self.assertIn("state.config.money", game)
         self.assertIn("state.config.pnl", game)
