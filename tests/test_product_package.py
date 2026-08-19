@@ -38,13 +38,26 @@ os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 
 class ProductPackageTests(unittest.TestCase):
+    def test_live_game_reuses_configuration_layout_next_to_process_flow(self) -> None:
+        engine = (PRODUCT_ROOT / "logistics-game-engine.js").read_text(encoding="utf-8")
+        ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        self.assertIn("gameType: this.gameType", engine)
+        self.assertIn("organizationModel: this.organizationModel", engine)
+        self.assertIn("intermediateStock: this.intermediateStock", engine)
+        self.assertIn("ConfigurationLayoutPreview?.diagramMarkup", ui)
+        self.assertIn("data-sim-live-layout", ui)
+        self.assertIn("Drie gelijktijdige liveweergaven", ui)
+        self.assertIn("gameType: state.config.gameType", game)
+        self.assertIn("intermediateStock: state.config.intermediateStock", game)
+
     def test_dark_game_surfaces_do_not_fall_back_to_white_controls(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260819c"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v227"', service_worker)
+        self.assertIn('href="style.css?v=20260819d"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v228"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -191,7 +204,7 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="behavior-quality.js"', html)
         # script.js wordt nu via de LeerpretSDK-laadketen ingeladen (niet meer als
         # los src="script.js"), maar nog steeds na character-creation.js.
-        self.assertLess(html.index('src="character-creation.js"'), html.index('"script.js"'))
+        self.assertLess(html.index('src="character-creation.js"'), html.index('"script.js?v='))
         self.assertIn("basic_style", wizard)
         self.assertIn("response_style", wizard)
         self.assertIn("Wat minder bij je past", wizard)
@@ -405,7 +418,7 @@ console.log(JSON.stringify({
         engine_source = engine_path.read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        self.assertIn('src="logistics-game-engine.js"', html)
+        self.assertIn('src="logistics-game-engine.js?v=', html)
         self.assertRegex(html, r'src="logistics-game-ui\.js(?:\?[^\"]+)?"')
         self.assertIn('id="logisticsGameMount"', html)
         self.assertNotIn("fetch(", engine_source)
@@ -628,7 +641,7 @@ process.stdout.write(JSON.stringify({{
 
         data_script = 'src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"'
         self.assertIn(data_script, html)
-        self.assertLess(html.index(data_script), html.index('src="logistics-game-engine.js"'))
+        self.assertLess(html.index(data_script), html.index('src="logistics-game-engine.js?v='))
         self.assertIn(
             'state.config.organizationModel === "independent_enterprises"',
             game,
@@ -722,14 +735,14 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["hasRawDelay"])
         self.assertTrue(result["hasPeakFlow"])
 
-    def test_waiting_player_sees_two_large_live_views_and_top_departments(self) -> None:
+    def test_waiting_player_sees_three_large_live_views_and_top_departments(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         isometric = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         self.assertNotIn("data-sim-waiting-tab", ui)
-        self.assertIn('aria-label="Twee gelijktijdige liveweergaven"', ui)
+        self.assertIn('aria-label="Drie gelijktijdige liveweergaven"', ui)
         self.assertLess(
             ui.index('<h3 id="simWaitingFlowTitle">'),
             ui.index('<h3 id="simWaitingHeatmapTitle">'),

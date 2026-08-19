@@ -3299,10 +3299,13 @@
     logisticsGameController.start({
       humanRoleId,
       customerOrderMode,
+      gameType: state.config.gameType,
       organizationModel,
       fundingIncentive,
       playMode,
-      productionProcesses: state.config.productionProcesses
+      productionProcesses: state.config.productionProcesses,
+      intermediateStock: state.config.intermediateStock,
+      enabledRoles: [...state.config.enabledRoles]
     });
     if (document.body.classList.contains("tutorial-focus")) {
       logisticsGameController.pause();

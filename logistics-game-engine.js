@@ -277,6 +277,9 @@
       this.parts = deepClone(options.parts || PART_DEFINITIONS);
       this.behaviorPatterns = options.behaviorPatterns || null;
       this.customerOrderMode = options.customerOrderMode === "free" ? "free" : "required";
+      this.gameType = String(options.gameType || "lo4");
+      this.intermediateStock = Boolean(options.intermediateStock);
+      this.enabledRoles = Array.isArray(options.enabledRoles) ? [...new Set(options.enabledRoles)] : null;
       this.organizationModel = ["independent_enterprises", "school_learning_path"].includes(
         options.organizationModel
       ) ? options.organizationModel : "single_enterprise";
@@ -466,16 +469,22 @@
     start({
       humanRoleId = null,
       customerOrderMode = this.customerOrderMode,
+      gameType = this.gameType,
       organizationModel = this.organizationModel,
       fundingIncentive = this.fundingIncentive,
       playMode = this.playMode,
-      productionProcesses = this.productionProcesses
+      productionProcesses = this.productionProcesses,
+      intermediateStock = this.intermediateStock,
+      enabledRoles = this.enabledRoles
     } = {}) {
       if (humanRoleId && !this.roles[humanRoleId]) {
         throw new Error(`Onbekende spelersrol: ${humanRoleId}`);
       }
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
+      this.gameType = String(gameType || "lo4");
+      this.intermediateStock = Boolean(intermediateStock);
+      this.enabledRoles = Array.isArray(enabledRoles) ? [...new Set(enabledRoles)] : null;
       this.setOrganizationModel(organizationModel);
       this.setFundingIncentive(fundingIncentive);
       this.setPlayMode(playMode);
@@ -1022,9 +1031,13 @@
         started: Boolean(this.started),
         startedAt: this.startedAt,
         humanRoleId: this.humanRoleId,
+        gameType: this.gameType,
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
+        organizationModel: this.organizationModel,
         productionProcesses: [...this.productionProcesses],
+        intermediateStock: this.intermediateStock,
+        enabledRoles: this.enabledRoles ? [...this.enabledRoles] : null,
         nextOrderAt: this.nextOrderAt,
         roles: deepClone(this.roles),
         products: deepClone(this.products),
