@@ -38,6 +38,14 @@ os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 
 class ProductPackageTests(unittest.TestCase):
+    def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
+        auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")
+        self.assertIn('location.hostname === "127.0.0.1"', auth)
+        self.assertIn("/auth/leerbox/local-development?leerbox_id=", auth)
+        self.assertIn("await window.LeerpretSDKReady", auth)
+        self.assertIn("sdkBridge.client.request", auth)
+        self.assertIn("acceptSession(localSession)", auth)
+
     def test_declared_entrypoint_and_fixtures_exist(self) -> None:
         manifest = json.loads((PRODUCT_ROOT / "product.json").read_text(encoding="utf-8"))
         declared = [
@@ -2013,6 +2021,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("GROUND_PLATE_SIZE", editor)
         self.assertIn("groundPlate: {", editor)
         self.assertIn("groundPlate: { ...product.groundPlate }", game)
+        self.assertIn('blokId: "element.ground-plate.6x6.green"', game)
+        self.assertIn('blokFile: "elements/element_grondplaat_6x6_groen.blok"', game)
         self.assertIn('width: 6,\n      depth: 6', game)
         self.assertIn('groundPlateColor = "green"', renderer)
         self.assertIn("product.groundPlate?.color || \"green\"", builder)

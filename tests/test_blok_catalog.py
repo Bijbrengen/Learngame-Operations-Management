@@ -18,6 +18,15 @@ class TestBlokCatalog(unittest.TestCase):
         blok_ids = re.findall(r'blokId: "([^"]+)"', section)
         self.assertEqual(len(blok_ids), len(set(blok_ids)), "LOM mag geen dubbele semantische .blok-kopieën publiceren")
 
+    def test_every_legacy_inventory_part_uses_the_same_canonical_catalog(self):
+        source = (ROOT / "script.js").read_text(encoding="utf-8")
+        section = source.split("const PARTS =", 1)[1].split("const BASE_PRODUCTS =", 1)[0]
+        records = re.findall(r'^\s+\{ id: "([^"]+)",([^\n]+)\}', section, re.MULTILINE)
+        self.assertEqual(10, len(records))
+        for part_id, record in records:
+            self.assertIn('blokId: "element.', record, part_id)
+            self.assertRegex(record, r'blokFile: "elements/[^\"]+\.blok"', part_id)
+
 
 if __name__ == "__main__":
     unittest.main()

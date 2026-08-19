@@ -268,16 +268,16 @@
   });
 
   const PARTS = [
-    { id: "base_green", name: "groene 6x6 grondplaten", price: 5, color: "green", width: "plate", stock: 8, reorder: 3 },
-    { id: "blue_8", name: "blauwe 2x4 blokken", price: 4, color: "blue", width: "wide", stock: 14, reorder: 4 },
-    { id: "blue_4", name: "blauwe 2x2 blokken", price: 2, color: "blue", width: "narrow", stock: 14, reorder: 4 },
-    { id: "white_8", name: "witte 2x4 blokken", price: 3, color: "white", width: "wide", stock: 12, reorder: 4 },
-    { id: "white_4", name: "witte 2x2 blokken", price: 1, color: "white", width: "narrow", stock: 16, reorder: 5 },
-    { id: "red_8", name: "rode 2x4 blokken", price: 4, color: "red", width: "wide", stock: 10, reorder: 3 },
-    { id: "red_4", name: "rode 2x2 blokken", price: 2, color: "red", width: "narrow", stock: 12, reorder: 4 },
-    { id: "yellow_8", name: "gele 2x4 blokken", price: 4, color: "yellow", width: "wide", stock: 10, reorder: 3 },
-    { id: "yellow_4", name: "gele 2x2 blokken", price: 2, color: "yellow", width: "narrow", stock: 12, reorder: 4 },
-    { id: "green_4", name: "groene 2x2 blokken", price: 2, color: "green", width: "narrow", stock: 12, reorder: 4 }
+    { id: "base_green", name: "groene 6x6 grondplaten", price: 5, color: "green", width: "plate", stock: 8, reorder: 3, blokId: "element.ground-plate.6x6.green", blokFile: "elements/element_grondplaat_6x6_groen.blok" },
+    { id: "blue_8", name: "blauwe 2x4 blokken", price: 4, color: "blue", width: "wide", stock: 14, reorder: 4, blokId: "element.brick.2x4.blue", blokFile: "elements/element_blok_2x4_blauw.blok" },
+    { id: "blue_4", name: "blauwe 2x2 blokken", price: 2, color: "blue", width: "narrow", stock: 14, reorder: 4, blokId: "element.brick.2x2.blue", blokFile: "elements/element_blok_2x2_blauw.blok" },
+    { id: "white_8", name: "witte 2x4 blokken", price: 3, color: "white", width: "wide", stock: 12, reorder: 4, blokId: "element.brick.2x4.white", blokFile: "elements/element_blok_2x4_wit.blok" },
+    { id: "white_4", name: "witte 2x2 blokken", price: 1, color: "white", width: "narrow", stock: 16, reorder: 5, blokId: "element.brick.2x2.white", blokFile: "elements/element_blok_2x2_wit.blok" },
+    { id: "red_8", name: "rode 2x4 blokken", price: 4, color: "red", width: "wide", stock: 10, reorder: 3, blokId: "element.brick.2x4", blokFile: "elements/element_blok_2x4.blok" },
+    { id: "red_4", name: "rode 2x2 blokken", price: 2, color: "red", width: "narrow", stock: 12, reorder: 4, blokId: "element.brick.2x2", blokFile: "elements/element_blok_2x2.blok" },
+    { id: "yellow_8", name: "gele 2x4 blokken", price: 4, color: "yellow", width: "wide", stock: 10, reorder: 3, blokId: "element.brick.2x4.yellow", blokFile: "elements/element_blok_2x4_geel.blok" },
+    { id: "yellow_4", name: "gele 2x2 blokken", price: 2, color: "yellow", width: "narrow", stock: 12, reorder: 4, blokId: "element.brick.2x2.yellow", blokFile: "elements/element_blok_2x2_geel.blok" },
+    { id: "green_4", name: "groene 2x2 blokken", price: 2, color: "green", width: "narrow", stock: 12, reorder: 4, blokId: "element.brick.2x2.green", blokFile: "elements/element_blok_2x2_groen.blok" }
   ];
 
   const BASE_PRODUCTS = {
@@ -1687,7 +1687,9 @@
         ? requestedGroundPlateColor
         : "green",
       width: 6,
-      depth: 6
+      depth: 6,
+      blokId: String(draft.groundPlate?.blokId || `element.ground-plate.6x6.${requestedGroundPlateColor.replaceAll("_", "-")}`),
+      blokFile: String(draft.groundPlate?.blokFile || "elements/element_grondplaat_6x6_groen.blok")
     };
     const firstBreak = Math.ceil(sequence.length / 3);
     const secondBreak = Math.ceil(sequence.length * 2 / 3);

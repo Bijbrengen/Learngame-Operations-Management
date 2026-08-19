@@ -65,7 +65,11 @@
       ...(token ? { "X-Leerpret-Session": token } : {}),
       ...(options.headers || {})
     };
-    const response = await fetch(targetUrl.toString(), {
+    const sdkBridge = await window.LeerpretSDKReady;
+    if (!sdkBridge?.client) {
+      throw new Error("LeerpretSDK kon niet worden gestart.");
+    }
+    const response = await sdkBridge.client.request(targetUrl.toString(), {
       cache: "no-store",
       credentials: "include",
       ...options,
@@ -303,6 +307,23 @@
       acceptSession(confirmed);
       return true;
     } catch (exchangeError) {
+      const localHostname = location.hostname === "127.0.0.1" || location.hostname === "localhost" || location.hostname === "::1";
+      if (exchangeError.status === 401 && localHostname) {
+        try {
+          await request(
+            `/auth/leerbox/local-development?leerbox_id=${encodeURIComponent(LEERBOX_ID)}`,
+            { method: "POST" }
+          );
+          const localSession = await request(
+            `/auth/leerbox/session?leerbox_id=${encodeURIComponent(LEERBOX_ID)}`
+          );
+          acceptSession(localSession);
+          return true;
+        } catch (_localDevelopmentError) {
+          // Alleen de normale Google-melding blijft over wanneer de streng
+          // loopback-beperkte ontwikkelroute niet beschikbaar is.
+        }
+      }
       state.online = exchangeError.status === 401;
       state.authenticated = false;
       state.user = null;
