@@ -39,7 +39,12 @@ os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 class ProductPackageTests(unittest.TestCase):
     def test_dark_game_surfaces_do_not_fall_back_to_white_controls(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn('href="style.css?v=20260819b"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v226"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1

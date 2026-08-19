@@ -547,6 +547,21 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
 
     await page.locator("#gameAdvisorButton").click();
     await expect(page.locator("#gameAdvisorPanel")).toBeVisible();
+    const advisorStyle = await page.locator("#gameAdvisorPanel").evaluate(element => {
+      const style = getComputedStyle(element);
+      const warning = element.querySelector(".game-advisor-insight.is-warning");
+      const warningStyle = warning ? getComputedStyle(warning) : null;
+      return {
+        backgroundImage: style.backgroundImage,
+        color: style.color,
+        warningBackground: warningStyle?.backgroundColor || "",
+        warningColor: warningStyle?.color || ""
+      };
+    });
+    expect(advisorStyle.backgroundImage).toContain("linear-gradient");
+    expect(advisorStyle.color).not.toBe("rgb(255, 255, 255)");
+    expect(advisorStyle.warningBackground).not.toBe("rgb(255, 251, 235)");
+    expect(advisorStyle.warningColor).not.toBe("rgb(255, 255, 255)");
     await expect(page.locator("#gameAdvisorPanel")).toContainText(
       "Hebben jullie gedacht aan productieplanning?"
     );
