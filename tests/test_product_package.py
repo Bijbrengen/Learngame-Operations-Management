@@ -38,6 +38,34 @@ os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 
 class ProductPackageTests(unittest.TestCase):
+    def test_dark_game_surfaces_do_not_fall_back_to_white_controls(self) -> None:
+        stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+
+        manager_controls = stylesheet.split(
+            ".manager-dashboard .order-form input,", 1
+        )[1].split("}", 1)[0]
+        self.assertIn(".manager-dashboard .production-plan-fields input", manager_controls)
+        self.assertIn("background: #071a21", manager_controls)
+        self.assertIn("color: var(--lp-ink)", manager_controls)
+
+        advisor = stylesheet.split(".game-advisor-panel {", 1)[1].split("}", 1)[0]
+        self.assertIn("color: var(--lp-ink)", advisor)
+        self.assertNotRegex(advisor, r"background:\s*(?:#fff(?:fff)?|white)\s*;")
+
+        for selector in (
+            ".game-advisor-insight {",
+            ".game-advisor-insight.is-warning {",
+            ".game-advisor-insight.is-ok {",
+            ".chapter9-indicator-card.is-warning {",
+        ):
+            rule = stylesheet.split(selector, 1)[1].split("}", 1)[0]
+            self.assertIn("color:", rule, selector)
+            self.assertNotRegex(
+                rule,
+                r"background:\s*(?:#fff(?:fff)?|#fffbeb|#f0fdf4|#fff7f2|white)\s*;",
+                selector,
+            )
+
     def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")
         self.assertIn('location.hostname === "127.0.0.1"', auth)

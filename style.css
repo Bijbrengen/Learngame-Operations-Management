@@ -9542,12 +9542,24 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 .manager-dashboard .order-form select,
 .manager-dashboard .purchase-form input,
 .manager-dashboard .purchase-form select,
+.manager-dashboard .production-plan-fields input,
 .manager-dashboard .game-type-field select,
 .manager-dashboard .select-field input,
 .manager-dashboard .select-field select {
   border-color: #315961;
   color: var(--lp-ink);
   background: #071a21;
+}
+
+.manager-dashboard .role-card,
+.manager-dashboard .order-preview {
+  border-color: var(--lp-line);
+  color: var(--lp-ink);
+  background: linear-gradient(145deg, #122a32, #0a1b21);
+}
+
+.manager-dashboard .order-preview-meta {
+  color: var(--lp-muted);
 }
 
 .manager-dashboard .game-type-field {
@@ -9660,6 +9672,7 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 
 .production-plan-fields input {
   width: 100%;
+  color-scheme: dark;
 }
 
 .game-advisor-button {
@@ -9693,11 +9706,12 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   width: min(27rem, calc(100vw - 2rem));
   max-height: min(38rem, calc(100vh - 7rem));
   overflow: auto;
-  border: 1px solid rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--lp-accent-border);
   border-radius: 1rem;
   padding: 1rem;
-  background: #fff;
-  box-shadow: 0 1rem 3rem rgba(15, 23, 42, 0.24);
+  color: var(--lp-ink);
+  background: linear-gradient(145deg, #102a32, #08171d);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.48);
 }
 
 .game-advisor-panel > header {
@@ -9709,6 +9723,17 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 
 .game-advisor-panel > header h2 {
   margin: 0;
+  color: var(--lp-ink);
+}
+
+.game-advisor-panel > header .eyebrow {
+  color: var(--lp-accent);
+}
+
+.game-advisor-panel > header button {
+  border-color: var(--lp-line);
+  color: var(--lp-ink);
+  background: var(--lp-surface-soft);
 }
 
 .game-advisor-insight {
@@ -9716,17 +9741,20 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   border-left: 0.3rem solid #2563eb;
   border-radius: 0.65rem;
   padding: 0.85rem;
-  background: #eff6ff;
+  color: #dceeff;
+  background: rgba(37, 99, 235, 0.2);
 }
 
 .game-advisor-insight.is-warning {
   border-left-color: #d97706;
-  background: #fffbeb;
+  color: #fff0c2;
+  background: rgba(151, 93, 7, 0.3);
 }
 
 .game-advisor-insight.is-ok {
   border-left-color: #15803d;
-  background: #f0fdf4;
+  color: #d9ffe5;
+  background: rgba(21, 128, 61, 0.25);
 }
 
 .game-advisor-insight h3,
@@ -9736,6 +9764,8 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
 
 .game-advisor-insight p {
   margin-top: 0.35rem;
+  color: inherit;
+  opacity: 0.9;
 }
 
 .game-advisor-actions {
@@ -11270,7 +11300,8 @@ body.tutorial-focus {
 
 .chapter9-indicator-card.is-warning {
   border-color: #dc8e69;
-  background: #fff7f2;
+  color: #ffe2d4;
+  background: rgba(125, 55, 36, 0.34);
 }
 
 .chapter9-indicator-heading,
