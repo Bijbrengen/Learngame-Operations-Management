@@ -292,6 +292,20 @@
     return ROLE_LABELS[roleId] || roleId || "Geen actieve rol";
   }
 
+  function repairedLobbyRoleConfig(session) {
+    if (!session?.is_game_master || !["lobby", "ready"].includes(session.status)) return null;
+    const configuredRoles = session.game_config?.enabled_roles || session.required_role_ids || [];
+    if (configuredRoles.length !== 1 || configuredRoles[0] !== "supplier") return null;
+    const preset = window.GameConfigurationStore?.getConfiguration(session.game_config?.game_type);
+    const presetRoles = preset?.settings?.enabled_roles || [];
+    if (presetRoles.length <= 1) return null;
+    return {
+      ...session.game_config,
+      enabled_roles: [...presetRoles],
+      has_supplier: presetRoles.includes("supplier")
+    };
+  }
+
   function difficultyLevel(level) {
     return DIFFICULTY_LEVELS[level] || DIFFICULTY_LEVELS.normal;
   }
@@ -1922,6 +1936,18 @@
         if (refreshVersion !== state.mutationVersion) return;
         state.availability = availability;
         state.session = availability.current_session;
+        const repairedConfig = repairedLobbyRoleConfig(state.session);
+        if (repairedConfig) {
+          try {
+            state.session = await request(
+              `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/configuration`,
+              { method: "POST", body: JSON.stringify({ game_config: repairedConfig }) }
+            );
+            state.availability.current_session = state.session;
+          } catch (error) {
+            console.warn("Conceptrollen konden niet automatisch worden hersteld.", error);
+          }
+        }
         render();
       } catch (error) {
         if (isTransientRequestError(error)) return;

@@ -435,6 +435,86 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     expect(dialogs).toEqual([]);
   });
 
+  test("een conceptlobby herstelt alle presetrollen en vergrendelt de rol pas na de start", async ({ page }) => {
+    const lo4Roles = [
+      "customer", "logistics_manager", "sales", "finance", "raw_warehouse",
+      "production_a", "production_b", "production_c", "finished_warehouse", "supplier"
+    ];
+    let repairedRoles = null;
+    let currentSession = {
+      session_id: "session-role-repair",
+      status: "ready",
+      is_game_master: true,
+      join_code: "ROLE01",
+      session_type: "closed",
+      difficulty_level: "normal",
+      current_member_id: "member-master",
+      game_master_member_id: "member-master",
+      members: [{ member_id: "member-master", assigned_role_id: "supplier", present: true }],
+      virtual_agents: [],
+      required_role_ids: ["supplier"],
+      role_vacancies: [],
+      game_config: {
+        game_type: "lo4",
+        play_mode: "digital",
+        enabled_roles: ["supplier"],
+        has_supplier: true
+      },
+      consensus: null
+    };
+    await page.unroute("**/v1/game-sessions/availability**");
+    await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        current_session: currentSession,
+        discoverable_sessions: [],
+        open_sessions: [],
+        can_start_free_game: false
+      })
+    }));
+    await page.route("**/v1/game-sessions/session-role-repair/configuration", route => {
+      repairedRoles = route.request().postDataJSON().game_config.enabled_roles;
+      currentSession = {
+        ...currentSession,
+        status: "lobby",
+        game_config: { ...currentSession.game_config, enabled_roles: [...repairedRoles] },
+        required_role_ids: [...repairedRoles],
+        role_vacancies: repairedRoles.filter(roleId => roleId !== "supplier")
+      };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentSession) });
+    });
+    await page.route("**/v1/game-sessions/session-role-repair/game-master-role", route => {
+      const roleId = route.request().postDataJSON().role_id;
+      currentSession = {
+        ...currentSession,
+        members: [{ member_id: "member-master", assigned_role_id: roleId, present: true }],
+        role_vacancies: lo4Roles.filter(candidate => candidate !== roleId)
+      };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentSession) });
+    });
+
+    await page.reload();
+    await page.waitForFunction(() => window.LEARNGameOMSimulator);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.setAppView("manager");
+      window.LEARNGameOMSimulator.setManagerTab("session");
+    });
+    await expect.poll(() => repairedRoles).toEqual(lo4Roles);
+    const roleSelect = page.locator("#managerSessionContent [data-game-master-role-select]");
+    await expect(roleSelect.locator("option")).toHaveCount(lo4Roles.length);
+    await expect(page.locator("#managerSessionContent .session-role-distribution > header > strong")).toContainText("9 rollen nog niet vervuld");
+
+    await roleSelect.selectOption("production_a");
+    await expect.poll(() => currentSession.members[0].assigned_role_id).toBe("production_a");
+    await expect(roleSelect).toHaveValue("production_a");
+
+    currentSession = { ...currentSession, status: "running" };
+    await expect(page.locator("#managerSessionContent [data-game-master-role-select]")).toHaveCount(0, { timeout: 8000 });
+    await expect(page.locator("#managerSessionActionButton")).toHaveText("Sessie afsluiten");
+  });
+
   test("een al afgehandeld startverzoek synchroniseert zonder browserpopup", async ({ page }) => {
     let voteHandled = false;
     const session = {

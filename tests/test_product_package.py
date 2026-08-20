@@ -58,10 +58,12 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn('href="style.css?v=20260820i"', html)
         self.assertIn('src="logistics-game-ui.js?v=20260820.3"', html)
+        self.assertIn('src="game-configuration-store.js?v=20260820.1"', html)
+        self.assertIn('src="game-sessions.js?v=20260820.2"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260820i"', html)
         self.assertIn('"script.js?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v237"', service_worker)
-        self.assertIn('register("service-worker.js?v=237")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn('CACHE_VERSION = "learngame-om-v238"', service_worker)
+        self.assertIn('register("service-worker.js?v=238")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -2210,8 +2212,14 @@ const match = global.GameConfigurationStore.findMatchingConfiguration({
   play_mode: "digital",
   enabled_roles: [...lo4.settings.enabled_roles]
 });
+const repaired = global.GameConfigurationStore.normalizeSettings({
+  ...lo4.settings,
+  enabled_roles: ["supplier"],
+  has_supplier: true
+}, "lo4");
 console.log(JSON.stringify({
-  match: match && match.config_id
+  match: match && match.config_id,
+  repairedRoles: repaired.enabled_roles
 }));
 """,
             ],
@@ -2222,9 +2230,11 @@ console.log(JSON.stringify({
         )
         preset_result = json.loads(probe.stdout)
         self.assertEqual("lo4", preset_result["match"])
+        self.assertEqual(10, len(preset_result["repairedRoles"]))
+        self.assertIn("production_a", preset_result["repairedRoles"])
 
         html = html_path.read_text(encoding="utf-8")
-        self.assertIn('src="game-configuration-store.js"', html)
+        self.assertIn('src="game-configuration-store.js?v=20260820.1"', html)
         self.assertIn('id="saveConfigDialog"', html)
         self.assertIn('id="saveConfigButton"', html)
 

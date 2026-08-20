@@ -366,9 +366,17 @@
       : (["independent_enterprises", "school_learning_path"].includes(settings.organization_model)
         ? settings.organization_model
         : "single_enterprise");
-    const enabledRoles = Array.isArray(settings.enabled_roles)
+    const requestedEnabledRoles = Array.isArray(settings.enabled_roles)
       ? [...new Set(settings.enabled_roles)]
       : [];
+    const presetEnabledRoles = BUILTIN_PRESETS.find(preset => (
+      preset.config_id === gameType
+    ))?.settings?.enabled_roles || [];
+    const enabledRoles = requestedEnabledRoles.length === 1
+      && requestedEnabledRoles[0] === "supplier"
+      && presetEnabledRoles.length > 1
+      ? [...presetEnabledRoles]
+      : requestedEnabledRoles;
     const hasSupplier = settings.has_supplier === undefined
       ? (rules.defaultHasSupplier === null
         ? enabledRoles.includes("supplier")
