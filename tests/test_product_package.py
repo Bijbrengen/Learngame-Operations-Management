@@ -56,8 +56,12 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260820g"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v233"', service_worker)
+        self.assertIn('href="style.css?v=20260820h"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260820.3"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260820g"', html)
+        self.assertIn('"script.js?v=20260820f"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v234"', service_worker)
+        self.assertIn('register("service-worker.js?v=234")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
