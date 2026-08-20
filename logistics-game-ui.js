@@ -761,10 +761,17 @@
       const selectedQuantity = this.customerOrderDraft?.quantity || task.order.quantity;
       const dueMinutes = this.customerOrderDraft?.dueMinutes
         || Math.max(2, Math.round((task.order.dueAt - Date.now()) / 60000));
-      const productOptions = (task.availableProducts || []).map(product => `
-        <option value="${escapeHtml(product.id)}"${product.id === selectedProductId ? " selected" : ""}>
-          ${escapeHtml(product.name)}
-        </option>
+      const productCatalog = (task.availableProducts || []).map(product => `
+        <label class="sim-customer-catalog-card${product.id === selectedProductId ? " is-selected" : ""}">
+          <input type="radio"
+                 name="product_id"
+                 value="${escapeHtml(product.id)}"
+                 ${product.id === selectedProductId ? "checked" : ""}
+                 required>
+          <span class="sim-customer-catalog-visual">${towerMarkup(product)}</span>
+          <strong>${escapeHtml(product.name)}</strong>
+          <small>${product.id === selectedProductId ? "Gekozen" : "Kies deze toren"}</small>
+        </label>
       `).join("");
       return `
         <aside class="sim-action-panel sim-customer-order-panel">
@@ -774,12 +781,18 @@
             <span>${free ? "Vrije bestelling" : "Verplichte bestelling vanuit de spelvariant"}</span>
           </header>
           <form class="sim-customer-order-form" data-customer-order-form>
-            <label>
-              <span>Toren</span>
-              ${free
-                ? `<select name="product_id" required>${productOptions}</select>`
-                : `<strong>${escapeHtml(task.product.name)}</strong><input type="hidden" name="product_id" value="${escapeHtml(task.product.id)}">`}
-            </label>
+            ${free ? `
+              <fieldset class="sim-customer-catalog">
+                <legend>Kies uit het productassortiment</legend>
+                <div class="sim-customer-catalog-grid">${productCatalog}</div>
+              </fieldset>
+            ` : `
+              <label>
+                <span>Toren</span>
+                <strong>${escapeHtml(task.product.name)}</strong>
+                <input type="hidden" name="product_id" value="${escapeHtml(task.product.id)}">
+              </label>
+            `}
             <label>
               <span>Aantal</span>
               ${free

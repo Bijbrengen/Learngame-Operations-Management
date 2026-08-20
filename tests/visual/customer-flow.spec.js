@@ -43,8 +43,12 @@ test.describe("Klantorder Acceptance Flow", () => {
 
     const form = page.locator("[data-customer-order-form]");
     await expect(form).toBeVisible();
+    const catalog = form.locator(".sim-customer-catalog");
+    await expect(catalog).toBeVisible();
+    await expect(catalog.locator('[name="product_id"]')).toHaveCount(3);
 
-    await form.locator('[name="product_id"]').selectOption({ index: 1 });
+    await catalog.locator(".sim-customer-catalog-card").nth(1).click();
+    await expect(catalog.locator(".sim-customer-catalog-card.is-selected strong")).toBeVisible();
     await form.locator('[name="quantity"]').fill("5");
     await form.locator('[name="due_minutes"]').fill("20");
 
@@ -66,5 +70,29 @@ test.describe("Klantorder Acceptance Flow", () => {
     expect(snapshotData.orderCount).toBeGreaterThanOrEqual(1);
     expect(snapshotData.firstOrderRole).toBe("operations");
     expect(snapshotData.customerState).toBe("IDLE");
+  });
+
+  test("verplichte variant toont geen vrije productcatalogus", async ({ page }) => {
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.body.innerHTML = '<main id="required-customer-order-test"></main>';
+      const engine = new window.LogisticsGameEngine.LogisticsGameEngine({ random: () => 0 });
+      const controller = window.LogisticsGameUI.mount(
+        document.getElementById("required-customer-order-test"),
+        { engine }
+      );
+      controller.start({
+        humanRoleId: "customer",
+        customerOrderMode: "required",
+        playMode: "physical"
+      });
+      engine.generateOrder();
+      engine.update(Date.now());
+    });
+
+    const form = page.locator("[data-customer-order-form]");
+    await expect(form).toBeVisible();
+    await expect(form.locator(".sim-customer-catalog")).toHaveCount(0);
+    await expect(form.locator('input[type="hidden"][name="product_id"]')).toHaveCount(1);
   });
 });

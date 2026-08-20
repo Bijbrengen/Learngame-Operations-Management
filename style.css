@@ -6015,6 +6015,96 @@ body[data-app-view="player"] .topbar {
   margin: 0;
 }
 
+.sim-customer-catalog {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--lp-accent-border);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(8, 27, 33, 0.72);
+}
+
+.sim-customer-catalog legend {
+  padding: 0 8px;
+  color: var(--lp-accent);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sim-customer-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.sim-customer-catalog-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(112px, 1fr) auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 2px solid #315961;
+  border-radius: 11px;
+  padding: 12px;
+  color: var(--lp-ink);
+  background: #0d2229;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.sim-customer-catalog-card:hover {
+  border-color: var(--lp-accent);
+  transform: translateY(-2px);
+}
+
+.sim-customer-catalog-card.is-selected,
+.sim-customer-catalog-card:has(input:checked) {
+  border-color: var(--lp-accent);
+  background: #12323a;
+  box-shadow: 0 0 0 2px rgba(38, 211, 207, 0.16);
+}
+
+.sim-customer-catalog-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sim-customer-catalog-card:focus-within {
+  outline: 3px solid rgba(38, 211, 207, 0.38);
+  outline-offset: 2px;
+}
+
+.sim-customer-catalog-visual {
+  display: grid;
+  width: 100%;
+  min-height: 112px;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sim-customer-catalog-visual .sim-tower-renderer,
+.sim-customer-catalog-visual .sim-tower {
+  max-width: 100%;
+  transform: scale(0.78);
+  transform-origin: center;
+}
+
+.sim-customer-catalog-card > strong {
+  text-align: center;
+}
+
+.sim-customer-catalog-card > small {
+  color: var(--lp-muted);
+}
+
 .builder-rotation-help {
   position: fixed;
   right: clamp(1rem, 3vw, 2rem);

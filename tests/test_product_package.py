@@ -56,14 +56,14 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260820i"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260820.3"', html)
+        self.assertIn('href="style.css?v=20260820j"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260820.4"', html)
         self.assertIn('src="game-configuration-store.js?v=20260820.1"', html)
         self.assertIn('src="game-sessions.js?v=20260820.2"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260820i"', html)
         self.assertIn('"script.js?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v238"', service_worker)
-        self.assertIn('register("service-worker.js?v=238")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn('CACHE_VERSION = "learngame-om-v239"', service_worker)
+        self.assertIn('register("service-worker.js?v=239")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -1813,6 +1813,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("Order plaatsen en naar Operations sturen", ui)
         self.assertIn('role.id === "customer"', ui)
         self.assertIn("customerOrderDraft", ui)
+        self.assertIn("sim-customer-catalog", ui)
+        self.assertIn("Kies uit het productassortiment", ui)
         self.assertIn("displayProduct", ui)
         self.assertIn("selectedProductId", ui)
 
