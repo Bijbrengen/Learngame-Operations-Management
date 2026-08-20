@@ -714,9 +714,15 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(guide).toBeVisible();
     await expect(guide).toContainText("stap 5 / 5");
     await expect(page.locator("#towerEditorPanel")).toBeVisible();
-    for (let index = 0; index < 4; index += 1) {
-      await editor.locator('[data-add-tower-part="blue_8"]').click();
+    const choices = editor.locator("[data-add-tower-part]");
+    await expect(choices).toHaveCount(9);
+    for (let index = 0; index < await choices.count(); index += 1) {
+      await expect(choices.nth(index)).toHaveAttribute("aria-disabled", "false");
     }
+    await editor.locator('[data-add-tower-part="blue_8"]').click();
+    await editor.locator('[data-add-tower-part="red_8"]').click();
+    await editor.locator('[data-add-tower-part="yellow_4"]').click();
+    await editor.locator('[data-add-tower-part="green_4"]').click();
     await editor.locator('input[name="name"]').fill("Tutorialtoren");
     await editor.locator('input[name="price"]').fill("85");
     await editor.getByRole("button", { name: "Akkoord & toevoegen" }).click();
@@ -732,6 +738,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       localStorage.getItem("learngame.om.tutorialCompleted")
     ))).toBe("true");
     await expect(guide).toBeHidden();
+    await page.evaluate(() => window.TowerEditor.setView("builder"));
+    await expect(editor.locator('[data-add-tower-part="blue_8"]')).toHaveAttribute("aria-disabled", "false");
+    await expect(editor.locator('[data-add-tower-part="red_8"]')).toHaveAttribute("aria-disabled", "true");
   });
 
   test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }) => {

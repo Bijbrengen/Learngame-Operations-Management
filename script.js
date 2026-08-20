@@ -5426,6 +5426,10 @@
     setTutorialFocus("tower");
     const completed = state.logisticsTutorial.phase === "tower_assortment_complete";
     setTowerTab(completed ? "assortment" : "builder", false);
+    window.TowerEditor?.setColorConfiguration({
+      multipleColors: true,
+      editableColorLayers: ["groundPlate", "layer1", "layer2", "layer3"]
+    });
     updateTowerTutorialGuide(completed);
     dispatchInteraction({
       actionType: "start_tutorial_product_design",
@@ -5442,6 +5446,10 @@
 
   function finishTowerDesignTutorial() {
     if (state.logisticsTutorial.phase !== "tower_assortment_complete") return false;
+    window.TowerEditor?.setColorConfiguration({
+      multipleColors: state.config.multipleColors,
+      editableColorLayers: [...state.config.editableColorLayers]
+    });
     endTutorial({ completed: true });
     return true;
   }
