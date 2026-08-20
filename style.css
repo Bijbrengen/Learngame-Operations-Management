@@ -5989,6 +5989,25 @@ body[data-app-view="player"] .topbar {
   margin: 0;
 }
 
+.builder-rotation-help {
+  position: fixed;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(5.5rem, 12vh, 8rem);
+  z-index: 120;
+  width: min(360px, calc(100vw - 2rem));
+  padding: 1rem 2.75rem 1rem 1rem;
+  border: 2px solid #32ddd2;
+  border-radius: 1rem;
+  color: var(--lp-ink);
+  background: var(--lp-panel);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .42);
+}
+
+.builder-rotation-help p { margin: .35rem 0 0; }
+.builder-rotation-help strong { color: #9df2df; font-size: 1.05rem; }
+.builder-rotation-help kbd { padding: .1rem .35rem; border: 1px solid var(--lp-line); border-radius: .3rem; background: var(--lp-surface-soft); }
+.builder-rotation-help-close { position: absolute; top: .55rem; right: .55rem; min-width: 2rem; min-height: 2rem; padding: 0!important; }
+
 .builder-step-complete > span {
   width: 42px;
   height: 42px;

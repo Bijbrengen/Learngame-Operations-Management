@@ -18,8 +18,8 @@
       interactions: Object.freeze([
         { id: "read_order", selector: ".builder-order-card", action: "inspect", description: "Bekijk de klantbestelling en het volledige bouwvoorbeeld." },
         { id: "select_brick", selector: "[data-piece-type='yellow_8']", action: "click", description: "Kies het juiste blok op kleur en maat." },
-        { id: "rotate_brick", selector: ".builder-rotate", action: "click", description: "Draai desgewenst een lang blok 90 graden; dit is niet vereist in de tutorial." },
-        { id: "place_brick", selector: ".builder-board", action: "drop", description: "Plaats het juiste blok ergens op het bouwvlak; de tutorial lijnt positie en oriëntatie automatisch uit." }
+        { id: "rotate_brick", selector: ".builder-rotate", action: "click", description: "Draai een lang blok 90 graden wanneer het transparante hulpblok dwars ligt." },
+        { id: "place_brick", selector: ".builder-board", action: "drop", description: "Plaats het juiste blok; de tutorial helpt met positie maar de speler bepaalt zelf de oriëntatie." }
       ])
     }),
     customer_quality_control: Object.freeze({

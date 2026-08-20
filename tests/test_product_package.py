@@ -969,7 +969,7 @@ process.stdout.write(JSON.stringify({
         self.assertNotIn("TUTORIAL[state.tutorialStep].sequence", render_section)
 
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
-    def test_tutorial_target_aligns_rotation_before_build_step_two(self) -> None:
+    def test_tutorial_requires_rotation_and_opens_help_on_the_correct_target(self) -> None:
         node_program = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -996,10 +996,11 @@ window.LegoBuilder.mount(container, {});
 window.__placeTutorialBrickForTest(0, 0);
 window.__placeTutorialBrickForTest(5, 5);
 const afterFoundation = window.LegoBuilder.getSnapshot();
-window.__placeTutorialBrickForTest(0, 0);
+window.__placeTutorialBrickForTest(2, 1);
 const beforeRotation = window.LegoBuilder.getSnapshot();
 window.__rotateTutorialBrickForTest();
-window.__placeTutorialBrickForTest(0, 0);
+const afterRotation = window.LegoBuilder.getSnapshot();
+window.__placeTutorialBrickForTest(1, 2);
 const afterStepTwo = window.LegoBuilder.getSnapshot();
 const red = afterStepTwo.bricks.find(brick => brick.type === "red_8");
 process.stdout.write(JSON.stringify({
@@ -1007,6 +1008,8 @@ process.stdout.write(JSON.stringify({
   foundationPositions: afterFoundation.bricks.map(brick => [brick.x, brick.y]),
   beforeRotationStep: beforeRotation.tutorialStep,
   beforeRotationCount: beforeRotation.bricks.length,
+  rotationHintOpen: beforeRotation.rotationHintOpen,
+  hintClosedAfterRotation: !afterRotation.rotationHintOpen,
   stepTwoAdvanced: afterStepTwo.tutorialStep,
   red
 }));
@@ -1022,8 +1025,10 @@ process.stdout.write(JSON.stringify({
         result = json.loads(completed_process.stdout)
         self.assertEqual(1, result["foundationStep"])
         self.assertEqual([[1, 1], [3, 1]], result["foundationPositions"])
-        self.assertEqual(2, result["beforeRotationStep"])
-        self.assertEqual(3, result["beforeRotationCount"])
+        self.assertEqual(1, result["beforeRotationStep"])
+        self.assertEqual(2, result["beforeRotationCount"])
+        self.assertTrue(result["rotationHintOpen"])
+        self.assertTrue(result["hintClosedAfterRotation"])
         self.assertEqual(2, result["stepTwoAdvanced"])
         self.assertEqual(
             {

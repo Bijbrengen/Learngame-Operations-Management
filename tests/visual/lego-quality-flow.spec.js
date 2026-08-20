@@ -4,20 +4,18 @@ async function mountBuilder(page, options = {}) {
   const sdkBase = process.env.CI
     ? "https://api.leerpretpark.nl/api"
     : "http://127.0.0.1:47111/api";
-  const sdkResponse = await page.request.get(
-    `${sdkBase}/sdk/lego-builder/logic.js?bypass-tunnel-reminder=true`
-  );
-  expect(sdkResponse.ok()).toBe(true);
-  const sdkBody = await sdkResponse.text();
-  // Laad de component geïsoleerd. Zo is deze suite niet afhankelijk van de
-  // asynchrone SDK-bootstrap en service-workerstatus van de volledige app.
+  const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
+  expect(manifestResponse.ok()).toBe(true);
+  const manifest = await manifestResponse.json();
+  // Laad de component geïsoleerd via dezelfde dependencygraph als productie.
   await page.goto("/style.css");
   await page.setContent("<!doctype html><html><head></head><body></body></html>");
   await page.addStyleTag({ url: "/style.css" });
-  await page.addScriptTag({ content: sdkBody });
+  await page.addScriptTag({ url: `${sdkBase}/sdk/sdk-loader/loader.js?v=${manifest.version}` });
+  await page.evaluate(async ({ sdkBase, manifest }) => {
+    await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer", "lego-builder"]);
+  }, { sdkBase, manifest });
   await page.addScriptTag({ url: "/screen-interaction-manifest.js" });
-  await page.addScriptTag({ url: "/lego-tower-renderer.js" });
-  await page.addScriptTag({ url: "/lego-builder.js" });
   await page.waitForFunction(() => (
     window.LegoBuilder
     && Object.keys(window.LegoBuilder.getCatalog()).length >= 3
@@ -39,17 +37,38 @@ async function mountBuilder(page, options = {}) {
   }, options);
 }
 
+async function placeTutorialAt(page, x, y, z, width = 2, depth = 4) {
+  await page.evaluate(({ x, y, z, width, depth }) => {
+    const board = document.querySelector(".builder-board");
+    const rect = board.getBoundingClientRect();
+    const projected = window.LegoTowerRenderer.iso(x + width / 2, y + depth / 2, 0.22 + z * 0.78 + 0.04);
+    const svgX = 170 + projected[0] * 2;
+    const svgY = 62 + projected[1] * 2;
+    board.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      clientX: rect.left + svgX / 520 * rect.width,
+      clientY: rect.top + svgY / 420 * rect.height
+    }));
+  }, { x, y, z, width, depth });
+}
+
 test.describe("LEGO-rotatie en klantkwaliteit", () => {
-  test("tutorial lijnt blokken zonder precieze plaatsing of handmatige rotatie uit", async ({ page }) => {
+  test("tutorial vraagt rotatie en toont hulp bij juiste plek met verkeerde richting", async ({ page }) => {
     await mountBuilder(page);
     const board = page.locator(".builder-board");
 
     await board.click({ position: { x: 20, y: 20 } });
     await board.click({ position: { x: 20, y: 20 } });
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
-    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);
 
-    await board.click({ position: { x: 20, y: 20 } });
+    await placeTutorialAt(page, 2, 1, 1);
+    await expect(page.locator(".builder-rotation-help")).toBeVisible();
+    await expect(page.locator(".builder-feedback")).toContainText("juiste plek");
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
+    await page.locator(".builder-rotate").click();
+    await expect(page.locator(".builder-rotation-help")).toBeHidden();
+    await placeTutorialAt(page, 1, 2, 1, 4, 2);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(3);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().tutorialStep)).toBe(2);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);

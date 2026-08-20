@@ -486,9 +486,11 @@ staat alleen dat de speler leverancier van LEGO-torens is en dat een klant de
 afgebeelde toren wil. De geanimeerde klanttoren laat de opbouw visueel zien.
 De grondplaat, noppen, blokken en grijze doelvlakken
 worden door dezelfde `LegoTowerRenderer` in een vaste isometrische
-SVG-projectie getekend. Blokken kunnen uitsluitend worden gesleept; klikken en
-handmatig draaien zijn uitgeschakeld. Een onjuist blok of een onjuiste positie
-geeft geen tekstmelding, maar laat het blok en de grondplaat kort trillen.
+SVG-projectie getekend. Blokken kunnen worden gesleept of aangeklikt en lange
+blokken kunnen met de draaiknop, `R`, het scrollwiel of de middelste muisknop
+worden gedraaid. Staat een blok op het juiste doelanker maar in de verkeerde
+richting, dan blijft het los en verschijnt gerichte draaihulp; de tutorial
+neemt de oriëntatie nooit automatisch over.
 Terugdraaien en wissen gebruiken alleen een terugpijl en prullenbakpictogram.
 
 De animatie heeft alleen de blokvolgorde nodig. Bijvoorbeeld
