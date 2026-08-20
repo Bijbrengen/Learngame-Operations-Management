@@ -53,6 +53,22 @@ async function placeTutorialAt(page, x, y, z, width = 2, depth = 4) {
   }, { x, y, z, width, depth });
 }
 
+async function dragPlacedBrickToBin(page, brickIndex, pieceType) {
+  const brick = page.locator(`[data-builder-brick-index="${brickIndex}"]`);
+  const bin = page.locator(`[data-piece-type="${pieceType}"]`);
+  const face = brick.locator("polygon").first();
+  const brickBox = await face.boundingBox();
+  const binBox = await bin.boundingBox();
+  expect(brickBox).not.toBeNull();
+  expect(binBox).not.toBeNull();
+  await page.mouse.move(brickBox.x + brickBox.width / 2, brickBox.y + brickBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(binBox.x + binBox.width / 2, binBox.y + binBox.height / 2, { steps: 8 });
+  await expect(brick).toHaveClass(/is-dragging/);
+  await expect(bin).toHaveClass(/is-return-target/);
+  await page.mouse.up();
+}
+
 test.describe("LEGO-rotatie en klantkwaliteit", () => {
   test("tutorial vraagt rotatie en toont hulp bij juiste plek met verkeerde richting", async ({ page }) => {
     await mountBuilder(page);
@@ -84,6 +100,13 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);
 
     await board.click({ position: { x: 20, y: 20 } });
+    await board.click({ position: { x: 20, y: 20 } });
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
+
+    await dragPlacedBrickToBin(page, 1, "yellow_8");
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().tutorialStep)).toBe(0);
+    await expect(page.locator(".builder-feedback")).toContainText("teruggelegd");
     await board.click({ position: { x: 20, y: 20 } });
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
 
