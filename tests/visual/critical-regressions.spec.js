@@ -333,6 +333,19 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(signaturePad).toHaveAttribute("aria-disabled", "true");
     await expect(transferCargo).toBeDisabled();
 
+    const lastGameBrick = page.locator('[data-sim-drag-part="yellow_8"]');
+    const lastGameBrickBox = await lastGameBrick.boundingBox();
+    expect(lastGameBrickBox).not.toBeNull();
+    await lastGameBrick.hover();
+    await page.mouse.down();
+    await page.mouse.move(lastGameBrickBox.x + lastGameBrickBox.width + 18, lastGameBrickBox.y + 12, { steps: 5 });
+    await expect(page.locator("#batch-regression")).toHaveClass(/is-digital-dragging/);
+    await page.evaluate(() => window.__batchRegression.controller.render());
+    await expect(page.locator("#batch-regression")).toHaveClass(/is-digital-dragging/);
+    await expect(lastGameBrick).toHaveCSS("cursor", "grabbing");
+    await page.mouse.up();
+    await expect(page.locator("#batch-regression")).not.toHaveClass(/is-digital-dragging/);
+
     for (const expected of [
       "1 van 3 torens gebouwd · bouw toren 2",
       "2 van 3 torens gebouwd · bouw toren 3"

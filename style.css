@@ -3581,6 +3581,11 @@ body[data-app-view="player"] .topbar {
   cursor: grabbing;
 }
 
+.is-digital-dragging,
+.is-digital-dragging * {
+  cursor: grabbing !important;
+}
+
 .sim-material-brick:disabled {
   opacity: 0.32;
   cursor: default;

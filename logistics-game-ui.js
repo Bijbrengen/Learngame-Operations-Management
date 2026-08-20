@@ -85,6 +85,8 @@
       this.taskKey = null;
       this.customerOrderDraft = null;
       this.digitalSelectedPartId = null;
+      this.activeDigitalDrag = false;
+      this.pendingDigitalDragRender = false;
       this.feedback = "";
       this.renderProcessFlow = typeof options.renderProcessFlow === "function"
         ? options.renderProcessFlow
@@ -122,6 +124,7 @@
       this.handleChange = this.handleChange.bind(this);
       this.handleSubmit = this.handleSubmit.bind(this);
       this.handleDragStart = this.handleDragStart.bind(this);
+      this.handleDragEnd = this.handleDragEnd.bind(this);
       this.handleDragOver = this.handleDragOver.bind(this);
       this.handleDrop = this.handleDrop.bind(this);
       this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -133,6 +136,7 @@
       this.mount.addEventListener("change", this.handleChange);
       this.mount.addEventListener("submit", this.handleSubmit);
       this.mount.addEventListener("dragstart", this.handleDragStart);
+      this.mount.addEventListener("dragend", this.handleDragEnd);
       this.mount.addEventListener("dragover", this.handleDragOver);
       this.mount.addEventListener("drop", this.handleDrop);
       this.mount.addEventListener("pointerdown", this.handlePointerDown);
@@ -179,6 +183,7 @@
       this.mount.removeEventListener("change", this.handleChange);
       this.mount.removeEventListener("submit", this.handleSubmit);
       this.mount.removeEventListener("dragstart", this.handleDragStart);
+      this.mount.removeEventListener("dragend", this.handleDragEnd);
       this.mount.removeEventListener("dragover", this.handleDragOver);
       this.mount.removeEventListener("drop", this.handleDrop);
       this.mount.removeEventListener("pointerdown", this.handlePointerDown);
@@ -328,6 +333,8 @@
     handleDragStart(event) {
       const part = eventTargetClosest(event, "[data-sim-drag-part]");
       if (part) {
+        this.activeDigitalDrag = true;
+        this.mount.classList.add("is-digital-dragging");
         this.digitalSelectedPartId = part.dataset.simDragPart;
         event.dataTransfer?.setData("application/x-learngame-part", part.dataset.simDragPart);
         event.dataTransfer?.setData("text/plain", part.dataset.simDragPart);
@@ -336,8 +343,20 @@
       }
       const cargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
       if (cargo && !cargo.disabled) {
+        this.activeDigitalDrag = true;
+        this.mount.classList.add("is-digital-dragging");
         event.dataTransfer?.setData("application/x-learngame-transfer", "ready");
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      }
+    }
+
+    handleDragEnd() {
+      if (!this.activeDigitalDrag) return;
+      this.activeDigitalDrag = false;
+      this.mount.classList.remove("is-digital-dragging");
+      if (this.pendingDigitalDragRender) {
+        this.pendingDigitalDragRender = false;
+        this.render();
       }
     }
 
@@ -499,6 +518,10 @@
     }
 
     render() {
+      if (this.activeDigitalDrag) {
+        this.pendingDigitalDragRender = true;
+        return;
+      }
       const snapshot = this.engine.snapshot();
       this.renderTopDepartmentMini(snapshot);
       this.renderTopLiveEvents(snapshot);
