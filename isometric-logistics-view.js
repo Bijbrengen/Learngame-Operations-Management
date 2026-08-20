@@ -124,9 +124,40 @@
     return { x: center.x + (offset.x || 0), y: center.y + (offset.y || 0) };
   }
 
+  function wallStudFlowPoint(referenceId, departmentById, target, offset = {}) {
+    const department = departmentById.get(referenceId);
+    const cables = window.LeerpretSDK?.components?.["lego-cables"];
+    const renderer = window.LegoTowerRenderer;
+    if (!department || !cables?.containerWallStudAnchor || !renderer?.iso) {
+      return flowPoint(referenceId, departmentById, offset);
+    }
+    const center = zoneGeometry(department).center;
+    const targetPoint = target
+      ? [target.x + Number(offset.x || 0), target.y + Number(offset.y || 0)]
+      : null;
+    const anchor = cables.containerWallStudAnchor(renderer, {
+      x: -1,
+      y: -1,
+      z: 0,
+      width: 8,
+      depth: 8,
+      translate: [center.x - 90, center.y - 90],
+      target: targetPoint
+    });
+    return {
+      x: anchor.screen[0],
+      y: anchor.screen[1],
+      wall: anchor.wall,
+      column: anchor.column,
+      row: anchor.row
+    };
+  }
+
   function flowPath(connection, departmentById, connectionIndex, scope) {
-    const start = flowPoint(connection.from, departmentById, connection.fromOffset);
-    const end = flowPoint(connection.to, departmentById, connection.toOffset);
+    const sourceCenter = flowPoint(connection.from, departmentById);
+    const targetCenter = flowPoint(connection.to, departmentById);
+    const start = wallStudFlowPoint(connection.from, departmentById, targetCenter, connection.fromOffset);
+    const end = wallStudFlowPoint(connection.to, departmentById, sourceCenter, connection.toOffset);
     if (!start || !end) return "";
     const bend = Math.max(36, Math.abs(end.x - start.x) * 0.16);
     const curveOffsetY = Number(connection.curveOffsetY || 0);
@@ -863,6 +894,7 @@
   window.IsometricLogisticsView = Object.freeze({
     mount,
     project,
-    geometryForDepartment: zoneGeometry
+    geometryForDepartment: zoneGeometry,
+    wallStudFlowPoint
   });
 })();
