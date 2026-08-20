@@ -124,7 +124,7 @@
     return { x: center.x + (offset.x || 0), y: center.y + (offset.y || 0) };
   }
 
-  function flowPath(connection, departmentById) {
+  function flowPath(connection, departmentById, connectionIndex, scope) {
     const start = flowPoint(connection.from, departmentById, connection.fromOffset);
     const end = flowPoint(connection.to, departmentById, connection.toOffset);
     if (!start || !end) return "";
@@ -132,12 +132,17 @@
     const curveOffsetY = Number(connection.curveOffsetY || 0);
     const path = `M ${start.x} ${start.y} C ${start.x + bend} ${start.y + curveOffsetY}, ${end.x - bend} ${end.y + curveOffsetY}, ${end.x} ${end.y}`;
     const flowKind = connection.kind === "customer" ? "customer" : "material";
-    const markerId = flowKind === "customer" ? "isoFlowArrowCustomer" : "isoFlowArrowMaterial";
-    const stateClass = connection.highlight ? " is-highlighted" : connection.locked ? " is-locked" : "";
-    return `
-      <path class="iso-flow-shadow flow-${flowKind}${stateClass}" d="${path}"></path>
-      <path class="iso-flow-line flow-${flowKind}${stateClass}" d="${path}" marker-end="url(#${markerId})"></path>
-    `;
+    const cables = window.LeerpretSDK?.components?.["lego-cables"];
+    if (!cables?.connectionMarkup) return "";
+    return cables.connectionMarkup({
+      id: `${scope}-${connectionIndex}-${connection.from}-${connection.to}`,
+      path,
+      from: [start.x, start.y],
+      to: [end.x, end.y],
+      direction: "forward",
+      className: `iso-flow-cable flow-${flowKind}`,
+      state: connection.highlight ? "highlighted" : connection.locked ? "locked" : ""
+    });
   }
 
   function statusText(status) {
@@ -663,7 +668,7 @@
         departmentById.has(connection.from)
         && departmentById.has(connection.to)
       ))
-      .map(connection => flowPath(connection, departmentById))
+      .map((connection, connectionIndex) => flowPath(connection, departmentById, connectionIndex, legoGradientScope))
       .join("");
     const sortedDepartments = [...departments].sort((left, right) => {
       const leftDepth = left.layout.x + left.layout.y;
@@ -710,12 +715,6 @@
               <filter id="isoDepartmentShadow" x="-30%" y="-30%" width="160%" height="180%">
                 <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity="0.42"></feDropShadow>
               </filter>
-              <marker id="isoFlowArrowMaterial" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-                <path d="M 0 0 L 10 5 L 0 10 z"></path>
-              </marker>
-              <marker id="isoFlowArrowCustomer" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-                <path d="M 0 0 L 10 5 L 0 10 z"></path>
-              </marker>
             </defs>
             <polygon class="iso-map-ground" points="${points(background)}"></polygon>
             <g class="iso-grid-lines" aria-hidden="true"></g>

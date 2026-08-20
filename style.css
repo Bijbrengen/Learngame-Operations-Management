@@ -2281,10 +2281,10 @@ body[data-app-view="player"] .manager-only {
   color: #f5cb72;
 }
 
-.configuration-layout-distance::after {
-  content: "→";
-  font-size: 1.35rem;
-  line-height: 1;
+.configuration-layout-distance svg {
+  width: 64px;
+  height: 46px;
+  overflow: visible;
 }
 
 .configuration-layout-distance span {
@@ -4469,9 +4469,10 @@ body[data-app-view="player"] .topbar {
   font-size: 0.58rem;
 }
 
-.sim-waiting-view .sim-fallback-flow > i {
+.sim-waiting-view .sim-inline-cable {
   flex: 0 0 auto;
-  font-size: 0.9rem;
+  width: 38px;
+  height: 30px;
 }
 
 .sim-waiting-heatmap-body {
@@ -4613,10 +4614,11 @@ body[data-app-view="player"] .topbar {
   font-size: 0.67rem;
 }
 
-.sim-fallback-flow > i {
-  color: var(--lp-accent);
-  font-style: normal;
-  font-size: 1.3rem;
+.sim-inline-cable {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 44px;
+  overflow: visible;
 }
 
 .sim-live-indicator {
@@ -7035,18 +7037,6 @@ select {
   pointer-events: none;
 }
 
-.data-model-edge {
-  fill: none;
-  stroke: rgba(36, 36, 36, 0.28);
-  stroke-width: 2;
-  marker-end: url(#dataModelArrow);
-}
-
-.sequence-edge {
-  stroke: rgba(36, 36, 36, 0.34);
-  stroke-width: 2.4;
-}
-
 .swimlane-band {
   position: absolute;
   border-radius: 8px;
@@ -7054,13 +7044,8 @@ select {
   border: 1px solid rgba(216, 209, 195, 0.7);
 }
 
-.swimlane-edge {
-  stroke: rgba(36, 36, 36, 0.36);
-  stroke-width: 2.4;
-}
-
-#dataModelArrow path {
-  fill: rgba(36, 36, 36, 0.4);
+.data-model-cable {
+  transition: opacity 140ms ease, filter 140ms ease;
 }
 
 .data-model-node {
@@ -7755,64 +7740,14 @@ select {
   stroke-width: 2;
 }
 
-.iso-flow-shadow,
-.iso-flow-line {
-  fill: none;
-  stroke-linecap: round;
-}
-
-.iso-flow-shadow {
-  stroke: rgba(36, 47, 42, 0.16);
-  stroke-width: 18;
-}
-
-.iso-flow-line {
-  stroke: #657d74;
-  stroke-width: 6;
-  stroke-dasharray: 8 12;
-  animation: iso-flow 1.4s linear infinite;
-}
-
-#isoFlowArrowMaterial path {
-  fill: #2f7d56;
-}
-
-#isoFlowArrowCustomer path {
-  fill: #22bac6;
-}
-
-.iso-flow-line.flow-material {
-  stroke: #2f7d56;
-}
-
-.iso-flow-shadow.flow-material {
-  stroke: rgba(47, 125, 86, 0.18);
-}
-
-.iso-flow-line.flow-customer {
-  stroke: #22bac6;
-}
-
-.iso-flow-shadow.flow-customer {
-  stroke: rgba(34, 186, 198, 0.18);
-}
-
-.iso-flow-line.is-locked,
-.iso-flow-shadow.is-locked {
+.iso-flow-cable.is-locked {
   opacity: 0.18;
-  animation: none;
 }
 
-.iso-flow-line.is-highlighted {
-  stroke: #35b85e;
+.iso-flow-cable.is-highlighted .cable-body {
+  stroke: #ffffff;
   stroke-width: 9;
   filter: drop-shadow(0 0 7px rgba(53, 184, 94, 0.7));
-}
-
-@keyframes iso-flow {
-  to {
-    stroke-dashoffset: -20;
-  }
 }
 
 .iso-department {
@@ -10144,35 +10079,18 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   background: rgba(8, 28, 34, 0.54);
 }
 
-.manager-dashboard .data-model-edge {
-  stroke: #55d8d0;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 3px rgba(50, 221, 210, 0.36));
-}
-
-.manager-dashboard .swimlane-edge {
-  stroke: var(--lp-accent);
-  stroke-width: 3;
-  transition: opacity 140ms ease, stroke-width 140ms ease, filter 140ms ease;
-}
-
-.manager-dashboard #dataModelArrow path {
-  fill: var(--lp-accent);
-}
-
-.manager-dashboard .swimlane-canvas.has-edge-focus .swimlane-edge {
+.manager-dashboard .swimlane-canvas.has-edge-focus .swimlane-cable {
   opacity: 0.13;
   filter: none;
 }
 
-.manager-dashboard .swimlane-canvas.has-edge-focus .swimlane-edge.is-related {
-  stroke: #8ff8f1;
-  stroke-width: 4.5;
+.manager-dashboard .swimlane-canvas.has-edge-focus .swimlane-cable.is-related {
   opacity: 1;
   filter: drop-shadow(0 0 6px rgba(50, 221, 210, 0.72));
+}
+
+.manager-dashboard .swimlane-cable.is-related .cable-body {
+  stroke-width: 9;
 }
 
 .manager-dashboard .data-model-node {

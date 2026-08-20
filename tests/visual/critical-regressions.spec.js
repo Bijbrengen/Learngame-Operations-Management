@@ -568,4 +568,29 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
         .some(product => product.name === "Regressietoren")
     ))).toBe(true);
   });
+
+  test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");
+    await page.waitForFunction(() => (
+      window.LEARNGameOMSimulator
+      && window.LeerpretSDK?.components?.["lego-cables"]?.connectionMarkup
+    ));
+
+    const tutorialFlow = page.locator(".iso-flow-layer");
+    await expect(tutorialFlow.locator(".lego-flow-cable")).not.toHaveCount(0);
+    await expect(tutorialFlow.locator(".cable-body")).not.toHaveCount(0);
+    await expect(tutorialFlow.locator(".cable-signal-out")).not.toHaveCount(0);
+    await expect(tutorialFlow.locator("[marker-end]")).toHaveCount(0);
+
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.endTutorial();
+      window.LEARNGameOMSimulator.setAppView("manager");
+      window.LEARNGameOMSimulator.setManagerTab("process");
+      document.getElementById("processGraphViewButton")?.click();
+    });
+    const processGraph = page.locator("#dataModelGrid .data-model-edges");
+    await expect(processGraph.locator(".data-model-cable")).not.toHaveCount(0);
+    await expect(processGraph.locator("[marker-end]")).toHaveCount(0);
+  });
 });

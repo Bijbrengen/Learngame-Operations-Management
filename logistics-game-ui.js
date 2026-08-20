@@ -32,6 +32,20 @@
     return typeof element?.closest === "function" ? element.closest(selector) : null;
   }
 
+  function inlineProcessCable(id) {
+    const cables = window.LeerpretSDK?.components?.["lego-cables"];
+    if (!cables?.connectionMarkup) return "";
+    return `<svg class="sim-inline-cable" viewBox="0 0 72 44" aria-hidden="true">${cables.connectionMarkup({
+      id: `fallback-${id}`,
+      from: [4, 12],
+      to: [68, 12],
+      bend: 16,
+      sag: 18,
+      direction: "forward",
+      className: "sim-fallback-cable"
+    })}</svg>`;
+  }
+
   function towerMarkup(product) {
     if (
       window.LegoTowerRenderer
@@ -1323,7 +1337,7 @@
                 <span>${escapeHtml(role.token)}</span>
                 <strong>${escapeHtml(role.department)}</strong>
               </article>
-              ${index < snapshot.roleFlow.length - 1 ? `<i aria-hidden="true">→</i>` : ""}
+              ${index < snapshot.roleFlow.length - 1 ? inlineProcessCable(`${roleId}-${index}`) : ""}
             `;
           }).join("")}
         </div>

@@ -111,6 +111,25 @@
     `;
   }
 
+  function distanceMarkup(label, id) {
+    const cables = globalThis.LeerpretSDK?.components?.["lego-cables"];
+    const cable = cables?.connectionMarkup?.({
+      id: `configuration-${id}`,
+      from: [8, 18],
+      to: [82, 18],
+      bend: 18,
+      sag: 22,
+      direction: "forward",
+      className: "configuration-flow-cable"
+    }) || "";
+    return `
+      <div class="configuration-layout-distance" aria-label="${escapeHtml(label)}">
+        <span>${escapeHtml(label)}</span>
+        <svg viewBox="0 0 90 52" aria-hidden="true">${cable}</svg>
+      </div>
+    `;
+  }
+
   function diagramMarkup(config = {}) {
     const graph = topology(config);
     const movementLabel = graph.config.play_mode === "physical"
@@ -128,9 +147,7 @@
     return `
       <div class="configuration-layout-diagram" data-layout-topology="${graph.parallel ? "parallel" : graph.hybrid ? "hybrid" : "sequential"}">
         ${groupMarkup(graph.before.filter(node => node.kind === "external"), "external", "Buiten de organisatie")}
-        <div class="configuration-layout-distance" aria-label="${movementLabel}">
-          <span>${movementLabel}</span>
-        </div>
+        ${distanceMarkup(movementLabel, "inbound")}
         ${groupMarkup(
           [
             ...graph.before.filter(node => node.kind !== "external"),
@@ -140,9 +157,7 @@
           graph.parallel ? "parallel" : "internal",
           internalTitle
         )}
-        <div class="configuration-layout-distance" aria-label="${movementLabel}">
-          <span>${movementLabel}</span>
-        </div>
+        ${distanceMarkup(movementLabel, "outbound")}
         ${groupMarkup(graph.after.filter(node => node.kind === "external"), "external", "Buiten de organisatie")}
       </div>
     `;

@@ -4459,18 +4459,18 @@
       const emphasizeConnectedEdges = () => {
         if (!canvas?.classList.contains("swimlane-canvas")) return;
         canvas.classList.add("has-edge-focus");
-        canvas.querySelectorAll(".swimlane-edge").forEach(edge => {
+        canvas.querySelectorAll(".swimlane-cable").forEach(edge => {
           edge.classList.toggle(
             "is-related",
-            edge.dataset.edgeSource === node.dataset.modelObjectId
-              || edge.dataset.edgeTarget === node.dataset.modelObjectId
+            edge.classList.contains(`edge-source-${node.dataset.modelObjectId}`)
+              || edge.classList.contains(`edge-target-${node.dataset.modelObjectId}`)
           );
         });
       };
       const clearConnectedEdges = () => {
         if (!canvas?.classList.contains("swimlane-canvas")) return;
         canvas.classList.remove("has-edge-focus");
-        canvas.querySelectorAll(".swimlane-edge.is-related").forEach(edge => {
+        canvas.querySelectorAll(".swimlane-cable.is-related").forEach(edge => {
           edge.classList.remove("is-related");
         });
       };
@@ -5990,6 +5990,19 @@
     return DATA_MODEL_LEARNING_OBJECTS.find(item => item.id === id);
   }
 
+  function processCableMarkup(id, path, from, to, className = "") {
+    const cables = window.LeerpretSDK?.components?.["lego-cables"];
+    if (!cables?.connectionMarkup) return "";
+    return cables.connectionMarkup({
+      id,
+      path,
+      from,
+      to,
+      direction: "forward",
+      className: `data-model-cable ${className}`.trim()
+    });
+  }
+
   function renderDataModelGraph() {
     const laneWidth = 230;
     const nodeHeight = 82;
@@ -6023,7 +6036,7 @@
       const ty = target.y + target.height / 2;
       const mid = Math.max(34, Math.abs(tx - sx) / 2);
       const path = `M ${sx} ${sy} C ${sx + mid} ${sy}, ${tx - mid} ${ty}, ${tx} ${ty}`;
-      return `<path class="data-model-edge" d="${path}"></path>`;
+      return processCableMarkup(`graph-${sourceId}-${targetId}`, path, [sx, sy], [tx, ty], "graph-cable");
     }).join("");
     const nodes = DATA_MODEL_LEARNING_OBJECTS.map(item => {
       const position = positions[item.id];
@@ -6045,11 +6058,6 @@
       <div class="data-model-canvas" style="width:${graphWidth}px;height:${graphHeight}px">
         ${headers}
         <svg class="data-model-edges" viewBox="0 0 ${graphWidth} ${graphHeight}" aria-hidden="true">
-          <defs>
-            <marker id="dataModelArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
           ${edges}
         </svg>
         ${nodes}
@@ -6096,7 +6104,7 @@
       const path = sameRow
         ? `M ${sx} ${sy} L ${tx} ${ty}`
         : `M ${sx} ${sy} C ${sx} ${sy + rowGap / 2}, ${tx} ${ty - rowGap / 2}, ${tx} ${ty}`;
-      return `<path class="data-model-edge sequence-edge" d="${path}"></path>`;
+      return processCableMarkup(`sequence-${item.id}-${next.id}`, path, [sx, sy], [tx, ty], "sequence-cable");
     }).join("");
     const nodes = orderedItems.map((item, index) => {
       const position = positions[item.id];
@@ -6115,11 +6123,6 @@
     return `
       <div class="data-model-canvas sequence-canvas" style="width:${sequenceWidth}px;height:${sequenceHeight}px">
         <svg class="data-model-edges" viewBox="0 0 ${sequenceWidth} ${sequenceHeight}" aria-hidden="true">
-          <defs>
-            <marker id="dataModelArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z"></path>
-            </marker>
-          </defs>
           ${edges}
         </svg>
         ${nodes}
@@ -6170,10 +6173,13 @@
       const path = sameLane
         ? `M ${sx} ${sy} L ${tx} ${ty}`
         : `M ${sx} ${sy} V ${routeY} H ${tx} V ${ty}`;
-      return `<path class="data-model-edge swimlane-edge"
-                    data-edge-source="${escapeHtml(item.id)}"
-                    data-edge-target="${escapeHtml(next.id)}"
-                    d="${path}"></path>`;
+      return processCableMarkup(
+        `swimlane-${item.id}-${next.id}`,
+        path,
+        [sx, sy],
+        [tx, ty],
+        `swimlane-cable edge-source-${item.id} edge-target-${next.id}`
+      );
     }).join("");
     const nodes = orderedItems.map((item, index) => {
       const position = positions[item.id];
@@ -6199,11 +6205,6 @@
         <div class="data-model-canvas swimlane-canvas" style="width:${swimlaneWidth}px;height:${swimlaneHeight}px">
           ${laneBands}
           <svg class="data-model-edges" viewBox="0 0 ${swimlaneWidth} ${swimlaneHeight}" aria-hidden="true">
-            <defs>
-              <marker id="dataModelArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z"></path>
-              </marker>
-            </defs>
             ${edges}
           </svg>
           ${nodes}

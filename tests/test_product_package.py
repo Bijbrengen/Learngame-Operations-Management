@@ -56,8 +56,8 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v232"', service_worker)
+        self.assertIn('href="style.css?v=20260820g"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v233"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -95,6 +95,23 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('data-transparent-front="true"', renderer)
         self.assertIn('data-transparent-roof="true"', renderer)
         self.assertIn('usesLegoContainer = typeof window.LegoTowerRenderer', renderer)
+
+    def test_all_lom_process_connections_use_the_engine_cable_primitive(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        game_ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
+        layout = (PRODUCT_ROOT / "configuration-layout-preview.js").read_text(encoding="utf-8")
+
+        self.assertIn('"lego-renderer", "lego-cables", "lego-tower-editor"', html)
+        self.assertIn('components?.["lego-cables"]', renderer)
+        self.assertIn("cables.connectionMarkup", renderer)
+        self.assertIn("processCableMarkup", game)
+        self.assertIn("cables.connectionMarkup", game)
+        self.assertIn("inlineProcessCable", game_ui)
+        self.assertIn("cables?.connectionMarkup", layout)
+        self.assertNotIn("isoFlowArrowMaterial", renderer)
+        self.assertNotIn("dataModelArrow", game)
 
     def test_game_master_layout_mounts_the_live_isometric_lego_scene(self) -> None:
         sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
@@ -1125,12 +1142,12 @@ process.stdout.write(JSON.stringify({
         self.assertIn(".iso-logistics-view.is-tutorial", styles)
         self.assertIn("min-width: 0;", styles)
         self.assertIn("swimlane-sticky-header", game)
-        self.assertIn("data-edge-source", game)
-        self.assertIn("data-edge-target", game)
+        self.assertIn("edge-source-${item.id}", game)
+        self.assertIn("edge-target-${next.id}", game)
         self.assertIn("has-edge-focus", game)
         self.assertIn('V ${routeY} H ${tx} V ${ty}', game)
-        self.assertIn(".manager-dashboard .swimlane-edge", styles)
-        self.assertIn(".swimlane-edge.is-related", styles)
+        self.assertIn(".manager-dashboard .swimlane-canvas.has-edge-focus .swimlane-cable", styles)
+        self.assertIn(".swimlane-cable.is-related", styles)
         self.assertIn("openRoof: true", game)
         self.assertIn("stockVisuals", game)
         self.assertIn("distractorParts", game)
