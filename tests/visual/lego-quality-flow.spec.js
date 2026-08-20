@@ -109,9 +109,58 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await expect(page.locator(".builder-feedback")).toContainText("weigert");
   });
 
+  test("voorraadbouw laat een vrij blok terug in zijn LEGO-bak leggen", async ({ page }) => {
+    await mountBuilder(page);
+    await page.evaluate(() => {
+      window.LegoBuilder.prepareStockTutorial("B");
+      window.LegoBuilder.setStockTutorialInventory({
+        blue_8: 2,
+        yellow_4: 1,
+        green_4: 1
+      });
+    });
+
+    await expect(page.locator(".builder-inventory-bin")).toHaveCount(3);
+    await placeTutorialAt(page, 1, 1, 0, 2, 4);
+    await placeTutorialAt(page, 3, 1, 0, 2, 4);
+    await page.locator('[data-piece-type="yellow_4"]').click();
+    await placeTutorialAt(page, 2, 2, 1, 2, 2);
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(3);
+
+    const dragToBin = async (brickIndex, pieceType) => {
+      const brick = page.locator(`[data-builder-brick-index="${brickIndex}"]`);
+      const bin = page.locator(`[data-piece-type="${pieceType}"]`);
+      const faces = brick.locator("polygon");
+      expect(await faces.count()).toBeGreaterThan(0);
+      const brickBox = await faces.nth(0).boundingBox();
+      const binBox = await bin.boundingBox();
+      expect(brickBox).not.toBeNull();
+      expect(binBox).not.toBeNull();
+      const grabX = brickBox.x + brickBox.width / 2;
+      const grabY = brickBox.y + brickBox.height / 2;
+      await page.mouse.move(grabX, grabY);
+      await page.mouse.down();
+      await page.mouse.move(binBox.x + binBox.width / 2, binBox.y + binBox.height / 2, { steps: 8 });
+      await expect(brick).toHaveClass(/is-dragging/);
+      await expect(bin).toHaveClass(/is-return-target/);
+      await page.mouse.up();
+    };
+
+    await dragToBin(2, "yellow_4");
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
+    await expect.poll(() => page.evaluate(() => (
+      window.LegoBuilder.getSnapshot().availableStock.yellow_4
+    ))).toBe(1);
+    await expect(page.locator(".builder-feedback")).toContainText("teruggelegd");
+  });
+
   test("parallelle productie accepteert het witte blok op een volgende torenlaag", async ({ page }) => {
     await page.goto("/");
-    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.waitForFunction(() => (
+      window.LogisticsGameEngine
+      && window.LogisticsGameUI
+      && window.LeerpretSDK?.components?.["lego-builder"]?.logic
+    ));
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="parallel-layer-test"></main>';
