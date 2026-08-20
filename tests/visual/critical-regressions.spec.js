@@ -619,6 +619,13 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
         rearBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
         frontBricks: element.querySelectorAll(".iso-lego-container-front .iso-brick").length,
         stockBricks: element.querySelectorAll(".iso-lego-box-interior .iso-brick").length,
+        stockPlacements: Array.from(element.querySelectorAll(".iso-stock-brick")).map(brick => ({
+          x: Number(brick.dataset.stockGridX),
+          y: Number(brick.dataset.stockGridY),
+          layer: Number(brick.dataset.stockGridLayer),
+          z: Number(brick.dataset.stockZ),
+          transform: brick.getAttribute("transform")
+        })),
         roofBricks: element.querySelectorAll(".iso-lego-container-roof .iso-brick").length,
         transparentFront: element.querySelector(".iso-lego-container-transparent-front")?.getAttribute("opacity"),
         transparentRoof: element.querySelector(".iso-lego-container-transparent-roof")?.getAttribute("opacity")
@@ -630,6 +637,15 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(geometry.transparentFront).toBe("0.38");
     expect(geometry.transparentRoof).toBe("0.28");
     expect(geometry.stockBricks).toBeGreaterThan(0);
+    expect(geometry.stockPlacements.length).toBeGreaterThan(0);
+    geometry.stockPlacements.forEach(placement => {
+      expect(Number.isInteger(placement.x)).toBe(true);
+      expect(Number.isInteger(placement.y)).toBe(true);
+      expect(Number.isInteger(placement.layer)).toBe(true);
+      expect(placement.z).toBeCloseTo(0.22 + placement.layer * 0.72, 8);
+      expect(placement.transform).toMatch(/^translate\(/);
+      expect(placement.transform).not.toContain("scale(");
+    });
     expect(await container.locator(":scope > g").evaluateAll(layers => (
       layers.map(layer => layer.getAttribute("class") || "")
     ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);

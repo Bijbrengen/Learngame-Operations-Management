@@ -224,6 +224,44 @@
     `;
   }
 
+  function layoutStockItems(items) {
+    const occupied = new Set();
+    const result = [];
+    const interiorSize = 6;
+    const maxLayers = 4;
+    items.forEach(item => {
+      const width = Math.max(1, Math.min(interiorSize, Number(item.width || 2)));
+      const depth = Math.max(1, Math.min(interiorSize, Number(item.depth || 2)));
+      let placement = null;
+      for (let layer = 0; layer < maxLayers && !placement; layer += 1) {
+        for (let y = 0; y <= interiorSize - depth && !placement; y += 1) {
+          for (let x = 0; x <= interiorSize - width && !placement; x += 1) {
+            let fits = true;
+            for (let row = y; row < y + depth && fits; row += 1) {
+              for (let column = x; column < x + width; column += 1) {
+                const free = !occupied.has(`${column},${row},${layer}`);
+                const supported = layer === 0 || occupied.has(`${column},${row},${layer - 1}`);
+                if (!free || !supported) {
+                  fits = false;
+                  break;
+                }
+              }
+            }
+            if (fits) placement = { ...item, x, y, layer, width, depth };
+          }
+        }
+      }
+      if (!placement) return;
+      for (let row = placement.y; row < placement.y + placement.depth; row += 1) {
+        for (let column = placement.x; column < placement.x + placement.width; column += 1) {
+          occupied.add(`${column},${row},${placement.layer}`);
+        }
+      }
+      result.push(placement);
+    });
+    return result;
+  }
+
   function openWarehouseMarkup(department, geometry, legoGradientScope) {
     const center = geometry.center;
     const palette = department.materialId
@@ -244,27 +282,18 @@
         })
       )
     )).slice(0, 8);
-    const scale = department.compactStock ? 0.42 : 0.5;
-    const offsets = [
-      { x: -49, y: 14 },
-      { x: -17, y: 1 },
-      { x: 18, y: 14 },
-      { x: 49, y: 1 },
-      { x: -16, y: -17 },
-      { x: 20, y: -17 },
-      { x: -47, y: -12 },
-      { x: 49, y: -15 }
-    ];
+    const laidOutItems = layoutStockItems(items);
+    const containerTransform = `translate(${center.x - 90} ${center.y - 90})`;
     const bricks = window.LegoTowerRenderer
-      ? items.map((visual, index) => {
-        const width = Number(visual.width || 2);
-        const depth = Number(visual.depth || 2);
-        const brickX = (6 - width) / 2;
-        const brickY = (6 - depth) / 2;
-        const offset = offsets[index];
+      ? laidOutItems.map(visual => {
+        const brickZ = 0.22 + visual.layer * 0.72;
         return `
           <g class="iso-stock-brick${visual.draggable ? " is-draggable iso-draggable-object" : ""}"
-             transform="translate(${center.x + offset.x - 90 * scale} ${center.y + offset.y - 105 * scale}) scale(${scale})"
+             transform="${containerTransform}"
+             data-stock-grid-x="${visual.x}"
+             data-stock-grid-y="${visual.y}"
+             data-stock-grid-layer="${visual.layer}"
+             data-stock-z="${brickZ}"
              data-drag-kind="stock"
              data-stock-source-id="${escapeHtml(department.id)}"
              data-stock-part-id="${escapeHtml(visual.partId || "")}"
@@ -274,11 +303,11 @@
                ? `Sleep ${visual.label || "blok"} naar ${department.dragTargetLabel || "de Bouwvoorraad"}`
                : `${visual.label || "Blok"} in ${department.title}`)}">
             ${window.LegoTowerRenderer.brick(
-              brickX,
-              brickY,
-              0,
-              width,
-              depth,
+              visual.x,
+              visual.y,
+              brickZ,
+              visual.width,
+              visual.depth,
               visual.color || "blue",
               legoGradientScope
             )}
@@ -313,7 +342,6 @@
       legoGradientScope
     );
     if (container) {
-      const containerTransform = `translate(${center.x - 90} ${center.y - 90})`;
       return `
         <g class="iso-lego-box" data-container-grid="8x8" data-rear-wall-height="2-bricks" data-transparent-front="true" data-transparent-roof="true">
           <g transform="${containerTransform}">${container.base}${container.rear}</g>

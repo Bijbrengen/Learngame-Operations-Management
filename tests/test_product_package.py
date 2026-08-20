@@ -58,10 +58,10 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn('href="style.css?v=20260820i"', html)
         self.assertIn('src="logistics-game-ui.js?v=20260820.3"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260820g"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260820h"', html)
         self.assertIn('"script.js?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v235"', service_worker)
-        self.assertIn('register("service-worker.js?v=235")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn('CACHE_VERSION = "learngame-om-v236"', service_worker)
+        self.assertIn('register("service-worker.js?v=236")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -1461,7 +1461,8 @@ process.stdout.write(JSON.stringify({
         self.assertIn("FINANCIAL_TUTORIAL_DISTRACTORS", game)
         self.assertIn('actionType: "reject_financial_tutorial_material"', game)
         self.assertIn('reason: "not_in_tower_b_bill_of_materials"', game)
-        self.assertIn("department.compactStock ? 0.42 : 0.5", renderer)
+        self.assertIn("function layoutStockItems(items)", renderer)
+        self.assertIn("const brickZ = 0.22 + visual.layer * 0.72", renderer)
         self.assertIn("slice(0, 8)", renderer)
         self.assertIn("state.config.money", game)
         self.assertIn("state.config.pnl", game)
