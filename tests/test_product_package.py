@@ -56,8 +56,8 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260819d"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v229"', service_worker)
+        self.assertIn('href="style.css?v=20260820e"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v230"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -84,13 +84,17 @@ class ProductPackageTests(unittest.TestCase):
                 selector,
             )
 
-    def test_warehouses_use_the_shared_open_lego_container_primitive(self) -> None:
+    def test_all_departments_use_the_shared_transparent_lego_box_primitive(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         self.assertIn("LegoTowerRenderer?.openContainerLayers", renderer)
-        self.assertIn('class="iso-lego-open-container"', renderer)
+        self.assertIn('class="iso-lego-box"', renderer)
         self.assertIn("container.base}${container.rear}", renderer)
-        self.assertIn("${bricks}${cargo}${empty}", renderer)
+        self.assertIn("${bricks}${cargo}${empty}${interiorSymbol}", renderer)
         self.assertIn("container.front", renderer)
+        self.assertIn("container.roof", renderer)
+        self.assertIn('data-transparent-front="true"', renderer)
+        self.assertIn('data-transparent-roof="true"', renderer)
+        self.assertIn('usesLegoContainer = typeof window.LegoTowerRenderer', renderer)
 
     def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")

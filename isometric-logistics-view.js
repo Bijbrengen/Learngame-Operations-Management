@@ -198,6 +198,7 @@
       y: point.y + (center.y - point.y) * 0.12 + 3
     }));
     const visuals = Array.isArray(department.stockVisuals) ? department.stockVisuals : [];
+    const hasLogisticsContent = Boolean(department.openRoof || visuals.length || department.cargoVisual);
     const items = visuals.flatMap((visual, visualIndex) => (
       Array.from(
         { length: Math.max(0, Math.min(4, Number(visual.count || 0))) },
@@ -250,12 +251,16 @@
       }).join("")
       : "";
     const cargo = towerCargoMarkup(department, geometry, legoGradientScope);
-    const empty = items.length === 0 && !cargo
+    const empty = hasLogisticsContent && items.length === 0 && !cargo
       ? `<text class="iso-empty-stock-label"
                x="${center.x}"
                y="${center.y + 7}"
                text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
       : "";
+    const interiorSymbol = hasLogisticsContent ? "" : symbolMarkup(department, {
+      x: center.x,
+      y: center.y + 10
+    });
     const containerColor = {
       "tutorial-blue": "blue",
       "tutorial-yellow": "yellow",
@@ -274,10 +279,11 @@
     if (container) {
       const containerTransform = `translate(${center.x - 90} ${center.y - 90})`;
       return `
-        <g class="iso-lego-open-container" data-container-grid="8x8">
+        <g class="iso-lego-box" data-container-grid="8x8" data-rear-wall-height="2-bricks" data-transparent-front="true" data-transparent-roof="true">
           <g transform="${containerTransform}">${container.base}${container.rear}</g>
-          <g class="iso-visible-stock">${bricks}${cargo}${empty}</g>
+          <g class="iso-lego-box-interior">${bricks}${cargo}${empty}${interiorSymbol}</g>
           <g class="iso-lego-container-front" transform="${containerTransform}">${container.front}</g>
+          <g class="iso-lego-container-roof" transform="${containerTransform}">${container.roof}</g>
         </g>
       `;
     }
@@ -355,10 +361,9 @@
       ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
       : null;
     const selectedRenderState = selected || Boolean(palette) || department.forceSelectedRender;
-    const usesLegoContainer = department.openRoof
-      && typeof window.LegoTowerRenderer?.openContainerLayers === "function";
+    const usesLegoContainer = typeof window.LegoTowerRenderer?.openContainerLayers === "function";
     return `
-      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
+      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${usesLegoContainer ? " has-lego-box" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
          data-department-id="${escapeHtml(department.id)}"
          data-accepts-drag-kind="${department.acceptsCargoDrop ? "cargo" : department.acceptsStockDrop ? "stock" : ""}"
          role="button"
@@ -379,7 +384,7 @@
             geometry.floor[1], geometry.floor[2], geometry.roof[2], geometry.roof[1]
           ])}"
                    ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>`}
-          ${department.openRoof
+          ${usesLegoContainer
             ? openWarehouseMarkup(department, geometry, legoGradientScope)
             : `
               <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>

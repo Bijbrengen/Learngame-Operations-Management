@@ -490,7 +490,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("8. open magazijnen zijn gedeelde LEGO-containers met voorraad tussen de wanden", async ({ page }) => {
+  test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }) => {
     await mockAuthenticatedApp(page);
     await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");
     await page.waitForFunction(() => (
@@ -498,19 +498,28 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       && window.IsometricLogisticsView
       && window.LEARNGameOMSimulator
     ));
-    const container = page.locator(".iso-lego-open-container").first();
+    const containers = page.locator(".iso-lego-box");
+    const containerCount = await containers.count();
+    expect(containerCount).toBeGreaterThan(2);
+    const container = containers.nth(0);
     const geometry = await container.evaluate(element => (
       ({
         rearBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
         frontBricks: element.querySelectorAll(".iso-lego-container-front .iso-brick").length,
-        stockBricks: element.querySelectorAll(".iso-visible-stock .iso-brick").length
+        stockBricks: element.querySelectorAll(".iso-lego-box-interior .iso-brick").length,
+        roofBricks: element.querySelectorAll(".iso-lego-container-roof .iso-brick").length,
+        transparentFront: element.querySelector(".iso-lego-container-transparent-front")?.getAttribute("opacity"),
+        transparentRoof: element.querySelector(".iso-lego-container-transparent-roof")?.getAttribute("opacity")
       })
     ));
     expect(geometry.rearBricks).toBe(3);
     expect(geometry.frontBricks).toBe(2);
+    expect(geometry.roofBricks).toBe(1);
+    expect(geometry.transparentFront).toBe("0.38");
+    expect(geometry.transparentRoof).toBe("0.28");
     expect(geometry.stockBricks).toBeGreaterThan(0);
     expect(await container.locator(":scope > g").evaluateAll(layers => (
       layers.map(layer => layer.getAttribute("class") || "")
-    ))).toEqual(["", "iso-visible-stock", "iso-lego-container-front"]);
+    ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);
   });
 });

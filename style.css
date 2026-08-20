@@ -8073,11 +8073,12 @@ select {
   filter: none;
 }
 
-.iso-lego-open-container .iso-brick {
+.iso-lego-box .iso-brick {
   filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.24));
 }
 
-.iso-lego-open-container .iso-lego-container-front {
+.iso-lego-box .iso-lego-container-front,
+.iso-lego-box .iso-lego-container-roof {
   pointer-events: none;
 }
 
