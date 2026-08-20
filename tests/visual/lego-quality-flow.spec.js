@@ -69,6 +69,20 @@ async function dragPlacedBrickToBin(page, brickIndex, pieceType) {
   await page.mouse.up();
 }
 
+async function dragPaletteToTutorialAt(page, pieceType, x, y, z, width, depth) {
+  await page.evaluate(({ pieceType, x, y, z, width, depth }) => {
+    const source = document.querySelector(`[data-piece-type="${pieceType}"]`);
+    const board = document.querySelector(".builder-board");
+    const rect = board.getBoundingClientRect();
+    const projected = window.LegoTowerRenderer.iso(x + width / 2, y + depth / 2, 0.22 + z * 0.78 + 0.04);
+    const clientX = rect.left + (170 + projected[0] * 2) / 520 * rect.width;
+    const clientY = rect.top + (62 + projected[1] * 2) / 420 * rect.height;
+    const transfer = new DataTransfer();
+    source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+    board.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer, clientX, clientY }));
+  }, { pieceType, x, y, z, width, depth });
+}
+
 test.describe("LEGO-rotatie en klantkwaliteit", () => {
   test("tutorial vraagt rotatie en toont hulp bij juiste plek met verkeerde richting", async ({ page }) => {
     await mountBuilder(page);
@@ -116,7 +130,7 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
     await page.locator("[data-rotate-from-help]").click();
     await expect(page.locator(".builder-rotation-help")).toBeHidden();
-    await placeTutorialAt(page, 1, 2, 1, 4, 2);
+    await dragPaletteToTutorialAt(page, "red_8", 1, 2, 1, 4, 2);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(3);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().tutorialStep)).toBe(2);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);
