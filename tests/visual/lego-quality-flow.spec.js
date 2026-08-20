@@ -67,6 +67,17 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
       await expect(page.locator(`[data-piece-type="${pieceType}"] .builder-inventory-bin`)).toBeVisible();
     }
 
+    await page.evaluate(() => {
+      document.addEventListener("keydown", event => {
+        if (event.key.toLowerCase() === "r") event.stopPropagation();
+      });
+    });
+    await page.keyboard.press("r");
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(true);
+    await expect(selectedFoundationBrick).toHaveAttribute("aria-label", /gedraaid 90 graden/);
+    await page.keyboard.press("R");
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);
+
     await selectedFoundationBrick.click();
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(true);
     await selectedFoundationBrick.click();
