@@ -670,6 +670,13 @@
 
   function mount(container, scene, options = {}) {
     if (!container) return;
+    // Een live game-update mag het SVG-element met pointer capture niet
+    // vervangen zolang de speler nog sleept. Bewaar alleen de nieuwste render
+    // en voer die direct na pointerup/pointercancel uit.
+    if (container._isoStockDragActive) {
+      container._isoPendingMount = { scene, options };
+      return;
+    }
     const legoGradientScope = `iso-logistics-${legoGradientInstance += 1}`;
     const departments = (scene.departments || [])
       .filter(department => department.visible !== false)
@@ -845,6 +852,10 @@
         element.classList.add("is-rejected");
         window.setTimeout(() => element.classList.remove("is-rejected"), 430);
       }
+      container._isoStockDragActive = false;
+      const pendingMount = container._isoPendingMount;
+      container._isoPendingMount = null;
+      if (pendingMount) mount(container, pendingMount.scene, pendingMount.options);
     };
     container.querySelectorAll(".iso-draggable-object").forEach(element => {
       element.addEventListener("pointerdown", event => {
@@ -852,6 +863,7 @@
         event.preventDefault();
         event.stopPropagation();
         element.setPointerCapture(event.pointerId);
+        container._isoStockDragActive = true;
         element.classList.add("is-dragging");
         dragSurface?.classList.add("is-stock-dragging");
         stockDrag = {

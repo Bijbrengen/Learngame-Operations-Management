@@ -7831,6 +7831,7 @@ select {
   cursor: grab;
   touch-action: none;
   user-select: none;
+  -webkit-user-drag: none;
 }
 
 .iso-stock-brick.is-draggable:hover,

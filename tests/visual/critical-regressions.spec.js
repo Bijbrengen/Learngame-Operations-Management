@@ -417,14 +417,23 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
   });
 
   test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }) => {
+    const sdkBase = process.env.CI
+      ? "https://api.leerpretpark.nl/api"
+      : "http://127.0.0.1:47111/api";
+    const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
+    expect(manifestResponse.ok()).toBe(true);
+    const manifest = await manifestResponse.json();
     await page.goto("/style.css");
     await page.setContent('<!doctype html><html><head></head><body><main id="drag-test"></main></body></html>');
     await page.addStyleTag({ url: "/style.css" });
-    await page.addScriptTag({ url: "/lego-tower-renderer.js" });
+    await page.addScriptTag({ url: `${sdkBase}/sdk/sdk-loader/loader.js?v=${manifest.version}` });
+    await page.evaluate(async ({ sdkBase, manifest }) => {
+      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer"]);
+    }, { sdkBase, manifest });
     await page.addScriptTag({ url: "/isometric-logistics-view.js" });
     await page.evaluate(() => {
       window.__slowDragDrop = null;
-      window.IsometricLogisticsView.mount(document.getElementById("drag-test"), {
+      window.__slowDragScene = {
         title: "Langzame sleepregressie",
         legend: [],
         connections: [],
@@ -459,7 +468,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
           }
         ],
         tutorial: { active: true, visualOnly: true, stepLabel: "2 / 5" }
-      }, {
+      };
+      window.IsometricLogisticsView.mount(document.getElementById("drag-test"), window.__slowDragScene, {
         onStockDrop: payload => {
           window.__slowDragDrop = payload;
           return true;
@@ -477,6 +487,18 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await brick.hover();
     await page.mouse.down();
     await page.waitForTimeout(1200);
+    await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
+    await expect(brick).toHaveCSS("cursor", "grabbing");
+    await page.evaluate(() => {
+      // Een live statusupdate tijdens pointer capture mag de kaart nog niet
+      // vervangen en de sleepactie dus niet voortijdig beëindigen.
+      window.IsometricLogisticsView.mount(document.getElementById("drag-test"), window.__slowDragScene, {
+        onStockDrop: payload => {
+          window.__slowDragDrop = payload;
+          return true;
+        }
+      });
+    });
     await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
     await expect(brick).toHaveCSS("cursor", "grabbing");
     await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 });
