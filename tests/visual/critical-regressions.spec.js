@@ -522,4 +522,24 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       layers.map(layer => layer.getAttribute("class") || "")
     ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);
   });
+
+  test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.waitForFunction(() => (
+      window.LEARNGameOMSimulator
+      && window.LOMLogisticsScene
+      && window.IsometricLogisticsView
+    ));
+    await page.evaluate(() => {
+      window.LEARNGameOMSimulator.setAppView("manager");
+      window.LEARNGameOMSimulator.setManagerTab("layout");
+    });
+
+    const layout = page.locator("[data-manager-panel='layout']");
+    await expect(layout).toBeVisible();
+    await expect(layout.locator("[data-session-layout-lego] > .iso-logistics-view")).toBeVisible();
+    await expect(layout.locator(".iso-lego-box")).toHaveCount(6);
+    await expect(layout.locator(".session-layout-config-summary")).not.toHaveAttribute("open", "");
+  });
 });

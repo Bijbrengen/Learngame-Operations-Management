@@ -56,8 +56,8 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260820e"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v230"', service_worker)
+        self.assertIn('href="style.css?v=20260820f"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v231"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -95,6 +95,18 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('data-transparent-front="true"', renderer)
         self.assertIn('data-transparent-roof="true"', renderer)
         self.assertIn('usesLegoContainer = typeof window.LegoTowerRenderer', renderer)
+
+    def test_game_master_layout_mounts_the_live_isometric_lego_scene(self) -> None:
+        sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn("data-session-layout-lego", sessions)
+        self.assertIn("Bekijk schematische configuratie", sessions)
+        self.assertIn("window.LOMLogisticsScene?.mountSessionLayout?.()", sessions)
+        self.assertIn("IsometricLogisticsView.mount(target, isometricScene()", game)
+        self.assertIn("window.LOMLogisticsScene = Object.freeze", game)
+        self.assertIn(".session-layout-lego > .iso-logistics-view", styles)
 
     def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")

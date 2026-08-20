@@ -510,16 +510,28 @@
         <section class="configuration-layout-preview"
                  data-configuration-layout-preview
                  aria-label="Live opstelling voor gekozen gamepreset">
-          ${window.ConfigurationLayoutPreview?.markup(normalizedGameConfig(config)) || ""}
+          <div class="session-layout-lego"
+               data-session-layout-lego
+               aria-label="Actuele logistieke opstelling in LEGO-blokken">
+            <p class="session-layout-loading">LEGO-opstelling wordt geladen…</p>
+          </div>
+          <details class="session-layout-config-summary">
+            <summary>Bekijk schematische configuratie</summary>
+            <div data-session-layout-config>
+              ${window.ConfigurationLayoutPreview?.markup(normalizedGameConfig(config)) || ""}
+            </div>
+          </details>
         </section>
       `;
+      window.LOMLogisticsScene?.mountSessionLayout?.();
     }
   }
 
   function updateConfigurationLayout(form, config = null) {
-    const host = document.querySelector("[data-session-layout-host] [data-configuration-layout-preview]");
+    const host = document.querySelector("[data-session-layout-host] [data-session-layout-config]");
     if (!host) return;
-    window.ConfigurationLayoutPreview?.update(host, config || collectGameConfig(form));
+    host.innerHTML = window.ConfigurationLayoutPreview?.markup(config || collectGameConfig(form)) || "";
+    window.LOMLogisticsScene?.mountSessionLayout?.();
   }
 
   function sessionCoreFieldsMarkup(draft) {

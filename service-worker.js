@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v230";
+const CACHE_VERSION = "learngame-om-v231";
 const APP_SHELL = [
   "./",
   "./index.html",

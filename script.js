@@ -5900,6 +5900,15 @@
     };
   }
 
+  function mountSessionLayout() {
+    const target = document.querySelector("[data-session-layout-lego]");
+    if (!target || !window.IsometricLogisticsView) return false;
+    window.IsometricLogisticsView.mount(target, isometricScene(), {
+      departmentDetailMode: "none"
+    });
+    return true;
+  }
+
   function renderIsometricLogisticsView() {
     if (!window.IsometricLogisticsView) {
       els.dataModelGrid.innerHTML = "<p>De isometrische renderer kon niet worden geladen.</p>";
@@ -6227,6 +6236,7 @@
     renderOrderPreview();
     renderPlayerView();
     renderAdvisor();
+    mountSessionLayout();
   }
 
   function initLegoBuilder() {
@@ -7566,6 +7576,11 @@
     updatePriceInput();
     updateTutorialResumeButton();
   }
+
+  window.LOMLogisticsScene = Object.freeze({
+    current: isometricScene,
+    mountSessionLayout
+  });
 
   window.LEARNGameOMSimulator = {
     dispatchInteraction,
