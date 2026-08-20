@@ -6006,6 +6006,7 @@ body[data-app-view="player"] .topbar {
 .builder-rotation-help p { margin: .35rem 0 0; }
 .builder-rotation-help strong { color: #9df2df; font-size: 1.05rem; }
 .builder-rotation-help kbd { padding: .1rem .35rem; border: 1px solid var(--lp-line); border-radius: .3rem; background: var(--lp-surface-soft); }
+.builder-rotation-help-action { margin-top: .8rem; }
 .builder-rotation-help-close { position: absolute; top: .55rem; right: .55rem; min-width: 2rem; min-height: 2rem; padding: 0!important; }
 
 .builder-step-complete > span {

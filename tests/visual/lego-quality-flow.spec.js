@@ -57,6 +57,12 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
   test("tutorial vraagt rotatie en toont hulp bij juiste plek met verkeerde richting", async ({ page }) => {
     await mountBuilder(page);
     const board = page.locator(".builder-board");
+    const selectedFoundationBrick = page.locator('[data-piece-type="yellow_8"]');
+
+    await selectedFoundationBrick.click();
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(true);
+    await selectedFoundationBrick.click();
+    await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(false);
 
     await board.click({ position: { x: 20, y: 20 } });
     await board.click({ position: { x: 20, y: 20 } });
@@ -66,7 +72,7 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await expect(page.locator(".builder-rotation-help")).toBeVisible();
     await expect(page.locator(".builder-feedback")).toContainText("juiste plek");
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(2);
-    await page.locator(".builder-rotate").click();
+    await page.locator("[data-rotate-from-help]").click();
     await expect(page.locator(".builder-rotation-help")).toBeHidden();
     await placeTutorialAt(page, 1, 2, 1, 4, 2);
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().bricks.length)).toBe(3);

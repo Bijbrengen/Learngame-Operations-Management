@@ -1032,6 +1032,7 @@ process.stdout.write(JSON.stringify({
         self.assertEqual(2, result["beforeRotationCount"])
         self.assertTrue(result["rotationHintOpen"])
         self.assertTrue(result["hintClosedAfterRotation"])
+        self.assertIn("data-rotate-from-help", SDK_BUILDER_PATH.read_text(encoding="utf-8"))
         self.assertEqual(2, result["stepTwoAdvanced"])
         self.assertEqual(
             {
