@@ -9577,13 +9577,13 @@ body:not(.tutorial-focus) .manager-dashboard > .order-band {
   height: clamp(560px, calc(100dvh - 150px), 900px);
 }
 
-.manager-dashboard[data-manager-tab="process"] .data-model-panel.is-active {
+.manager-dashboard[data-active-manager-tab="process"] .data-model-panel.is-active {
   height: max(680px, calc(100dvh - 112px));
   min-height: max(680px, calc(100dvh - 112px));
   padding-block: 10px;
 }
 
-.manager-dashboard[data-manager-tab="process"] .data-model-grid {
+.manager-dashboard[data-active-manager-tab="process"] .data-model-grid {
   padding-block: 4px;
 }
 

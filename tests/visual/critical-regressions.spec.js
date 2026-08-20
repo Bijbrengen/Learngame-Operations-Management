@@ -542,4 +542,30 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(layout.locator(".iso-lego-box")).toHaveCount(6);
     await expect(layout.locator(".session-layout-config-summary")).not.toHaveAttribute("open", "");
   });
+
+  test("10. Akkoord en toevoegen slaat een complete maatwerktoren op", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
+    await page.evaluate(() => {
+      localStorage.removeItem("learngame.om.customProducts.v1");
+      window.LEARNGameOMSimulator.setAppView("manager");
+      window.LEARNGameOMSimulator.setManagerTab("tower-editor");
+      window.TowerEditor.setView("builder");
+    });
+
+    const editor = page.locator("#towerEditorMount");
+    for (let index = 0; index < 4; index += 1) {
+      await editor.locator('[data-add-tower-part="blue_8"]').click();
+    }
+    await editor.locator('input[name="name"]').fill("Regressietoren");
+    await editor.locator('input[name="price"]').fill("75");
+    await editor.getByRole("button", { name: "Akkoord & toevoegen" }).click();
+
+    await expect(editor.getByRole("heading", { name: "Regressietoren" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (
+      JSON.parse(localStorage.getItem("learngame.om.customProducts.v1") || "[]")
+        .some(product => product.name === "Regressietoren")
+    ))).toBe(true);
+  });
 });

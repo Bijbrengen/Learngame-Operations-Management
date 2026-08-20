@@ -57,7 +57,7 @@ class ProductPackageTests(unittest.TestCase):
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
         self.assertIn('href="style.css?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v231"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v232"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -107,6 +107,15 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("IsometricLogisticsView.mount(target, isometricScene()", game)
         self.assertIn("window.LOMLogisticsScene = Object.freeze", game)
         self.assertIn(".session-layout-lego > .iso-logistics-view", styles)
+
+    def test_manager_navigation_does_not_cancel_forms_inside_the_active_panel(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn("dataset.activeManagerTab = nextTab", game)
+        self.assertIn('closest("button[data-manager-tab]")', game)
+        self.assertNotIn("els.managerWorkbench.dataset.managerTab = nextTab", game)
+        self.assertIn('[data-active-manager-tab="process"]', styles)
 
     def test_localhost_uses_engine_scoped_development_login_without_google(self) -> None:
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")

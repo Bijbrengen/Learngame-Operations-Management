@@ -1953,9 +1953,9 @@
     });
     if (els.managerWorkbench) {
       els.managerWorkbench.dataset.managerMenuMode = menuMode;
-      els.managerWorkbench.dataset.managerTab = nextTab;
+      els.managerWorkbench.dataset.activeManagerTab = nextTab;
     }
-    document.querySelectorAll("[data-manager-tab]").forEach(button => {
+    document.querySelectorAll("button[data-manager-tab]").forEach(button => {
       const active = button.dataset.managerTab === nextTab;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-selected", String(active));
@@ -7220,7 +7220,7 @@
     document.querySelectorAll("[data-tower-tab]").forEach(button => {
       button.addEventListener("click", () => setTowerTab(button.dataset.towerTab));
     });
-    document.querySelectorAll("[data-manager-tab]").forEach(button => {
+    document.querySelectorAll("button[data-manager-tab]").forEach(button => {
       button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
     });
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
@@ -7711,7 +7711,7 @@
       setAppView(appViewButton.dataset.appView);
       return;
     }
-    const managerTabButton = event.target.closest("[data-manager-tab]");
+    const managerTabButton = event.target.closest("button[data-manager-tab]");
     if (managerTabButton && managerTabButton.dataset.managerTab) {
       event.preventDefault();
       setManagerTab(managerTabButton.dataset.managerTab);
