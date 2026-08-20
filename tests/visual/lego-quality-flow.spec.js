@@ -94,7 +94,11 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await expect(page.locator('.builder-inventory-bin[data-inventory-bin-mode="tutorial"]'))
       .toHaveCount(await tutorialPieces.count());
     for (const pieceType of ["red_8", "yellow_8", "blue_8", "green_4"]) {
-      await expect(page.locator(`[data-piece-type="${pieceType}"] .builder-inventory-bin`)).toBeVisible();
+      const bin = page.locator(`[data-piece-type="${pieceType}"] .builder-inventory-bin`);
+      await expect(bin).toBeVisible();
+      await expect(bin.locator(".builder-inventory-bin-shelf")).toHaveCount(1);
+      await expect(bin.locator(".builder-inventory-bin-stock.is-upper .lego-part-3d")).toHaveCount(3);
+      await expect(bin.locator(".builder-inventory-bin-stock.is-lower .lego-part-3d")).toHaveCount(3);
     }
 
     await page.evaluate(() => {
