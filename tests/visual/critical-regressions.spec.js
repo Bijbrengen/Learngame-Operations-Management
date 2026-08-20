@@ -502,6 +502,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.waitForTimeout(1200);
     await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
     await expect(brick).toHaveCSS("cursor", "grabbing");
+    await expect(page.locator(".iso-overlay-layer > .iso-stock-brick.is-dragging")).toHaveCount(1);
     await page.evaluate(() => {
       // Een live statusupdate tijdens pointer capture mag de kaart nog niet
       // vervangen en de sleepactie dus niet voortijdig beëindigen.
@@ -514,6 +515,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
     await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
     await expect(brick).toHaveCSS("cursor", "grabbing");
+    await expect(page.locator(".iso-overlay-layer > .iso-stock-brick.is-dragging")).toHaveCount(1);
     await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 });
     await page.mouse.up();
 

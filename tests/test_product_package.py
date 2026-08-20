@@ -58,10 +58,10 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn('href="style.css?v=20260820i"', html)
         self.assertIn('src="logistics-game-ui.js?v=20260820.3"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260820h"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260820i"', html)
         self.assertIn('"script.js?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v236"', service_worker)
-        self.assertIn('register("service-worker.js?v=236")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn('CACHE_VERSION = "learngame-om-v237"', service_worker)
+        self.assertIn('register("service-worker.js?v=237")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1

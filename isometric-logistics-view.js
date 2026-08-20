@@ -850,12 +850,25 @@
     };
     const finishStockDrag = (event, cancelled = false) => {
       if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
-      const { element, dragKind, sourceDepartmentId, partId, instanceId, cargoId } = stockDrag;
+      const {
+        element,
+        dragKind,
+        sourceDepartmentId,
+        partId,
+        instanceId,
+        cargoId,
+        originalParent,
+        originalNextSibling
+      } = stockDrag;
       const target = cancelled ? null : dropTargetAt(event.clientX, event.clientY, dragKind);
       clearDropTarget();
       element.classList.remove("is-dragging");
       dragSurface?.classList.remove("is-stock-dragging");
       element.style.translate = "";
+      if (originalParent?.isConnected) {
+        const sibling = originalNextSibling?.parentNode === originalParent ? originalNextSibling : null;
+        originalParent.insertBefore(element, sibling);
+      }
       if (dragSurface?.hasPointerCapture(event.pointerId)) {
         dragSurface.releasePointerCapture(event.pointerId);
       }
@@ -897,6 +910,9 @@
         container._isoStockDragActive = true;
         element.classList.add("is-dragging");
         dragSurface?.classList.add("is-stock-dragging");
+        const originalParent = element.parentNode;
+        const originalNextSibling = element.nextSibling;
+        container.querySelector(".iso-overlay-layer")?.appendChild(element);
         stockDrag = {
           element,
           pointerId: event.pointerId,
@@ -906,7 +922,9 @@
           sourceDepartmentId: element.dataset.stockSourceId || element.dataset.cargoSourceId,
           partId: element.dataset.stockPartId,
           instanceId: element.dataset.stockInstanceId,
-          cargoId: element.dataset.cargoId
+          cargoId: element.dataset.cargoId,
+          originalParent,
+          originalNextSibling
         };
       });
     });
