@@ -1264,19 +1264,40 @@ h3,
 }
 
 .tutorial-focus.tutorial-stage-builder .workbench > :not(.lego-builder-panel),
-.tutorial-focus.tutorial-stage-logistics .workbench > :not(.data-model-panel) {
+.tutorial-focus.tutorial-stage-logistics .workbench > :not(.data-model-panel),
+.tutorial-focus.tutorial-stage-tower .workbench > :not(.tower-editor-panel) {
   display: none;
 }
 
 .tutorial-focus.tutorial-stage-builder .manager-dashboard > :not(.lego-builder-panel),
-.tutorial-focus.tutorial-stage-logistics .manager-dashboard > :not(.data-model-panel) {
+.tutorial-focus.tutorial-stage-logistics .manager-dashboard > :not(.data-model-panel),
+.tutorial-focus.tutorial-stage-tower .manager-dashboard > :not(.tower-editor-panel) {
   display: none !important;
 }
 
 .tutorial-focus .lego-builder-panel,
-.tutorial-focus .data-model-panel {
+.tutorial-focus .data-model-panel,
+.tutorial-focus .tower-editor-panel {
   min-height: calc(100vh - 126px);
 }
+
+.tower-tutorial-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.15rem;
+  border: 2px solid #32ddd2;
+  border-radius: 1rem;
+  background: #0d2930;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .28);
+}
+
+.tower-tutorial-guide[hidden] { display: none; }
+.tower-tutorial-guide h3,
+.tower-tutorial-guide p { margin: .2rem 0; }
+.tower-tutorial-guide.is-complete { border-color: #75df98; background: #103225; }
 
 .tutorial-focus .manager-dashboard .lego-builder-panel {
   display: block !important;

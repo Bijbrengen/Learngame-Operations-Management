@@ -539,8 +539,13 @@ verkoopprijs bijgeschreven met een groene plus-mutatie. Een zwevende
 saldo-indicator reageert rood of groen en het afsluitende overzicht toont
 inkoopkosten, verkoopopbrengst en marge. De bedragen en de aan/uit-status van
 geld komen uit de bestaande Game Master-state en product-/onderdeelcatalogus.
-Met `Naar Stap 5` verlaat de speler de begeleide route en begint de vrije game
-als meesterproef.
+Met `Naar Stap 5` opent de tutorial dezelfde Bouwtafel als het Torens-tabblad.
+De speler ontwerpt daar zelf een geldige toren van drie lagen, geeft haar een
+productnaam en verkoopprijs en kiest `Akkoord & toevoegen`. Alleen een werkelijk
+geregistreerd maatwerkproduct voltooit de opdracht: het verschijnt direct in
+Productassortiment en wordt via hetzelfde product-, opslag- en receptcontract
+beschikbaar voor de rest van LOM. Daarna kan de speler de tutorial afronden en
+de vrije game beginnen.
 
 Na het aanmelden staat de applicatie in tutorial-focusmodus: alleen de actieve
 bouwoefening of logistieke kaart is zichtbaar. De orderstroom, instellingen,

@@ -681,6 +681,41 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     ))).toBe(true);
   });
 
+  test("10b. tutorialstap 5 bouwt een toren en voegt hem echt aan het assortiment toe", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
+    await page.evaluate(() => {
+      localStorage.removeItem("learngame.om.customProducts.v1");
+      localStorage.removeItem("learngame.om.tutorialCompleted");
+      window.LEARNGameOMSimulator.startTowerDesignTutorial();
+    });
+
+    const guide = page.locator("#towerTutorialGuide");
+    const editor = page.locator("#towerEditorMount");
+    await expect(guide).toBeVisible();
+    await expect(guide).toContainText("stap 5 / 5");
+    await expect(page.locator("#towerEditorPanel")).toBeVisible();
+    for (let index = 0; index < 4; index += 1) {
+      await editor.locator('[data-add-tower-part="blue_8"]').click();
+    }
+    await editor.locator('input[name="name"]').fill("Tutorialtoren");
+    await editor.locator('input[name="price"]').fill("85");
+    await editor.getByRole("button", { name: "Akkoord & toevoegen" }).click();
+
+    await expect(guide).toContainText("staat nu in het productassortiment");
+    await expect(editor.getByRole("heading", { name: "Tutorialtoren" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (
+      JSON.parse(localStorage.getItem("learngame.om.customProducts.v1") || "[]")
+        .some(product => product.name === "Tutorialtoren")
+    ))).toBe(true);
+    await page.locator("#towerTutorialCompleteButton").click();
+    await expect.poll(() => page.evaluate(() => (
+      localStorage.getItem("learngame.om.tutorialCompleted")
+    ))).toBe("true");
+    await expect(guide).toBeHidden();
+  });
+
   test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }) => {
     await mockAuthenticatedApp(page);
     await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");

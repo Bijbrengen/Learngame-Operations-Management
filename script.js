@@ -1507,6 +1507,9 @@
     managerWorkbench: document.getElementById("managerWorkbench"),
     logisticsGameMount: document.getElementById("logisticsGameMount"),
     towerEditorMount: document.getElementById("towerEditorMount"),
+    towerTutorialGuide: document.getElementById("towerTutorialGuide"),
+    towerTutorialInstruction: document.getElementById("towerTutorialInstruction"),
+    towerTutorialCompleteButton: document.getElementById("towerTutorialCompleteButton"),
     playerTaskPanel: document.getElementById("playerTaskPanel"),
     playerWaitingPanel: document.getElementById("playerWaitingPanel"),
     playerRoleToken: document.getElementById("playerRoleToken"),
@@ -1748,6 +1751,24 @@
       towerSequence: [...product.towerSequence],
       groundPlate: { ...product.groundPlate }
     });
+    if (
+      state.tutorialStage === "tower"
+      && state.logisticsTutorial.phase === "tower_design"
+    ) {
+      state.logisticsTutorial.phase = "tower_assortment_complete";
+      setTowerTab("assortment", false);
+      updateTowerTutorialGuide(true, product);
+      dispatchInteraction({
+        actionType: "complete_tutorial_product_design",
+        learningObjectID: "tutorial_step_5_product_assortment",
+        objectRole: "product_configuration",
+        role: "Lerende",
+        result: "completed",
+        step: 5,
+        productId: product.id,
+        productName: product.name
+      });
+    }
     renderAll();
     return product;
   }
@@ -1884,7 +1905,7 @@
     state.appView = nextView;
     document.body.dataset.appView = nextView;
     if (nextView === "manager") {
-      document.body.classList.remove("tutorial-focus", "tutorial-stage-builder", "tutorial-stage-logistics");
+      document.body.classList.remove("tutorial-focus", "tutorial-stage-builder", "tutorial-stage-logistics", "tutorial-stage-tower");
       if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
     }
     syncWorkbenchVisibility(nextView);
@@ -4650,6 +4671,7 @@
   function resetLogisticsTutorial() {
     state.logisticsTutorial.active = false;
     state.logisticsTutorial.phase = "locked";
+    if (els.towerTutorialGuide) els.towerTutorialGuide.hidden = true;
     state.logisticsTutorial.warehouseStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.playerStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
     state.logisticsTutorial.assemblyStock = { blue_8: 0, yellow_4: 0, green_4: 0 };
@@ -4674,12 +4696,13 @@
   function setTutorialFocus(stage = "builder") {
     state.tutorialDismissed = false;
     logisticsGameController?.pause();
-    setManagerTab(stage === "logistics" ? "process" : "session", false);
+    setManagerTab(stage === "logistics" ? "process" : stage === "tower" ? "tower-editor" : "session", false);
     state.tutorialStage = stage;
     state.tutorialPaused = false;
     document.body.classList.add("tutorial-focus");
     document.body.classList.toggle("tutorial-stage-builder", stage === "builder");
     document.body.classList.toggle("tutorial-stage-logistics", stage === "logistics");
+    document.body.classList.toggle("tutorial-stage-tower", stage === "tower");
     syncWorkbenchVisibility(state.appView);
     if (els.tutorialExitButton) els.tutorialExitButton.hidden = false;
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
@@ -4691,7 +4714,8 @@
     document.body.classList.remove(
       "tutorial-focus",
       "tutorial-stage-builder",
-      "tutorial-stage-logistics"
+      "tutorial-stage-logistics",
+      "tutorial-stage-tower"
     );
     const activeView = sessionStorage.getItem("learngame.om.appView") || state.appView || "player";
     setAppView(activeView, false);
@@ -4808,6 +4832,7 @@
     state.tutorialDismissed = true;
     state.tutorialPaused = true;
     state.logisticsTutorial.active = false;
+    if (els.towerTutorialGuide) els.towerTutorialGuide.hidden = true;
     try {
       localStorage.setItem("learngame.om.tutorialDismissed", "true");
     } catch (e) {}
@@ -4867,6 +4892,8 @@
       els.dataModelPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     } else if (state.tutorialStage === "finance") {
       startFinancialTutorial();
+    } else if (state.tutorialStage === "tower") {
+      startTowerDesignTutorial(true);
     } else {
       setTutorialFocus("builder");
       renderAll();
@@ -4892,6 +4919,7 @@
     state.tutorialPaused = false;
     state.logisticsTutorial.active = false;
     state.logisticsTutorial.phase = completed ? "tutorial_complete" : "tutorial_skipped";
+    if (els.towerTutorialGuide) els.towerTutorialGuide.hidden = true;
     state.selectedLogisticsDepartmentId = "inbound";
     try {
       localStorage.setItem("learngame.om.tutorialDismissed", "true");
@@ -5376,6 +5404,48 @@
     return true;
   }
 
+  function updateTowerTutorialGuide(completed = false, product = null) {
+    if (!els.towerTutorialGuide) return;
+    els.towerTutorialGuide.hidden = false;
+    els.towerTutorialGuide.classList.toggle("is-complete", completed);
+    if (els.towerTutorialInstruction) {
+      els.towerTutorialInstruction.textContent = completed
+        ? `${product?.name || "Je nieuwe toren"} staat nu in het productassortiment. Bekijk de galerij en rond daarna de tutorial af.`
+        : "Bouw een geldige toren van drie lagen, geef hem een naam en verkoopprijs en kies daarna Akkoord & toevoegen.";
+    }
+    if (els.towerTutorialCompleteButton) els.towerTutorialCompleteButton.hidden = !completed;
+  }
+
+  function startTowerDesignTutorial(resuming = false) {
+    state.logisticsTutorial.active = false;
+    if (!resuming || state.logisticsTutorial.phase !== "tower_assortment_complete") {
+      state.logisticsTutorial.phase = "tower_design";
+    }
+    els.dataModelPanel.classList.remove("visible");
+    setAppView("manager", false);
+    setTutorialFocus("tower");
+    const completed = state.logisticsTutorial.phase === "tower_assortment_complete";
+    setTowerTab(completed ? "assortment" : "builder", false);
+    updateTowerTutorialGuide(completed);
+    dispatchInteraction({
+      actionType: "start_tutorial_product_design",
+      learningObjectID: "tutorial_step_5_product_assortment",
+      objectRole: "product_configuration",
+      role: "Lerende",
+      result: resuming ? "resumed" : "started",
+      step: 5
+    });
+    renderAll();
+    els.towerEditorMount?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
+  function finishTowerDesignTutorial() {
+    if (state.logisticsTutorial.phase !== "tower_assortment_complete") return false;
+    endTutorial({ completed: true });
+    return true;
+  }
+
   function finishFinancialTutorial() {
     if (state.logisticsTutorial.phase !== "financial_complete") return false;
     dispatchInteraction({
@@ -5386,8 +5456,7 @@
       result: "started",
       step: 5
     });
-    endTutorial({ completed: true });
-    return true;
+    return startTowerDesignTutorial();
   }
 
   function financialTutorialScene() {
@@ -7221,6 +7290,7 @@
     document.querySelectorAll("[data-tower-tab]").forEach(button => {
       button.addEventListener("click", () => setTowerTab(button.dataset.towerTab));
     });
+    els.towerTutorialCompleteButton?.addEventListener("click", finishTowerDesignTutorial);
     document.querySelectorAll("button[data-manager-tab]").forEach(button => {
       button.addEventListener("click", () => setManagerTab(button.dataset.managerTab));
     });
@@ -7686,6 +7756,8 @@
     transferFinancialTutorialProduct,
     deliverFinancialTutorialOrder,
     finishFinancialTutorial,
+    startTowerDesignTutorial,
+    finishTowerDesignTutorial,
     pauseTutorial,
     resumeTutorial,
     launchTutorial,

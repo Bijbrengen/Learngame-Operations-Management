@@ -1465,6 +1465,16 @@ process.stdout.write(JSON.stringify({
         self.assertIn('actionType: "tutorial_financial_material_issue"', game)
         self.assertIn('actionType: "complete_financial_tutorial_transaction"', game)
         self.assertIn('actionType: "start_tutorial_mastery_trial"', game)
+        self.assertIn("startTowerDesignTutorial", game)
+        self.assertIn('state.logisticsTutorial.phase = "tower_design"', game)
+        self.assertIn('actionType: "complete_tutorial_product_design"', game)
+        self.assertIn('id="towerTutorialGuide"', (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8"))
+        finish_finance = game.split("function finishFinancialTutorial() {", 1)[1].split(
+            "function financialTutorialScene",
+            1,
+        )[0]
+        self.assertIn("return startTowerDesignTutorial()", finish_finance)
+        self.assertNotIn("endTutorial({ completed: true })", finish_finance)
         self.assertIn('nextLabel: "Naar Stap 5"', game)
         self.assertIn('location.hash === "#tutorialStep4"', game)
         self.assertIn("financeHudMarkup", renderer)
