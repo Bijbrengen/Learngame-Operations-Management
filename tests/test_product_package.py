@@ -57,7 +57,7 @@ class ProductPackageTests(unittest.TestCase):
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
         self.assertIn('href="style.css?v=20260819d"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v228"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v229"', service_worker)
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -1760,6 +1760,11 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("digitalPartStageMarkup", ui)
         self.assertIn("digitalBuilderBoardMarkup", ui)
         self.assertIn("placeDigitalBoardPart", ui)
+        self.assertIn('components?.["lego-builder"]?.logic', ui)
+        self.assertIn("planRecipeBuild", ui)
+        self.assertIn("validatePlannedPlacement", ui)
+        self.assertNotIn("digitalLayerBricks", ui)
+        self.assertNotIn("Math.hypot(targetX - pointerX", ui)
         self.assertIn("data-sim-builder-board", ui)
         self.assertIn("eventTargetClosest", ui)
         self.assertIn('event.dataTransfer.dropEffect = "copy"', ui)
@@ -1787,6 +1792,7 @@ window.setInterval = () => 1;
 window.clearInterval = () => {{}};
 let now = 1000;
 eval(fs.readFileSync({json.dumps(str(renderer_path))}, "utf8"));
+eval(fs.readFileSync({json.dumps(str(SDK_LOGIC_PATH))}, "utf8"));
 eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
 eval(fs.readFileSync({json.dumps(str(ui_path))}, "utf8"));
 const Engine = window.LogisticsGameEngine.LogisticsGameEngine;

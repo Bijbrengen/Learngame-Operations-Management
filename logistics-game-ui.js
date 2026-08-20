@@ -886,7 +886,7 @@
         const required = Number(task.requiredParts?.[partId] || 0);
         const selected = Number(this.selectedParts[partId] || 0);
         const complete = required > 0 && selected >= required;
-        const dimensions = this.digitalPartDimensions(partId);
+        const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
         const selectedClass = this.digitalSelectedPartId === partId ? " is-selected" : "";
         const partVisual = window.LegoTowerRenderer
           ? window.LegoTowerRenderer.renderPart(
@@ -914,83 +914,32 @@
       }).join("");
     }
 
-    digitalPartDimensions(partId) {
-      const size = String(this.engine.parts[partId]?.size || "");
-      const dimensions = size.match(/(\d+)\D+(\d+)/);
-      return {
-        width: Number(dimensions?.[1] || 2),
-        depth: Number(dimensions?.[2] || 2)
-      };
-    }
-
-    digitalLayerBricks(task, roleId, z) {
-      const recipe = Object.entries(task.product?.stages?.[roleId] || {})
-        .filter(([partId]) => partId !== "base_green")
-        .flatMap(([partId, amount]) => Array.from(
-          { length: Math.max(0, Number(amount) || 0) },
-          () => ({ type: partId, ...this.digitalPartDimensions(partId) })
-        ));
-      if (!recipe.length) return [];
-      if (recipe.length === 1) {
-        const brick = recipe[0];
-        if (brick.width !== brick.depth && z === 1) {
-          return [{ ...brick, x: 1, y: 2, width: 4, depth: 2, z }];
-        }
-        return [{ ...brick, x: 2, y: brick.depth === 4 ? 1 : 2, z }];
+    builderCore() {
+      const core = window.LeerpretSDK?.components?.["lego-builder"]?.logic;
+      if (!core?.planRecipeBuild || !core?.validatePlannedPlacement) {
+        throw new Error("De centrale LeerpretSDK-bouwkern is niet geladen.");
       }
-      if (recipe.length === 2 && recipe.every(brick => brick.width === 2 && brick.depth === 4)) {
-        return recipe.map((brick, index) => ({ ...brick, x: 1 + index * 2, y: 1, z }));
-      }
-      if (recipe.every(brick => brick.width === 2 && brick.depth === 2)) {
-        const positions = [[1, 1], [3, 1], [1, 3], [3, 3]];
-        return recipe.map((brick, index) => ({
-          ...brick,
-          x: positions[index % positions.length][0],
-          y: positions[index % positions.length][1],
-          z
-        }));
-      }
-      return recipe.map((brick, index) => ({
-        ...brick,
-        x: Math.max(0, Math.min(6 - brick.width, 1 + (index * 2) % 4)),
-        y: Math.max(0, Math.min(6 - brick.depth, 1 + Math.floor(index / 2) * 2)),
-        z
-      }));
+      return core;
     }
 
     digitalBuildState(task) {
-      const stageOrder = ["pd1", "pd2", "pd3"];
-      const currentIndex = stageOrder.indexOf(task.role.id);
-      const handlesCompleteTower = task.order?.productionRoute === "parallel"
-        && task.order?.productionDepartment === task.role.id;
-      const previous = handlesCompleteTower
-        ? []
-        : stageOrder
-          .slice(0, Math.max(0, currentIndex))
-          .flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index));
-      const targets = handlesCompleteTower
-        ? stageOrder.flatMap((roleId, index) => this.digitalLayerBricks(task, roleId, index))
-        : currentIndex >= 0
-          ? this.digitalLayerBricks(task, task.role.id, currentIndex)
-          : [];
-      const selectedCount = [...new Set(targets.map(target => target.type))].reduce(
-        (total, partId) => total + Number(this.selectedParts[partId] || 0),
-        0
-      );
-      const quantity = Math.max(1, Number(task.order?.quantity || 1));
-      const perTower = Math.max(1, targets.length);
-      const completedTowers = Math.min(quantity, Math.floor(selectedCount / perTower));
-      const complete = completedTowers >= quantity;
-      const placedCount = complete ? targets.length : selectedCount % perTower;
+      const plan = this.builderCore().planRecipeBuild({
+        stageOrder: ["pd1", "pd2", "pd3"],
+        currentStage: task.role.id,
+        route: task.order?.productionRoute,
+        assignedStage: task.order?.productionDepartment,
+        stages: task.product?.stages,
+        pieces: this.engine.parts,
+        selectedCounts: this.selectedParts,
+        quantity: task.order?.quantity,
+        groundPlatePartId: "base_green",
+        boardWidth: 6,
+        boardDepth: 6
+      });
       return {
-        previous,
-        targets,
-        placed: targets.slice(0, placedCount),
-        nextTarget: complete ? null : targets[placedCount],
-        quantity,
-        completedTowers,
-        currentTower: complete ? quantity : Math.min(quantity, completedTowers + 1),
-        complete
+        ...plan,
+        completedTowers: plan.completedUnits,
+        currentTower: plan.currentUnit
       };
     }
 
@@ -1079,32 +1028,31 @@
       if (!task || !["pd1", "pd2", "pd3"].includes(task.role.id)) return false;
       const state = this.digitalBuildState(task);
       const target = state.nextTarget;
-      if (!target) {
+      const rect = board.getBoundingClientRect?.();
+      let pointer = null;
+      let targetPoint = null;
+      if (target && rect?.width && rect?.height && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+        pointer = { x: ((event.clientX - rect.left) / rect.width) * 520, y: ((event.clientY - rect.top) / rect.height) * 420 };
+        const projected = window.LegoTowerRenderer.iso(target.x + target.width / 2, target.y + target.depth / 2, 0.27 + target.z * 0.78);
+        targetPoint = { x: 170 + projected[0] * 2, y: 62 + projected[1] * 2 };
+      }
+      const validation = this.builderCore().validatePlannedPlacement({
+        plan: state, partId, pointer, targetPoint, tolerance: 90
+      });
+      if (validation.reason === "build_complete") {
         this.feedback = "Alle torens voor deze order zijn al opgebouwd.";
         this.render();
         return false;
       }
-      if (partId !== target.type) {
+      if (validation.reason === "wrong_part") {
         this.feedback = `${this.engine.parts[partId]?.label || "Dit onderdeel"} hoort niet op het gemarkeerde bouwvlak.`;
         this.render();
         return false;
       }
-      const rect = board.getBoundingClientRect?.();
-      if (rect?.width && rect?.height && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
-        const pointerX = ((event.clientX - rect.left) / rect.width) * 520;
-        const pointerY = ((event.clientY - rect.top) / rect.height) * 420;
-        const projected = window.LegoTowerRenderer.iso(
-          target.x + target.width / 2,
-          target.y + target.depth / 2,
-          0.27 + target.z * 0.78
-        );
-        const targetX = 170 + projected[0] * 2;
-        const targetY = 62 + projected[1] * 2;
-        if (Math.hypot(targetX - pointerX, targetY - pointerY) > 90) {
-          this.feedback = "Plaats het blok op het gemarkeerde bouwvlak.";
-          this.render();
-          return false;
-        }
+      if (validation.reason === "outside_target") {
+        this.feedback = "Plaats het blok op het gemarkeerde bouwvlak.";
+        this.render();
+        return false;
       }
       this.digitalSelectedPartId = null;
       return this.addDigitalPart(partId);

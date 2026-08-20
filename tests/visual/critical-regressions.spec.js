@@ -286,7 +286,11 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("6. order van drie blokkeert overdracht tot batchbouw en getekende orderparaaf", async ({ page }) => {
     await page.goto("/");
-    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.waitForFunction(() => (
+      window.LogisticsGameEngine
+      && window.LogisticsGameUI
+      && window.LeerpretSDK?.components?.["lego-builder"]?.logic?.planRecipeBuild
+    ));
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="batch-regression"></main>';
