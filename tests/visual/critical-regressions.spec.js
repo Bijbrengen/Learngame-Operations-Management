@@ -512,6 +512,83 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
+  test("7b. een langzaam versleepte tutorialtoren houdt capture tot werkelijk loslaten", async ({ page }) => {
+    const sdkBase = process.env.CI
+      ? "https://api.leerpretpark.nl/api"
+      : "http://127.0.0.1:47111/api";
+    const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
+    expect(manifestResponse.ok()).toBe(true);
+    const manifest = await manifestResponse.json();
+    await page.goto("/style.css");
+    await page.setContent('<!doctype html><html><head></head><body><main id="cargo-drag-test"></main></body></html>');
+    await page.addStyleTag({ url: "/style.css" });
+    await page.addScriptTag({ url: `${sdkBase}/sdk/sdk-loader/loader.js?v=${manifest.version}` });
+    await page.evaluate(async ({ sdkBase, manifest }) => {
+      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer"]);
+    }, { sdkBase, manifest });
+    await page.addScriptTag({ url: "/isometric-logistics-view.js" });
+    await page.evaluate(() => {
+      window.__towerDragDrop = null;
+      window.__towerDragScene = {
+        title: "Langzame torensleepregressie",
+        legend: [],
+        connections: [],
+        departments: [{
+          id: "production",
+          title: "Productie",
+          shortTitle: "Productie",
+          departmentColor: "production-b",
+          status: "active",
+          openRoof: true,
+          layout: { x: 1, y: 2, width: 3, depth: 3, height: 58 },
+          cargoVisual: {
+            kind: "tower",
+            cargoId: "tutorial_tower_b",
+            label: "Toren B",
+            draggable: true,
+            towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+          }
+        }, {
+          id: "finished",
+          title: "Gereed product",
+          shortTitle: "Gereed",
+          departmentColor: "finished",
+          status: "idle",
+          openRoof: true,
+          acceptsCargoDrop: true,
+          layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+        }],
+        tutorial: { active: true, visualOnly: true, stepLabel: "5 / 5" }
+      };
+      const mount = () => window.IsometricLogisticsView.mount(
+        document.getElementById("cargo-drag-test"),
+        window.__towerDragScene,
+        { onCargoDrop: payload => { window.__towerDragDrop = payload; return true; } }
+      );
+      window.__remountTowerDragScene = mount;
+      mount();
+    });
+
+    const tower = page.locator(".iso-cargo-tower.is-draggable");
+    const target = page.locator('[data-department-id="finished"]');
+    const targetBox = await target.boundingBox();
+    expect(targetBox).not.toBeNull();
+    await tower.hover();
+    await page.mouse.down();
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__remountTowerDragScene());
+    await expect(page.locator(".iso-logistics-view")).toHaveClass(/is-stock-dragging/);
+    await expect(tower).toHaveCSS("cursor", "grabbing");
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(() => page.evaluate(() => window.__towerDragDrop)).toMatchObject({
+      sourceDepartmentId: "production",
+      targetDepartmentId: "finished",
+      cargoId: "tutorial_tower_b"
+    });
+  });
+
   test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }) => {
     await mockAuthenticatedApp(page);
     await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");

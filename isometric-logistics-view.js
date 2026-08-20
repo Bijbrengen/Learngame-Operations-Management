@@ -828,8 +828,8 @@
       element.classList.remove("is-dragging");
       dragSurface?.classList.remove("is-stock-dragging");
       element.style.translate = "";
-      if (element.hasPointerCapture(event.pointerId)) {
-        element.releasePointerCapture(event.pointerId);
+      if (dragSurface?.hasPointerCapture(event.pointerId)) {
+        dragSurface.releasePointerCapture(event.pointerId);
       }
       stockDrag = null;
       let accepted = null;
@@ -862,7 +862,10 @@
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        element.setPointerCapture(event.pointerId);
+        // Capture op de stabiele HTML-kaart in plaats van het samengestelde
+        // SVG-object. Vooral een toren bevat veel geneste vlakken die in
+        // browsers afzonderlijk hit-tested worden.
+        dragSurface?.setPointerCapture(event.pointerId);
         container._isoStockDragActive = true;
         element.classList.add("is-dragging");
         dragSurface?.classList.add("is-stock-dragging");
@@ -878,17 +881,17 @@
           cargoId: element.dataset.cargoId
         };
       });
-      element.addEventListener("pointermove", event => {
-        if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
-        const deltaX = event.clientX - stockDrag.startX;
-        const deltaY = event.clientY - stockDrag.startY;
-        element.style.translate = `${deltaX}px ${deltaY}px`;
-        clearDropTarget();
-        dropTargetAt(event.clientX, event.clientY, stockDrag.dragKind)?.classList.add("is-drag-over");
-      });
-      element.addEventListener("pointerup", finishStockDrag);
-      element.addEventListener("pointercancel", event => finishStockDrag(event, true));
     });
+    dragSurface?.addEventListener("pointermove", event => {
+      if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
+      const deltaX = event.clientX - stockDrag.startX;
+      const deltaY = event.clientY - stockDrag.startY;
+      stockDrag.element.style.translate = `${deltaX}px ${deltaY}px`;
+      clearDropTarget();
+      dropTargetAt(event.clientX, event.clientY, stockDrag.dragKind)?.classList.add("is-drag-over");
+    });
+    dragSurface?.addEventListener("pointerup", finishStockDrag);
+    dragSurface?.addEventListener("pointercancel", event => finishStockDrag(event, true));
     container.querySelector(".iso-department-action")?.addEventListener("click", event => {
       const departmentId = event.currentTarget.dataset.departmentAction;
       if (departmentId && typeof options.onDepartmentAction === "function") {
