@@ -59,6 +59,14 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     const board = page.locator(".builder-board");
     const selectedFoundationBrick = page.locator('[data-piece-type="yellow_8"]');
 
+    const tutorialPieces = page.locator(".builder-palette-item");
+    await expect(tutorialPieces).not.toHaveCount(0);
+    await expect(page.locator('.builder-inventory-bin[data-inventory-bin-mode="tutorial"]'))
+      .toHaveCount(await tutorialPieces.count());
+    for (const pieceType of ["red_8", "yellow_8", "blue_8", "green_4"]) {
+      await expect(page.locator(`[data-piece-type="${pieceType}"] .builder-inventory-bin`)).toBeVisible();
+    }
+
     await selectedFoundationBrick.click();
     await expect.poll(() => page.evaluate(() => window.LegoBuilder.getSnapshot().rotated)).toBe(true);
     await selectedFoundationBrick.click();
