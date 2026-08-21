@@ -1956,6 +1956,17 @@
   function render() {
     const els = elements();
     if (!state.authenticated) return;
+    const currentJoinCodeInput = els.playerContent.querySelector(
+      '[data-game-code-join] input[name="join_code"]'
+    );
+    const joinCodeDraft = currentJoinCodeInput
+      ? {
+          value: currentJoinCodeInput.value,
+          focused: document.activeElement === currentJoinCodeInput,
+          selectionStart: currentJoinCodeInput.selectionStart,
+          selectionEnd: currentJoinCodeInput.selectionEnd
+        }
+      : null;
     const openPlayerIndices = Array.from(els.playerContent.querySelectorAll("details"))
       .map((el, i) => el.hasAttribute("open") ? i : -1)
       .filter(i => i !== -1);
@@ -2036,6 +2047,23 @@
       els.managerContent.hidden = false;
       if (!els.managerContent.querySelector("#gameSessionCreateForm[data-runtime-session-form]")) {
         els.managerContent.innerHTML = createSessionMarkup();
+      }
+    }
+    if (!state.session && joinCodeDraft) {
+      const nextJoinCodeInput = els.playerContent.querySelector(
+        '[data-game-code-join] input[name="join_code"]'
+      );
+      if (nextJoinCodeInput) {
+        nextJoinCodeInput.value = joinCodeDraft.value;
+        if (joinCodeDraft.focused) {
+          nextJoinCodeInput.focus({ preventScroll: true });
+          if (joinCodeDraft.selectionStart != null && joinCodeDraft.selectionEnd != null) {
+            nextJoinCodeInput.setSelectionRange(
+              joinCodeDraft.selectionStart,
+              joinCodeDraft.selectionEnd
+            );
+          }
+        }
       }
     }
     const playerDetails = els.playerContent.querySelectorAll("details");

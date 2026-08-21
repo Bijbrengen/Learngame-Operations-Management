@@ -46,6 +46,32 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await openManagerSettings(page);
   });
 
+  test("de gamecode en invoerfocus blijven tijdens lobbyverversingen behouden", async ({ page }) => {
+    await page.evaluate(() => window.LEARNGameOMSimulator.setAppView("player"));
+    const gameCode = page.locator('[data-game-code-join] input[name="join_code"]');
+    await gameCode.fill("ABC123");
+    await gameCode.evaluate(input => input.setSelectionRange(3, 3));
+
+    await page.waitForTimeout(3_300);
+
+    await expect(gameCode).toHaveValue("ABC123");
+    await expect(gameCode).toBeFocused();
+  });
+
+  test("Toren B gebruikt werkelijk blauwe 2 bij 4-blokken", async ({ page }) => {
+    const dimensions = await page.evaluate(() => {
+      const parts = window.LogisticsGameEngine.PART_DEFINITIONS;
+      const core = window.LeerpretSDK.components["lego-builder"].logic;
+      return {
+        blueWide: core.pieceDimensions("blue_8", parts),
+        blueSquare: core.pieceDimensions("blue_4", parts)
+      };
+    });
+
+    expect(dimensions.blueWide).toEqual({ width: 4, depth: 2 });
+    expect(dimensions.blueSquare).toEqual({ width: 2, depth: 2 });
+  });
+
   test("de aparte Opstelling blijft direct met de gekozen preset gesynchroniseerd", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
