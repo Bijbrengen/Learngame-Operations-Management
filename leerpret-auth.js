@@ -25,7 +25,18 @@
     const fallback = configuredApiBase();
     try {
       const url = new URL(String(value || fallback).trim(), location.origin);
-      return ["http:", "https:"].includes(url.protocol)
+      if (!["http:", "https:"].includes(url.protocol)) return fallback;
+      const configuredOrigin = new URL(fallback, location.origin).origin;
+      const configuredAllowlist = Array.isArray(window.LEARNGAME_OM_CONFIG?.allowedApiOrigins)
+        ? window.LEARNGAME_OM_CONFIG.allowedApiOrigins
+        : [];
+      const allowedOrigins = new Set([configuredOrigin, ...configuredAllowlist.map(origin => {
+        try { return new URL(String(origin), location.origin).origin; } catch { return ""; }
+      })]);
+      const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+      const localDevelopmentOverride = localHosts.has(location.hostname)
+        && localHosts.has(url.hostname);
+      return allowedOrigins.has(url.origin) || localDevelopmentOverride
         ? url.toString().replace(/\/+$/, "")
         : fallback;
     } catch {
@@ -339,6 +350,11 @@
   }
 
   async function logout() {
+    try {
+      await window.LOMGameSessions?.prepareLogout?.();
+    } catch {
+      // De gamesessiemodule ruimt lokaal altijd op; auth-uitloggen blijft mogelijk.
+    }
     try {
       await request("/auth/leerbox/logout", { method: "POST" });
     } catch {

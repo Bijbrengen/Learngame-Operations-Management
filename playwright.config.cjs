@@ -30,9 +30,8 @@ if (!appUrl) {
 }
 
 const endpoint = new URL(appUrl);
-if (!endpoint.port) {
-  throw new Error("LEARNGAME_OM_URL moet een expliciete poort bevatten");
-}
+const localServer = ["127.0.0.1", "localhost", "::1"].includes(endpoint.hostname);
+if (localServer && !endpoint.port) throw new Error("Een lokale LEARNGAME_OM_URL moet een expliciete poort bevatten");
 
 module.exports = defineConfig({
   testDir: "./tests/visual",
@@ -74,11 +73,11 @@ module.exports = defineConfig({
       }
     }
   ],
-  webServer: {
+  webServer: localServer ? {
     command: `python -m http.server ${endpoint.port} --bind ${endpoint.hostname}`,
     cwd: root,
     url: appUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 15_000
-  }
+  } : undefined
 });

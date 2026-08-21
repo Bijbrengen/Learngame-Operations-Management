@@ -94,6 +94,9 @@
             return instances.get(key).interact(record.actionType || "interaction", {
               timestamp: record.timestamp || new Date().toISOString(),
               session_id: record.sessionID || null,
+              game_session_id: record.sessionID || null,
+              group_id: record.sessionID || null,
+              event_id: record.eventID || record.event_id || null,
               simulated_minute: record.simulatedMinute,
               result: record.result || null,
               stage: record.stage == null ? null : String(record.stage),

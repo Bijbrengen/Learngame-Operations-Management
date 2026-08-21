@@ -1,7 +1,29 @@
 (() => {
   const LEARNING_BOX_ID = "learngame-operations-management";
   const LEARNING_OBJECT_ID = "lom.interface";
-  const PERSON_ID = `lom-session-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 12)}`;
+  const PERSON_ID_STORAGE = "learngame.om.personId.v1";
+  const INTERACTION_OUTBOX_STORAGE = "learngame.om.interactionOutbox.v1";
+  const INTERACTION_OUTBOX_ITEM_PREFIX = "learngame.om.interactionOutbox.v2:";
+  const volatileInteractionOutbox = new Map();
+  function randomIdentifier(prefix) {
+    return `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}`;
+  }
+  function loadFallbackPersonId() {
+    try {
+      const stored = localStorage.getItem(PERSON_ID_STORAGE);
+      if (stored) return stored;
+      const created = randomIdentifier("lom-person");
+      localStorage.setItem(PERSON_ID_STORAGE, created);
+      return created;
+    } catch {
+      return randomIdentifier("lom-person");
+    }
+  }
+  const fallbackPersonId = loadFallbackPersonId();
+  let measurementPersonId = fallbackPersonId;
+  let interactionSequence = 0;
+  let outboxFlushPromise = null;
+  let outboxRetryTimer = null;
   const CUSTOM_PRODUCTS_STORAGE = "learngame.om.customProducts.v1";
   const GROUND_PLATE_COLORS = new Set([
     "green",
@@ -2098,7 +2120,7 @@
   function dispatchInteraction(event = {}) {
     const learningObjectID = event.learningObjectID || event.stage || event.screen || event.partId || event.productType || LEARNING_OBJECT_ID;
     const record = {
-      personID: event.personID || PERSON_ID,
+      personID: event.personID || measurementPersonId,
       learningObjectID,
       learningBoxID: event.learningBoxID || LEARNING_BOX_ID,
       sessionID: state.sessionId,
@@ -2108,16 +2130,18 @@
       actionType: event.actionType || "interaction",
       ...event
     };
+    interactionSequence += 1;
+    record.eventID = event.eventID || [
+      record.sessionID || "no-session",
+      record.personID,
+      String(interactionSequence).padStart(6, "0"),
+      randomIdentifier("event")
+    ].join(":");
     state.interactionBuffer.push(record);
     const contractEvent = toInteractionEventV1(record, state.interactionBuffer.length);
     state.contractEventBuffer.push(contractEvent);
-    window.LeerpretSDKReady
-      ?.then(bridge => bridge.track(record))
-      .catch(error => {
-        record.deliveryStatus = "failed";
-        record.deliveryError = String(error?.message || error);
-        window.dispatchEvent(new CustomEvent("learngame-om-interaction-error", { detail: { record, error } }));
-      });
+    enqueueInteraction(record);
+    void flushInteractionOutbox();
     if (window.parent !== window && !window.__LEERPRET_PREVIEW_BRIDGE__) {
       const targetOrigin = document.referrer ? new URL(document.referrer).origin : "*";
       window.parent.postMessage({
@@ -2135,7 +2159,8 @@
   function toInteractionEventV1(record, sequence) {
     const knownKeys = new Set([
       "personID", "learningObjectID", "learningBoxID", "sessionID", "timestamp",
-      "actionType", "result", "objectRole", "stage", "strategy", "durationMs"
+      "actionType", "result", "objectRole", "stage", "strategy", "durationMs",
+      "eventID", "deliveryStatus", "deliveryError"
     ]);
     const attributes = Object.fromEntries(
       Object.entries(record).filter(([key, value]) => !knownKeys.has(key) && value !== undefined)
@@ -2147,7 +2172,7 @@
     return {
       specversion: "1.0",
       type: `nl.leerpret.interaction.${actionType}.v1`,
-      id: `${record.sessionID || state.sessionId}:${String(sequence).padStart(6, "0")}`,
+      id: record.eventID || `${record.sessionID || state.sessionId}:${record.personID}:${String(sequence).padStart(6, "0")}`,
       source: "urn:leerpret:leerbox:learngame-operations-management",
       time: record.timestamp,
       subject: String(record.learningObjectID),
@@ -2927,19 +2952,7 @@
   }
 
   function simulationRoleId(roleId) {
-    if (!roleId) return null;
-    roleId = runtimeRoleId(roleId);
-    if (roleId.startsWith("customer")) return "customer";
-    return {
-      opr: "operations",
-      operations: "operations",
-      srm: "srm",
-      pd1: "pd1",
-      pd2: "pd2",
-      pd3: "pd3",
-      mfp: "ssf",
-      ssf: "ssf"
-    }[roleId] || null;
+    return window.LOMRuntimeRoles?.stationId(roleId) || null;
   }
 
   const STANDALONE_SIMULATION_DEPARTMENTS = [
@@ -3272,6 +3285,11 @@
         "order-delivered"
       ]);
       if (!trackedEvents.has(event.type)) return;
+      // In een gedeelde sessie registreert de controller de rolgebonden
+      // servercommandos hieronder met de member-id van de werkelijke actor.
+      // Generieke engine-events zouden ze anders ten onrechte aan de
+      // controller toeschrijven.
+      if (window.LOMMultiplayerRuntime?.getState?.().sessionId) return;
       dispatchInteraction({
         actionType: `simulation_${event.type.replace(/-/g, "_")}`,
         result: "success",
@@ -3285,7 +3303,8 @@
 
   function startStandaloneLogisticsGame(
     difficultyLevel = state.gameSessionDifficulty,
-    sessionGameConfig = null
+    sessionGameConfig = null,
+    runtimeOptions = {}
   ) {
     if (!logisticsGameController) initStandaloneLogisticsGame();
     if (!logisticsGameController) return;
@@ -3317,8 +3336,12 @@
     logisticsGameController.engine.setPlayMode(playMode);
     logisticsGameController.engine.setProductionProcesses(state.config.productionProcesses);
     const humanRoleId = simulationRoleId(state.assignedRoleId);
+    const humanRoleIds = Array.isArray(runtimeOptions.humanRoleIds)
+      ? [...new Set(runtimeOptions.humanRoleIds.map(simulationRoleId).filter(Boolean))]
+      : (humanRoleId ? [humanRoleId] : []);
     logisticsGameController.start({
       humanRoleId,
+      humanRoleIds,
       customerOrderMode,
       gameType: state.config.gameType,
       organizationModel,
@@ -3328,6 +3351,9 @@
       intermediateStock: state.config.intermediateStock,
       enabledRoles: [...state.config.enabledRoles]
     });
+    if (runtimeOptions.runLoop === false) {
+      logisticsGameController.engine.loop.stop();
+    }
     if (document.body.classList.contains("tutorial-focus")) {
       logisticsGameController.pause();
     } else {
@@ -5977,6 +6003,147 @@
     };
   }
 
+  function readInteractionOutbox() {
+    const items = new Map();
+    try {
+      const legacyRaw = localStorage.getItem(INTERACTION_OUTBOX_STORAGE);
+      if (legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw);
+          let migratedAll = Array.isArray(legacy);
+          if (Array.isArray(legacy)) {
+            legacy.filter(item => item?.id && item?.record).forEach(item => {
+              items.set(item.id, item);
+              if (!persistOutboxItem(item, { reportFailure: false })) migratedAll = false;
+            });
+          }
+          if (migratedAll) localStorage.removeItem(INTERACTION_OUTBOX_STORAGE);
+        } catch (error) {
+          localStorage.removeItem(INTERACTION_OUTBOX_STORAGE);
+          window.dispatchEvent(new CustomEvent("learngame-om-telemetry-outbox-corrupt", {
+            detail: { storageKey: INTERACTION_OUTBOX_STORAGE, error }
+          }));
+          console.warn("Een onleesbare oude telemetrie-outbox is verwijderd; nieuwe losse records blijven beschikbaar.", error);
+        }
+      }
+    } catch {}
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key?.startsWith(INTERACTION_OUTBOX_ITEM_PREFIX)) continue;
+        try {
+          const item = JSON.parse(localStorage.getItem(key) || "null");
+          if (item?.id && item?.record) items.set(item.id, item);
+        } catch {}
+      }
+    } catch {}
+    volatileInteractionOutbox.forEach((item, id) => items.set(id, item));
+    return [...items.values()].sort((first, second) => (
+      String(first.queued_at || first.record?.timestamp || first.id)
+        .localeCompare(String(second.queued_at || second.record?.timestamp || second.id))
+    ));
+  }
+
+  function outboxItemKey(eventId) {
+    return `${INTERACTION_OUTBOX_ITEM_PREFIX}${eventId}`;
+  }
+
+  function persistOutboxItem(item, { reportFailure = true } = {}) {
+    try {
+      localStorage.setItem(outboxItemKey(item.id), JSON.stringify(item));
+      volatileInteractionOutbox.delete(item.id);
+      return true;
+    } catch (error) {
+      volatileInteractionOutbox.set(item.id, item);
+      if (reportFailure) {
+        window.dispatchEvent(new CustomEvent("learngame-om-telemetry-storage-full", {
+          detail: { eventId: item.id, error, retainedInMemory: true }
+        }));
+        console.error("Telemetrie kon niet duurzaam lokaal worden bewaard; de actie blijft in deze tab in de wachtrij.", error);
+      }
+      return false;
+    }
+  }
+
+  function enqueueInteraction(record) {
+    if (!readInteractionOutbox().some(item => item.id === record.eventID)) {
+      persistOutboxItem({
+        id: record.eventID,
+        record: { ...record },
+        attempts: 0,
+        queued_at: new Date().toISOString()
+      });
+    }
+    record.deliveryStatus = "pending";
+  }
+
+  function updateOutboxItem(eventId, updater) {
+    const existing = readInteractionOutbox().find(item => item.id === eventId);
+    if (!existing) return readInteractionOutbox();
+    const updated = updater(existing);
+    if (updated) {
+      persistOutboxItem(updated);
+    } else {
+      volatileInteractionOutbox.delete(eventId);
+      try { localStorage.removeItem(outboxItemKey(eventId)); } catch {}
+    }
+    return readInteractionOutbox();
+  }
+
+  function scheduleOutboxRetry(attempts = 1) {
+    clearTimeout(outboxRetryTimer);
+    const delay = Math.min(30000, 1000 * (2 ** Math.min(5, Math.max(0, attempts - 1))));
+    outboxRetryTimer = setTimeout(() => void flushInteractionOutbox(), delay);
+  }
+
+  async function flushInteractionOutbox() {
+    if (outboxFlushPromise) return outboxFlushPromise;
+    let retryAttempts = null;
+    const operation = (async () => {
+      const bridge = await window.LeerpretSDKReady;
+      for (const queued of readInteractionOutbox()) {
+        try {
+          await bridge.track(queued.record);
+          updateOutboxItem(queued.id, () => null);
+          const inMemory = state.interactionBuffer.find(item => item.eventID === queued.id);
+          if (inMemory) {
+            inMemory.deliveryStatus = "delivered";
+            delete inMemory.deliveryError;
+          }
+        } catch (error) {
+          const attempts = Number(queued.attempts || 0) + 1;
+          updateOutboxItem(queued.id, item => ({
+            ...item,
+            attempts,
+            last_error: String(error?.message || error),
+            last_attempt_at: new Date().toISOString()
+          }));
+          const inMemory = state.interactionBuffer.find(item => item.eventID === queued.id);
+          if (inMemory) {
+            inMemory.deliveryStatus = "pending";
+            inMemory.deliveryError = String(error?.message || error);
+          }
+          window.dispatchEvent(new CustomEvent("learngame-om-interaction-error", {
+            detail: { record: queued.record, error, willRetry: true }
+          }));
+          retryAttempts = attempts;
+          scheduleOutboxRetry(attempts);
+          break;
+        }
+      }
+    })().catch(error => {
+      scheduleOutboxRetry(1);
+      console.warn("De telemetrie-outbox wacht tot de Engine weer bereikbaar is.", error);
+    }).finally(() => {
+      if (outboxFlushPromise === operation) outboxFlushPromise = null;
+      if (retryAttempts === null && readInteractionOutbox().length && navigator.onLine) {
+        scheduleOutboxRetry(1);
+      }
+    });
+    outboxFlushPromise = operation;
+    return operation;
+  }
+
   function mountSessionLayout() {
     const target = document.querySelector("[data-session-layout-lego]");
     if (!target || !window.IsometricLogisticsView) return false;
@@ -7155,14 +7322,49 @@
   }
 
   function wireEvents() {
+    window.addEventListener("learngame-multiplayer-command-applied", event => {
+      const command = event.detail?.command;
+      if (!command?.command_id || !command?.member_id) return;
+      const result = event.detail?.result || {};
+      const telemetry = command.payload?._telemetry || {};
+      dispatchInteraction({
+        personID: String(command.member_id),
+        eventID: String(command.command_id),
+        timestamp: command.submitted_at || telemetry.timestamp || new Date().toISOString(),
+        learningObjectID: String(
+          telemetry.learning_object_id || `lom.simulation.${command.role_id || "unknown"}`
+        ),
+        actionType: String(
+          telemetry.action_type
+          || (result.ok === false ? "simulation_role_action_rejected" : "simulation_role_action_completed")
+        ).replace(/_submitted$/, result.ok === false ? "_rejected" : "_completed"),
+        result: result.ok === false ? "rejected" : "success",
+        objectRole: result.ok === false ? "resistance" : "success",
+        roleId: command.role_id || null,
+        orderId: telemetry.order_id || null,
+        productType: telemetry.product_id || null,
+        commandId: String(command.command_id),
+        errors: Array.isArray(result.errors) ? result.errors.slice(0, 10) : []
+      });
+    });
     window.addEventListener("learngame-session-state", event => {
-      state.gameSessionExists = Boolean(event.detail?.session?.session_id);
-      state.gameSessionRunning = Boolean(event.detail?.running);
-      state.gameSessionDifficulty = event.detail?.session?.difficulty_level || "normal";
-      if (event.detail?.session?.game_config) {
-        applyGameSessionConfig(event.detail.session.game_config);
+      const session = event.detail?.session || null;
+      const hadSharedSession = state.gameSessionExists;
+      measurementPersonId = session?.current_member_id
+        ? String(session.current_member_id)
+        : fallbackPersonId;
+      if (session?.session_id) {
+        state.sessionId = String(session.session_id);
+      } else if (hadSharedSession || !String(state.sessionId || "").startsWith("icg2-v2-")) {
+        state.sessionId = randomIdentifier("icg2-v2");
       }
-      configureCustomerDecision(event.detail?.session);
+      state.gameSessionExists = Boolean(session?.session_id);
+      state.gameSessionRunning = Boolean(event.detail?.running);
+      state.gameSessionDifficulty = session?.difficulty_level || "normal";
+      if (session?.game_config) {
+        applyGameSessionConfig(session.game_config);
+      }
+      configureCustomerDecision(session);
       if (!state.gameSessionRunning) {
         state.attention.mode = "task";
         logisticsGameController?.stop();
@@ -7174,6 +7376,9 @@
     window.addEventListener("learngame-session-started", event => {
       const session = event.detail?.session;
       if (!session?.session_id) return;
+      measurementPersonId = session.current_member_id
+        ? String(session.current_member_id)
+        : fallbackPersonId;
       state.gameSessionExists = true;
       state.gameSessionRunning = true;
       state.sessionId = session.session_id;
@@ -7182,7 +7387,11 @@
       state.gameSessionDifficulty = session.difficulty_level || "normal";
       configureCustomerDecision(session);
       if (session.game_config) applyGameSessionConfig(session.game_config);
-      startStandaloneLogisticsGame(state.gameSessionDifficulty, session.game_config);
+      if (window.LOMMultiplayerRuntime?.handleSessionStarted) {
+        window.LOMMultiplayerRuntime.handleSessionStarted(session);
+      } else {
+        startStandaloneLogisticsGame(state.gameSessionDifficulty, session.game_config);
+      }
       dispatchInteraction({
         actionType: "start_game_session",
         result: session.virtual_agents?.length ? "agents_activated" : "all_players_present",
@@ -7193,11 +7402,15 @@
       });
       renderAll();
     });
-    window.addEventListener("leerpret-auth-session", event => {
+    window.addEventListener("leerpret-auth-changed", event => {
       if (event.detail?.authenticated) {
         checkBackendTutorialState();
+        void flushInteractionOutbox();
+      } else {
+        measurementPersonId = fallbackPersonId;
       }
     });
+    window.addEventListener("online", () => void flushInteractionOutbox());
     window.addEventListener("behavior-profile-completed", event => {
       const receipt = event.detail?.receipt || {};
       const tutorialState = receipt.tutorial_state;
@@ -7592,7 +7805,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=239").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v241-multiplayer-runtime").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -7729,6 +7942,84 @@
     getDataModelLearningObjects: () => DATA_MODEL_LEARNING_OBJECTS.map(dataModelObjectSnapshot),
     getLogisticsDepartments: () => isometricScene().departments.map(department => ({ ...department })),
     getLegoBuilderSnapshot: () => window.LegoBuilder?.getSnapshot() || null,
+    getSharedGameController: () => logisticsGameController,
+    getSimulationRoleId: roleId => simulationRoleId(roleId),
+    startSharedGame: (session, runtime = {}) => {
+      const member = (session?.members || []).find(
+        item => item.member_id === session.current_member_id
+      );
+      if (member?.assigned_role_id) state.assignedRoleId = member.assigned_role_id;
+      const authoritativeHumanRoleIds = Array.isArray(runtime.humanRoleIds)
+        ? runtime.humanRoleIds
+        : (session?.members || [])
+            .filter(item => item.present !== false && item.assigned_role_id)
+            .map(item => item.assigned_role_id);
+      const humanRoleIds = authoritativeHumanRoleIds
+        .map(roleId => simulationRoleId(roleId))
+        .filter(Boolean);
+      if (!logisticsGameController?.engine?.started) {
+        startStandaloneLogisticsGame(
+          session?.difficulty_level || state.gameSessionDifficulty,
+          session?.game_config || null,
+          { humanRoleIds, runLoop: Boolean(runtime.isController) }
+        );
+      }
+      const localRoleId = simulationRoleId(state.assignedRoleId);
+      if (runtime.snapshot) {
+        logisticsGameController.restoreSnapshot(runtime.snapshot, {
+          humanRoleId: localRoleId,
+          humanRoleIds,
+          runLoop: Boolean(runtime.isController),
+          elapsedSinceSnapshotMs: runtime.elapsedSinceSnapshotMs || 0
+        });
+      } else {
+        logisticsGameController.engine.humanRoleId = localRoleId;
+        logisticsGameController.engine.setHumanRoles(humanRoleIds);
+        if (runtime.isController) logisticsGameController.engine.loop.start();
+        else logisticsGameController.engine.loop.stop();
+      }
+      logisticsGameController.mount.hidden = false;
+      if (!runtime.snapshot) logisticsGameController.render();
+      return logisticsGameController;
+    },
+    updateSharedHumanRoles: session => {
+      if (!logisticsGameController?.engine?.started) return [];
+      const roles = (session?.members || [])
+        .filter(item => item.present !== false && item.assigned_role_id)
+        .map(item => simulationRoleId(item.assigned_role_id))
+        .filter(Boolean);
+      return logisticsGameController.engine.setHumanRoles(roles);
+    },
+    setSharedActionSubmitter: submitter => logisticsGameController?.setActionSubmitter(submitter),
+    confirmSharedAction: () => logisticsGameController?.confirmRemoteAction(),
+    rejectSharedAction: (_commandId, errors) => logisticsGameController?.rejectRemoteAction(errors),
+    applySharedCommand: command => {
+      const roleId = simulationRoleId(command?.role_id);
+      if (!roleId) {
+        return { ok: false, errors: [`Rol ${command?.role_id || "onbekend"} heeft geen digitale spelhandeling.`] };
+      }
+      return logisticsGameController?.engine?.completePlayerAction(command.payload || {}, roleId)
+        || { ok: false, errors: ["De gedeelde spelmotor is niet gestart."] };
+    },
+    restoreSharedSnapshot: (snapshot, session, isController = false) => {
+      const member = (session?.members || []).find(
+        item => item.member_id === session.current_member_id
+      );
+      const localRoleId = simulationRoleId(member?.assigned_role_id);
+      const humanRoleIds = (session?.members || [])
+        .filter(item => item.present !== false && item.assigned_role_id)
+        .map(item => simulationRoleId(item.assigned_role_id))
+        .filter(Boolean);
+      return logisticsGameController?.restoreSnapshot(snapshot, {
+        humanRoleId: localRoleId,
+        humanRoleIds,
+        runLoop: Boolean(isController)
+      });
+    },
+    stopSharedGame: () => {
+      logisticsGameController?.setActionSubmitter(null);
+      logisticsGameController?.stop();
+    },
     beginOnboardingTutorial: () => {
       if (location.hash === "#tutorialStep4") {
         startFinancialTutorial();
@@ -7811,7 +8102,21 @@
   initTowerEditor();
   initStandaloneLogisticsGame();
   wireEvents();
-  registerServiceWorker();
   resetState();
+  const currentGameSession = window.LOMGameSessions?.getCurrentSession?.();
+  if (currentGameSession?.session_id) {
+    window.dispatchEvent(new CustomEvent("learngame-session-state", {
+      detail: {
+        session: currentGameSession,
+        running: currentGameSession.status === "running"
+      }
+    }));
+    if (currentGameSession.status === "running") {
+      window.dispatchEvent(new CustomEvent("learngame-session-started", {
+        detail: { session: currentGameSession }
+      }));
+    }
+  }
+  registerServiceWorker();
   applyInitialRoute();
 })();

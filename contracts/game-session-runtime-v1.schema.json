@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leerpret.nl/contracts/game-session-runtime-v1.schema.json",
+  "title": "LEARNGame OM authoritative game runtime v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "contract_version",
+    "session_id",
+    "status",
+    "revision",
+    "snapshot_revision",
+    "membership_revision",
+    "snapshot",
+    "snapshot_updated_at",
+    "server_time",
+    "controller_member_id",
+    "controller_lease_expires_at",
+    "is_controller",
+    "participation_status",
+    "human_role_ids",
+    "pending_commands",
+    "applied_command_ids",
+    "command_results",
+    "telemetry_backlog_count",
+    "updated_at"
+  ],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "status": {"enum": ["running", "finished"]},
+    "revision": {"type": "integer", "minimum": 0},
+    "snapshot_revision": {"type": "integer", "minimum": 0},
+    "membership_revision": {"type": "integer", "minimum": 0},
+    "snapshot": {"type": "object"},
+    "snapshot_updated_at": {"type": ["string", "null"], "format": "date-time"},
+    "server_time": {"type": "string", "format": "date-time"},
+    "controller_member_id": {"type": ["string", "null"], "minLength": 8, "maxLength": 120},
+    "controller_lease_expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "is_controller": {"type": "boolean"},
+    "participation_status": {"enum": ["active", "waiting", "none"]},
+    "queue_position": {"type": ["integer", "null"], "minimum": 1},
+    "human_role_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 80},
+      "uniqueItems": true
+    },
+    "pending_commands": {
+      "type": "array",
+      "maxItems": 250,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command_id", "member_id", "role_id", "payload", "submitted_at"],
+        "properties": {
+          "command_id": {"type": "string", "minLength": 1, "maxLength": 200},
+          "member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+          "role_id": {"type": "string", "minLength": 1, "maxLength": 80},
+          "payload": {"type": "object"},
+          "submitted_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "applied_command_ids": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {"type": "string", "minLength": 1, "maxLength": 200},
+      "uniqueItems": true
+    },
+    "command_results": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command_id", "member_id", "status", "error_code", "resolved_at"],
+        "properties": {
+          "command_id": {"type": "string", "minLength": 1, "maxLength": 200},
+          "member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+          "status": {"enum": ["applied", "rejected"]},
+          "error_code": {
+            "type": ["string", "null"],
+            "enum": [null, "invalid_state", "invalid_action", "role_not_authorized", "command_conflict", "unsupported_command", "processing_failed"]
+          },
+          "resolved_at": {"type": "string", "format": "date-time"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"status": {"const": "applied"}}},
+            "then": {"properties": {"error_code": {"type": "null"}}}
+          },
+          {
+            "if": {"properties": {"status": {"const": "rejected"}}},
+            "then": {
+              "properties": {
+                "error_code": {
+                  "enum": ["invalid_state", "invalid_action", "role_not_authorized", "command_conflict", "unsupported_command", "processing_failed"]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "telemetry_backlog_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "command_status": {"enum": ["accepted", "duplicate_pending", "duplicate_applied", "duplicate_rejected"]},
+    "update_status": {"const": "updated"}
+  }
+}

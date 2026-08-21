@@ -2147,6 +2147,23 @@ body[data-app-view="player"] .manager-only {
   min-width: 0;
 }
 
+.open-game-list button:disabled {
+  cursor: default;
+  transform: none;
+  opacity: 0.72;
+}
+
+.open-game-list .active-game-card.is-current {
+  border-color: rgba(92, 215, 190, 0.62);
+  background: rgba(14, 62, 62, 0.78);
+}
+
+.other-active-sessions {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(125, 185, 181, 0.16);
+}
+
 .session-layout-lego {
   min-height: clamp(30rem, 58vh, 47rem);
   overflow: hidden;
@@ -3600,6 +3617,39 @@ body[data-app-view="player"] .topbar {
 
 .sim-material-brick:active {
   cursor: grabbing;
+}
+
+.player-running-session > .secondary-button {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.player-queued-session {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(245, 203, 114, 0.4);
+  border-radius: 14px;
+  background: rgba(69, 48, 13, 0.34);
+}
+
+.player-queued-session > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.player-queued-session strong {
+  color: #f8dc9d;
+}
+
+.player-queued-session small {
+  color: #c8b98e;
+}
+
+.session-leave-button {
+  margin-top: 14px;
 }
 
 .is-digital-dragging,
@@ -11274,6 +11324,24 @@ body.tutorial-focus {
 .role-selector-board {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   margin-top: 12px;
+}
+
+.role-selector-runtime-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--lp-accent, #32ddd2) 38%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--lp-accent, #32ddd2) 9%, rgba(6, 15, 18, 0.92));
+  color: var(--lp-muted, #a9c2c9);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.role-selector-runtime-note.is-error {
+  border-color: color-mix(in srgb, var(--danger, #ff6b6b) 72%, transparent);
+  background: color-mix(in srgb, var(--danger, #ff6b6b) 12%, rgba(6, 15, 18, 0.92));
+  color: #ffd7d7;
 }
 
 .role-selector-category .role-option-field {

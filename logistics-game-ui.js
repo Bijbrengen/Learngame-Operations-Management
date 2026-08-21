@@ -1,6 +1,9 @@
 (() => {
   "use strict";
 
+  const MAX_SIGNATURE_STROKES = 64;
+  const MAX_SIGNATURE_POINTS = 512;
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -88,6 +91,11 @@
       this.activeDigitalDrag = false;
       this.pendingDigitalDragRender = false;
       this.feedback = "";
+      this.remoteActionSubmitter = typeof options.actionSubmitter === "function"
+        ? options.actionSubmitter
+        : null;
+      this.remoteActionPending = false;
+      this.restoringSharedSnapshot = false;
       this.renderProcessFlow = typeof options.renderProcessFlow === "function"
         ? options.renderProcessFlow
         : null;
@@ -96,6 +104,7 @@
           this.renderTopDepartmentMini(event.snapshot);
           this.renderTopLiveEvents(event.snapshot);
         }
+        if (this.restoringSharedSnapshot && event.type === "snapshot-restored") return;
         if (
           event.type === "tick"
           && this.engine.playerTask()
@@ -118,6 +127,9 @@
           return;
         }
         if (event.type === "player-action-required") this.resetPlayerInput();
+        if (event.type === "snapshot-restored" && !this.engine.playerTask()) {
+          this.remoteActionPending = false;
+        }
         this.render();
       });
       this.handleClick = this.handleClick.bind(this);
@@ -174,6 +186,100 @@
       this.engine.loop.start();
       this.mount.hidden = false;
       this.render();
+    }
+
+    setActionSubmitter(submitter) {
+      const normalized = typeof submitter === "function" ? submitter : null;
+      if (normalized === this.remoteActionSubmitter) return;
+      this.remoteActionPending = false;
+      this.remoteActionSubmitter = normalized;
+      this.render();
+    }
+
+    confirmRemoteAction() {
+      if (!this.remoteActionPending) return;
+      this.remoteActionPending = false;
+      this.resetPlayerInput();
+      this.feedback = "Handeling is in de gedeelde spelstatus verwerkt.";
+      this.render();
+    }
+
+    rejectRemoteAction(errors = []) {
+      this.remoteActionPending = false;
+      this.feedback = (errors.length ? errors : ["De handeling past niet meer bij de actuele spelsituatie."])
+        .map(error => String(error))
+        .join(" Â· ");
+      this.render();
+    }
+
+    restoreSnapshot(snapshot, options = {}) {
+      const previousTask = this.engine.playerTask();
+      const previousTaskKey = previousTask
+        ? `${previousTask.role.id}:${previousTask.order.id}`
+        : "";
+      this.restoringSharedSnapshot = true;
+      try {
+        this.engine.restoreSnapshot(snapshot, options);
+      } finally {
+        this.restoringSharedSnapshot = false;
+      }
+      const nextTask = this.engine.playerTask();
+      const nextTaskKey = nextTask ? `${nextTask.role.id}:${nextTask.order.id}` : "";
+      if (previousTaskKey !== nextTaskKey || !nextTaskKey) {
+        this.resetPlayerInput();
+        this.remoteActionPending = false;
+        this.render();
+      } else {
+        const restored = this.engine.snapshot();
+        this.renderTopDepartmentMini(restored);
+        this.renderTopLiveEvents(restored);
+        const countdown = this.mount.querySelector(".sim-countdown");
+        if (countdown && nextTask) countdown.textContent = formatCountdown(nextTask.order.dueAt);
+      }
+      return this;
+    }
+
+    async submitPlayerAction(payload, successMessage) {
+      if (this.remoteActionPending) {
+        return { ok: false, pending: true, errors: ["Deze handeling wordt al verwerkt."] };
+      }
+      if (!this.remoteActionSubmitter) {
+        const result = this.engine.completePlayerAction(payload);
+        this.feedback = result.ok ? successMessage : result.errors.join(" · ");
+        if (result.ok) this.resetPlayerInput();
+        this.render();
+        return result;
+      }
+      this.remoteActionPending = true;
+      this.feedback = "Handeling wordt gedeeld met de andere spelers…";
+      this.render();
+      try {
+        const task = this.engine.playerTask();
+        const roleId = task?.role?.id || this.engine.humanRoleId || "unknown";
+        const productId = task?.order?.productId || "unknown";
+        const result = await this.remoteActionSubmitter(payload, {
+          action_type: roleId === "customer"
+            ? "simulation_customer_order_submitted"
+            : "simulation_role_action_submitted",
+          learning_object_id: `lom.simulation.${roleId}.${productId}`,
+          role_id: roleId,
+          order_id: task?.order?.id || null,
+          product_id: task?.order?.productId || null
+        });
+        if (result?.ok === false) {
+          this.remoteActionPending = false;
+          this.feedback = (result.errors || ["De handeling kon niet worden verwerkt."]).join(" · ");
+        } else {
+          this.feedback = result?.message || "Handeling ontvangen; de gedeelde spelstatus wordt bijgewerkt.";
+        }
+        this.render();
+        return result || { ok: true, queued: true };
+      } catch (error) {
+        this.remoteActionPending = false;
+        this.feedback = error?.message || "De handeling kon niet worden gedeeld.";
+        this.render();
+        return { ok: false, errors: [this.feedback] };
+      }
     }
 
     destroy() {
@@ -278,16 +384,13 @@
       const completeButton = eventTargetClosest(event, "[data-sim-complete]");
       if (completeButton && !completeButton.disabled) {
         const task = this.engine.playerTask();
-        const result = this.engine.completePlayerAction({
+        void this.submitPlayerAction({
           parts: { ...this.selectedParts },
           signed: this.signed,
           signature: this.signatureEvidence(),
           completedQuantity: this.completedOrderQuantity(task),
           transferred: this.transferred
-        });
-        this.feedback = result.ok ? "Handeling verwerkt en doorgestuurd." : result.errors.join(" · ");
-        if (result.ok) this.resetPlayerInput();
-        this.render();
+        }, "Handeling verwerkt en doorgestuurd.");
       }
     }
 
@@ -421,6 +524,10 @@
     handlePointerDown(event) {
       const pad = eventTargetClosest(event, "[data-sim-signature-pad]");
       if (!pad || pad.getAttribute("aria-disabled") === "true") return;
+      if (
+        this.signatureStrokes.length >= MAX_SIGNATURE_STROKES
+        || this.signatureStrokes.reduce((sum, stroke) => sum + stroke.length, 0) >= MAX_SIGNATURE_POINTS
+      ) return;
       event.preventDefault();
       const stroke = [this.signaturePoint(event, pad)];
       this.signatureStrokes.push(stroke);
@@ -439,6 +546,7 @@
       const point = this.signaturePoint(event, active.pad);
       const previous = active.stroke[active.stroke.length - 1];
       if (Math.hypot(point.x - previous.x, point.y - previous.y) < 1.5) return;
+      if (this.signatureStrokes.reduce((sum, stroke) => sum + stroke.length, 0) >= MAX_SIGNATURE_POINTS) return;
       active.stroke.push(point);
       const line = active.pad.querySelector("[data-active-signature-stroke]");
       if (line) {
@@ -477,12 +585,17 @@
     }
 
     signatureEvidence() {
-      return this.signed
-        ? this.signatureStrokes.map(stroke => stroke.map(point => [
+      if (!this.signed) return [];
+      let remaining = MAX_SIGNATURE_POINTS;
+      return this.signatureStrokes.slice(0, MAX_SIGNATURE_STROKES).flatMap(stroke => {
+        if (remaining <= 0) return [];
+        const bounded = stroke.slice(0, remaining);
+        remaining -= bounded.length;
+        return [bounded.map(point => [
           Number(point.x.toFixed(1)),
           Number(point.y.toFixed(1))
-        ]))
-        : [];
+        ])];
+      });
     }
 
     completedOrderQuantity(task) {
@@ -499,16 +612,13 @@
       if (!event.target.matches("[data-customer-order-form]")) return;
       event.preventDefault();
       const values = new FormData(event.target);
-      const result = this.engine.completePlayerAction({
+      void this.submitPlayerAction({
         customerOrder: {
           productId: String(values.get("product_id") || ""),
           quantity: Number(values.get("quantity")),
           dueMinutes: Number(values.get("due_minutes"))
         }
-      });
-      this.feedback = result.ok ? "Order geplaatst en doorgestuurd naar Operations." : result.errors.join(" · ");
-      if (result.ok) this.resetPlayerInput();
-      this.render();
+      }, "Order geplaatst en doorgestuurd naar Operations.");
     }
 
     partsComplete(task) {
@@ -805,7 +915,7 @@
                 ? `<input type="number" name="due_minutes" min="2" max="120" value="${dueMinutes}" required><small>minuten</small>`
                 : `<strong>${dueMinutes} minuten</strong><input type="hidden" name="due_minutes" value="${dueMinutes}">`}
             </label>
-            <button class="primary-button sim-customer-order-submit" type="submit">
+            <button class="primary-button sim-customer-order-submit" type="submit" ${this.remoteActionPending ? "disabled" : ""}>
               Order plaatsen en naar Operations sturen
             </button>
             <p class="sim-action-note">
@@ -916,7 +1026,7 @@
             <button type="button"
                     class="primary-button sim-complete-button"
                     data-sim-complete
-                    ${canComplete ? "" : "disabled"}>
+                    ${canComplete && !this.remoteActionPending ? "" : "disabled"}>
               Uitgevoerd
             </button>
             ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
@@ -1250,7 +1360,7 @@
               <button type="button"
                       class="primary-button sim-complete-button"
                       data-sim-complete
-                      ${canComplete ? "" : "disabled"}>
+                      ${canComplete && !this.remoteActionPending ? "" : "disabled"}>
                 Uitgevoerd
               </button>
               ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}

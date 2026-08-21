@@ -12,8 +12,10 @@
     pd2: "Productie Afdeling 2",
     pd3: "Productie Afdeling 3",
     mfp: "Magazijn Gereed Product",
+    ssf: "Magazijn Gereed Product",
     customer: "Klant",
     logistics_manager: "Logistiek Manager",
+    operations: "Operations",
     raw_warehouse: "Magazijn Grondstoffen",
     production_1: "Productie Afdeling 1",
     production_2: "Productie Afdeling 2",
@@ -193,7 +195,8 @@
       }
     },
     pollTimer: null,
-    startedSessionId: null
+    startedSessionId: null,
+    selectedSessionId: null
   };
 
   const elements = () => ({
@@ -238,12 +241,14 @@
   }
 
   function isStaleSessionStateError(error) {
-    return error?.status === 409
-      && error?.message === "Er staat geen startverzoek open.";
+    return error?.code === "consensus_not_open"
+      || (error?.status === 409 && error?.message === "Er staat geen startverzoek open.");
   }
 
   function recoverLocalApiBase() {
-    return window.LEARNGAME_OM_CONFIG?.apiBase || null;
+    return window.LEARNGAME_OM_CONFIG?.configuredApiBase
+      || window.LEARNGAME_OM_CONFIG?.apiBase
+      || null;
   }
 
   async function request(path, options = {}, allowLocalRecovery = true) {
@@ -268,11 +273,17 @@
     if (!response.ok) {
       const fallback = `De gamesessie kon niet worden bijgewerkt (${response.status}, ${requestUrl}).`;
       let message = fallback;
+      let code = null;
+      let context = null;
       try {
         const raw = await response.text();
         const payload = raw ? JSON.parse(raw) : null;
         if (typeof payload?.detail === "string") {
           message = payload.detail;
+        } else if (typeof payload?.detail?.message === "string") {
+          message = payload.detail.message;
+          code = payload.detail.code || null;
+          context = payload.detail.context || null;
         } else if (Array.isArray(payload?.detail)) {
           message = payload.detail.map(item => item?.msg).filter(Boolean).join(" · ") || fallback;
         } else if (raw && !raw.trim().startsWith("<")) {
@@ -283,6 +294,8 @@
       }
       const error = new Error(message);
       error.status = response.status;
+      error.code = code;
+      error.context = context;
       throw error;
     }
     return response.json();
@@ -299,10 +312,11 @@
     const preset = window.GameConfigurationStore?.getConfiguration(session.game_config?.game_type);
     const presetRoles = preset?.settings?.enabled_roles || [];
     if (presetRoles.length <= 1) return null;
+    const repairedRoles = window.LOMRuntimeRoles?.normalize(presetRoles) || [...presetRoles];
     return {
       ...session.game_config,
-      enabled_roles: [...presetRoles],
-      has_supplier: presetRoles.includes("supplier")
+      enabled_roles: repairedRoles,
+      has_supplier: repairedRoles.includes("supplier")
     };
   }
 
@@ -326,6 +340,8 @@
   }
 
   function normalizedGameConfig(config = {}) {
+    const explicitlyEmptyRoles = Array.isArray(config.enabled_roles)
+      && config.enabled_roles.length === 0;
     const gameType = GAME_CONFIG_PRESETS[config.game_type] ? config.game_type : "lo4";
     const storedPresetSettings = window.GameConfigurationStore
       ?.getConfiguration(gameType)
@@ -379,7 +395,13 @@
         ? "functional"
         : "product"
     };
-    return window.GameConfigurationStore?.normalizeSettings(normalized, gameType) || normalized;
+    const stored = window.GameConfigurationStore?.normalizeSettings(normalized, gameType) || normalized;
+    if (explicitlyEmptyRoles) stored.enabled_roles = [];
+    if (Array.isArray(stored.enabled_roles)) {
+      stored.enabled_roles = window.LOMRuntimeRoles?.normalize(stored.enabled_roles)
+        || [...stored.enabled_roles];
+    }
+    return stored;
   }
 
   function gameComparisonMatricesMarkup() {
@@ -477,6 +499,30 @@
     ));
   }
 
+  function enforceRuntimeStationOwnership(form, preferredRoleId = null) {
+    const controls = roleControls(form);
+    const preferredStation = preferredRoleId
+      ? window.LOMRuntimeRoles?.stationId(preferredRoleId)
+      : null;
+    if (preferredStation) {
+      controls.forEach(control => {
+        const roleId = control.name.slice("role_".length);
+        if (roleId !== preferredRoleId && window.LOMRuntimeRoles?.stationId(roleId) === preferredStation) {
+          control.checked = false;
+        }
+      });
+    }
+    const selected = controls
+      .filter(control => control.checked)
+      .map(control => control.name.slice("role_".length));
+    const allowed = new Set(window.LOMRuntimeRoles?.normalize(selected) || selected);
+    controls.forEach(control => {
+      const roleId = control.name.slice("role_".length);
+      if (control.checked && !allowed.has(roleId)) control.checked = false;
+    });
+    return [...allowed];
+  }
+
   function roleSelectorMarkup(config = {}, formId = "gameSessionCreateForm") {
     const value = normalizedGameConfig(config);
     const grouped = SESSION_ROLE_OPTIONS.reduce((groups, role) => {
@@ -486,6 +532,10 @@
     }, new Map());
     return `
       <div class="role-selector-board">
+        <p class="role-selector-runtime-note">
+          De digitale multiplayer heeft zeven onafhankelijke stations. Rollen binnen hetzelfde
+          station zijn alternatieven; een nieuwe keuze vervangt daar de vorige spelerrol.
+        </p>
         ${[...grouped.entries()].map(([category, roles]) => `
           <fieldset class="role-selector-category">
             <legend>${escapeHtml(category)}</legend>
@@ -1200,7 +1250,9 @@
     form.elements.namedItem("parallel_production").checked = processes.includes("parallel");
     form.elements.namedItem("sequential_production").checked = processes.includes("sequential");
     if (Array.isArray(settings.enabled_roles)) {
-      const enabledRoles = new Set(settings.enabled_roles);
+      const enabledRoles = new Set(
+        window.LOMRuntimeRoles?.normalize(settings.enabled_roles) || settings.enabled_roles
+      );
       roleControls(form).forEach(control => {
         control.checked = enabledRoles.has(control.name.slice("role_".length));
       });
@@ -1218,6 +1270,7 @@
     updateColorLayerControls(form);
     updateVariantConstraintControls(form);
     updateSupplierRoleControl(form);
+    enforceRuntimeStationOwnership(form);
     updateCurrencyControls(form);
     updateConfigurationLayout(form);
   }
@@ -1284,7 +1337,7 @@
     if (!form) return;
     const supplierEnabled = Boolean(form.elements.namedItem("has_supplier")?.checked);
     const supplierRole = form.elements.namedItem("role_supplier");
-    if (supplierRole) supplierRole.checked = supplierEnabled;
+    if (supplierRole && !supplierEnabled) supplierRole.checked = false;
   }
 
   function updateCurrencyControls(form) {
@@ -1358,18 +1411,29 @@
     const gameType = GAME_CONFIG_PRESETS[requestedGameType] ? requestedGameType : "lo4";
     form.dataset.gameType = gameType;
     const productionProcesses = selectedProductionProcesses(form, gameType);
+    enforceRuntimeStationOwnership(form);
     const enabledRoles = roleControls(form)
       .filter(control => control.checked)
       .map(control => control.name.slice("role_".length));
+    if (enabledRoles.length) {
+      const note = form.querySelector(".role-selector-runtime-note.is-error");
+      if (note) {
+        note.classList.remove("is-error");
+        note.removeAttribute("role");
+        note.textContent = "De digitale multiplayer heeft zeven onafhankelijke stations. Rollen binnen hetzelfde station zijn alternatieven; een nieuwe keuze vervangt daar de vorige spelerrol.";
+      }
+    }
     updateHybridProductionTooltip(form);
     updateColorLayerControls(form);
     updateFinancialDetailControls(form);
     updateSchoolFundingControls(form);
     const multipleColors = Boolean(get("multiple_colors")?.checked);
     const hasSupplier = Boolean(get("has_supplier")?.checked);
-    const synchronizedRoles = hasSupplier
-      ? [...new Set([...enabledRoles, "supplier"])]
+    const requestedRoles = hasSupplier
+      ? enabledRoles
       : enabledRoles.filter(roleId => roleId !== "supplier");
+    const synchronizedRoles = window.LOMRuntimeRoles?.normalize(requestedRoles)
+      || requestedRoles;
     const baseCurrency = String(get("base_currency")?.value || "EUR").toUpperCase();
     const currencyMode = get("multiple_currencies")?.checked ? "multiple" : "single";
     const selectedCurrencies = currencyMode === "multiple"
@@ -1426,7 +1490,7 @@
       base_currency: baseCurrency,
       enabled_currencies: enabledCurrencies,
       exchange_rates: exchangeRates,
-      ...(synchronizedRoles.length ? { enabled_roles: synchronizedRoles } : {})
+      enabled_roles: synchronizedRoles
     };
   }
 
@@ -1696,6 +1760,20 @@
   function sessionMarkup(session, context) {
     const vacancies = session.role_vacancies || [];
     const running = session.status === "running";
+    const participationStatus = session.participation_status || "active";
+    if (context === "player" && ["waiting", "queued"].includes(participationStatus)) {
+      const queuePosition = Number(session.queue_position || 1);
+      return `
+        <div class="player-queued-session" role="status" aria-live="polite">
+          <span class="session-member-token">${queuePosition}</span>
+          <span>
+            <strong>Je staat op plek ${queuePosition} in de wachtrij</strong>
+            <small>Alle rollen zijn nu door mensen vervuld. Zodra iemand stopt, neem jij automatisch die rol over.</small>
+          </span>
+          <button class="secondary-button" type="button" data-leave-game-session>Wachtrij verlaten</button>
+        </div>
+      `;
+    }
     if (context === "player" && running) {
       const currentMember = session.members.find(
         member => member.member_id === session.current_member_id
@@ -1712,6 +1790,7 @@
             <strong>${escapeHtml(assignedRole)}</strong>
             <small>Gamesessie gestart · ${playModeLabel} · ${customerOrderLabel}${session.virtual_agents?.length ? ` · ${session.virtual_agents.length} virtuele agents actief` : ""}</small>
           </span>
+          <button class="secondary-button" type="button" data-leave-game-session>Stoppen met spelen</button>
         </div>
       `;
     }
@@ -1762,42 +1841,81 @@
         ${context === "manager" && session.is_game_master ? `
           <button class="session-finish-button" type="button" data-finish-game-session>Sessie sluiten</button>
         ` : ""}
+        ${context === "player" ? `
+          <button class="secondary-button session-leave-button" type="button" data-leave-game-session>Gamesessie verlaten</button>
+        ` : ""}
         ${context === "manager" ? "<small>Nieuwe sessies kunnen uitsluitend vanuit deze beheerpagina worden aangemaakt.</small>" : ""}
       </div>
     `;
   }
 
-  function availableMarkup(availability) {
-    const games = availability?.discoverable_sessions || availability?.open_sessions || [];
+  function availableMarkup(availability, { allowJoining = true, showCodeForm = true } = {}) {
+    const discoverable = [
+      ...(availability?.active_sessions || []),
+      ...(availability?.discoverable_sessions || []),
+      ...(availability?.created_sessions || []),
+      ...(availability?.participating_sessions || []),
+      ...(availability?.open_sessions || [])
+    ];
+    const games = [...new Map(discoverable
+      .filter(game => game?.status !== "finished")
+      .map(game => [game.session_id, game])).values()];
+    const currentSessionId = availability?.current_session?.session_id;
+    const gameButton = game => {
+      const isCurrent = currentSessionId === game.session_id;
+      const humanCount = Number(game.human_count ?? game.member_count ?? 0);
+      const agentCount = Number(game.agent_count ?? 0);
+      const queueCount = Number(game.queue_count ?? game.waiting_count ?? 0);
+      const isRunning = game.status === "running";
+      const joinMode = game.join_mode
+        || (isRunning && agentCount ? "replace_agent" : isRunning ? "queue" : "join");
+      const codeRequired = joinMode === "code_required"
+        || (!game.join_mode && game.session_type !== "open");
+      const unavailable = ["closed", "full"].includes(joinMode);
+      const disabled = isCurrent || !allowJoining || codeRequired || unavailable;
+      const actionLabel = isCurrent
+        ? ["waiting", "queued"].includes(availability?.current_session?.participation_status)
+          ? "Jij staat in de wachtrij"
+          : "Jij neemt deel"
+        : codeRequired
+          ? "Gebruik de gamecode"
+          : joinMode === "replace_agent"
+            ? "Agentrol overnemen"
+            : joinMode === "queue"
+              ? "Aansluiten in wachtrij"
+              : joinMode === "full"
+                ? "Lobby is vol"
+                : joinMode === "closed"
+                  ? "Sessie is gesloten"
+                  : "Deelnemen";
+      return `
+        <button type="button"
+                class="active-game-card${isCurrent ? " is-current" : ""}"
+                data-join-session="${escapeHtml(game.session_id)}"
+                ${disabled ? "disabled" : ""}>
+          <span>${escapeHtml(TYPE_LABELS[game.session_type] || game.session_type)} sessie · ${isRunning ? "gestart" : "lobby"}${game.created_by_current_player ? " · door jou aangemaakt" : ""}</span>
+          <strong>${humanCount}/${game.capacity} mensen${agentCount ? ` · ${agentCount} agents` : ""}</strong>
+          <small>${queueCount ? `${queueCount} wachtend · ` : ""}${escapeHtml(actionLabel)}</small>
+        </button>
+      `;
+    };
     return `
-      <form class="game-code-join-form" data-game-code-join>
+      ${showCodeForm ? `<form class="game-code-join-form" data-game-code-join>
         <label>
           <span>Gamecode</span>
           <input name="join_code" minlength="6" maxlength="10" autocomplete="off" placeholder="Bijv. A1B2C3" required>
         </label>
         <button class="primary-button" type="submit">Deelnemen</button>
-      </form>
+      </form>` : ""}
       ${games.length ? `
         <div class="open-game-list">
-          <strong>Open games met plek</strong>
-          ${games.map(game => game.session_type === "open" ? `
-            <button type="button" data-join-session="${escapeHtml(game.session_id)}">
-              <span>${escapeHtml(TYPE_LABELS[game.session_type])} sessie</span>
-              <strong>${game.member_count}/${game.capacity} spelers</strong>
-              <small>${game.available_places} plaatsen vrij</small>
-            </button>
-          ` : `
-            <div class="discoverable-game">
-              <span>${escapeHtml(TYPE_LABELS[game.session_type])} sessie</span>
-              <strong>${game.member_count}/${game.capacity} spelers</strong>
-              <small>Gebruik de gedeelde gamecode om deel te nemen.</small>
-            </div>
-          `).join("")}
+          <strong>Alle actieve gamesessies</strong>
+          ${games.map(gameButton).join("")}
         </div>
       ` : `
-        <p class="no-open-games">Er is nu geen open game met een vrije plek.</p>
+        <p class="no-open-games">Er is nu geen actieve gamesessie om aan deel te nemen.</p>
       `}
-      ${availability?.can_start_free_game ? `
+      ${allowJoining && availability?.can_start_free_game ? `
         <button class="free-game-button" type="button" data-start-free-game>
           <strong>Vrije game starten</strong>
           <span>Je wordt automatisch Game Master van de nieuwe sessie.</span>
@@ -1844,15 +1962,20 @@
 
     if (state.session) {
       renderTopParticipation(state.session);
-      placePlayerSessionPanel(state.session.status === "running");
-      els.playerTitle.textContent = state.session.status === "running"
+      const queued = ["waiting", "queued"].includes(state.session.participation_status);
+      placePlayerSessionPanel(state.session.status === "running" && !queued);
+      els.playerTitle.textContent = queued
+        ? "Wachtrij voor gamesessie"
+        : state.session.status === "running"
         ? "Jouw actieve gamesessie"
         : "Lobby van jouw gamesessie";
-      els.playerBadge.textContent = state.session.status === "running" ? "Gestart" : "In lobby";
+      els.playerBadge.textContent = queued
+        ? `Wachtrij ${state.session.queue_position || ""}`.trim()
+        : state.session.status === "running" ? "Gestart" : "In lobby";
       els.managerTitle.textContent = "Gamesessie";
       els.managerBadge.hidden = true;
       if (els.managerCreateButton) {
-        els.managerCreateButton.hidden = !state.session.is_game_master;
+        els.managerCreateButton.hidden = queued || !state.session.is_game_master;
         els.managerCreateButton.type = "button";
         els.managerCreateButton.removeAttribute("form");
         els.managerCreateButton.removeAttribute("data-create-game-session");
@@ -1869,7 +1992,12 @@
           els.managerCreateButton.textContent = "Sessie starten";
         }
       }
-      els.playerContent.innerHTML = sessionMarkup(state.session, "player");
+      els.playerContent.innerHTML = [
+        sessionMarkup(state.session, "player"),
+        `<section class="other-active-sessions" aria-label="Andere actieve gamesessies">
+          ${availableMarkup(state.availability, { allowJoining: false, showCodeForm: false })}
+        </section>`
+      ].join("");
       els.managerContent.hidden = false;
       els.managerContent.innerHTML = [
         sessionRoleDistributionMarkup(state.session),
@@ -1877,7 +2005,7 @@
         gameMasterDifficultyMarkup(state.session),
         gameMasterRoleMarkup(state.session)
       ].join("");
-      if (state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
+      if (!queued && state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
         state.startedSessionId = state.session.session_id;
         window.dispatchEvent(new CustomEvent("learngame-session-started", {
           detail: { session: state.session }
@@ -1939,17 +2067,22 @@
         const repairedConfig = repairedLobbyRoleConfig(state.session);
         if (repairedConfig) {
           try {
-            state.session = await request(
+            const repairedSession = await request(
               `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/configuration`,
               { method: "POST", body: JSON.stringify({ game_config: repairedConfig }) }
             );
+            if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
+            state.session = repairedSession;
             state.availability.current_session = state.session;
           } catch (error) {
+            if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
             console.warn("Conceptrollen konden niet automatisch worden hersteld.", error);
           }
         }
+        if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
         render();
       } catch (error) {
+        if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
         if (isTransientRequestError(error)) return;
         if (!state.session) {
           elements().playerContent.innerHTML = `<p class="session-error">${escapeHtml(error.message)}</p>`;
@@ -1975,20 +2108,30 @@
   }
 
   async function performMutation(path, body) {
+    if (!state.authenticated) return;
     state.busy = true;
     state.mutationVersion += 1;
+    const mutationVersion = state.mutationVersion;
     try {
-      state.session = await request(path, {
+      const mutationResult = await request(path, {
         method: "POST",
         body: body === undefined ? undefined : JSON.stringify(body)
       });
-      if (state.session.status === "finished") {
+      if (!state.authenticated || mutationVersion !== state.mutationVersion) return;
+      const leftSession = mutationResult?.participation_status === "none"
+        && ["left", "left_queue", "not_participating"].includes(mutationResult?.status);
+      state.session = leftSession ? null : mutationResult;
+      if (state.session?.status === "finished" || state.session?.participation_status === "left") {
         state.session = null;
+      }
+      if (!state.session) {
+        state.startedSessionId = null;
       }
       pendingConfigOverlay();
       render();
       try {
-        await refreshAfterMutation();
+        const refreshed = await refreshAfterMutation(mutationVersion);
+        if (!refreshed) return;
         pendingConfigOverlay();
         render();
       } catch (refreshError) {
@@ -1997,6 +2140,7 @@
         console.warn("Gamesessie is bijgewerkt, maar verversen mislukte:", refreshError);
       }
     } catch (error) {
+      if (!state.authenticated || mutationVersion !== state.mutationVersion) return;
       if (isTransientRequestError(error)) {
         console.warn("Gamesessieactie tijdelijk niet bevestigd; de huidige toestand blijft behouden.", error);
         return;
@@ -2005,22 +2149,22 @@
         // Een andere deelnemer of poll heeft het startverzoek al afgehandeld.
         // Synchroniseer de actuele sessie zonder de gebruiker met een popup te blokkeren.
         try {
-          await refreshAfterMutation();
+          if (!await refreshAfterMutation(mutationVersion)) return;
           render();
         } catch (refreshError) {
           console.warn("De actuele startstatus kon niet worden opgehaald:", refreshError);
         }
         return;
       }
-      if (
+      if (error.code === "active_session_exists" || (
         error.status === 409
         && new Set([
           "Je neemt al deel aan een actieve gamesessie.",
           "Je neemt al deel aan een lobby of actieve gamesessie."
         ]).has(error.message)
-      ) {
+      )) {
         try {
-          await refreshAfterMutation();
+          if (!await refreshAfterMutation(mutationVersion)) return;
           render();
           if (state.session) return;
         } catch (refreshError) {
@@ -2029,7 +2173,7 @@
       }
       window.alert(error.message);
     } finally {
-      state.busy = false;
+      if (mutationVersion === state.mutationVersion) state.busy = false;
     }
   }
 
@@ -2060,9 +2204,54 @@
     }
   }
 
-  async function refreshAfterMutation() {
-    state.availability = await request("/v1/game-sessions/availability");
-    state.session = state.availability.current_session;
+  async function refreshAfterMutation(expectedMutationVersion = state.mutationVersion) {
+    const availability = await request("/v1/game-sessions/availability");
+    if (!state.authenticated || expectedMutationVersion !== state.mutationVersion) return false;
+    state.availability = availability;
+    state.session = availability.current_session;
+    return true;
+  }
+
+  function clearSessionForLogout() {
+    state.mutationVersion += 1;
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+    state.authenticated = false;
+    state.availability = null;
+    state.session = null;
+    state.startedSessionId = null;
+    state.selectedSessionId = null;
+    state.pendingGameConfig = null;
+    state.savingGameConfig = false;
+    state.busy = false;
+    window.dispatchEvent(new CustomEvent("learngame-session-state", {
+      detail: { session: null, running: false, reason: "logout" }
+    }));
+  }
+
+  async function prepareLogout() {
+    const sessionId = state.session?.session_id;
+    const shouldLeave = Boolean(sessionId && state.authenticated);
+    // Invalidate every in-flight/queued mutation before waiting for the
+    // best-effort leave call. A delayed response may never resurrect the UI.
+    clearSessionForLogout();
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+    try {
+      if (shouldLeave) {
+        await Promise.race([
+          request(`/v1/game-sessions/${encodeURIComponent(sessionId)}/leave`, {
+            method: "POST"
+          }),
+          new Promise((_, reject) => setTimeout(
+            () => reject(new Error("Gamesessie verlaten duurde te lang.")),
+            4_000
+          ))
+        ]);
+      }
+    } catch (error) {
+      console.warn("De gamesessie kon bij uitloggen niet direct worden verlaten; de aanwezigheidstimeout blijft als vangnet actief.", error);
+    }
   }
 
   function createSessionFromForm(form) {
@@ -2070,6 +2259,16 @@
     const type = form.querySelector("#gameSessionType")?.value || "closed";
     const difficulty = form.querySelector("#gameSessionDifficulty")?.value || "normal";
     const gameConfig = collectGameConfig(form);
+    if (!gameConfig.enabled_roles.length) {
+      const note = form.querySelector(".role-selector-runtime-note");
+      if (note) {
+        note.classList.add("is-error");
+        note.textContent = "Kies ten minste één spelersrol voor de digitale gamesessie.";
+        note.setAttribute("role", "alert");
+      }
+      roleControls(form)[0]?.focus();
+      return false;
+    }
     state.createSessionDraft = {
       session_type: type,
       difficulty_level: difficulty,
@@ -2123,6 +2322,10 @@
           const supplierToggle = createForm.elements.namedItem("has_supplier");
           if (supplierToggle) supplierToggle.checked = event.target.checked;
         }
+        const preferredRoleId = event.target.checked && event.target.name?.startsWith("role_")
+          ? event.target.name.slice("role_".length)
+          : null;
+        enforceRuntimeStationOwnership(createForm, preferredRoleId);
         updateVariantConstraintControls(createForm);
         updateColorLayerControls(createForm);
         updateFinancialDetailControls(createForm);
@@ -2151,6 +2354,10 @@
           const supplierToggle = form?.elements.namedItem("has_supplier");
           if (supplierToggle) supplierToggle.checked = event.target.checked;
         }
+        const preferredRoleId = event.target.checked && event.target.name?.startsWith("role_")
+          ? event.target.name.slice("role_".length)
+          : null;
+        enforceRuntimeStationOwnership(form, preferredRoleId);
         updateVariantConstraintControls(form);
         updateColorLayerControls(form);
         updateFinancialDetailControls(form);
@@ -2202,6 +2409,7 @@
       const target = event.target.closest("button");
       if (!target) return;
       if (target.dataset.joinSession) {
+        state.selectedSessionId = target.dataset.joinSession;
         mutate("/v1/game-sessions/join", { session_id: target.dataset.joinSession });
       } else if (target.hasAttribute("data-start-free-game")) {
         mutate("/v1/game-sessions/free");
@@ -2209,6 +2417,8 @@
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/start-requests`);
       } else if (target.hasAttribute("data-finish-game-session") && state.session) {
         requestFinishConfirmation(target);
+      } else if (target.hasAttribute("data-leave-game-session") && state.session) {
+        mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/leave`);
       } else if (target.dataset.copyGameCode) {
         navigator.clipboard?.writeText(target.dataset.copyGameCode);
         target.textContent = "Gekopieerd";
@@ -2223,7 +2433,10 @@
     window.addEventListener("leerpret-auth-changed", event => {
       state.authenticated = Boolean(event.detail?.authenticated);
       state.apiBase = event.detail?.apiBase || "";
-      if (!state.authenticated) return;
+      if (!state.authenticated) {
+        clearSessionForLogout();
+        return;
+      }
       refresh();
       clearInterval(state.pollTimer);
       state.pollTimer = setInterval(refresh, 3000);
@@ -2243,4 +2456,17 @@
     clearInterval(state.pollTimer);
     state.pollTimer = setInterval(refresh, 3000);
   }
+
+  // script.js is loaded asynchronously after the Engine SDK. On a refresh the
+  // authenticated session can therefore be rendered before that script has
+  // attached its `learngame-session-state` listener. Expose only a defensive
+  // snapshot so telemetry can recover the already-known member identity.
+  window.LOMGameSessions = Object.freeze({
+    getCurrentSession: () => state.session ? {
+      ...state.session,
+      members: (state.session.members || []).map(member => ({ ...member })),
+      virtual_agents: (state.session.virtual_agents || []).map(agent => ({ ...agent }))
+    } : null,
+    prepareLogout
+  });
 })();

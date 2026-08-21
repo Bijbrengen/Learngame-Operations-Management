@@ -35,6 +35,9 @@ repository's gekopieerd. Deze game communiceert met LeerpretEngine via
 publieke HTTP-routes en versieerbare contractevents. De lokale contractkopieën
 onder `contracts/` maken zelfstandige validatie en offline ontwikkeling
 mogelijk; de canonieke taalneutrale bron staat in `Leerpret/contracts/`. Een
+Uitzondering zijn de drie `game-session-*`-contracten: omdat gamesessies een
+Engine-API zijn, staat hun canonieke bron in `LeerpretEngine/contracts/` en is
+de kopie hier uitsluitend een zelfstandige consumerfixture. Een
 contractwijziging moet bewust in alle consumers worden doorgevoerd en getest.
 
 LeerpretEngine vindt deze repository via `LEARNGAME_OM_DIR` of standaard als
@@ -132,8 +135,10 @@ De game leest de lokale adressen uit `LEERPRET_API_URL` en
 productie-adressen en valt nooit terug op een tijdelijke tunnel of andere
 poort. De GitHub Actions-preview draait herkenbaar op poort `47913` en gebruikt
 de productie-Engine; de normale lokale app op `47113` gebruikt de lokale Engine
-op `47111`. Een tijdelijke centrale service kan voor een testsessie via `?api=...`
-worden gekozen. De Leerpret-backend
+op `47111`. `?api=...` wordt uitsluitend geaccepteerd voor een expliciet in
+`allowedApiOrigins` opgenomen oorsprong of tussen lokale ontwikkelhosts; een
+gedeelde URL kan daardoor nooit sessietokens of SDK-code naar een willekeurige
+host omleiden. De Leerpret-backend
 moet voor een afzonderlijke oorsprong die oorsprong opnemen in
 `LEERPRET_CORS_ORIGINS`. De minimale Google-aanmelding vereist daarnaast
 `GOOGLE_OAUTH_CLIENT_ID` en `GOOGLE_OAUTH_CLIENT_SECRET` op de backend en de
@@ -185,13 +190,24 @@ verschijnt een attentie-alert met rol, formulierhandeling en processtap en keert
 de interface terug naar het werkperspectief. Beide wisselingen worden als kale
 interactie-events vastgelegd.
 
-De game gebruikt een gedeelde, servergestuurde multiplayerlobby. Een Game
+De game gebruikt een gedeelde, servergestuurde multiplayerlobby én één
+authoritatieve spelruntime. Een Game
 Master maakt uitsluitend vanuit `Beheer > Gamesessie` een gesloten, open of
 semi-gesloten sessie aan en deelt de unieke gamecode. Spelers kunnen met een
-code deelnemen; open sessies met vrije plaatsen worden tevens in de
-spelersweergave aangeboden. Alleen wanneer geen open plek beschikbaar is,
-verschijnt `Vrije game starten`. De speler wordt dan automatisch Game Master
-van de nieuwe sessie.
+code deelnemen. De spelersweergave toont alle actieve, vindbare sessies,
+inclusief sessies die al spelen. Bij een lopende game neemt een nieuwe speler
+eerst atomair een virtuele-agentrol over. Zijn alle rollen door mensen bezet,
+dan komt de speler in een FIFO-wachtrij. Vertrekt een actieve speler of verloopt
+diens aanwezigheid, dan krijgt de eerste wachtende speler precies die rol; als
+niemand wacht, neemt een agent de rol tijdelijk terug over. `Stoppen met spelen`
+verlaat alleen de eigen deelname en sluit de gedeelde sessie niet.
+
+De digitale runtime heeft zeven onafhankelijk bestuurbare stations. Sommige
+onderwijsrollen delen bewust zo'n station (bijvoorbeeld Logistiek Manager,
+Sales en Finance delen Operations). De sessie-editor maakt die keuzes daarom
+wederzijds exclusief en de Engine weigert botsende of onbekende rolconfiguraties;
+capaciteit, agentovername en wachtrij blijven zo gelijk aan het werkelijk
+speelbare aantal rollen.
 
 Wanneer rollen onbezet zijn, kan iedere aanwezige speler een startverzoek doen.
 Alle reeds aanwezige spelers kiezen vervolgens unaniem tussen wachten en
@@ -199,6 +215,31 @@ starten met gesimuleerde agents. Eén wachtstem wijst het verzoek af. Pas wannee
 iedereen instemt, vult de backend alle resterende rollen met virtuele agents en
 gaat de sessiestatus naar `running`. De gedeelde toestand volgt
 `contracts/game-session-consensus-v1.schema.json`.
+
+Tijdens het spelen bewaart LeerpretEngine de gedeelde snapshot, monotone
+revisie, controller en rolgebonden commandowachtrij. Browsers lezen
+`GET /api/v1/game-sessions/{id}/runtime`. Een spelerhandeling gaat duurzaam en idempotent
+naar `POST /runtime/commands`; alleen de deterministisch gekozen controller
+verwerkt de commando's en publiceert met compare-and-swap naar `PUT /runtime`.
+Bij een revisieconflict haalt de controller eerst de serverstatus opnieuw op.
+Een verloren HTTP-response veroorzaakt geen dubbele actie: dezelfde lokaal
+bewaarde `command_id` wordt opnieuw aangeboden. De controller bevestigt iedere
+opdracht expliciet als `applied` of met een privacyveilige `rejected`-code.
+Daarom simuleren browsers geen rollen die door andere mensen zijn bezet en
+zien alle deelnemers dezelfde orders, klok, incidenten en uitkomsten. De
+taalneutrale runtimekopie staat in
+`contracts/game-session-runtime-v1.schema.json`; de sessielijst in
+`contracts/game-session-availability-v1.schema.json`.
+
+Iedere interactie krijgt een wereldwijd uniek client-event-id en gebruikt de
+pseudonieme `current_member_id` als stabiele persoon binnen de gamesessie. Een
+lokale, per-event gesegmenteerde outbox bewaart alle nog niet bevestigde events
+zonder een stille maximumlijst en probeert ze met oplopende wachttijd opnieuw
+te versturen. Losse opslagkeys voorkomen dat twee browsertabs elkaars events
+overschrijven. De Engine dedupliceert retries en groepeert de
+LOM-live meting per gamesessie en privacyveilige deelnemerreferentie. Daardoor
+kan het SNN-dashboard één deelnemer selecteren zonder actiereeksen van andere
+spelers samen te voegen.
 
 Iedere gamesessie bewaart daarnaast een eigen moeilijkheidsgraad. De Game
 Master kiest in de lobby `Makkelijk`, `Gemiddeld` of `Moeilijk`. De preset
@@ -298,6 +339,34 @@ wanneer iemand daar expliciet om vraagt.
 De workflow bewaart bij een mislukte test het Playwright-rapport en de
 `test-results/` als artifact, inclusief beschikbare trace, video en
 foutafbeelding.
+
+De gerichte multiplayer-regressie mag afzonderlijk worden uitgevoerd:
+
+```powershell
+npm.cmd run test:multiplayer
+npx.cmd playwright test tests/visual/multiplayer-session-regression.spec.js --project=desktop-chromium
+```
+
+De afzonderlijke productieproef is standaard overgeslagen en vereist bewust
+expliciete productie-authenticatie. Zij maakt unieke tijdelijke spelers, test
+agentovername, FIFO-promotie, een echte rolhandeling, de Engine-livefeed en de
+Dashboardselectie, en sluit de gemaakte gamesessie in een `finally`-cleanup.
+Geef secrets uitsluitend als procesomgeving mee; zet ze nooit in deze
+repository of een Playwright-rapport:
+
+```powershell
+$env:LOM_PRODUCTION_TEST = "1"
+$env:LEARNGAME_OM_URL = "https://bijbrengen.github.io/Learngame-Operations-Management/"
+$env:LEERPRET_AUTH_SECRET = "<uit geheime lokale omgeving>"
+$env:LEERPRET_EDITOR_SUBJECT = "<goedgekeurde architect/technoloog>"
+npm.cmd run test:multiplayer:production
+```
+
+De productieproef accepteert uitsluitend de officiële LOM-, Dashboard- en
+Engine-origins, doet vóór de eerste write een editor-authpreflight en schakelt
+retries, traces, screenshots en video uit. In plaats van een subject kan een
+kortlevende, vooraf uitgegeven token via `LEERPRET_EDITOR_SESSION_TOKEN` worden
+doorgegeven.
 
 Binnen het Leerpret-dashboard blijft de bestaande compatibiliteits-URL werken:
 

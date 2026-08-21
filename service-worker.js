@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v239";
+const CACHE_VERSION = "learngame-om-v241-multiplayer-runtime";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const APP_SHELL = [
   "./game-configuration-store.js",
   "./configuration-layout-preview.js",
   "./screen-interaction-manifest.js",
+  "./runtime-role-contract.js",
   "./contracts/game-configuration-v1.schema.json",
   "./leerpret-auth.js",
   "./leerpret-theme.js",
@@ -18,6 +19,7 @@ const APP_SHELL = [
   "./data/agent-behavior/entrepreneurship-human-patterns.v1.js",
   "./logistics-game-engine.js",
   "./logistics-game-ui.js",
+  "./multiplayer-runtime.js",
   "./chapter-9-insights.js",
   "./isometric-logistics-view.js",
   "./assets/brand/learn-games-logo.svg",
@@ -79,14 +81,19 @@ self.addEventListener("fetch", event => {
           }
           return response;
         })
-        .catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html")))
+        .catch(async () => {
+          const cached = await caches.match(event.request, { ignoreSearch: true });
+          if (cached) return cached;
+          if (event.request.mode === "navigate") return caches.match("./index.html");
+          return Response.error();
+        })
     );
     return;
   }
 
   // Cache-First with background revalidation for static media/images/icons
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
       if (cached) {
         fetch(event.request).then(response => {
           if (response.ok) {

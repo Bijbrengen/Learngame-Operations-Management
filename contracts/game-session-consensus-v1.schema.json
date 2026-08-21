@@ -4,7 +4,7 @@
   "title": "LEARNGame OM game session and consensus v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "session_id", "join_code", "session_type", "difficulty_level", "game_config", "origin", "status", "game_master_member_id", "required_role_ids", "members", "role_vacancies", "consensus", "virtual_agents", "created_at", "updated_at"],
+  "required": ["contract_version", "session_id", "join_code", "session_type", "difficulty_level", "game_config", "origin", "status", "game_master_member_id", "created_by_member_id", "controller_member_id", "required_role_ids", "members", "waiting_members", "role_vacancies", "consensus", "virtual_agents", "created_at", "updated_at", "current_member_id", "is_game_master", "participation_status", "queue_position", "join_mode", "human_count", "agent_count", "queue_count"],
   "properties": {
     "contract_version": {"const": "1.0"},
     "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
@@ -14,7 +14,7 @@
     "game_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "organization_model", "funding_incentive", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "product_type_count", "customer_order_mode", "has_supplier", "currency_mode", "base_currency", "enabled_currencies", "exchange_rates", "enabled_roles"],
+      "required": ["play_mode", "game_type", "money", "pnl", "opening_balance_enabled", "revenue_balance_enabled", "production_planning_enabled", "intermediate_stock", "opportunity_costs", "role_freedom", "organization_model", "funding_incentive", "multiple_colors", "editable_color_layers", "price_mode", "logistics_organization", "production_processes", "product_type_count", "customer_order_mode", "has_supplier", "currency_mode", "base_currency", "enabled_currencies", "exchange_rates", "enabled_roles"],
       "properties": {
         "play_mode": {"enum": ["physical", "digital"]},
         "game_type": {"enum": ["entrepreneurial", "entrepreneurial_simple", "entrepreneurial_digital", "lo1", "lo2", "lo3", "lo4", "lo5", "lo5b", "lo6", "lo7", "lo7_digital", "lo8", "lo9", "le_training", "la_game", "learngame_small_2018", "la_game_small_2020"]},
@@ -64,6 +64,7 @@
             "enum": [
               "customer",
               "logistics_manager",
+              "operations",
               "raw_warehouse",
               "production_1",
               "production_2",
@@ -75,9 +76,21 @@
               "sales",
               "finance",
               "supplier",
-              "transporter"
+              "transporter",
+              "customer1",
+              "customer2",
+              "customer3",
+              "customer4",
+              "opr",
+              "srm",
+              "pd1",
+              "pd2",
+              "pd3",
+              "mfp",
+              "ssf"
             ]
           },
+          "minItems": 1,
           "maxItems": 14,
           "uniqueItems": true
         }
@@ -85,7 +98,9 @@
     },
     "origin": {"enum": ["managed", "free_game"]},
     "status": {"enum": ["lobby", "ready", "running", "finished"]},
-    "game_master_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+    "game_master_member_id": {"type": ["string", "null"], "minLength": 8, "maxLength": 120},
+    "created_by_member_id": {"type": ["string", "null"], "minLength": 8, "maxLength": 120},
+    "controller_member_id": {"type": ["string", "null"], "minLength": 8, "maxLength": 120},
     "required_role_ids": {
       "type": "array",
       "items": {"type": "string", "minLength": 1, "maxLength": 80},
@@ -104,6 +119,21 @@
           "match_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
           "reliability": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
           "joined_at": {"type": "string", "format": "date-time"},
+          "last_seen_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "waiting_members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["member_id", "match_percent", "reliability", "queued_at", "last_seen_at"],
+        "properties": {
+          "member_id": {"type": "string", "minLength": 8, "maxLength": 120},
+          "match_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+          "reliability": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+          "queued_at": {"type": "string", "format": "date-time"},
           "last_seen_at": {"type": "string", "format": "date-time"}
         }
       }
@@ -152,6 +182,12 @@
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
     "current_member_id": {"type": "string", "minLength": 8, "maxLength": 120},
-    "is_game_master": {"type": "boolean"}
+    "is_game_master": {"type": "boolean"},
+    "participation_status": {"enum": ["active", "waiting", "none"]},
+    "queue_position": {"type": ["integer", "null"], "minimum": 1},
+    "join_mode": {"enum": ["join", "resume", "replace_agent", "queue", "waiting", "full", "code_required", "closed"]},
+    "human_count": {"type": "integer", "minimum": 0},
+    "agent_count": {"type": "integer", "minimum": 0},
+    "queue_count": {"type": "integer", "minimum": 0}
   }
 }

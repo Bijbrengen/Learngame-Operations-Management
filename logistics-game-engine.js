@@ -124,6 +124,7 @@
   ]);
 
   const PARALLEL_PRODUCTION_ROLES = Object.freeze(["pd1", "pd2", "pd3"]);
+  const MAX_RETAINED_DELIVERED_ORDERS = 250;
 
   const PRODUCT_DEFINITIONS = Object.freeze({
     A: {
@@ -305,6 +306,7 @@
       this.loop?.stop();
       this.started = false;
       this.humanRoleId = null;
+      this.humanRoleIds = new Set();
       this.startedAt = null;
       this.nextOrderAt = null;
       this.pendingPeakOrderAt = null;
@@ -468,6 +470,7 @@
 
     start({
       humanRoleId = null,
+      humanRoleIds = humanRoleId ? [humanRoleId] : [],
       customerOrderMode = this.customerOrderMode,
       gameType = this.gameType,
       organizationModel = this.organizationModel,
@@ -479,6 +482,13 @@
     } = {}) {
       if (humanRoleId && !this.roles[humanRoleId]) {
         throw new Error(`Onbekende spelersrol: ${humanRoleId}`);
+      }
+      const normalizedHumanRoleIds = [...new Set(humanRoleIds || [])];
+      normalizedHumanRoleIds.forEach(roleId => {
+        if (!this.roles[roleId]) throw new Error(`Onbekende spelersrol: ${roleId}`);
+      });
+      if (humanRoleId && !normalizedHumanRoleIds.includes(humanRoleId)) {
+        normalizedHumanRoleIds.push(humanRoleId);
       }
       if (this.started) this.stop();
       this.setCustomerOrderMode(customerOrderMode);
@@ -494,18 +504,19 @@
       this.started = true;
       this.startedAt = now;
       this.humanRoleId = humanRoleId;
+      this.humanRoleIds = new Set(normalizedHumanRoleIds);
       this.assignAgentBehaviors();
       this.nextOrderAt = now + this.config.initialOrderDelayMs;
       this.addFeed(
         "system",
         humanRoleId
-          ? `${this.roles[humanRoleId].title} wordt door de speler uitgevoerd; de overige zes rollen zijn gesimuleerd. Moeilijkheid: ${this.difficulty.label}.${this.behaviorPatterns ? " Agenttempo is gebaseerd op geaggregeerde Entrepreneurship-spelpatronen." : ""}`
+          ? `${normalizedHumanRoleIds.length} rol${normalizedHumanRoleIds.length === 1 ? "" : "len"} wordt door spelers uitgevoerd; alleen onbezet gebleven rollen worden gesimuleerd. Moeilijkheid: ${this.difficulty.label}.${this.behaviorPatterns ? " Agenttempo is gebaseerd op geaggregeerde Entrepreneurship-spelpatronen." : ""}`
           : "Kies een menselijke rol om de logistieke simulatie te starten.",
         null,
         now
       );
       this.loop.start();
-      this.emit("started", { humanRoleId });
+      this.emit("started", { humanRoleId, humanRoleIds: normalizedHumanRoleIds });
       return this.snapshot();
     }
 
@@ -521,8 +532,39 @@
         .some(runtime => runtime.state !== ROLE_STATES.IDLE || runtime.queue.length);
       if (alreadyBusy) throw new Error("De spelersrol kan alleen worden gekozen voordat de orderstroom actief is.");
       this.humanRoleId = roleId;
+      this.humanRoleIds = new Set([roleId]);
       this.addFeed("system", `${this.roles[roleId].title} is toegewezen aan de speler.`);
       this.emit("human-role-changed", { humanRoleId: roleId });
+    }
+
+    setHumanRoles(roleIds = [], { emit = true } = {}) {
+      const next = new Set((roleIds || []).filter(roleId => this.roles[roleId]));
+      if (this.humanRoleId) next.add(this.humanRoleId);
+      const previous = this.humanRoleIds || new Set();
+      const changed = previous.size !== next.size
+        || [...previous].some(roleId => !next.has(roleId));
+      const now = this.now();
+      this.humanRoleIds = next;
+      ROLE_FLOW.forEach(roleId => {
+        const runtime = this.roleRuntime[roleId];
+        if (!runtime?.activeOrderId) return;
+        if (next.has(roleId) && !previous.has(roleId) && runtime.state === ROLE_STATES.PROCESSING) {
+          runtime.state = ROLE_STATES.AWAITING_PLAYER;
+          runtime.completesAt = null;
+          runtime.incident = null;
+          runtime.stateSince = now;
+          this.addFeed("player", `${this.roles[roleId].token} is door een speler overgenomen.`, runtime.activeOrderId, now);
+        } else if (!next.has(roleId) && previous.has(roleId) && runtime.state === ROLE_STATES.AWAITING_PLAYER) {
+          const order = this.orders.get(runtime.activeOrderId);
+          const timing = this.processingTiming(roleId, order);
+          runtime.state = ROLE_STATES.PROCESSING;
+          runtime.stateSince = now;
+          runtime.completesAt = now + timing.durationMs;
+          this.addFeed("state", `${this.roles[roleId].token} is tijdelijk door een agent overgenomen.`, runtime.activeOrderId, now);
+        }
+      });
+      if (emit && changed) this.emit("human-roles-changed", { humanRoleIds: [...next] });
+      return [...next];
     }
 
     scheduleNextOrder(now) {
@@ -553,7 +595,7 @@
     }
 
     generateOrder({ peak = false } = {}) {
-      if (!this.started || !this.humanRoleId) return null;
+      if (!this.started || !this.humanRoleIds.size) return null;
       if (this.activeOrderCount() >= this.config.maxOrdersInSystem) return null;
       const now = this.now();
       const products = Object.values(this.products);
@@ -574,7 +616,7 @@
         productionRoute: this.productionRouteForNextOrder(),
         productionDepartment: null,
         roleFlow: [],
-        status: this.humanRoleId === "customer" ? "DRAFT" : "ACTIVE",
+        status: this.humanRoleIds.has("customer") ? "DRAFT" : "ACTIVE",
         qualityRetries: 0,
         history: []
       };
@@ -583,7 +625,7 @@
       this.enqueue(order.roleFlow[0], id);
       this.addFeed(
         "order",
-        this.humanRoleId === "customer"
+        this.humanRoleIds.has("customer")
           ? `${order.customer} kan ${id} nu als torenbestelling plaatsen.`
           : `${order.customer} heeft ${id} geplaatst: ${quantity}× ${product.name}.`,
         id,
@@ -601,10 +643,43 @@
     }
 
     update(now = this.now()) {
-      if (!this.started || !this.humanRoleId) return;
+      if (!this.started || !this.humanRoleIds.size) return;
+      const before = this.synchronizationSignature();
       this.updateOrderGenerator(now);
       ROLE_FLOW.forEach(roleId => this.updateRole(roleId, now));
-      this.emit("tick", { now });
+      this.emit("tick", {
+        now,
+        synchronizationChanged: this.synchronizationSignature() !== before
+      });
+    }
+
+    synchronizationSignature() {
+      return JSON.stringify({
+        nextOrderAt: this.nextOrderAt,
+        pendingPeakOrderAt: this.pendingPeakOrderAt,
+        orderCounter: this.orderCounter,
+        roles: ROLE_FLOW.map(roleId => {
+          const runtime = this.roleRuntime[roleId];
+          return [
+            roleId,
+            runtime?.state,
+            runtime?.activeOrderId,
+            runtime?.completesAt,
+            runtime?.transfersAt,
+            runtime?.queue || [],
+            runtime?.incident?.id || null
+          ];
+        }),
+        orders: [...this.orders.values()].map(order => [
+          order.id,
+          order.status,
+          order.currentRoleId,
+          order.routeIndex,
+          order.history?.length || 0,
+          order.qualityRetries || 0,
+          order.deliveredAt || null
+        ])
+      });
     }
 
     updateOrderGenerator(now) {
@@ -654,7 +729,7 @@
       runtime.incident = null;
       order.currentRoleId = roleId;
       order.routeIndex = order.roleFlow.indexOf(roleId);
-      if (roleId === this.humanRoleId) {
+      if (this.humanRoleIds.has(roleId)) {
         runtime.state = ROLE_STATES.AWAITING_PLAYER;
         runtime.completesAt = null;
         this.addFeed("player", `${this.roles[roleId].token} wacht op jouw handeling voor ${order.id}.`, order.id, now);
@@ -704,7 +779,7 @@
 
     rollIncident(roleId, order) {
       if (this.random() >= clamp(this.config.incidentChance, 0, 1)) return null;
-      if (this.difficultyLevel === "hard" && roleId !== this.humanRoleId) {
+      if (this.difficultyLevel === "hard" && !this.humanRoleIds.has(roleId)) {
         const noiseRoll = this.random();
         if (noiseRoll < 0.34) {
           return {
@@ -786,6 +861,11 @@
           now
         );
         this.emit("order-delivered", { order: deepClone(order) });
+        const delivered = [...this.orders.values()]
+          .filter(item => item.status === "DELIVERED")
+          .sort((first, second) => Number(first.deliveredAt || 0) - Number(second.deliveredAt || 0));
+        delivered.slice(0, Math.max(0, delivered.length - MAX_RETAINED_DELIVERED_ORDERS))
+          .forEach(item => this.orders.delete(item.id));
       } else {
         order.currentRoleId = nextRoleId;
         order.routeIndex = currentIndex + 1;
@@ -839,19 +919,19 @@
       );
     }
 
-    playerTask() {
-      if (!this.humanRoleId) return null;
-      const runtime = this.roleRuntime[this.humanRoleId];
+    playerTask(roleId = this.humanRoleId) {
+      if (!roleId || !this.humanRoleIds.has(roleId)) return null;
+      const runtime = this.roleRuntime[roleId];
       if (runtime.state !== ROLE_STATES.AWAITING_PLAYER || !runtime.activeOrderId) return null;
       const order = this.orders.get(runtime.activeOrderId);
       if (!order) return null;
-      const role = deepClone(this.roles[this.humanRoleId]);
+      const role = deepClone(this.roles[roleId]);
       if (
         order.productionRoute === "parallel"
-        && PARALLEL_PRODUCTION_ROLES.includes(this.humanRoleId)
+        && PARALLEL_PRODUCTION_ROLES.includes(roleId)
       ) {
         const departmentLabel = String.fromCharCode(
-          65 + PARALLEL_PRODUCTION_ROLES.indexOf(this.humanRoleId)
+          65 + PARALLEL_PRODUCTION_ROLES.indexOf(roleId)
         );
         role.department = `PRODUCTIEAFDELING ${departmentLabel}`;
         role.title = `MANAGER PRODUCTIE ${departmentLabel}`;
@@ -862,26 +942,26 @@
         ];
         role.form.actionLabel = "Complete toren bouwen";
         role.form.transferLabel = "Breng gereed product naar SSF";
-      } else if (order.productionRoute === "parallel" && this.humanRoleId === "srm") {
+      } else if (order.productionRoute === "parallel" && roleId === "srm") {
         role.form.transferLabel = `Breng complete materiaalset naar ${order.productionDepartment.toUpperCase()}`;
       }
       return {
         role,
         order: deepClone(order),
         product: deepClone(this.products[order.productId]),
-        requiredParts: this.requiredParts(order, this.humanRoleId),
+        requiredParts: this.requiredParts(order, roleId),
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
         organizationModel: this.organizationModel,
         fundingIncentive: this.fundingIncentive,
-        availableProducts: this.humanRoleId === "customer"
+        availableProducts: roleId === "customer"
           ? deepClone(Object.values(this.products))
           : []
       };
     }
 
-    completePlayerAction(payload = {}) {
-      const task = this.playerTask();
+    completePlayerAction(payload = {}, roleId = this.humanRoleId) {
+      const task = this.playerTask(roleId);
       if (!task) return { ok: false, errors: ["Er staat geen handeling voor jouw rol klaar."] };
       if (task.role.id === "customer") return this.completeCustomerOrder(task, payload);
       const errors = [];
@@ -917,12 +997,12 @@
       }
 
       const now = this.now();
-      const runtime = this.roleRuntime[this.humanRoleId];
+      const runtime = this.roleRuntime[roleId];
       const order = this.orders.get(runtime.activeOrderId);
       const handlingTimeMs = Math.max(0, now - Number(runtime.stateSince || now));
       order.history.push({
         at: now,
-        roleId: this.humanRoleId,
+        roleId,
         type: "player_handling",
         label: this.playMode === "digital" ? "Digitale handeling" : "Fysieke handling",
         handlingTimeMs,
@@ -930,10 +1010,10 @@
         completedQuantity: Number(payload.completedQuantity || task.order.quantity || 1),
         orderSignature: true
       });
-      const incident = this.rollIncident(this.humanRoleId, order);
+      const incident = this.rollIncident(roleId, order);
       this.addFeed(
         "player",
-        `Speler ${this.roles[this.humanRoleId].token} heeft ${this.roles[this.humanRoleId].form.actionLabel.toLowerCase()} voor ${order.id}.`,
+        `Speler ${this.roles[roleId].token} heeft ${this.roles[roleId].form.actionLabel.toLowerCase()} voor ${order.id}.`,
         order.id,
         now
       );
@@ -942,7 +1022,7 @@
         runtime.stateSince = now;
         runtime.incident = incident;
         runtime.completesAt = now + incident.delayMs;
-        this.recordIncident(incident, order, this.humanRoleId, now);
+        this.recordIncident(incident, order, roleId, now);
       } else {
         runtime.state = ROLE_STATES.WAITING_FOR_NEXT;
         runtime.stateSince = now;
@@ -953,7 +1033,7 @@
       }
       this.emit("player-action-completed", {
         order: deepClone(order),
-        roleId: this.humanRoleId,
+        roleId,
         playMode: this.playMode,
         handlingTimeMs
       });
@@ -1028,9 +1108,14 @@
 
     snapshot() {
       return {
+        capturedAt: this.now(),
         started: Boolean(this.started),
         startedAt: this.startedAt,
+        nextOrderAt: this.nextOrderAt,
+        pendingPeakOrderAt: this.pendingPeakOrderAt,
+        orderCounter: this.orderCounter,
         humanRoleId: this.humanRoleId,
+        humanRoleIds: [...this.humanRoleIds],
         gameType: this.gameType,
         playMode: this.playMode,
         customerOrderMode: this.customerOrderMode,
@@ -1058,6 +1143,75 @@
           sourceSummary: deepClone(this.behaviorPatterns.sourceSummary)
         } : null
       };
+    }
+
+    restoreSnapshot(snapshot, {
+      humanRoleId = this.humanRoleId,
+      humanRoleIds = snapshot?.humanRoleIds || [],
+      runLoop = false,
+      elapsedSinceSnapshotMs = 0
+    } = {}) {
+      if (!snapshot || typeof snapshot !== "object" || !Array.isArray(snapshot.orders)) {
+        throw new Error("Ongeldige gedeelde spelstatus.");
+      }
+      this.loop.stop();
+      const capturedAt = Number(snapshot.capturedAt);
+      const elapsed = Math.max(0, Number(elapsedSinceSnapshotMs) || 0);
+      const timelineShift = Number.isFinite(capturedAt)
+        ? this.now() - capturedAt - elapsed
+        : 0;
+      const shiftTime = value => Number.isFinite(Number(value))
+        ? Number(value) + timelineShift
+        : value;
+      this.started = Boolean(snapshot.started);
+      this.startedAt = snapshot.startedAt == null ? null : shiftTime(snapshot.startedAt);
+      this.nextOrderAt = snapshot.nextOrderAt == null ? null : shiftTime(snapshot.nextOrderAt);
+      this.pendingPeakOrderAt = snapshot.pendingPeakOrderAt == null
+        ? null
+        : shiftTime(snapshot.pendingPeakOrderAt);
+      this.orderCounter = Number(snapshot.orderCounter || snapshot.orders.length || 0);
+      this.gameType = String(snapshot.gameType || this.gameType);
+      this.playMode = snapshot.playMode === "digital" ? "digital" : "physical";
+      this.customerOrderMode = snapshot.customerOrderMode === "free" ? "free" : "required";
+      this.organizationModel = snapshot.organizationModel || this.organizationModel;
+      this.productionProcesses = this.normalizeProductionProcesses(snapshot.productionProcesses);
+      this.intermediateStock = Boolean(snapshot.intermediateStock);
+      this.enabledRoles = Array.isArray(snapshot.enabledRoles) ? [...snapshot.enabledRoles] : null;
+      this.roles = deepClone(snapshot.roles || this.roles);
+      this.products = deepClone(snapshot.products || this.products);
+      this.parts = deepClone(snapshot.parts || this.parts);
+      this.roleRuntime = deepClone(snapshot.roleRuntime || this.roleRuntime);
+      this.orders = new Map(snapshot.orders.map(order => [order.id, deepClone(order)]));
+      this.feed = deepClone(snapshot.feed || []);
+      Object.values(this.roleRuntime).forEach(runtime => {
+        if (runtime?.stateSince != null) runtime.stateSince = shiftTime(runtime.stateSince);
+        if (runtime?.completesAt != null) runtime.completesAt = shiftTime(runtime.completesAt);
+        if (runtime?.transfersAt != null) runtime.transfersAt = shiftTime(runtime.transfersAt);
+        if (runtime?.incident?.startedAt != null) {
+          runtime.incident.startedAt = shiftTime(runtime.incident.startedAt);
+        }
+      });
+      this.orders.forEach(order => {
+        ["createdAt", "dueAt", "deliveredAt"].forEach(key => {
+          if (order[key] != null) order[key] = shiftTime(order[key]);
+        });
+        (order.history || []).forEach(item => {
+          if (item?.at != null) item.at = shiftTime(item.at);
+        });
+      });
+      this.feed.forEach(item => {
+        if (item?.at != null) item.at = shiftTime(item.at);
+      });
+      this.config = { ...this.config, ...(snapshot.config || {}) };
+      this.setDifficulty(snapshot.difficulty?.id || this.difficultyLevel);
+      this.humanRoleId = humanRoleId && this.roles[humanRoleId] ? humanRoleId : null;
+      this.humanRoleIds = new Set(
+        (snapshot.humanRoleIds || []).filter(roleId => this.roles[roleId])
+      );
+      this.setHumanRoles(humanRoleIds, { emit: false });
+      if (runLoop && this.started) this.loop.start();
+      this.emit("snapshot-restored", { humanRoleId: this.humanRoleId, humanRoleIds: [...this.humanRoleIds] });
+      return this.snapshot();
     }
   }
 
