@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 async function openManagerSettings(page) {
   await page.route("**/auth/leerbox/session**", route => route.fulfill({
@@ -30,7 +30,7 @@ async function openManagerSettings(page) {
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })
   }));
-  await page.goto("/?api=http://127.0.0.1:47111/api");
+  await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMSimulator);
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await page.locator("#characterCreationGate").waitFor({ state: "hidden" });
@@ -49,21 +49,39 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
   test("de aparte Opstelling blijft direct met de gekozen preset gesynchroniseerd", async ({ page }) => {
     const form = page.locator("#gameSessionCreateForm");
     const gameType = form.locator('[name="game_type"]');
+    const sessionTab = page.locator('[data-manager-tab="session"]');
+    const layoutTab = page.locator('[data-manager-tab="layout"]');
     const preview = page.locator('[data-manager-panel="layout"] [data-configuration-layout-preview]');
+    const schematic = preview.locator(".session-layout-config-summary");
+    const openSchematic = async () => {
+      await expect(schematic).toBeVisible();
+      if (!await schematic.evaluate(element => element.open)) {
+        await schematic.locator("summary").click();
+      }
+      await expect(schematic).toHaveAttribute("open", "");
+    };
 
     await gameType.selectOption("lo4");
-    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("layout"));
+    await expect(form.locator('[name="parallel_production"]')).toBeChecked();
+    await layoutTab.click();
+    await expect(layoutTab).toHaveAttribute("aria-selected", "true");
     await expect(preview).toBeVisible();
+    await openSchematic();
     await expect(preview.locator('[data-layout-topology="parallel"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-a"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-b"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-c"]')).toBeVisible();
 
-    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("session"));
+    await sessionTab.click();
+    await expect(sessionTab).toHaveAttribute("aria-selected", "true");
     await gameType.selectOption("lo5");
-    await page.evaluate(() => window.LEARNGameOMSimulator.setManagerTab("layout"));
+    await expect(form.locator('[name="sequential_production"]')).toBeChecked();
+    await layoutTab.click();
+    await expect(layoutTab).toHaveAttribute("aria-selected", "true");
+    await openSchematic();
     await expect(preview.locator('[data-layout-topology="sequential"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="supplier"]')).toBeVisible();
+    await expect(preview.locator('[data-layout-node="raw"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="production-1"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="stock-1"]')).toBeVisible();
     await expect(preview.locator('[data-layout-node="customer"]')).toBeVisible();
@@ -179,6 +197,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     const multipleColors = form.locator('[name="multiple_colors"]');
     const supplier = form.locator('[name="has_supplier"]');
     const supplierRole = page.locator('[data-manager-panel="roles"] [name="role_supplier"]');
+    const rawWarehouseRole = page.locator('[data-manager-panel="roles"] [name="role_raw_warehouse"]');
 
     await gameType.selectOption("lo1");
     await expect(productCount).toHaveValue("1");
@@ -192,7 +211,11 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(productCount).toHaveValue("3");
     await expect(productCount).toBeDisabled();
     await expect(supplier).toBeChecked();
-    await expect(supplierRole).toBeChecked();
+    await expect(rawWarehouseRole).toBeChecked();
+    await expect(supplierRole).not.toBeChecked();
+    expect(await page.evaluate(() => (
+      window.LOMRuntimeRoles.stationId("raw_warehouse") === window.LOMRuntimeRoles.stationId("supplier")
+    ))).toBe(true);
 
     await gameType.selectOption("lo6");
     await expect(productCount).toBeEnabled();
@@ -252,7 +275,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     });
     await page.route(/\/v1\/game-sessions$/, async route => {
       if (route.request().method() !== "POST") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       requestPayload = route.request().postDataJSON();
@@ -274,15 +297,12 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     expect(requestPayload.game_config.game_type).toBe("lo4");
     expect(requestPayload.game_config.enabled_roles).toEqual([
       "customer",
-      "supplier",
       "logistics_manager",
       "raw_warehouse",
       "finished_warehouse",
       "production_a",
       "production_b",
-      "production_c",
-      "sales",
-      "finance"
+      "production_c"
     ]);
     expect(dialogs).toEqual([]);
   });
@@ -296,7 +316,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     });
     await page.route(/\/v1\/game-sessions$/, async route => {
       if (route.request().method() !== "POST") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       requestCount += 1;
@@ -346,7 +366,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     let requestPayload;
     await page.route(/\/v1\/game-sessions$/, async route => {
       if (route.request().method() !== "POST") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       requestPayload = route.request().postDataJSON();
@@ -415,7 +435,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       await dialog.dismiss();
     });
 
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator);
     await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await page.evaluate(() => {
@@ -437,10 +457,11 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
 
   test("een conceptlobby herstelt alle presetrollen en vergrendelt de rol pas na de start", async ({ page }) => {
     const lo4Roles = [
-      "customer", "logistics_manager", "sales", "finance", "raw_warehouse",
-      "production_a", "production_b", "production_c", "finished_warehouse", "supplier"
+      "customer", "logistics_manager", "raw_warehouse", "production_a",
+      "production_b", "production_c", "finished_warehouse"
     ];
     let repairedRoles = null;
+    let repairedHasSupplier = null;
     let currentSession = {
       session_id: "session-role-repair",
       status: "ready",
@@ -474,11 +495,13 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       })
     }));
     await page.route("**/v1/game-sessions/session-role-repair/configuration", route => {
-      repairedRoles = route.request().postDataJSON().game_config.enabled_roles;
+      const repairedConfig = route.request().postDataJSON().game_config;
+      repairedRoles = repairedConfig.enabled_roles;
+      repairedHasSupplier = repairedConfig.has_supplier;
       currentSession = {
         ...currentSession,
         status: "lobby",
-        game_config: { ...currentSession.game_config, enabled_roles: [...repairedRoles] },
+        game_config: { ...currentSession.game_config, ...repairedConfig },
         required_role_ids: [...repairedRoles],
         role_vacancies: repairedRoles.filter(roleId => roleId !== "supplier")
       };
@@ -502,13 +525,16 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       window.LEARNGameOMSimulator.setManagerTab("session");
     });
     await expect.poll(() => repairedRoles).toEqual(lo4Roles);
+    expect(repairedHasSupplier).toBe(true);
     const roleSelect = page.locator("#managerSessionContent [data-game-master-role-select]");
     await expect(roleSelect.locator("option")).toHaveCount(lo4Roles.length);
-    await expect(page.locator("#managerSessionContent .session-role-distribution > header > strong")).toContainText("9 rollen nog niet vervuld");
+    const vacancySummary = page.locator("#managerSessionContent .session-role-distribution > header > strong");
+    await expect(vacancySummary).toHaveText("7 rollen nog niet vervuld");
 
     await roleSelect.selectOption("production_a");
     await expect.poll(() => currentSession.members[0].assigned_role_id).toBe("production_a");
     await expect(roleSelect).toHaveValue("production_a");
+    await expect(vacancySummary).toHaveText("6 rollen nog niet vervuld");
 
     currentSession = { ...currentSession, status: "running" };
     await expect(page.locator("#managerSessionContent [data-game-master-role-select]")).toHaveCount(0, { timeout: 8000 });
@@ -562,7 +588,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       await dialog.dismiss();
     });
 
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator);
     await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await expect(page.locator("#gameConsensusDialog")).toBeVisible();

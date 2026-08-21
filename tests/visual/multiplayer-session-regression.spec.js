@@ -1052,6 +1052,19 @@ class StatefulMultiplayerApi {
   async route(key, route) {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname.endsWith("/runtime-config.js")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        body: `window.LEARNGAME_OM_CONFIG = Object.freeze({
+          apiBase: ${JSON.stringify(API_BASE)},
+          configuredApiBase: ${JSON.stringify(API_BASE)},
+          appUrl: window.location.origin + "/",
+          allowedApiOrigins: [${JSON.stringify(ALLOWED_OVERRIDE_ORIGIN)}]
+        });`
+      });
+      return;
+    }
     if (url.hostname === "evil.invalid") {
       this.stats.evilApiRequests.push({ key, method: request.method(), url: url.href });
       await route.abort("blockedbyclient");

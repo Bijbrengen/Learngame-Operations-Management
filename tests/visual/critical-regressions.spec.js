@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 async function fulfillJson(route, status, body) {
   await route.fulfill({
@@ -38,7 +38,7 @@ async function mockAuthenticatedApp(page, { profileExists = true } = {}) {
 
 async function openManagerSessionSettings(page) {
   await mockAuthenticatedApp(page);
-  await page.goto("/?api=http://127.0.0.1:47111/api");
+  await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMSimulator && window.GameConfigurationStore);
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await expect(page.locator("#characterCreationGate")).toBeHidden();
@@ -59,7 +59,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       response.url().includes("/v1/player/behavior-profile")
       && response.status() === 200
     ));
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await profileResponse;
 
     const beginScans = page.locator('[data-action="begin-scans"]');
@@ -115,7 +115,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       scope: "openid"
     }));
 
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     expect(new URL(page.url()).hostname).toBe("127.0.0.1");
     await expect(page.locator("#leerpretAuthMessage")).toHaveText(
       "Meld je hier met je Google-account aan."
@@ -200,7 +200,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
     await page.route("**/v1/game-sessions**", async route => {
       if (route.request().method() !== "POST") {
-        await route.continue();
+        await route.fallback();
         return;
       }
       postedBody = route.request().postDataJSON();
@@ -606,7 +606,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }) => {
     await mockAuthenticatedApp(page);
-    await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");
+    await page.goto("/#tutorialStep2");
     await page.waitForFunction(() => (
       window.LegoTowerRenderer?.openContainerLayers
       && window.IsometricLogisticsView
@@ -655,16 +655,17 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }) => {
     await mockAuthenticatedApp(page);
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await page.waitForFunction(() => (
       window.LEARNGameOMSimulator
       && window.LOMLogisticsScene
       && window.IsometricLogisticsView
     ));
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await page.evaluate(() => {
       window.LEARNGameOMSimulator.setAppView("manager");
-      window.LEARNGameOMSimulator.setManagerTab("layout");
     });
+    await page.locator('[data-manager-tab="layout"]').click();
 
     const layout = page.locator("[data-manager-panel='layout']");
     await expect(layout).toBeVisible();
@@ -675,8 +676,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("10. Akkoord en toevoegen slaat een complete maatwerktoren op", async ({ page }) => {
     await mockAuthenticatedApp(page);
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await page.evaluate(() => {
       localStorage.removeItem("learngame.om.customProducts.v1");
       window.LEARNGameOMSimulator.setAppView("manager");
@@ -701,8 +703,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("10b. tutorialstap 5 bouwt een toren en voegt hem echt aan het assortiment toe", async ({ page }) => {
     await mockAuthenticatedApp(page);
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
     await page.evaluate(() => {
       localStorage.removeItem("learngame.om.customProducts.v1");
       localStorage.removeItem("learngame.om.tutorialCompleted");
@@ -745,7 +748,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }) => {
     await mockAuthenticatedApp(page);
-    await page.goto("/?api=http://127.0.0.1:47111/api#tutorialStep2");
+    await page.goto("/#tutorialStep2");
     await page.waitForFunction(() => (
       window.LEARNGameOMSimulator
       && window.LeerpretSDK?.components?.["lego-cables"]?.connectionMarkup

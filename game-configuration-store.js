@@ -385,6 +385,8 @@
     const synchronizedRoles = hasSupplier
       ? [...new Set([...enabledRoles, "supplier"])]
       : enabledRoles.filter(roleId => roleId !== "supplier");
+    const runtimeRoles = global.LOMRuntimeRoles?.normalize(synchronizedRoles)
+      || synchronizedRoles;
     const requestedProductTypeCount = Math.max(
       1,
       Math.min(MAX_PRODUCT_TYPES, Number(settings.product_type_count) || 3)
@@ -406,7 +408,7 @@
       editable_color_layers: editableColorLayers,
       product_type_count: productTypeCount,
       has_supplier: hasSupplier,
-      enabled_roles: synchronizedRoles,
+      enabled_roles: runtimeRoles,
       ...currencySettings,
       production_processes: productionProcesses,
       logistics_organization: productionProcesses.length === 1
@@ -460,7 +462,7 @@
     }
 
     getPresets() {
-      return BUILTIN_PRESETS;
+      return BUILTIN_PRESETS.map(normalizeConfiguration);
     }
 
     getCustomConfigurations() {
@@ -468,13 +470,14 @@
     }
 
     getAllConfigurations() {
-      return [...BUILTIN_PRESETS, ...this.getCustomConfigurations()];
+      return [...this.getPresets(), ...this.getCustomConfigurations()];
     }
 
     getConfiguration(configId) {
       if (configId === "custom_draft") return null;
       const all = this.getAllConfigurations();
-      return all.find(c => c.config_id === configId) || BUILTIN_PRESETS.find(p => p.config_id === "lo4");
+      return all.find(c => c.config_id === configId)
+        || this.getPresets().find(p => p.config_id === "lo4");
     }
 
     findMatchingConfiguration(currentSettings) {

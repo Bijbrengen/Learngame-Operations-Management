@@ -1,8 +1,12 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 test("Magazijn Grondstoffen kan een complete digitale handeling met Uitgevoerd afronden", async ({ page }) => {
   await page.goto("/");
-  await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+  await page.waitForFunction(() => (
+    window.LogisticsGameEngine
+    && window.LogisticsGameUI
+    && window.LeerpretSDK?.components?.["lego-builder"]?.logic
+  ));
   await page.evaluate(() => {
     document.body.className = "";
     document.body.innerHTML = '<main id="raw-warehouse-completion"></main>';

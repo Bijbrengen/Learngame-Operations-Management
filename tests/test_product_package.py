@@ -56,14 +56,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260820j"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260820.4"', html)
-        self.assertIn('src="game-configuration-store.js?v=20260820.1"', html)
-        self.assertIn('src="game-sessions.js?v=20260820.2"', html)
+        self.assertIn('href="style.css?v=20260821.2"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260821.2"', html)
+        self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
+        self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
+        self.assertIn('src="game-sessions.js?v=20260821.3"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260820i"', html)
-        self.assertIn('"script.js?v=20260820f"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v239"', service_worker)
-        self.assertIn('register("service-worker.js?v=239")', (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn('"script.js?v=20260821.3"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v242-ci-preview-runtime"', service_worker)
+        self.assertIn(
+            'register("service-worker.js?v=learngame-om-v242-ci-preview-runtime")',
+            (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
+        )
 
         manager_controls = stylesheet.split(
             ".manager-dashboard .order-form input,", 1
@@ -1641,6 +1645,15 @@ process.stdout.write(JSON.stringify({
         self.assertNotIn('localStorage.setItem("api_key"', auth)
         self.assertIn("./leerpret-auth.js", worker)
 
+    def test_ci_preview_uses_the_production_engine(self) -> None:
+        runtime = (PRODUCT_ROOT / "runtime-config.js").read_text(encoding="utf-8")
+        generator = (PRODUCT_ROOT / "scripts/generate_runtime_config.py").read_text(
+            encoding="utf-8"
+        )
+        for source in (runtime, generator):
+            self.assertIn('window.location.port === "47913"', source)
+            self.assertIn("var isLocal = !isCiPreview", source)
+
     def test_local_contract_is_the_host_contract_snapshot(self) -> None:
         local_contract_path = PRODUCT_ROOT / "contracts/events/leerpret-interaction-event-v1.schema.json"
         local_contract = json.loads(local_contract_path.read_text(encoding="utf-8"))
@@ -2205,9 +2218,12 @@ process.stdout.write(JSON.stringify({{
                 "node",
                 "-e",
                 """
+global.window = global;
 global.localStorage = { getItem: () => null, setItem: () => {} };
 require("./logistics-process.js");
+require("./runtime-role-contract.js");
 require("./game-configuration-store.js");
+const layout = require("./configuration-layout-preview.js");
 const lo4 = global.GameConfigurationStore.getConfiguration("lo4");
 const match = global.GameConfigurationStore.findMatchingConfiguration({
   ...lo4.settings,
@@ -2221,7 +2237,13 @@ const repaired = global.GameConfigurationStore.normalizeSettings({
 }, "lo4");
 console.log(JSON.stringify({
   match: match && match.config_id,
-  repairedRoles: repaired.enabled_roles
+  repairedRoles: repaired.enabled_roles,
+  repairedHasSupplier: repaired.has_supplier,
+  lo4TopologyNodes: [
+    ...layout.topology(lo4.settings).before,
+    ...layout.topology(lo4.settings).internal,
+    ...layout.topology(lo4.settings).after
+  ].map(node => node.id)
 }));
 """,
             ],
@@ -2232,11 +2254,21 @@ console.log(JSON.stringify({
         )
         preset_result = json.loads(probe.stdout)
         self.assertEqual("lo4", preset_result["match"])
-        self.assertEqual(10, len(preset_result["repairedRoles"]))
+        self.assertEqual(7, len(preset_result["repairedRoles"]))
         self.assertIn("production_a", preset_result["repairedRoles"])
+        self.assertNotIn("supplier", preset_result["repairedRoles"])
+        self.assertNotIn("sales", preset_result["repairedRoles"])
+        self.assertNotIn("finance", preset_result["repairedRoles"])
+        self.assertTrue(preset_result["repairedHasSupplier"])
+        self.assertIn("supplier", preset_result["lo4TopologyNodes"])
+        self.assertIn("raw", preset_result["lo4TopologyNodes"])
 
         html = html_path.read_text(encoding="utf-8")
-        self.assertIn('src="game-configuration-store.js?v=20260820.1"', html)
+        self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
+        self.assertLess(
+            html.index('src="runtime-role-contract.js?v=20260821.2"'),
+            html.index('src="game-configuration-store.js?v=20260821.3"'),
+        )
         self.assertIn('id="saveConfigDialog"', html)
         self.assertIn('id="saveConfigButton"', html)
 

@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 test("LEARNGame OM rendert en maakt een bespreekbare schermafbeelding", async ({ page }, testInfo) => {
   await page.goto("/");
@@ -46,7 +46,7 @@ test("klant kan een order plaatsen en naar Operations sturen", async ({ page }) 
 
   const form = page.locator("[data-customer-order-form]");
   await expect(form).toBeVisible();
-  await form.locator('[name="product_id"]').selectOption({ index: 1 });
+  await form.locator('input[name="product_id"][value="B"]').check({ force: true });
   await form.locator('[name="quantity"]').fill("4");
   await form.locator('[name="due_minutes"]').fill("15");
 

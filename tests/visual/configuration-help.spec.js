@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 async function openManagerSettings(page) {
   await page.route("**/sdk/lego-builder/logic.js*", route => route.fulfill({
@@ -30,7 +30,7 @@ async function openManagerSettings(page) {
     contentType: "application/json",
     body: JSON.stringify({ exists: true, profile: {} })
   }));
-  await page.goto("/?api=http://127.0.0.1:47111/api");
+  await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMSimulator);
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await page.locator("#characterCreationGate").waitFor({ state: "hidden" });

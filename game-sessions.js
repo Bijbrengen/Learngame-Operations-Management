@@ -313,10 +313,13 @@
     const presetRoles = preset?.settings?.enabled_roles || [];
     if (presetRoles.length <= 1) return null;
     const repairedRoles = window.LOMRuntimeRoles?.normalize(presetRoles) || [...presetRoles];
+    const hasSupplier = typeof session.game_config?.has_supplier === "boolean"
+      ? session.game_config.has_supplier
+      : Boolean(preset?.settings?.has_supplier);
     return {
       ...session.game_config,
       enabled_roles: repairedRoles,
-      has_supplier: repairedRoles.includes("supplier")
+      has_supplier: hasSupplier
     };
   }
 

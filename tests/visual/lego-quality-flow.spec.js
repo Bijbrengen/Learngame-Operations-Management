@@ -1,6 +1,6 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
-async function mountBuilder(page, options = {}) {
+async function loadIsolatedLegoComponents(page) {
   const sdkBase = process.env.CI
     ? "https://api.leerpretpark.nl/api"
     : "http://127.0.0.1:47111/api";
@@ -20,6 +20,10 @@ async function mountBuilder(page, options = {}) {
     window.LegoBuilder
     && Object.keys(window.LegoBuilder.getCatalog()).length >= 3
   ));
+}
+
+async function mountBuilder(page, options = {}) {
+  await loadIsolatedLegoComponents(page);
   await page.evaluate(({ mode, randomValue }) => {
     document.body.className = "";
     document.body.innerHTML = '<main id="builder-quality-test"></main>';
@@ -215,12 +219,10 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
   });
 
   test("parallelle productie accepteert het witte blok op een volgende torenlaag", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForFunction(() => (
-      window.LogisticsGameEngine
-      && window.LogisticsGameUI
-      && window.LeerpretSDK?.components?.["lego-builder"]?.logic
-    ));
+    await loadIsolatedLegoComponents(page);
+    await page.addScriptTag({ url: "/logistics-process.js" });
+    await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260821.2" });
+    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260821.2" });
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="parallel-layer-test"></main>';
@@ -230,6 +232,7 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
       });
       engine.started = true;
       engine.humanRoleId = "pd1";
+      engine.setHumanRoles(["pd1"], { emit: false });
       engine.orders.set("parallel-order", {
         id: "parallel-order",
         productId: "A",

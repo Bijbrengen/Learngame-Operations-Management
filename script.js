@@ -1053,7 +1053,8 @@
       logisticsOrganization: settings.logistics_organization || "functional",
       productTypeCount: Number(settings.product_type_count) || 3,
       playMode: settings.play_mode === "digital" ? "digital" : "physical",
-      customerOrderMode: settings.customer_order_mode || "required"
+      customerOrderMode: settings.customer_order_mode || "required",
+      hasSupplier: Boolean(settings.has_supplier)
     };
   }
 
@@ -7124,7 +7125,7 @@
       funding_incentive: state.config.fundingIncentive,
       multiple_colors: state.config.multipleColors,
       editable_color_layers: [...state.config.editableColorLayers],
-      has_supplier: activeRoles.includes("supplier"),
+      has_supplier: Boolean(state.config.hasSupplier),
       currency_mode: state.config.currencyMode || "single",
       base_currency: state.config.baseCurrency || "EUR",
       enabled_currencies: [...(state.config.enabledCurrencies || ["EUR"])],
@@ -7699,6 +7700,7 @@
         logistics_organization: state.config.logisticsOrganization,
         product_type_count: state.config.productTypeCount,
         customer_order_mode: state.config.customerOrderMode || "required",
+        has_supplier: Boolean(state.config.hasSupplier),
         enabled_roles: activeRoles
       };
 
@@ -7805,7 +7807,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v241-multiplayer-runtime").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v242-ci-preview-runtime").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

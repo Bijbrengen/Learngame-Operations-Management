@@ -39,9 +39,11 @@ config = {
 serialized = json.dumps(config, ensure_ascii=False, indent=2).replace("\n", "\n  ")
 payload = f"""(function() {{
   var endpoints = Object.freeze({serialized});
-  var isLocal = typeof window !== "undefined" && (
+  var isCiPreview = typeof window !== "undefined" && window.location.port === "47913";
+  var isLocal = !isCiPreview && typeof window !== "undefined" && (
     window.location.hostname === "127.0.0.1" ||
-    window.location.hostname === "localhost"
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "::1"
   );
   window.LEARNGAME_OM_CONFIG = Object.freeze({{
     apiBase: isLocal ? endpoints.localApiBase : endpoints.productionApiBase,

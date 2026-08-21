@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 test.describe("Leerpret-aanmelding", () => {
   test.beforeEach(async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe("Leerpret-aanmelding", () => {
   });
 
   test("bereikbare service toont Google-aanmelding in plaats van offline-melding", async ({ page }) => {
-    await page.goto("/?api=http://127.0.0.1:47111/api");
+    await page.goto("/");
 
     await expect(page.locator("#leerpretAuthMessage")).toHaveText(
       "Meld je hier met je Google-account aan."
@@ -77,15 +77,18 @@ test.describe("Leerpret-aanmelding", () => {
 
     const endpoints = await page.evaluate(() => ({ ...window.LEARNGAME_OM_CONFIG }));
 
-    expect(endpoints).toEqual(process.env.CI
+    const expected = process.env.CI
       ? {
           appUrl: "https://bijbrengen.github.io/Learngame-Operations-Management/",
-          apiBase: "https://api.leerpretpark.nl/api"
+          apiBase: "https://api.leerpretpark.nl/api",
+          configuredApiBase: "https://api.leerpretpark.nl/api"
         }
       : {
           appUrl: "http://127.0.0.1:47113/",
-          apiBase: "http://127.0.0.1:47111/api"
-        });
+          apiBase: "http://127.0.0.1:47111/api",
+          configuredApiBase: "http://127.0.0.1:47111/api"
+        };
+    expect(endpoints).toEqual(expected);
   });
 
   test("laadt het centrale Engine-thema en het canonieke merkbrein zonder Phile-raster", async ({ page }) => {

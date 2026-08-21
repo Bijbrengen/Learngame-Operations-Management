@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 
 test.describe("Character Creation & Gedragsscan Wizard", () => {
   test.beforeEach(async ({ page }) => {

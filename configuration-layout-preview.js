@@ -18,12 +18,19 @@
     const organizationModel = ["independent_enterprises", "school_learning_path"].includes(config.organization_model)
       ? config.organization_model
       : "single_enterprise";
+    const supplierGames = ["lo4", "lo5", "lo6", "lo7", "lo8"];
+    const hasSupplier = config.has_supplier === undefined
+      ? supplierGames.includes(gameType) || (
+          Array.isArray(config.enabled_roles) && config.enabled_roles.includes("supplier")
+        )
+      : Boolean(config.has_supplier);
     return {
       game_type: gameType,
       organization_model: organizationModel,
       play_mode: config.play_mode === "digital" ? "digital" : "physical",
       production_processes: processes.length ? [...new Set(processes)] : ["parallel"],
       intermediate_stock: Boolean(config.intermediate_stock),
+      has_supplier: hasSupplier,
       enabled_roles: Array.isArray(config.enabled_roles) ? [...new Set(config.enabled_roles)] : null
     };
   }
@@ -70,7 +77,7 @@
   function topology(config = {}) {
     const value = normalize(config);
     const supplierVisible = value.organization_model === "independent_enterprises"
-      || roleEnabled(value, "supplier", ["lo4", "lo5", "lo6", "lo7", "lo8"].includes(value.game_type));
+      || value.has_supplier;
     const customerVisible = roleEnabled(value, "customer", true);
     const internal = processNodes(value);
     const before = [];
@@ -198,6 +205,9 @@
         get("sequential_production")?.checked ? "sequential" : null
       ].filter(Boolean),
       intermediate_stock: get("intermediate_stock")?.checked,
+      has_supplier: get("has_supplier")
+        ? Boolean(get("has_supplier").checked)
+        : stored?.settings?.has_supplier,
       ...(enabledRoles.length ? { enabled_roles: enabledRoles } : {})
     });
   }
