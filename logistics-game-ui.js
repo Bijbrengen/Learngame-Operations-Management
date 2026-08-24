@@ -88,6 +88,7 @@
       this.taskKey = null;
       this.customerOrderDraft = null;
       this.digitalSelectedPartId = null;
+      this.digitalPartRotated = false;
       this.activeDigitalDrag = false;
       this.pendingDigitalDragRender = false;
       this.feedback = "";
@@ -144,6 +145,7 @@
       this.handlePointerUp = this.handlePointerUp.bind(this);
       this.handleTopDepartmentClick = this.handleTopDepartmentClick.bind(this);
       this.handleTopDepartmentKeydown = this.handleTopDepartmentKeydown.bind(this);
+      this.handleBuilderKeydown = this.handleBuilderKeydown.bind(this);
       this.mount.addEventListener("click", this.handleClick);
       this.mount.addEventListener("change", this.handleChange);
       this.mount.addEventListener("submit", this.handleSubmit);
@@ -159,6 +161,7 @@
         ?.addEventListener("click", this.handleTopDepartmentClick);
       document.getElementById("topDepartmentMiniView")
         ?.addEventListener("keydown", this.handleTopDepartmentKeydown);
+      window.addEventListener("keydown", this.handleBuilderKeydown, true);
       this.render();
     }
 
@@ -300,6 +303,7 @@
         ?.removeEventListener("click", this.handleTopDepartmentClick);
       document.getElementById("topDepartmentMiniView")
         ?.removeEventListener("keydown", this.handleTopDepartmentKeydown);
+      window.removeEventListener("keydown", this.handleBuilderKeydown, true);
       this.mount.innerHTML = "";
     }
 
@@ -313,6 +317,7 @@
       this.taskKey = null;
       this.customerOrderDraft = null;
       this.digitalSelectedPartId = null;
+      this.digitalPartRotated = false;
     }
 
     handleClick(event) {
@@ -332,9 +337,17 @@
         return;
       }
 
+      const rotateDigitalPart = eventTargetClosest(event, "[data-sim-rotate-selected]");
+      if (rotateDigitalPart && !rotateDigitalPart.disabled) {
+        this.rotateDigitalSelectedPart();
+        return;
+      }
+
       const digitalPart = eventTargetClosest(event, "[data-sim-drag-part]");
       if (digitalPart) {
+        const changedPart = this.digitalSelectedPartId !== digitalPart.dataset.simDragPart;
         this.digitalSelectedPartId = digitalPart.dataset.simDragPart;
+        if (changedPart) this.digitalPartRotated = false;
         this.feedback = "";
         this.render();
         return;
@@ -418,6 +431,28 @@
       return true;
     }
 
+    rotateDigitalSelectedPart() {
+      const partId = this.digitalSelectedPartId;
+      const piece = this.builderCore().resolvePiece(this.engine.parts, partId, false);
+      if (!partId || !piece || piece.width === piece.depth) return false;
+      this.digitalPartRotated = !this.digitalPartRotated;
+      this.feedback = this.digitalPartRotated
+        ? `${this.engine.parts[partId]?.label || "Blok"} is 90 graden gedraaid.`
+        : `${this.engine.parts[partId]?.label || "Blok"} staat weer in de beginoriëntatie.`;
+      this.render();
+      this.mount.querySelector("[data-sim-builder-board]")?.focus();
+      return true;
+    }
+
+    handleBuilderKeydown(event) {
+      if (event.key !== "r" && event.key !== "R") return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+      if (!this.mount.querySelector("[data-sim-builder-board]") || !this.digitalSelectedPartId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.rotateDigitalSelectedPart();
+    }
+
     completeDigitalTransfer() {
       const task = this.engine.playerTask();
       if (!this.partsComplete(task) || !this.signed) {
@@ -438,7 +473,9 @@
       if (part) {
         this.activeDigitalDrag = true;
         this.mount.classList.add("is-digital-dragging");
+        const changedPart = this.digitalSelectedPartId !== part.dataset.simDragPart;
         this.digitalSelectedPartId = part.dataset.simDragPart;
+        if (changedPart) this.digitalPartRotated = false;
         event.dataTransfer?.setData("application/x-learngame-part", part.dataset.simDragPart);
         event.dataTransfer?.setData("text/plain", part.dataset.simDragPart);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
@@ -1048,25 +1085,42 @@
         const complete = required > 0 && selected >= required;
         const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
         const selectedClass = this.digitalSelectedPartId === partId ? " is-selected" : "";
+        const rotated = this.digitalSelectedPartId === partId
+          && this.digitalPartRotated
+          && dimensions.width !== dimensions.depth;
+        const displayDimensions = rotated
+          ? { width: dimensions.depth, depth: dimensions.width }
+          : dimensions;
         const partVisual = window.LegoTowerRenderer
-          ? window.LegoTowerRenderer.renderPart(
+          ? (window.LegoTowerRenderer.renderBrickPart
+            ? window.LegoTowerRenderer.renderBrickPart(
+              {
+                id: partId,
+                color: part.color,
+                width: displayDimensions.width,
+                depth: displayDimensions.depth
+              },
+              part.label
+            )
+            : window.LegoTowerRenderer.renderPart(
               {
                 id: partId,
                 color: part.color,
                 width: dimensions.width === dimensions.depth ? "narrow" : "wide"
               },
               part.label
-            )
+            ))
           : `<i aria-hidden="true"><span></span><span></span></i>`;
         return `
           <button type="button"
-                  class="builder-palette-item brick-${escapeHtml(part.color)} sim-material-brick ${required ? "is-required" : "is-distractor"}${selectedClass}"
+                  class="builder-palette-item brick-${escapeHtml(part.color)} sim-material-brick ${required ? "is-required" : "is-distractor"}${selectedClass}${rotated ? " is-rotated" : ""}"
                   style="--sim-brick-color: var(--brick-${escapeHtml(part.color)})"
                   data-sim-drag-part="${escapeHtml(partId)}"
                   draggable="${complete ? "false" : "true"}"
                   aria-pressed="${this.digitalSelectedPartId === partId}"
                   ${complete ? "disabled" : ""}>
             ${partVisual}
+            ${rotated ? '<em class="sim-rotation-badge" aria-label="90 graden gedraaid">90</em>' : ""}
             <strong>${escapeHtml(part.label)}</strong>
             <small>${escapeHtml(part.size)}${required ? ` · nog ${Math.max(0, required - selected)}` : ""}</small>
           </button>
@@ -1115,6 +1169,12 @@
       }
       const state = this.digitalBuildState(task);
       const rendererScope = "sim-builder";
+      const selectedPiece = this.builderCore().resolvePiece(
+        this.engine.parts,
+        this.digitalSelectedPartId,
+        this.digitalPartRotated
+      );
+      const canRotate = Boolean(selectedPiece && selectedPiece.width !== selectedPiece.depth);
       const bricks = [...state.previous, ...state.placed].sort((left, right) => (
         left.z - right.z
         || (left.x + left.y) - (right.x + right.y)
@@ -1178,7 +1238,15 @@
               ${targetMarkup}
             </g>
           </svg>
-          <small>Kies of sleep een blok en klik op het gemarkeerde bouwvlak.</small>
+          <div class="sim-inline-builder-controls">
+            <small>Kies of sleep een blok, draai zo nodig met <kbd>R</kbd> en klik op het gemarkeerde bouwvlak.</small>
+            <button type="button"
+                    class="secondary-button"
+                    data-sim-rotate-selected
+                    ${canRotate ? "" : "disabled"}>
+              Draai 90 graden (R)
+            </button>
+          </div>
         </div>
       `;
     }
@@ -1197,7 +1265,12 @@
         targetPoint = { x: 170 + projected[0] * 2, y: 62 + projected[1] * 2 };
       }
       const validation = this.builderCore().validatePlannedPlacement({
-        plan: state, partId, pointer, targetPoint, tolerance: 90
+        plan: state,
+        partId,
+        piece: this.builderCore().resolvePiece(this.engine.parts, partId, this.digitalPartRotated),
+        pointer,
+        targetPoint,
+        tolerance: 90
       });
       if (validation.reason === "build_complete") {
         this.feedback = "Alle torens voor deze order zijn al opgebouwd.";
@@ -1209,12 +1282,18 @@
         this.render();
         return false;
       }
+      if (validation.reason === "wrong_orientation") {
+        this.feedback = "Draai dit blok 90 graden met R zodat het op het gemarkeerde bouwvlak past.";
+        this.render();
+        return false;
+      }
       if (validation.reason === "outside_target") {
         this.feedback = "Plaats het blok op het gemarkeerde bouwvlak.";
         this.render();
         return false;
       }
       this.digitalSelectedPartId = null;
+      this.digitalPartRotated = false;
       return this.addDigitalPart(partId);
     }
 

@@ -68,7 +68,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       };
     });
 
-    expect(dimensions.blueWide).toEqual({ width: 4, depth: 2 });
+    expect(dimensions.blueWide).toEqual({ width: 2, depth: 4 });
     expect(dimensions.blueSquare).toEqual({ width: 2, depth: 2 });
   });
 

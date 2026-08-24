@@ -3605,6 +3605,7 @@ body[data-app-view="player"] .topbar {
 }
 
 .sim-material-brick {
+  position: relative;
   min-height: 108px;
   padding: 5px;
   border: 1px solid var(--lp-line);
@@ -3613,6 +3614,19 @@ body[data-app-view="player"] .topbar {
   box-shadow: none;
   text-align: center;
   cursor: grab;
+}
+
+.sim-rotation-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #041312;
+  background: var(--lp-accent);
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .sim-material-brick:active {
@@ -3754,10 +3768,34 @@ body[data-app-view="player"] .topbar {
   }
 }
 
-.sim-inline-builder > small {
+.sim-inline-builder-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.sim-inline-builder-controls small {
   color: var(--lp-muted);
   font-size: 0.7rem;
   text-align: center;
+}
+
+.sim-inline-builder-controls kbd {
+  padding: 1px 5px;
+  border: 1px solid #4e858b;
+  border-radius: 4px;
+  color: var(--lp-ink);
+  background: #0c252c;
+  font: inherit;
+  font-weight: 900;
+}
+
+.sim-inline-builder-controls button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
 }
 
 .sim-build-tower {

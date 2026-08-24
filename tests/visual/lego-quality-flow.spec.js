@@ -221,8 +221,8 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
   test("parallelle productie accepteert het witte blok op een volgende torenlaag", async ({ page }) => {
     await loadIsolatedLegoComponents(page);
     await page.addScriptTag({ url: "/logistics-process.js" });
-    await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260821.2" });
-    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260821.2" });
+    await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260824.1" });
+    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260824.1" });
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="parallel-layer-test"></main>';
@@ -257,10 +257,13 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
         clientY: target.y + target.height / 2
       }));
     });
-    for (const partId of ["yellow_8", "yellow_8", "red_8"]) {
+    for (const partId of ["yellow_8", "yellow_8"]) {
       await page.locator(`[data-sim-drag-part="${partId}"]`).click();
       await clickMarkedTarget();
     }
+    await page.locator('[data-sim-drag-part="red_8"]').click();
+    await page.keyboard.press("r");
+    await clickMarkedTarget();
 
     await expect(page.locator("body")).not.toContainText(
       "Alle torens voor deze order zijn al opgebouwd"
@@ -272,5 +275,94 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
       window.__parallelLayerController.selectedParts.white_4
     ))).toBe(1);
     await expect(page.locator(".sim-inline-builder-status strong")).toHaveText("1 van 1 torens gebouwd");
+  });
+
+  test("Toren B gebruikt R-rotatie en legt twee blauwe 2x4-blokken zonder overlap", async ({ page }, testInfo) => {
+    await loadIsolatedLegoComponents(page);
+    await page.addScriptTag({ url: "/logistics-process.js" });
+    await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260824.1" });
+    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260824.1" });
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.body.innerHTML = '<main id="tower-b-rotation-test"></main>';
+      const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+        playMode: "digital",
+        productionProcesses: ["parallel"]
+      });
+      engine.started = true;
+      engine.humanRoleId = "pd1";
+      engine.setHumanRoles(["pd1"], { emit: false });
+      engine.orders.set("tower-b-order", {
+        id: "tower-b-order",
+        productId: "B",
+        quantity: 1,
+        dueAt: Date.now() + 300000,
+        productionRoute: "parallel",
+        productionDepartment: "pd1"
+      });
+      engine.roleRuntime.pd1.state = window.LogisticsGameEngine.ROLE_STATES.AWAITING_PLAYER;
+      engine.roleRuntime.pd1.activeOrderId = "tower-b-order";
+      const controller = window.LogisticsGameUI.mount(
+        document.getElementById("tower-b-rotation-test"),
+        { engine }
+      );
+      window.__towerBRotation = { engine, controller };
+    });
+
+    const targetFootprints = await page.evaluate(() => {
+      const { engine, controller } = window.__towerBRotation;
+      return controller.digitalBuildState(engine.playerTask()).targets.slice(0, 2);
+    });
+    expect(targetFootprints).toEqual([
+      expect.objectContaining({ type: "blue_8", x: 1, y: 1, width: 2, depth: 4, z: 0 }),
+      expect.objectContaining({ type: "blue_8", x: 3, y: 1, width: 2, depth: 4, z: 0 })
+    ]);
+
+    const clickMarkedTarget = () => page.locator(".sim-inline-builder-board").evaluate(board => {
+      const target = board.querySelector(".sim-builder-target polygon").getBoundingClientRect();
+      board.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        clientX: target.x + target.width / 2,
+        clientY: target.y + target.height / 2
+      }));
+    });
+
+    for (let index = 0; index < 2; index += 1) {
+      await page.locator('[data-sim-drag-part="blue_8"]').click();
+      const initialBrickMarkup = await page.locator('[data-sim-drag-part="blue_8"] .lego-part-3d').innerHTML();
+      await page.keyboard.press("r");
+      await expect(page.locator('[data-sim-drag-part="blue_8"] .sim-rotation-badge')).toBeVisible();
+      await expect.poll(() => page.locator('[data-sim-drag-part="blue_8"] .lego-part-3d').innerHTML())
+        .not.toBe(initialBrickMarkup);
+      await clickMarkedTarget();
+      await expect(page.locator("body")).toContainText("Draai dit blok 90 graden met R");
+
+      await page.keyboard.press("r");
+      await expect(page.locator('[data-sim-drag-part="blue_8"] .sim-rotation-badge')).toBeHidden();
+      await clickMarkedTarget();
+      await expect.poll(() => page.evaluate(() => (
+        window.__towerBRotation.controller.selectedParts.blue_8 || 0
+      ))).toBe(index + 1);
+    }
+
+    const placedBlue = await page.evaluate(() => {
+      const { engine, controller } = window.__towerBRotation;
+      return controller.digitalBuildState(engine.playerTask()).placed
+        .filter(brick => brick.type === "blue_8");
+    });
+    expect(placedBlue).toHaveLength(2);
+    expect(placedBlue[0].x + placedBlue[0].width).toBeLessThanOrEqual(placedBlue[1].x);
+    await page.locator(".sim-inline-builder-board").screenshot({
+      path: testInfo.outputPath("tower-b-blue-foundation.png")
+    });
+
+    for (const partId of ["yellow_4", "green_4"]) {
+      await page.locator(`[data-sim-drag-part="${partId}"]`).click();
+      await clickMarkedTarget();
+    }
+    await expect(page.locator(".sim-inline-builder-status strong")).toHaveText("1 van 1 torens gebouwd");
+    await page.locator(".sim-inline-builder-board").screenshot({
+      path: testInfo.outputPath("tower-b-complete.png")
+    });
   });
 });
