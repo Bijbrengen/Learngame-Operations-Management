@@ -105,6 +105,49 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
       await expect(bin.locator(".builder-inventory-bin-stock.is-lower .lego-part-3d")).toHaveCount(3);
     }
 
+    const filledTarget = await page.evaluate(() => {
+      const source = document.querySelector('[data-piece-type="yellow_8"]');
+      const board = document.querySelector(".builder-board");
+      const target = board.querySelector("[data-builder-target-key]");
+      const bounds = target.getBoundingClientRect();
+      const transfer = new DataTransfer();
+      source.dispatchEvent(new DragEvent("dragstart", {
+        bubbles: true,
+        dataTransfer: transfer,
+        clientX: bounds.x,
+        clientY: bounds.y
+      }));
+      board.dispatchEvent(new DragEvent("dragover", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+        clientX: bounds.x + bounds.width / 2,
+        clientY: bounds.y + bounds.height / 2
+      }));
+      const preview = board.querySelector("[data-builder-hover-preview]");
+      const result = {
+        filled: preview.dataset.targetFilled,
+        opacity: preview.getAttribute("opacity"),
+        hiddenTargets: board.querySelectorAll('[data-builder-target-key][visibility="hidden"]').length,
+        previewHasBrick: Boolean(preview.querySelector(".iso-brick"))
+      };
+      board.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
+      source.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: transfer }));
+      return {
+        ...result,
+        targetRestored: !target.hasAttribute("visibility"),
+        previewCleared: preview.innerHTML === ""
+      };
+    });
+    expect(filledTarget).toEqual({
+      filled: "true",
+      opacity: "1",
+      hiddenTargets: 1,
+      previewHasBrick: true,
+      targetRestored: true,
+      previewCleared: true
+    });
+
     await page.evaluate(() => {
       document.addEventListener("keydown", event => {
         if (event.key.toLowerCase() === "r") event.stopPropagation();
