@@ -91,6 +91,8 @@
       this.digitalPartRotated = false;
       this.activeDigitalDrag = false;
       this.pendingDigitalDragRender = false;
+      this.digitalDragFlight = null;
+      this.digitalDragNativeGhost = null;
       this.feedback = "";
       this.remoteActionSubmitter = typeof options.actionSubmitter === "function"
         ? options.actionSubmitter
@@ -140,6 +142,7 @@
       this.handleDragEnd = this.handleDragEnd.bind(this);
       this.handleDragOver = this.handleDragOver.bind(this);
       this.handleDrop = this.handleDrop.bind(this);
+      this.handleBuilderWheel = this.handleBuilderWheel.bind(this);
       this.handlePointerDown = this.handlePointerDown.bind(this);
       this.handlePointerMove = this.handlePointerMove.bind(this);
       this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -153,6 +156,7 @@
       this.mount.addEventListener("dragend", this.handleDragEnd);
       this.mount.addEventListener("dragover", this.handleDragOver);
       this.mount.addEventListener("drop", this.handleDrop);
+      this.mount.addEventListener("wheel", this.handleBuilderWheel, { capture: true, passive: false });
       this.mount.addEventListener("pointerdown", this.handlePointerDown);
       this.mount.addEventListener("pointermove", this.handlePointerMove);
       this.mount.addEventListener("pointerup", this.handlePointerUp);
@@ -295,6 +299,7 @@
       this.mount.removeEventListener("dragend", this.handleDragEnd);
       this.mount.removeEventListener("dragover", this.handleDragOver);
       this.mount.removeEventListener("drop", this.handleDrop);
+      this.mount.removeEventListener("wheel", this.handleBuilderWheel, true);
       this.mount.removeEventListener("pointerdown", this.handlePointerDown);
       this.mount.removeEventListener("pointermove", this.handlePointerMove);
       this.mount.removeEventListener("pointerup", this.handlePointerUp);
@@ -304,6 +309,7 @@
       document.getElementById("topDepartmentMiniView")
         ?.removeEventListener("keydown", this.handleTopDepartmentKeydown);
       window.removeEventListener("keydown", this.handleBuilderKeydown, true);
+      this.clearDigitalDragFlight();
       this.mount.innerHTML = "";
     }
 
@@ -439,15 +445,84 @@
       this.feedback = this.digitalPartRotated
         ? `${this.engine.parts[partId]?.label || "Blok"} is 90 graden gedraaid.`
         : `${this.engine.parts[partId]?.label || "Blok"} staat weer in de beginoriëntatie.`;
+      if (this.activeDigitalDrag && this.digitalDragFlight) {
+        this.renderDigitalDragFlight();
+        this.pendingDigitalDragRender = true;
+        return true;
+      }
       this.render();
       this.mount.querySelector("[data-sim-builder-board]")?.focus();
       return true;
+    }
+
+    renderDigitalDragFlight() {
+      if (!this.digitalDragFlight || !this.digitalSelectedPartId || !window.LegoTowerRenderer) return;
+      const partId = this.digitalSelectedPartId;
+      const part = this.engine.parts[partId] || { label: partId, color: "white" };
+      const piece = this.builderCore().resolvePiece(
+        this.engine.parts,
+        partId,
+        this.digitalPartRotated
+      );
+      if (!piece) return;
+      this.digitalDragFlight.dataset.rotated = String(Boolean(this.digitalPartRotated));
+      this.digitalDragFlight.innerHTML = window.LegoTowerRenderer.renderBrickPart
+        ? window.LegoTowerRenderer.renderBrickPart({
+            id: partId,
+            color: part.color,
+            width: piece.width,
+            depth: piece.depth
+          }, part.label)
+        : window.LegoTowerRenderer.renderPart({
+            id: partId,
+            color: part.color,
+            width: piece.width === piece.depth ? "narrow" : "wide"
+          }, part.label);
+    }
+
+    moveDigitalDragFlight(clientX, clientY) {
+      if (!this.digitalDragFlight || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+      this.digitalDragFlight.style.left = `${clientX + 14}px`;
+      this.digitalDragFlight.style.top = `${clientY + 14}px`;
+    }
+
+    createDigitalDragFlight(event) {
+      this.clearDigitalDragFlight();
+      const flight = document.createElement("div");
+      flight.className = "sim-digital-drag-flight";
+      flight.setAttribute("aria-hidden", "true");
+      document.body.appendChild(flight);
+      this.digitalDragFlight = flight;
+      this.renderDigitalDragFlight();
+      this.moveDigitalDragFlight(event.clientX, event.clientY);
+
+      const nativeGhost = document.createElement("canvas");
+      nativeGhost.width = 1;
+      nativeGhost.height = 1;
+      nativeGhost.className = "sim-digital-native-drag-ghost";
+      document.body.appendChild(nativeGhost);
+      this.digitalDragNativeGhost = nativeGhost;
+      event.dataTransfer?.setDragImage?.(nativeGhost, 0, 0);
+    }
+
+    clearDigitalDragFlight() {
+      this.digitalDragFlight?.remove();
+      this.digitalDragNativeGhost?.remove();
+      this.digitalDragFlight = null;
+      this.digitalDragNativeGhost = null;
     }
 
     handleBuilderKeydown(event) {
       if (event.key !== "r" && event.key !== "R") return;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
       if (!this.mount.querySelector("[data-sim-builder-board]") || !this.digitalSelectedPartId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.rotateDigitalSelectedPart();
+    }
+
+    handleBuilderWheel(event) {
+      if (!this.activeDigitalDrag || !this.digitalDragFlight || !this.digitalSelectedPartId) return;
       event.preventDefault();
       event.stopPropagation();
       this.rotateDigitalSelectedPart();
@@ -479,6 +554,7 @@
         event.dataTransfer?.setData("application/x-learngame-part", part.dataset.simDragPart);
         event.dataTransfer?.setData("text/plain", part.dataset.simDragPart);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+        this.createDigitalDragFlight(event);
         return;
       }
       const cargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
@@ -494,6 +570,7 @@
       if (!this.activeDigitalDrag) return;
       this.activeDigitalDrag = false;
       this.mount.classList.remove("is-digital-dragging");
+      this.clearDigitalDragFlight();
       if (this.pendingDigitalDragRender) {
         this.pendingDigitalDragRender = false;
         this.render();
@@ -501,6 +578,7 @@
     }
 
     handleDragOver(event) {
+      this.moveDigitalDragFlight(event.clientX, event.clientY);
       if (eventTargetClosest(event, "[data-sim-part-dropzone]")) {
         event.preventDefault();
         if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
@@ -1239,7 +1317,7 @@
             </g>
           </svg>
           <div class="sim-inline-builder-controls">
-            <small>Kies of sleep een blok, draai zo nodig met <kbd>R</kbd> en klik op het gemarkeerde bouwvlak.</small>
+            <small>Kies of sleep een blok. Draai het ook tijdens het slepen met <kbd>R</kbd> of het scrollwiel.</small>
             <button type="button"
                     class="secondary-button"
                     data-sim-rotate-selected

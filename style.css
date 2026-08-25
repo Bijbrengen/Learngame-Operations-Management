@@ -3671,6 +3671,30 @@ body[data-app-view="player"] .topbar {
   cursor: grabbing !important;
 }
 
+.sim-digital-drag-flight {
+  position: fixed;
+  z-index: 10000;
+  width: 118px;
+  pointer-events: none;
+  translate: -50% -50%;
+  filter: drop-shadow(0 12px 10px rgba(0, 0, 0, 0.34));
+}
+
+.sim-digital-drag-flight .lego-part-3d {
+  width: 100%;
+  height: auto;
+}
+
+.sim-digital-native-drag-ghost {
+  position: fixed;
+  left: -10px;
+  top: -10px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .sim-material-brick:disabled {
   opacity: 0.32;
   cursor: default;

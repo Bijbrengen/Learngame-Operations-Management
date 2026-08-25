@@ -222,7 +222,7 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await loadIsolatedLegoComponents(page);
     await page.addScriptTag({ url: "/logistics-process.js" });
     await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260824.1" });
-    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260824.1" });
+    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260825.2" });
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="parallel-layer-test"></main>';
@@ -281,7 +281,7 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
     await loadIsolatedLegoComponents(page);
     await page.addScriptTag({ url: "/logistics-process.js" });
     await page.addScriptTag({ url: "/logistics-game-engine.js?v=20260824.1" });
-    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260824.1" });
+    await page.addScriptTag({ url: "/logistics-game-ui.js?v=20260825.2" });
     await page.evaluate(() => {
       document.body.className = "";
       document.body.innerHTML = '<main id="tower-b-rotation-test"></main>';
@@ -307,6 +307,47 @@ test.describe("LEGO-rotatie en klantkwaliteit", () => {
         { engine }
       );
       window.__towerBRotation = { engine, controller };
+    });
+
+    const dragRotation = await page.evaluate(() => {
+      const source = document.querySelector('[data-sim-drag-part="blue_8"]');
+      const board = document.querySelector("[data-sim-builder-board]");
+      const mount = document.getElementById("tower-b-rotation-test");
+      const transfer = new DataTransfer();
+      const inventoryBefore = source.innerHTML;
+      source.dispatchEvent(new DragEvent("dragstart", {
+        bubbles: true,
+        dataTransfer: transfer,
+        clientX: 180,
+        clientY: 220
+      }));
+      board.dispatchEvent(new DragEvent("dragover", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+        clientX: 420,
+        clientY: 330
+      }));
+      const flight = document.querySelector(".sim-digital-drag-flight");
+      const flightBefore = flight?.innerHTML;
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true, cancelable: true }));
+      const rotatedWithKey = flight?.dataset.rotated === "true" && flight.innerHTML !== flightBefore;
+      const inventoryStayedPut = source.innerHTML === inventoryBefore;
+      mount.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 80 }));
+      const restoredWithWheel = flight?.dataset.rotated === "false";
+      source.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: transfer }));
+      return {
+        rotatedWithKey,
+        inventoryStayedPut,
+        restoredWithWheel,
+        flightRemoved: !document.querySelector(".sim-digital-drag-flight")
+      };
+    });
+    expect(dragRotation).toEqual({
+      rotatedWithKey: true,
+      inventoryStayedPut: true,
+      restoredWithWheel: true,
+      flightRemoved: true
     });
 
     const targetFootprints = await page.evaluate(() => {

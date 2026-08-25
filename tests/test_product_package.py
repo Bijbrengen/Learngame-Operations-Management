@@ -56,8 +56,8 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260824.1"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260824.1"', html)
+        self.assertIn('href="style.css?v=20260825.2"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260825.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260821.3"', html)
