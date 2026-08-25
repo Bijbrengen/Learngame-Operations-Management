@@ -560,6 +560,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
             kind: "tower",
             cargoId: "tutorial_tower_b",
             label: "Toren B",
+            quantity: 2,
             draggable: true,
             towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
           }
@@ -585,6 +586,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
 
     const tower = page.locator(".iso-cargo-tower.is-draggable");
+    await expect(tower.locator(".iso-cargo-tower-instance")).toHaveCount(2);
     const target = page.locator('[data-department-id="finished"]');
     const targetBox = await target.boundingBox();
     expect(targetBox).not.toBeNull();

@@ -61,8 +61,8 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260821.3"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260820i"', html)
-        self.assertIn('"script.js?v=20260821.3"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260825a"', html)
+        self.assertIn('"script.js?v=20260825a"', html)
         self.assertIn('CACHE_VERSION = "learngame-om-v242-ci-preview-runtime"', service_worker)
         self.assertIn(
             'register("service-worker.js?v=learngame-om-v242-ci-preview-runtime")',
@@ -369,6 +369,7 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn("departmentColor", game)
         self.assertIn('departmentColor: "raw"', game)
         self.assertIn('departmentColor: "production-a"', game)
+
         self.assertIn('departmentColor: "production-b"', game)
         self.assertIn('departmentColor: "production-c"', game)
         self.assertIn('departmentColor: "finished"', game)
@@ -395,6 +396,95 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         self.assertIn('id="parallelProductionToggle"', html)
         self.assertIn('id="sequentialProductionToggle"', html)
         self.assertIn('setProcessView("isometric")', game)
+
+    def test_live_flow_labels_can_be_placed_above_their_buildings(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        self.assertEqual(3, game.count('labelPosition: "above"'))
+
+        node_program = r'''
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const layout = { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 };
+const above = window.IsometricLogisticsView.geometryForDepartment({ layout, labelPosition: "above" });
+const below = window.IsometricLogisticsView.geometryForDepartment({ layout });
+process.stdout.write(JSON.stringify({
+  aboveLabelY: above.label.y,
+  roofTopY: Math.min(...above.roof.map(point => point.y)),
+  belowLabelY: below.label.y,
+  floorBottomY: Math.max(...below.floor.map(point => point.y))
+}));
+'''
+        result = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        positions = json.loads(result.stdout)
+        self.assertLess(positions["aboveLabelY"], positions["roofTopY"])
+        self.assertGreater(positions["belowLabelY"], positions["floorBottomY"])
+
+    def test_live_flow_renders_every_tower_in_a_small_production_batch(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        self.assertIn("quantity: Number(activeOrder.quantity || 1)", game)
+
+        node_program = r'''
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+window.LegoTowerRenderer = {
+  definitions: () => "",
+  layoutSequence: () => [],
+  plate: () => "<g class=\"test-plate\"></g>",
+  brick: () => "",
+  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" })
+};
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const container = {
+  clientWidth: 800,
+  clientHeight: 600,
+  innerHTML: "",
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  contains: () => true
+};
+window.IsometricLogisticsView.mount(container, {
+  title: "Batchweergave",
+  connections: [],
+  departments: [{
+    id: "production_b",
+    title: "Productie B",
+    departmentColor: "production-b",
+    status: "active",
+    openRoof: true,
+    layout: { x: 1, y: 2, width: 4.2, depth: 3.8, height: 78 },
+    cargoVisual: {
+      kind: "tower",
+      cargoId: "order-b",
+      label: "Toren B",
+      quantity: 2,
+      towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+    }
+  }]
+}, {});
+process.stdout.write(JSON.stringify({
+  instances: (container.innerHTML.match(/iso-cargo-tower-instance/g) || []).length,
+  quantity: /data-cargo-quantity="2"/.test(container.innerHTML)
+}));
+'''
+        result = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rendered = json.loads(result.stdout)
+        self.assertEqual(2, rendered["instances"])
+        self.assertTrue(rendered["quantity"])
 
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")

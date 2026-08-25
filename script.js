@@ -2965,6 +2965,7 @@
       description: "Genereert klantorders en bepaalt aantal en gevraagde levertijd.",
       kind: "dispatch",
       departmentColor: "customer",
+      labelPosition: "above",
       layout: { x: 1, y: 5, width: 3.5, depth: 3.2, height: 54 }
     },
     {
@@ -2975,6 +2976,7 @@
       description: "Registreert orders en geeft de werkzaamheden vrij aan de logistieke keten.",
       kind: "production",
       departmentColor: "blue",
+      labelPosition: "above",
       layout: { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 }
     },
     {
@@ -2987,6 +2989,7 @@
       departmentColor: "raw",
       openRoof: true,
       compactStock: true,
+      labelPosition: "above",
       layout: { x: 11, y: 1, width: 3.8, depth: 3.4, height: 62 }
     },
     {
@@ -3159,6 +3162,7 @@
           label: `${activeOrder.productName} · ${activeOrder.id}`,
           towerSequence: partialSequence,
           groundPlateColor: activeProduct?.groundPlate?.color || "green",
+          quantity: Number(activeOrder.quantity || 1),
           draggable: false
         } : null,
         facts: [

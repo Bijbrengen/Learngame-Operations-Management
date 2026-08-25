@@ -72,6 +72,7 @@
       project(x + width, y + depth, height),
       project(x, y + depth, height)
     ];
+    const labelAboveBuilding = department.labelPosition === "above";
     return {
       floor,
       roof,
@@ -79,7 +80,9 @@
       floorCenter: project(x + width / 2, y + depth / 2),
       label: {
         x: project(x + width / 2, y + depth / 2).x,
-        y: Math.max(...floor.map(point => point.y)) + 44
+        y: labelAboveBuilding
+          ? Math.min(...roof.map(point => point.y)) - 40
+          : Math.max(...floor.map(point => point.y)) + 44
       },
       badge: {
         x: roof[1].x - 20,
@@ -365,7 +368,9 @@
   function towerCargoMarkup(department, geometry, legoGradientScope) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "tower" || !window.LegoTowerRenderer) return "";
-    const scale = 0.56;
+    const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
+    const visibleQuantity = Math.min(quantity, 4);
+    const scale = visibleQuantity > 1 ? 0.44 : 0.56;
     const sequence = Array.isArray(cargo.towerSequence) ? cargo.towerSequence : [];
     const blocks = sequence.length
       ? window.LegoTowerRenderer.layoutSequence(sequence)
@@ -390,17 +395,34 @@
         legoGradientScope
       ))
     ].join("");
+    const positions = {
+      1: [[0, 0]],
+      2: [[-62, 20], [62, -20]],
+      3: [[-70, 28], [0, -28], [70, 28]],
+      4: [[-62, -28], [62, -28], [-62, 44], [62, 44]]
+    }[visibleQuantity];
+    const towers = positions.map(([offsetX, offsetY], index) => `
+      <g class="iso-cargo-tower-instance"
+         data-cargo-instance="${index + 1}"
+         transform="translate(${offsetX} ${offsetY})">
+        ${tower}
+      </g>
+    `).join("");
     return `
       <g class="iso-cargo-tower${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
          transform="translate(${geometry.center.x - 90 * scale} ${geometry.center.y + 19 - 105 * scale}) scale(${scale})"
          data-drag-kind="cargo"
          data-cargo-source-id="${escapeHtml(department.id)}"
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
+         data-cargo-quantity="${quantity}"
          role="img"
          aria-label="${escapeHtml(cargo.draggable
-           ? `Sleep ${cargo.label || "toren"} naar de volgende afdeling`
-           : cargo.label || "Toren")}">
-        ${tower}
+           ? `Sleep ${quantity > 1 ? `${quantity} torens` : cargo.label || "toren"} naar de volgende afdeling`
+           : quantity > 1 ? `${quantity} torens` : cargo.label || "Toren")}">
+        ${cargo.draggable
+          ? '<rect class="iso-cargo-hitbox" x="-84" y="-64" width="348" height="294" fill="transparent" pointer-events="all"></rect>'
+          : ""}
+        ${towers}
       </g>
     `;
   }
