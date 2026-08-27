@@ -63,11 +63,11 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260827.4"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260827.4"', html)
-        self.assertIn('"script.js?v=20260827.6"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v248-engine-material-cart"', service_worker)
+        self.assertIn('"isometric-logistics-view.js?v=20260827.5"', html)
+        self.assertIn('"script.js?v=20260827.7"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v249-cart-pointer-sync"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v248-engine-material-cart")',
+            'register("service-worker.js?v=learngame-om-v249-cart-pointer-sync")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 

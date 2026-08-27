@@ -1013,6 +1013,20 @@
       cargoId: element.dataset.cargoId,
       quantity: Number(element.dataset.cargoQuantity || 0) || null
     });
+    const clientPointInDragLayer = (dragLayer, clientX, clientY) => {
+      const svg = dragLayer?.ownerSVGElement;
+      const screenMatrix = dragLayer?.getScreenCTM?.();
+      if (!svg || !screenMatrix) return { x: clientX, y: clientY };
+      try {
+        const point = svg.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+        return point.matrixTransform(screenMatrix.inverse());
+      } catch (_error) {
+        // Houd slepen bruikbaar in oudere SVG-implementaties zonder inverse CTM.
+        return { x: clientX, y: clientY };
+      }
+    };
     const notifyDragState = active => {
       container._isoStockDragActive = Boolean(active);
       if (typeof options.onDragStateChange === "function") {
@@ -1187,12 +1201,14 @@
         dragSurface?.classList.add("is-stock-dragging");
         const originalParent = element.parentNode;
         const originalNextSibling = element.nextSibling;
-        container.querySelector(".iso-overlay-layer")?.appendChild(element);
+        const dragLayer = container.querySelector(".iso-overlay-layer");
+        dragLayer?.appendChild(element);
         stockDrag = {
           ...dragDescriptor(element),
           pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
+          dragLayer,
           originalParent,
           originalNextSibling
         };
@@ -1200,8 +1216,22 @@
     });
     dragSurface?.addEventListener("pointermove", event => {
       if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
-      const deltaX = event.clientX - stockDrag.startX;
-      const deltaY = event.clientY - stockDrag.startY;
+      // PointerEvents leveren schermpixels, terwijl CSS-translate op een SVG-groep
+      // in viewBox-eenheden wordt toegepast. Zet beide punten daarom met de
+      // inverse schermmatrix om; zo blijft het grijppunt ook in responsive kaarten
+      // exact onder muis of vinger.
+      const start = clientPointInDragLayer(
+        stockDrag.dragLayer,
+        stockDrag.startX,
+        stockDrag.startY
+      );
+      const current = clientPointInDragLayer(
+        stockDrag.dragLayer,
+        event.clientX,
+        event.clientY
+      );
+      const deltaX = current.x - start.x;
+      const deltaY = current.y - start.y;
       stockDrag.element.style.translate = `${deltaX}px ${deltaY}px`;
       clearDropTarget();
       dropTargetAt(event.clientX, event.clientY, stockDrag.dragKind)?.classList.add("is-drag-over");

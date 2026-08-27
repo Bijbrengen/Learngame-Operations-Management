@@ -51,7 +51,7 @@ async function openManagerSessionSettings(page) {
   return form;
 }
 
-async function dispatchTouchDrag(page, source, target, { cancel = false } = {}) {
+async function dispatchTouchDrag(page, source, target, { cancel = false, onMove } = {}) {
   const pointInside = element => {
     const bounds = element.getBoundingClientRect();
     for (const vertical of [0.25, 0.5, 0.75]) {
@@ -71,6 +71,26 @@ async function dispatchTouchDrag(page, source, target, { cancel = false } = {}) 
     : target;
   expect(targetPoint).not.toBeNull();
   const end = targetPoint;
+  await page.evaluate(() => {
+    window.__touchDragPointerProbe?.cleanup?.();
+    const probe = { start: null, current: null };
+    const recordStart = event => {
+      if (event.pointerType !== "touch") return;
+      probe.start = { x: event.clientX, y: event.clientY };
+      probe.current = { ...probe.start };
+    };
+    const recordMove = event => {
+      if (event.pointerType !== "touch") return;
+      probe.current = { x: event.clientX, y: event.clientY };
+    };
+    probe.cleanup = () => {
+      document.removeEventListener("pointerdown", recordStart, true);
+      document.removeEventListener("pointermove", recordMove, true);
+    };
+    document.addEventListener("pointerdown", recordStart, true);
+    document.addEventListener("pointermove", recordMove, true);
+    window.__touchDragPointerProbe = probe;
+  });
   const client = await page.context().newCDPSession(page);
   const point = (x, y) => [{ x, y, radiusX: 4, radiusY: 4, force: 0.7, id: 1 }];
   try {
@@ -78,23 +98,70 @@ async function dispatchTouchDrag(page, source, target, { cancel = false } = {}) 
       type: "touchStart",
       touchPoints: point(start.x, start.y)
     });
-    for (let step = 1; step <= 6; step += 1) {
-      const progress = step / 6;
+    const steps = 6;
+    for (let step = 1; step <= steps; step += 1) {
+      const progress = step / steps;
+      const current = {
+        x: start.x + (end.x - start.x) * progress,
+        y: start.y + (end.y - start.y) * progress
+      };
       await client.send("Input.dispatchTouchEvent", {
         type: "touchMove",
-        touchPoints: point(
-          start.x + (end.x - start.x) * progress,
-          start.y + (end.y - start.y) * progress
-        )
+        touchPoints: point(current.x, current.y)
       });
+      if (typeof onMove === "function" && step === Math.ceil(steps / 2)) {
+        // CDP kan touchmoves tot het volgende animatieframe samenvoegen. Meet pas
+        // nadat Chromium zowel het PointerEvent als de SVG-layout heeft verwerkt.
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+        const delivered = await page.evaluate(() => ({
+          start: window.__touchDragPointerProbe?.start || null,
+          current: window.__touchDragPointerProbe?.current || null
+        }));
+        expect(delivered.start).not.toBeNull();
+        expect(delivered.current).not.toBeNull();
+        await onMove({
+          start: delivered.start,
+          end,
+          current: delivered.current,
+          requested: { start, current }
+        });
+      }
     }
     await client.send("Input.dispatchTouchEvent", {
       type: cancel ? "touchCancel" : "touchEnd",
       touchPoints: []
     });
   } finally {
+    await page.evaluate(() => {
+      window.__touchDragPointerProbe?.cleanup?.();
+      delete window.__touchDragPointerProbe;
+    });
     await client.detach();
   }
+}
+
+function expectDragVisualAtPointerDelta(initialBox, movedBox, start, current) {
+  expect(movedBox).not.toBeNull();
+  const deltaX = current.x - start.x;
+  const deltaY = current.y - start.y;
+  const movedX = movedBox.x - initialBox.x;
+  const movedY = movedBox.y - initialBox.y;
+  const diagnostic = JSON.stringify({ initialBox, movedBox, start, current, deltaX, deltaY, movedX, movedY });
+
+  // De sleepvisualisatie moet dezelfde client-delta afleggen als de hand/muis.
+  // Alleen een gewijzigde CSS-waarde is onvoldoende: deze bbox-controle vangt
+  // ook SVG-transforms op die wel gezet zijn maar niet zichtbaar renderen.
+  expect(Math.abs(movedX - deltaX), diagnostic).toBeLessThanOrEqual(5);
+  expect(Math.abs(movedY - deltaY), diagnostic).toBeLessThanOrEqual(5);
+  expect(Math.abs(movedX), diagnostic).toBeGreaterThan(20);
+}
+
+function expectBoundingBoxRestored(restoredBox, initialBox) {
+  expect(restoredBox).not.toBeNull();
+  expect(Math.abs(restoredBox.x - initialBox.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(restoredBox.y - initialBox.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(restoredBox.width - initialBox.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(restoredBox.height - initialBox.height)).toBeLessThanOrEqual(2);
 }
 
 test.describe("Kritieke regressies: authenticatie, presets en productie", () => {
@@ -755,7 +822,30 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(engineCart.locator("[data-material-cart-overflow]")).toContainText("+2");
 
     if (testInfo.project.name === "mobile-chromium") {
-      await dispatchTouchDrag(page, cart, target, { cancel: true });
+      const touchSourceBox = await cart.boundingBox();
+      expect(touchSourceBox).not.toBeNull();
+      let touchMovedBox = null;
+      let touchMotion = null;
+      await dispatchTouchDrag(page, cart, target, {
+        cancel: true,
+        onMove: async motion => {
+          touchMotion = motion;
+          await expect(cart).toHaveClass(/is-dragging/);
+          touchMovedBox = await cart.boundingBox();
+        }
+      });
+      expect(touchMotion).not.toBeNull();
+      expectDragVisualAtPointerDelta(
+        touchSourceBox,
+        touchMovedBox,
+        touchMotion.start,
+        touchMotion.current
+      );
+      await expect(cart).not.toHaveClass(/is-dragging|is-rejected/);
+      expectBoundingBoxRestored(await cart.boundingBox(), touchSourceBox);
+      await expect(
+        map.locator('[data-department-id="srm"] .iso-cargo-material-cart[data-cargo-id="ORD-MAT-001"]')
+      ).toHaveCount(1);
       expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
 
       await dispatchTouchDrag(page, cart, { x: 2, y: 2 });
@@ -791,9 +881,61 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       const targetBox = await target.boundingBox();
       expect(cartBox).not.toBeNull();
       expect(targetBox).not.toBeNull();
-      await page.mouse.move(cartBox.x + cartBox.width / 2, cartBox.y + cartBox.height / 2);
+      const pointerStart = {
+        x: cartBox.x + cartBox.width / 2,
+        y: cartBox.y + cartBox.height / 2
+      };
+      const pointerEnd = {
+        x: targetBox.x + targetBox.width / 2,
+        y: targetBox.y + targetBox.height / 2
+      };
+      const pointerMidpoint = {
+        x: pointerStart.x + (pointerEnd.x - pointerStart.x) * 0.5,
+        y: pointerStart.y + (pointerEnd.y - pointerStart.y) * 0.5
+      };
+      await page.evaluate(() => {
+        window.__materialCartPointerId = null;
+        document.querySelector("#material-cart-regression .iso-logistics-view")?.addEventListener(
+          "pointerdown",
+          event => { window.__materialCartPointerId = event.pointerId; },
+          { capture: true, once: true }
+        );
+      });
+      await page.mouse.move(pointerStart.x, pointerStart.y);
       await page.mouse.down();
-      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+      await page.mouse.move(pointerMidpoint.x, pointerMidpoint.y, { steps: 6 });
+      await expect(cart).toHaveClass(/is-dragging/);
+      expectDragVisualAtPointerDelta(
+        cartBox,
+        await cart.boundingBox(),
+        pointerStart,
+        pointerMidpoint
+      );
+      const pointerId = await page.evaluate(() => window.__materialCartPointerId);
+      expect(pointerId).not.toBeNull();
+      await page.evaluate(({ pointerId, pointerMidpoint }) => {
+        document.querySelector("#material-cart-regression .iso-logistics-view")?.dispatchEvent(
+          new PointerEvent("pointercancel", {
+            bubbles: true,
+            cancelable: false,
+            pointerId,
+            pointerType: "mouse",
+            clientX: pointerMidpoint.x,
+            clientY: pointerMidpoint.y
+          })
+        );
+      }, { pointerId, pointerMidpoint });
+      await page.mouse.up();
+      await expect(cart).not.toHaveClass(/is-dragging|is-rejected/);
+      expectBoundingBoxRestored(await cart.boundingBox(), cartBox);
+      await expect(
+        map.locator('[data-department-id="srm"] .iso-cargo-material-cart[data-cargo-id="ORD-MAT-001"]')
+      ).toHaveCount(1);
+      expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
+
+      await page.mouse.move(pointerStart.x, pointerStart.y);
+      await page.mouse.down();
+      await page.mouse.move(pointerEnd.x, pointerEnd.y, { steps: 10 });
       await expect(target).toHaveClass(/is-drag-over/);
       await page.mouse.up();
     }
