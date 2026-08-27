@@ -1,5 +1,15 @@
 const { test, expect } = require("./fixtures");
 
+const ENTREPRENEURSHIP_ROLES = [
+  "customer",
+  "sales",
+  "supplier",
+  "production_1",
+  "production_2",
+  "production_3",
+  "finished_warehouse"
+];
+
 async function openManagerSettings(page) {
   await page.route("**/auth/leerbox/session**", route => route.fulfill({
     status: 200,
@@ -113,6 +123,66 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await expect(preview.locator('[data-layout-node="customer"]')).toBeVisible();
 
     await expect(preview.locator("[data-layout-view]")).toHaveCount(0);
+  });
+
+  test("Entrepreneurship activeert zeven unieke stations en beide opstellingen volgen de bouwrollen", async ({ page }) => {
+    const form = page.locator("#gameSessionCreateForm");
+    const rolesTab = page.locator('[data-manager-tab="roles"]');
+    const layoutTab = page.locator('[data-manager-tab="layout"]');
+    const rolesPanel = page.locator('[data-manager-panel="roles"]');
+    const layoutPanel = page.locator('[data-manager-panel="layout"]');
+    const primaryLayout = layoutPanel.locator("[data-session-layout-lego]");
+    const schematic = layoutPanel.locator(".session-layout-config-summary");
+
+    await form.locator('[name="game_type"]').selectOption("entrepreneurial");
+    await rolesTab.click();
+
+    const selectedRoles = await rolesPanel
+      .locator('input[name^="role_"]:checked')
+      .evaluateAll(controls => controls.map(control => control.name.slice("role_".length)));
+    expect([...selectedRoles].sort()).toEqual([...ENTREPRENEURSHIP_ROLES].sort());
+
+    const roleAnalysis = await page.evaluate(roleIds => {
+      const analysis = window.LOMRuntimeRoles.analyze(roleIds);
+      return {
+        collisions: analysis.collisions,
+        stationIds: analysis.role_ids.map(window.LOMRuntimeRoles.stationId)
+      };
+    }, selectedRoles);
+    expect(roleAnalysis.collisions).toEqual([]);
+    expect(new Set(roleAnalysis.stationIds).size).toBe(7);
+
+    await layoutTab.click();
+    await expect(primaryLayout.locator(".iso-logistics-view")).toContainText(
+      "Entrepreneurship · zelfstandige ondernemingen"
+    );
+    await expect(primaryLayout.locator('[data-department-id="production_2"]')).toBeVisible();
+    await expect(primaryLayout.locator("[data-department-id]")).toHaveCount(7);
+    await expect(schematic.locator('[data-layout-node="producer-build-2"]')).toHaveCount(1);
+
+    // Een algemene simulatorrender mag de sessiepreview niet terugzetten naar
+    // de losstaande hoofdconfiguratie.
+    await page.evaluate(() => window.LEARNGameOMSimulator.clearInteractionBuffer());
+    await expect(primaryLayout.locator('[data-department-id="operations"]')).toBeVisible();
+    await expect(primaryLayout.locator('[data-department-id="production_2"]')).toBeVisible();
+    await expect(primaryLayout.locator("[data-department-id]")).toHaveCount(7);
+
+    await rolesTab.click();
+    await rolesPanel.locator('[name="role_production_2"]').uncheck();
+    await layoutTab.click();
+    await expect(primaryLayout.locator('[data-department-id="production_2"]')).toHaveCount(0);
+    await expect(primaryLayout.locator('[data-department-id="production_1"]')).toBeVisible();
+    await expect(primaryLayout.locator('[data-department-id="production_3"]')).toBeVisible();
+    await expect(primaryLayout.locator("[data-department-id]")).toHaveCount(6);
+    await expect(schematic.locator('[data-layout-node="producer-build-2"]')).toHaveCount(0);
+    await expect(schematic.locator('[data-layout-node="producer-build-1"]')).toHaveCount(1);
+    await expect(schematic.locator('[data-layout-node="producer-build-3"]')).toHaveCount(1);
+
+    await rolesTab.click();
+    await rolesPanel.locator('[name="role_production_2"]').check();
+    await layoutTab.click();
+    await expect(primaryLayout.locator('[data-department-id="production_2"]')).toBeVisible();
+    await expect(schematic.locator('[data-layout-node="producer-build-2"]')).toHaveCount(1);
   });
 
   test("historietabel bevat alle ontwikkelvarianten en kiest de aangeklikte preset", async ({ page }) => {
@@ -331,6 +401,50 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       "production_c"
     ]);
     expect(dialogs).toEqual([]);
+  });
+
+  test("Entrepreneurship verstuurt exact de zeven botsingsvrije sessierollen", async ({ page }) => {
+    let requestPayload;
+    let resolveRequest;
+    const requestReceived = new Promise(resolve => {
+      resolveRequest = resolve;
+    });
+    await page.route(/\/v1\/game-sessions$/, async route => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      requestPayload = route.request().postDataJSON();
+      resolveRequest();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "finished" })
+      });
+    });
+
+    const form = page.locator("#gameSessionCreateForm");
+    await form.locator('[name="game_type"]').selectOption("entrepreneurial");
+    await form.locator('[name="play_mode"]').selectOption("digital");
+    await page.getByRole("button", { name: "Sessie aanmaken" }).click();
+    await requestReceived;
+
+    expect(requestPayload.game_config.game_type).toBe("entrepreneurial");
+    expect(requestPayload.game_config.play_mode).toBe("digital");
+    expect(requestPayload.game_config.enabled_roles).toEqual([
+      "customer",
+      "supplier",
+      "finished_warehouse",
+      "production_1",
+      "production_2",
+      "production_3",
+      "sales"
+    ]);
+    const analysis = await page.evaluate(roleIds => window.LOMRuntimeRoles.analyze(roleIds), (
+      requestPayload.game_config.enabled_roles
+    ));
+    expect(analysis.collisions).toEqual([]);
+    expect(analysis.unknown_role_ids).toEqual([]);
   });
 
   test("tijdelijke service-isolatie toont geen blokkerende technische popup", async ({ page }) => {

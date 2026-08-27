@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v249-cart-pointer-sync";
+const CACHE_VERSION = "learngame-om-v250-drag-entrepreneurship";
 const APP_SHELL = [
   "./",
   "./index.html",

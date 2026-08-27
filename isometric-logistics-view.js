@@ -1004,6 +1004,8 @@
       container.querySelector(".iso-detail-close")?.focus?.();
     }
     let stockDrag = null;
+    let interactionSafetyCleanup = null;
+    const rejectTimers = new WeakMap();
     const dragDescriptor = element => ({
       element,
       dragKind: element.dataset.dragKind,
@@ -1030,18 +1032,27 @@
     const notifyDragState = active => {
       container._isoStockDragActive = Boolean(active);
       if (typeof options.onDragStateChange === "function") {
-        options.onDragStateChange(Boolean(active));
+        try {
+          options.onDragStateChange(Boolean(active));
+        } catch (error) {
+          console.error("De bovenliggende weergave kon de sleepstatus niet verwerken.", error);
+        }
       }
     };
+    const detachInteractionSafety = () => {
+      interactionSafetyCleanup?.();
+      interactionSafetyCleanup = null;
+    };
     const completeDragCycle = () => {
-      container._isoStockDragActive = false;
+      detachInteractionSafety();
       const pendingMount = container._isoPendingMount;
       container._isoPendingMount = null;
-      if (typeof options.onDragStateChange === "function") {
-        options.onDragStateChange(false);
-      }
-      if (pendingMount && container.isConnected) {
-        mount(container, pendingMount.scene, pendingMount.options);
+      try {
+        notifyDragState(false);
+      } finally {
+        if (pendingMount && container.isConnected) {
+          mount(container, pendingMount.scene, pendingMount.options);
+        }
       }
     };
     const submitDrop = (drag, target, inputMethod) => {
@@ -1066,10 +1077,22 @@
       }
       return false;
     };
+    const clearRejectState = element => {
+      if (!element) return;
+      const timer = rejectTimers.get(element);
+      if (timer) window.clearTimeout(timer);
+      rejectTimers.delete(element);
+      element.classList.remove("is-rejected");
+    };
     const rejectDrag = element => {
       if (!element?.isConnected) return;
+      clearRejectState(element);
       element.classList.add("is-rejected");
-      window.setTimeout(() => element.classList.remove("is-rejected"), 430);
+      const timer = window.setTimeout(() => {
+        element.classList.remove("is-rejected");
+        rejectTimers.delete(element);
+      }, 430);
+      rejectTimers.set(element, timer);
     };
     const clearDropTarget = () => {
       container.querySelector(".iso-department.is-drag-over")?.classList.remove("is-drag-over");
@@ -1110,13 +1133,21 @@
       if (!keyboardDrag) return;
       const drag = keyboardDrag;
       const source = drag.element;
-      const accepted = submitDrop(drag, target, "keyboard");
-      source.classList.remove("is-keyboard-dragging");
-      source.setAttribute("aria-pressed", "false");
-      clearKeyboardDropTarget();
-      keyboardDrag = null;
-      if (accepted === false) rejectDrag(source);
-      completeDragCycle();
+      try {
+        const accepted = submitDrop(drag, target, "keyboard");
+        if (accepted === false) rejectDrag(source);
+        return accepted;
+      } catch (error) {
+        rejectDrag(source);
+        console.error("De toetsenbordactie kon niet worden afgeleverd.", error);
+        return false;
+      } finally {
+        source.classList.remove("is-keyboard-dragging");
+        source.setAttribute("aria-pressed", "false");
+        clearKeyboardDropTarget();
+        keyboardDrag = null;
+        completeDragCycle();
+      }
     };
     const startKeyboardDrag = element => {
       if (stockDrag || keyboardDrag) return;
@@ -1130,10 +1161,11 @@
       element.setAttribute("aria-pressed", "true");
       target.classList.add("is-keyboard-target");
       notifyDragState(true);
+      attachInteractionSafety();
       target.focus?.();
     };
-    const finishStockDrag = (event, cancelled = false) => {
-      if (!stockDrag || event.pointerId !== stockDrag.pointerId) return;
+    const finishStockDrag = (event = {}, cancelled = false, force = false) => {
+      if (!stockDrag || (!force && event.pointerId !== stockDrag.pointerId)) return;
       const {
         element,
         dragKind,
@@ -1143,27 +1175,88 @@
         cargoId,
         quantity,
         originalParent,
-        originalNextSibling
+        originalNextSibling,
+        moved
       } = stockDrag;
-      const target = cancelled ? null : dropTargetAt(event.clientX, event.clientY, dragKind);
+      const target = cancelled || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)
+        ? null
+        : dropTargetAt(event.clientX, event.clientY, dragKind);
       clearDropTarget();
       element.classList.remove("is-dragging");
       dragSurface?.classList.remove("is-stock-dragging");
       element.style.translate = "";
-      if (originalParent?.isConnected) {
-        const sibling = originalNextSibling?.parentNode === originalParent ? originalNextSibling : null;
-        originalParent.insertBefore(element, sibling);
+      try {
+        if (originalParent?.isConnected) {
+          const sibling = originalNextSibling?.parentNode === originalParent ? originalNextSibling : null;
+          originalParent.insertBefore(element, sibling);
+        }
+      } catch (error) {
+        console.warn("Het sleepobject kon niet op zijn bronpositie worden teruggezet.", error);
       }
       stockDrag = null;
-      if (dragSurface?.hasPointerCapture(event.pointerId)) {
-        dragSurface.releasePointerCapture(event.pointerId);
+      try {
+        if (dragSurface?.hasPointerCapture(event.pointerId)) {
+          dragSurface.releasePointerCapture(event.pointerId);
+        }
+      } catch (_error) {
+        // Capture kan tussen controle en vrijgave al door de browser eindigen.
       }
-      const accepted = target
-        ? submitDrop({ element, dragKind, sourceDepartmentId, partId, instanceId, cargoId, quantity }, target, "pointer")
-        : false;
-      if (!target || accepted === false) rejectDrag(element);
-      completeDragCycle();
+      try {
+        const accepted = target
+          ? submitDrop({ element, dragKind, sourceDepartmentId, partId, instanceId, cargoId, quantity }, target, "pointer")
+          : false;
+        if (!cancelled && moved && (!target || accepted === false)) rejectDrag(element);
+        return accepted;
+      } catch (error) {
+        if (!cancelled && moved) rejectDrag(element);
+        console.error("De sleepactie kon niet worden afgeleverd.", error);
+        return false;
+      } finally {
+        completeDragCycle();
+      }
     };
+    const cancelActiveInteraction = () => {
+      if (stockDrag) {
+        finishStockDrag({
+          pointerId: stockDrag.pointerId,
+          clientX: stockDrag.startX,
+          clientY: stockDrag.startY
+        }, true, true);
+      } else if (keyboardDrag) {
+        cancelKeyboardDrag();
+      } else if (container._isoStockDragActive) {
+        completeDragCycle();
+      }
+    };
+    const attachInteractionSafety = () => {
+      detachInteractionSafety();
+      const onPointerUp = event => finishStockDrag(event);
+      const onPointerCancel = event => finishStockDrag(event, true);
+      const onWindowBlur = () => cancelActiveInteraction();
+      const onVisibilityChange = () => {
+        if (document.visibilityState === "hidden") cancelActiveInteraction();
+      };
+      const onGlobalKeydown = event => {
+        if (event.key !== "Escape" || (!keyboardDrag && !stockDrag)) return;
+        event.preventDefault();
+        cancelActiveInteraction();
+      };
+      window.addEventListener("pointerup", onPointerUp, true);
+      window.addEventListener("pointercancel", onPointerCancel, true);
+      window.addEventListener("blur", onWindowBlur);
+      window.addEventListener("pagehide", onWindowBlur);
+      window.addEventListener("keydown", onGlobalKeydown, true);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      interactionSafetyCleanup = () => {
+        window.removeEventListener("pointerup", onPointerUp, true);
+        window.removeEventListener("pointercancel", onPointerCancel, true);
+        window.removeEventListener("blur", onWindowBlur);
+        window.removeEventListener("pagehide", onWindowBlur);
+        window.removeEventListener("keydown", onGlobalKeydown, true);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      };
+    };
+    container._isoCancelDrag = cancelActiveInteraction;
     container.querySelectorAll(".iso-draggable-object").forEach(element => {
       element.addEventListener("click", event => event.stopPropagation());
       if (element.matches('[data-drag-kind="cargo"]')) {
@@ -1182,9 +1275,14 @@
       }
       element.addEventListener("pointerdown", event => {
         if (event.button !== 0) return;
+        clearRejectState(element);
+        if (stockDrag) {
+          cancelActiveInteraction();
+          if (!element.isConnected) return;
+        }
         if (keyboardDrag) {
           cancelKeyboardDrag();
-          return;
+          if (!element.isConnected) return;
         }
         event.preventDefault();
         event.stopPropagation();
@@ -1196,7 +1294,6 @@
         } catch (_error) {
           // Synthetische pointers ondersteunen capture niet in iedere browser.
         }
-        notifyDragState(true);
         element.classList.add("is-dragging");
         dragSurface?.classList.add("is-stock-dragging");
         const originalParent = element.parentNode;
@@ -1208,10 +1305,13 @@
           pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
+          moved: false,
           dragLayer,
           originalParent,
           originalNextSibling
         };
+        notifyDragState(true);
+        attachInteractionSafety();
       });
     });
     dragSurface?.addEventListener("pointermove", event => {
@@ -1232,6 +1332,9 @@
       );
       const deltaX = current.x - start.x;
       const deltaY = current.y - start.y;
+      if (Math.hypot(event.clientX - stockDrag.startX, event.clientY - stockDrag.startY) >= 4) {
+        stockDrag.moved = true;
+      }
       stockDrag.element.style.translate = `${deltaX}px ${deltaY}px`;
       clearDropTarget();
       dropTargetAt(event.clientX, event.clientY, stockDrag.dragKind)?.classList.add("is-drag-over");
@@ -1244,6 +1347,14 @@
       event.preventDefault();
       event.stopPropagation();
       cancelKeyboardDrag();
+    });
+    dragSurface?.addEventListener("focusout", event => {
+      if (
+        keyboardDrag
+        && (!event.relatedTarget || !dragSurface.contains(event.relatedTarget))
+      ) {
+        cancelKeyboardDrag();
+      }
     });
     container.querySelector(".iso-department-action")?.addEventListener("click", event => {
       const departmentId = event.currentTarget.dataset.departmentAction;

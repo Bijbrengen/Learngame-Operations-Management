@@ -266,7 +266,10 @@
         logistics_organization: "functional",
         product_type_count: 3,
         customer_order_mode: "free",
-        enabled_roles: ["customer", "sales", "supplier", "finance", "logistics_manager"]
+        // Entrepreneurship gebruikt dezelfde volledige, speelbare keten als de
+        // overige digitale varianten. De historische families leverancier,
+        // producent en handelaar groeperen gedrag; het zijn geen drie stations.
+        enabled_roles: ["customer", "sales", "supplier", "production_1", "production_2", "production_3", "finished_warehouse"]
       }
     },
     {

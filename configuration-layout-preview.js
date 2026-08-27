@@ -35,8 +35,11 @@
     };
   }
 
-  function roleEnabled(config, roleId, fallback = true) {
-    return config.enabled_roles ? config.enabled_roles.includes(roleId) : fallback;
+  function stationEnabled(config, stationId, fallback = true) {
+    if (!config.enabled_roles) return fallback;
+    return config.enabled_roles.some(roleId => (
+      globalThis.LOMRuntimeRoles?.stationId?.(roleId) === stationId
+    ));
   }
 
   function processNodes(config) {
@@ -48,11 +51,18 @@
       }));
     }
     if (config.organization_model === "independent_enterprises") {
+      // De drie historische ondernemingsfamilies omvatten samen zes
+      // operationele stations. Toon elk werkelijk speelstation, zodat de
+      // opstelling meebeweegt met de rolkeuze en de drie bouwstappen niet
+      // verdwijnen achter één generieke Producent-kaart.
       return [
-        { id: "raw-business", label: "Grondstofbedrijf", kind: "enterprise" },
-        { id: "producer", label: "Producent", kind: "enterprise" },
-        { id: "trader", label: "Handelaar", kind: "enterprise" }
-      ];
+        { id: "trader-orders", label: "Handelaar · Order & verkoop", kind: "enterprise", stationId: "operations" },
+        { id: "raw-business", label: "Grondstofbedrijf · Materialen", kind: "enterprise", stationId: "srm" },
+        { id: "producer-build-1", label: "Producent · Torenbouw 1", kind: "enterprise", stationId: "pd1" },
+        { id: "producer-build-2", label: "Producent · Torenbouw 2", kind: "enterprise", stationId: "pd2" },
+        { id: "producer-build-3", label: "Producent · Torenbouw 3", kind: "enterprise", stationId: "pd3" },
+        { id: "trader-finished", label: "Handelaar · Gereed product", kind: "enterprise", stationId: "ssf" }
+      ].filter(node => stationEnabled(config, node.stationId));
     }
     if (
       config.production_processes.includes("parallel")
@@ -76,9 +86,12 @@
 
   function topology(config = {}) {
     const value = normalize(config);
-    const supplierVisible = value.organization_model === "independent_enterprises"
-      || value.has_supplier;
-    const customerVisible = roleEnabled(value, "customer", true);
+    // In Entrepreneurship ís het Grondstofbedrijf de leveranciersfamilie voor
+    // station SRM; een extra externe Leverancier zou hetzelfde station dubbel
+    // tekenen.
+    const supplierVisible = value.organization_model !== "independent_enterprises"
+      && value.has_supplier;
+    const customerVisible = stationEnabled(value, "customer", true);
     const internal = processNodes(value);
     const before = [];
     if (supplierVisible) before.push({ id: "supplier", label: "Leverancier", kind: "external" });
@@ -208,7 +221,7 @@
       has_supplier: get("has_supplier")
         ? Boolean(get("has_supplier").checked)
         : stored?.settings?.has_supplier,
-      ...(enabledRoles.length ? { enabled_roles: enabledRoles } : {})
+      enabled_roles: enabledRoles
     });
   }
 

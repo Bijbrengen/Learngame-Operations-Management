@@ -853,6 +853,59 @@
     { from: "quality", to: "dispatch", kind: "customer", fromOffset: { x: 24, y: 56 }, toOffset: { x: 0, y: -56 }, curveOffsetY: 32 }
   ];
 
+  // De Entrepreneurship-opstelling projecteert de drie historische
+  // ondernemingsfamilies op alle zeven speelbare runtime-stations. Dit is een
+  // configuratievoorbeeld; de gewone LO-opstellingen blijven ongewijzigd.
+  const ENTREPRENEURIAL_ISOMETRIC_DEPARTMENT_DEFINITIONS = [
+    {
+      id: "operations",
+      title: "Handelaar · Order & verkoop",
+      shortTitle: "Handelaar",
+      description: "Ontvangt klantorders, verkoopt en regisseert de zelfstandige ondernemingsketen.",
+      kind: "operations",
+      departmentColor: "blue",
+      lanes: [],
+      layout: { x: 0, y: 18, width: 3, depth: 2.8, height: 54 }
+    },
+    {
+      ...FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[0],
+      title: "Grondstofbedrijf · Materialen",
+      shortTitle: "Grondstofbedrijf",
+      description: "Koopt de losse grondstoffen in en zet per order een materiaalwagen klaar.",
+      layout: { x: 3.5, y: 14.5, width: 3, depth: 2.8, height: 56 }
+    },
+    ...FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS.slice(1, 4).map((definition, index) => ({
+      ...definition,
+      title: `Producent · Torenbouw ${index + 1}`,
+      shortTitle: `Bouwstap ${index + 1}`,
+      description: `Zelfstandige producent voor torenbouwstap ${index + 1}.`,
+      layout: { x: 7 + index * 3.5, y: 11 - index * 3.5, width: 3, depth: 2.8, height: 64 + index * 6 }
+    })),
+    {
+      ...FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[4],
+      title: "Handelaar · Gereed product",
+      shortTitle: "Gereed product",
+      description: "Neemt complete torens over en maakt ze gereed voor verkoop en uitlevering.",
+      layout: { x: 17.5, y: 0.5, width: 3, depth: 2.8, height: 62 }
+    },
+    {
+      ...FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[5],
+      title: "Klant · Order & ontvangst",
+      shortTitle: "Klant",
+      description: "Plaatst de order en ontvangt de uitgeleverde torens.",
+      layout: { x: 22, y: 10, width: 3, depth: 2.8, height: 54 }
+    }
+  ];
+
+  const ENTREPRENEURIAL_ISOMETRIC_DEPARTMENT_CONNECTIONS = [
+    { from: "operations", to: "inbound", kind: "material" },
+    { from: "inbound", to: "production_1", kind: "material" },
+    { from: "production_1", to: "production_2", kind: "material" },
+    { from: "production_2", to: "production_3", kind: "material" },
+    { from: "production_3", to: "quality", kind: "material" },
+    { from: "quality", to: "dispatch", kind: "customer" }
+  ];
+
   const LOGISTICS_ORGANIZATION_VARIANTS = {
     product: {
       id: "product",
@@ -880,6 +933,27 @@
       ]
     }
   };
+
+  const ENTREPRENEURIAL_ISOMETRIC_ORGANIZATION = Object.freeze({
+    id: "entrepreneurial",
+    title: "Entrepreneurship · zelfstandige ondernemingen",
+    departments: ENTREPRENEURIAL_ISOMETRIC_DEPARTMENT_DEFINITIONS,
+    connections: ENTREPRENEURIAL_ISOMETRIC_DEPARTMENT_CONNECTIONS,
+    legend: [
+      { color: "green", label: "Grondstofbedrijf" },
+      { color: "purple", label: "Producent" },
+      { color: "blue", label: "Handelaar" },
+      { color: "yellow", label: "Klant" }
+    ]
+  });
+
+  function isometricOrganizationFor(organizationModel, logisticsOrganization) {
+    if (organizationModel === "independent_enterprises") {
+      return ENTREPRENEURIAL_ISOMETRIC_ORGANIZATION;
+    }
+    return LOGISTICS_ORGANIZATION_VARIANTS[logisticsOrganization]
+      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+  }
 
   const GAME_TYPE_PRESETS = {
     entrepreneurial: {
@@ -6089,27 +6163,60 @@
     };
   }
 
-  function isometricScene() {
+  const SESSION_LAYOUT_STATION_BY_DEPARTMENT = Object.freeze({
+    operations: "operations",
+    inbound: "srm",
+    production_1: "pd1",
+    production_2: "pd2",
+    production_3: "pd3",
+    quality: "ssf",
+    dispatch: "customer"
+  });
+
+  function isometricScene(configOverride = null) {
     if (
-      state.logisticsTutorial.active
+      !configOverride
+      && state.logisticsTutorial.active
       && state.logisticsTutorial.phase.startsWith("financial_")
     ) {
       return financialTutorialScene();
     }
     if (
-      state.logisticsTutorial.active
+      !configOverride
+      && state.logisticsTutorial.active
       && state.logisticsTutorial.phase.startsWith("internal_")
     ) {
       return internalLogisticsTutorialScene();
     }
-    if (state.logisticsTutorial.active) return logisticsTutorialScene();
-    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
-      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    if (!configOverride && state.logisticsTutorial.active) return logisticsTutorialScene();
+    const gameType = configOverride?.game_type || state.config.gameType;
+    const organizationModel = configOverride?.organization_model || state.config.organizationModel;
+    const productionProcesses = configOverride
+      ? (window.LogisticsProcess?.normalizeProcesses(
+          configOverride.production_processes,
+          gameType
+        ) || ["sequential"])
+      : state.config.productionProcesses;
+    const logisticsOrganization = configOverride
+      ? configOverride.logistics_organization
+        || (productionProcesses.length === 1 && productionProcesses[0] === "sequential" ? "functional" : "product")
+      : state.config.logisticsOrganization;
+    const entrepreneurial = organizationModel === "independent_enterprises";
+    const organization = isometricOrganizationFor(organizationModel, logisticsOrganization);
     const processProfile = window.LogisticsProcess?.profileForProcesses(
-      state.config.productionProcesses,
-      state.config.gameType
+      productionProcesses,
+      gameType
     ) || null;
-    const visible = new Set(state.config.visibleLogisticsDepartments);
+    const enabledStations = configOverride && Array.isArray(configOverride.enabled_roles)
+      ? new Set(configOverride.enabled_roles
+          .map(roleId => window.LOMRuntimeRoles?.stationId?.(roleId))
+          .filter(Boolean))
+      : null;
+    const visible = enabledStations
+      ? new Set(organization.departments
+          .filter(definition => enabledStations.has(SESSION_LAYOUT_STATION_BY_DEPARTMENT[definition.id]))
+          .map(definition => definition.id))
+      : new Set(state.config.visibleLogisticsDepartments);
     return {
       title: organization.title,
       legend: organization.legend,
@@ -6273,10 +6380,19 @@
     return operation;
   }
 
-  function mountSessionLayout() {
+  function mountSessionLayout(config = null) {
     const target = document.querySelector("[data-session-layout-lego]");
     if (!target || !window.IsometricLogisticsView) return false;
-    window.IsometricLogisticsView.mount(target, isometricScene(), {
+    // `renderAll()` wordt ook door simulator-events aangeroepen. Laat zo'n
+    // algemene render de sessiepreview niet terugzetten naar de hoofdconfig:
+    // het zichtbare sessieformulier blijft daar de bron van waarheid.
+    const sessionForm = document.querySelector(
+      "#gameSessionCreateForm, [data-active-game-config]"
+    );
+    const layoutConfig = config || (sessionForm
+      ? window.ConfigurationLayoutPreview?.configFromForm?.(sessionForm)
+      : null);
+    window.IsometricLogisticsView.mount(target, isometricScene(layoutConfig), {
       departmentDetailMode: "none"
     });
     return true;
@@ -6720,7 +6836,7 @@
     lo7: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
     lo8: ["customer", "sales", "finance", "logistics_manager", "raw_warehouse", "production_1", "production_2", "production_3", "finished_warehouse", "supplier", "transporter"],
     le_training: ["customer", "logistics_manager", "sales", "finance", "raw_warehouse", "production_a", "production_b", "production_c", "finished_warehouse"],
-    entrepreneurial: ["customer", "sales", "supplier", "finance", "logistics_manager"]
+    entrepreneurial: ["customer", "sales", "supplier", "production_1", "production_2", "production_3", "finished_warehouse"]
   };
   window.GameVariantHistory?.derived.forEach(definition => {
     const roles = window.GameConfigurationStore
@@ -6965,8 +7081,10 @@
     state.config.enabledCurrencies = [...(settings.enabled_currencies || [state.config.baseCurrency])];
     state.config.exchangeRates = { ...(settings.exchange_rates || { [state.config.baseCurrency]: 1 }) };
 
-    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
-      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    const organization = isometricOrganizationFor(
+      state.config.organizationModel,
+      state.config.logisticsOrganization
+    );
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
 
@@ -7080,7 +7198,10 @@
       customerOrderMode: preset.config.customerOrderMode || "required"
     });
     applyLogisticsProcessContract(gameType);
-    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization];
+    const organization = isometricOrganizationFor(
+      state.config.organizationModel,
+      state.config.logisticsOrganization
+    );
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
     syncConfigControls();
@@ -7173,8 +7294,10 @@
       state.config.editableColorLayers = [];
     }
     applyLogisticsProcessContract(gameType);
-    const organization = LOGISTICS_ORGANIZATION_VARIANTS[state.config.logisticsOrganization]
-      || LOGISTICS_ORGANIZATION_VARIANTS.product;
+    const organization = isometricOrganizationFor(
+      state.config.organizationModel,
+      state.config.logisticsOrganization
+    );
     state.config.visibleLogisticsDepartments = organization.departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
     syncConfigControls();
@@ -7903,7 +8026,7 @@
 
   function setVisibleLogisticsDepartments(departmentIds) {
     const knownIds = new Set(
-      Object.values(LOGISTICS_ORGANIZATION_VARIANTS)
+      [...Object.values(LOGISTICS_ORGANIZATION_VARIANTS), ENTREPRENEURIAL_ISOMETRIC_ORGANIZATION]
         .flatMap(variant => variant.departments.map(department => department.id))
     );
     const requestedIds = Array.isArray(departmentIds) ? departmentIds : [];
@@ -7922,8 +8045,10 @@
     ];
     state.config.logisticsOrganization = variantId;
     syncConfigControls();
-    state.config.visibleLogisticsDepartments = LOGISTICS_ORGANIZATION_VARIANTS[variantId]
-      .departments.map(department => department.id);
+    state.config.visibleLogisticsDepartments = isometricOrganizationFor(
+      state.config.organizationModel,
+      variantId
+    ).departments.map(department => department.id);
     state.selectedLogisticsDepartmentId = state.config.visibleLogisticsDepartments[0] || null;
     dispatchInteraction({
       actionType: "change_logistics_organization",
@@ -7943,7 +8068,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v249-cart-pointer-sync").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v250-drag-entrepreneurship").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

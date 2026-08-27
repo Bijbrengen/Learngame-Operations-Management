@@ -255,6 +255,13 @@ geaggregeerde timingpatronen uit 7.170 historische transacties, verdeeld over
 53 gespeelde games. Hieruit zijn 695 bruikbare spelersreeksen samengevat per
 rolfamilie: leverancier, producent en handelaar.
 
+Binnen het huidige zeven-stations-runtimemodel zijn die drie families gedrags-
+en ondernemingsgroepen, geen beperking tot drie spelersrollen. Een digitale
+Entrepreneurship-sessie gebruikt daarom de volledige keten van zeven unieke
+stations: Klant, Handelaar (Operations), Grondstofbedrijf, drie opeenvolgende
+torenbouwafdelingen en Magazijn Gereed Product. In de opstelling worden die
+stations onder Grondstofbedrijf, Producent en Handelaar benoemd.
+
 Iedere virtuele rol krijgt bij de start willekeurig een gewogen profiel
 `Proactief`, `Gestaag` of `Bedachtzaam`. Dat profiel varieert lokaal:
 

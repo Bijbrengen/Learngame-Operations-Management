@@ -229,6 +229,82 @@ test("alle LOM-rollen mappen deterministisch op exact zeven digitale stations", 
   assert.deepEqual(analysis.collisions.map(item => item.role_id), ["sales", "finance", "supplier"]);
 });
 
+test("Entrepreneurship laat een order van twee Toren C-exemplaren door alle drie menselijke bouwstations lopen", () => {
+  const sessionRoles = [
+    "customer", "sales", "supplier", "production_1", "production_2",
+    "production_3", "finished_warehouse"
+  ];
+  const stationRoles = sessionRoles.map(roleId => runtimeRoles.stationId(roleId));
+  assert.equal(new Set(stationRoles).size, 7);
+
+  const clock = testEngine();
+  const { engine } = clock;
+  engine.start({
+    humanRoleId: "customer",
+    humanRoleIds: stationRoles,
+    gameType: "entrepreneurial",
+    organizationModel: "independent_enterprises",
+    productionProcesses: ["sequential"],
+    customerOrderMode: "free",
+    playMode: "digital"
+  });
+
+  const order = engine.generateOrder();
+  engine.updateRole("customer", 1_000);
+  assert.equal(engine.completePlayerAction({
+    customerOrder: { productId: "C", quantity: 2, dueMinutes: 10 }
+  }, "customer").ok, true);
+
+  const expectedPartsByBuilder = {
+    pd1: { base_green: 2, white_8: 4 },
+    pd2: { blue_4: 2 },
+    pd3: { red_4: 2 }
+  };
+  const handledRoles = [];
+  let previousRoleId = "customer";
+  for (const roleId of stationRoles.slice(1)) {
+    const transferAt = engine.roleRuntime[previousRoleId].transfersAt;
+    clock.setNow(transferAt);
+    engine.updateRole(previousRoleId, transferAt);
+    engine.updateRole(roleId, transferAt);
+
+    const task = engine.playerTask(roleId);
+    assert.equal(task.order.id, order.id);
+    assert.equal(task.order.productId, "C");
+    assert.equal(task.order.quantity, 2);
+    if (expectedPartsByBuilder[roleId]) {
+      assert.deepEqual(task.requiredParts, expectedPartsByBuilder[roleId]);
+    }
+    const result = engine.completePlayerAction({
+      parts: { ...task.requiredParts },
+      completedQuantity: task.order.quantity,
+      transferred: true,
+      transfer: engine.batchTransferDescriptor(task.order, task.role.id),
+      signed: true,
+      signature: [[{ x: 0, y: 0 }, { x: 2, y: 2 }]]
+    }, roleId);
+    assert.equal(result.ok, true, `${roleId}: ${result.errors.join(" ")}`);
+    handledRoles.push(roleId);
+    previousRoleId = roleId;
+  }
+
+  const deliveredAt = engine.roleRuntime.ssf.transfersAt;
+  clock.setNow(deliveredAt);
+  engine.updateRole("ssf", deliveredAt);
+  const delivered = engine.orders.get(order.id);
+  assert.equal(delivered.status, "DELIVERED");
+  assert.deepEqual(
+    handledRoles.filter(roleId => roleId.startsWith("pd")),
+    ["pd1", "pd2", "pd3"]
+  );
+  assert.deepEqual(
+    delivered.history
+      .filter(item => item.type === "player_handling")
+      .map(item => item.roleId),
+    ["operations", "srm", "pd1", "pd2", "pd3", "ssf"]
+  );
+});
+
 test("een identieke menselijke rollenset veroorzaakt geen runtime-write-event", () => {
   const { engine } = testEngine();
   engine.start({ humanRoleId: "customer", humanRoleIds: ["customer", "operations"] });

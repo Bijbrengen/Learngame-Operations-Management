@@ -164,6 +164,131 @@ function expectBoundingBoxRestored(restoredBox, initialBox) {
   expect(Math.abs(restoredBox.height - initialBox.height)).toBeLessThanOrEqual(2);
 }
 
+async function mountIsometricCargoDragHarness(page, {
+  cargoKind = "tower",
+  throwOnDrop = false
+} = {}) {
+  await page.goto("/");
+  await page.waitForFunction(() => window.IsometricLogisticsView);
+  await page.evaluate(({ cargoKind, throwOnDrop }) => {
+    document.body.className = "";
+    document.body.innerHTML = `
+      <button id="drag-lock-outside-focus" type="button">Buiten de kaart</button>
+      <main id="drag-lock-regression" class="sim-isometric-transfer-map"></main>
+    `;
+    const cargoVisual = cargoKind === "material_cart"
+      ? {
+          kind: "material_cart",
+          cargoKind: "material_kits",
+          cargoId: "DRAG-LOCK-001",
+          label: "Materiaalwagen voor Toren C",
+          quantity: 2,
+          draggable: true,
+          parts: [
+            { partId: "base_green", color: "green", width: 6, depth: 6, isPlate: true, count: 2 },
+            { partId: "white_8", color: "white", width: 4, depth: 2, count: 4 }
+          ]
+        }
+      : {
+          kind: "tower",
+          cargoKind: "wip_towers",
+          cargoId: "DRAG-LOCK-001",
+          label: "Toren B",
+          quantity: 2,
+          draggable: true,
+          towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+        };
+    const harness = {
+      active: false,
+      dropAttempts: 0,
+      drops: [],
+      pointerId: null,
+      states: [],
+      throwOnDrop,
+      throwOnInactiveState: false
+    };
+    const scene = {
+      title: "Drag-lock regressie",
+      legend: [],
+      connections: [{ from: "source", to: "target", active: true }],
+      departments: [{
+        id: "source",
+        title: "Bronafdeling",
+        shortTitle: "Bron",
+        departmentColor: cargoKind === "material_cart" ? "warehouse" : "production-b",
+        status: "active",
+        openRoof: true,
+        layout: { x: 1, y: 2, width: 3, depth: 3, height: 58 },
+        cargoVisual
+      }, {
+        id: "target",
+        title: "Doelafdeling",
+        shortTitle: "Doel",
+        departmentColor: "finished",
+        status: "idle",
+        openRoof: true,
+        acceptsCargoDrop: true,
+        layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+      }]
+    };
+    window.__dragLockHarness = harness;
+    window.IsometricLogisticsView.mount(
+      document.getElementById("drag-lock-regression"),
+      scene,
+      {
+        centerDepartments: true,
+        onCargoDrop: payload => {
+          harness.dropAttempts += 1;
+          if (harness.throwOnDrop) throw new Error("drag-lock-onCargoDrop");
+          harness.drops.push(payload);
+          return true;
+        },
+        onDragStateChange: active => {
+          harness.active = Boolean(active);
+          harness.states.push(Boolean(active));
+          if (!active && harness.throwOnInactiveState) {
+            throw new Error("drag-lock-onDragStateChange-false");
+          }
+        }
+      }
+    );
+    document.addEventListener("pointerdown", event => {
+      if (!event.target?.closest?.("#drag-lock-regression .iso-draggable-object")) return;
+      harness.pointerId = event.pointerId;
+    }, true);
+  }, { cargoKind, throwOnDrop });
+
+  const map = page.locator("#drag-lock-regression");
+  const cargo = map.locator(
+    cargoKind === "material_cart"
+      ? '.iso-cargo-material-cart[data-cargo-id="DRAG-LOCK-001"]'
+      : '.iso-cargo-tower[data-cargo-id="DRAG-LOCK-001"]'
+  );
+  const target = map.locator('[data-department-id="target"][data-accepts-drag-kind="cargo"]');
+  await expect(cargo).toBeVisible();
+  await expect(target).toBeVisible();
+  return {
+    cargo,
+    map,
+    outsideFocus: page.locator("#drag-lock-outside-focus"),
+    target
+  };
+}
+
+async function isometricDragHarnessState(page) {
+  return page.evaluate(() => {
+    const container = document.getElementById("drag-lock-regression");
+    const surface = container?.querySelector(".iso-logistics-view");
+    return {
+      callbackActive: Boolean(window.__dragLockHarness?.active),
+      draggingObjects: container?.querySelectorAll(".iso-draggable-object.is-dragging").length || 0,
+      pendingMount: Boolean(container?._isoPendingMount),
+      rendererActive: Boolean(container?._isoStockDragActive),
+      surfaceDragging: Boolean(surface?.classList.contains("is-stock-dragging"))
+    };
+  });
+}
+
 test.describe("Kritieke regressies: authenticatie, presets en productie", () => {
   test("1. karakteraanmaak gebruikt profielstatus 200 en actuele kwaliteits-API", async ({ page }) => {
     await mockAuthenticatedApp(page, { profileExists: false });
@@ -950,6 +1075,379 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
+  test("6d. een afgewezen of geannuleerde cargo-drag kan onmiddellijk opnieuw worden opgepakt", async ({ page }) => {
+    const { cargo, target } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
+    const initialBox = await cargo.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(initialBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+    const start = {
+      x: initialBox.x + initialBox.width / 2,
+      y: initialBox.y + initialBox.height / 2
+    };
+    const invalid = { x: start.x + 34, y: start.y + 14 };
+    const retry = { x: start.x + 120, y: start.y + 40 };
+
+    // Forceer eerst de afwijsanimatie. De directe tweede drag mag niet door
+    // dezelfde CSS-translate worden overschreven.
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(invalid.x, invalid.y, { steps: 2 });
+    await page.mouse.up();
+    expect(await cargo.evaluate(element => element.classList.contains("is-rejected"))).toBe(true);
+
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(retry.x, retry.y, { steps: 2 });
+    expect(await cargo.evaluate(element => element.classList.contains("is-dragging"))).toBe(true);
+    expectDragVisualAtPointerDelta(initialBox, await cargo.boundingBox(), start, retry);
+
+    const pointerId = await page.evaluate(() => window.__dragLockHarness.pointerId);
+    await page.evaluate(({ pointerId, retry }) => {
+      document.querySelector("#drag-lock-regression .iso-logistics-view")?.dispatchEvent(
+        new PointerEvent("pointercancel", {
+          bubbles: true,
+          cancelable: false,
+          pointerId,
+          pointerType: "mouse",
+          clientX: retry.x,
+          clientY: retry.y
+        })
+      );
+    }, { pointerId, retry });
+    await page.mouse.up();
+    expect(await isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+
+    // Ook direct na pointercancel moet de eerstvolgende poging zelf starten en
+    // de cargo kunnen afleveren; er mag geen extra "ontgrendelklik" nodig zijn.
+    const restoredBox = await cargo.boundingBox();
+    expectBoundingBoxRestored(restoredBox, initialBox);
+    const restoredStart = {
+      x: restoredBox.x + restoredBox.width / 2,
+      y: restoredBox.y + restoredBox.height / 2
+    };
+    const targetPoint = {
+      x: targetBox.x + targetBox.width / 2,
+      y: targetBox.y + targetBox.height / 2
+    };
+    await page.mouse.move(restoredStart.x, restoredStart.y);
+    await page.mouse.down();
+    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
+    expect(await cargo.evaluate(element => element.classList.contains("is-dragging"))).toBe(true);
+    await page.mouse.up();
+    expect(await page.evaluate(() => window.__dragLockHarness.dropAttempts)).toBe(1);
+    expect(await isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+  });
+
+  test("6e. keyboard-cargo ruimt op na focus buiten de kaart en slikt de eerste pointerdrag niet in", async ({ page }) => {
+    const { cargo, outsideFocus, target } = await mountIsometricCargoDragHarness(page, {
+      cargoKind: "material_cart"
+    });
+    await cargo.focus();
+    await page.keyboard.press("Enter");
+    await expect(cargo).toHaveAttribute("aria-pressed", "true");
+    await expect(target).toBeFocused();
+
+    await outsideFocus.focus();
+    await page.keyboard.press("Escape");
+    await expect.poll(() => isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+    await expect(cargo).toHaveAttribute("aria-pressed", "false");
+
+    const initialBox = await cargo.boundingBox();
+    expect(initialBox).not.toBeNull();
+    const start = {
+      x: initialBox.x + initialBox.width / 2,
+      y: initialBox.y + initialBox.height / 2
+    };
+    const current = { x: start.x + 100, y: start.y + 32 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(current.x, current.y, { steps: 2 });
+    expect(await cargo.evaluate(element => element.classList.contains("is-dragging"))).toBe(true);
+    expectDragVisualAtPointerDelta(initialBox, await cargo.boundingBox(), start, current);
+    await page.mouse.up();
+  });
+
+  test("6f. pointerup buiten de kaart ruimt een drag zonder pointer-capture volledig op", async ({ page }) => {
+    const { cargo } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
+    const initialBox = await cargo.boundingBox();
+    expect(initialBox).not.toBeNull();
+    const start = {
+      x: initialBox.x + initialBox.width / 2,
+      y: initialBox.y + initialBox.height / 2
+    };
+    const current = { x: start.x + 110, y: start.y + 36 };
+
+    await page.evaluate(({ start, current }) => {
+      const source = document.querySelector("#drag-lock-regression .iso-cargo-tower");
+      const surface = document.querySelector("#drag-lock-regression .iso-logistics-view");
+      Object.defineProperty(surface, "setPointerCapture", {
+        configurable: true,
+        value() {
+          throw new DOMException("synthetische capture-failure", "NotFoundError");
+        }
+      });
+      const pointer = {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 901,
+        pointerType: "touch",
+        button: 0,
+        buttons: 1,
+        clientX: start.x,
+        clientY: start.y
+      };
+      source.dispatchEvent(new PointerEvent("pointerdown", pointer));
+      surface.dispatchEvent(new PointerEvent("pointermove", {
+        ...pointer,
+        clientX: current.x,
+        clientY: current.y
+      }));
+      document.dispatchEvent(new PointerEvent("pointerup", {
+        ...pointer,
+        buttons: 0,
+        clientX: current.x,
+        clientY: current.y
+      }));
+    }, { start, current });
+
+    await expect.poll(() => isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+    expectBoundingBoxRestored(await cargo.boundingBox(), initialBox);
+
+    const restoredBox = await cargo.boundingBox();
+    const retryStart = {
+      x: restoredBox.x + restoredBox.width / 2,
+      y: restoredBox.y + restoredBox.height / 2
+    };
+    const retryCurrent = { x: retryStart.x + 100, y: retryStart.y + 30 };
+    await page.mouse.move(retryStart.x, retryStart.y);
+    await page.mouse.down();
+    await page.mouse.move(retryCurrent.x, retryCurrent.y, { steps: 2 });
+    expect(await cargo.evaluate(element => element.classList.contains("is-dragging"))).toBe(true);
+    expectDragVisualAtPointerDelta(restoredBox, await cargo.boundingBox(), retryStart, retryCurrent);
+    await page.mouse.up();
+  });
+
+  test("6g. een fout in onCargoDrop laat geen renderer- of UI-draglock achter", async ({ page }) => {
+    const dragCallbackErrors = [];
+    page.on("pageerror", error => {
+      if (error.message.includes("drag-lock-")) dragCallbackErrors.push(error.message);
+    });
+    const { cargo, target } = await mountIsometricCargoDragHarness(page, {
+      cargoKind: "material_cart",
+      throwOnDrop: true
+    });
+    await page.evaluate(() => {
+      window.__dragLockHarness.throwOnInactiveState = true;
+    });
+    const initialBox = await cargo.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(initialBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+    const start = {
+      x: initialBox.x + initialBox.width / 2,
+      y: initialBox.y + initialBox.height / 2
+    };
+    const targetPoint = {
+      x: targetBox.x + targetBox.width / 2,
+      y: targetBox.y + targetBox.height / 2
+    };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(() => page.evaluate(() => window.__dragLockHarness.dropAttempts)).toBe(1);
+    await expect.poll(() => isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+    expect(dragCallbackErrors).toEqual([]);
+    expectBoundingBoxRestored(await cargo.boundingBox(), initialBox);
+
+    // Dezelfde callbackfout via het toetsenbord moet ook altijd de
+    // keyboard-drag afronden. Daarna moet de bron direct opnieuw selecteerbaar
+    // zijn, zonder eerst een pointerklik als ontgrendeling nodig te hebben.
+    await cargo.focus();
+    await page.keyboard.press("Enter");
+    await expect(cargo).toHaveAttribute("aria-pressed", "true");
+    await expect(target).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => page.evaluate(() => window.__dragLockHarness.dropAttempts)).toBe(2);
+    await expect.poll(() => isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+    await expect(cargo).toHaveAttribute("aria-pressed", "false");
+
+    await cargo.focus();
+    await page.keyboard.press("Enter");
+    await expect(cargo).toHaveAttribute("aria-pressed", "true");
+    await expect(target).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect.poll(() => isometricDragHarnessState(page)).toEqual({
+      callbackActive: false,
+      draggingObjects: 0,
+      pendingMount: false,
+      rendererActive: false,
+      surfaceDragging: false
+    });
+    await expect(cargo).toHaveAttribute("aria-pressed", "false");
+
+    // Na beide callbackfouten moet ook direct opnieuw een pointerdrag kunnen
+    // starten.
+    const restoredBox = await cargo.boundingBox();
+    const retryStart = {
+      x: restoredBox.x + restoredBox.width / 2,
+      y: restoredBox.y + restoredBox.height / 2
+    };
+    const retryCurrent = { x: retryStart.x + 100, y: retryStart.y + 30 };
+    await page.mouse.move(retryStart.x, retryStart.y);
+    await page.mouse.down();
+    await page.mouse.move(retryCurrent.x, retryCurrent.y, { steps: 2 });
+    expect(await cargo.evaluate(element => element.classList.contains("is-dragging"))).toBe(true);
+    expectDragVisualAtPointerDelta(restoredBox, await cargo.boundingBox(), retryStart, retryCurrent);
+    await page.mouse.up();
+    expect(dragCallbackErrors).toEqual([]);
+  });
+
+  test("6h. stop en destroy ruimen een actieve isometrische drag direct op", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await page.waitForFunction(() => (
+      window.LogisticsGameEngine
+      && window.LogisticsGameUI
+      && window.IsometricLogisticsView
+      && window.LEARNGameOMSimulator?.getSharedGameController?.()?.renderProcessFlow
+    ));
+    await page.evaluate(() => {
+      const renderProcessFlow = window.LEARNGameOMSimulator.getSharedGameController().renderProcessFlow;
+      document.body.className = "";
+      document.body.innerHTML = `
+        <main>
+          <section id="stop-drag-controller"></section>
+          <section id="destroy-drag-controller"></section>
+        </main>
+      `;
+      const createHarness = mountId => {
+        const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+          random: () => 0,
+          config: {
+            initialOrderDelayMs: 999999999,
+            orderIntervalMinMs: 999999999,
+            orderIntervalMaxMs: 999999999,
+            incidentChance: 0
+          }
+        });
+        const mount = document.getElementById(mountId);
+        const controller = window.LogisticsGameUI.mount(mount, { engine, renderProcessFlow });
+        controller.start({ humanRoleId: "operations", playMode: "digital" });
+        const order = engine.orders.get(engine.generateOrder().id);
+        Object.values(engine.roleRuntime).forEach(runtime => {
+          runtime.queue = runtime.queue.filter(orderId => orderId !== order.id);
+        });
+        engine.beginRoleWork("operations", order.id, Date.now());
+        controller.signatureStrokes = [[{ x: 1, y: 1 }, { x: 30, y: 20 }]];
+        controller.signed = true;
+        controller.render();
+        return {
+          controller,
+          mount,
+          transferContainer: mount.querySelector("[data-sim-isometric-transfer]")
+        };
+      };
+      window.__dragLifecycleControllers = {
+        stop: createHarness("stop-drag-controller"),
+        destroy: createHarness("destroy-drag-controller")
+      };
+    });
+
+    for (const action of ["stop", "destroy"]) {
+      const mount = page.locator(`#${action}-drag-controller`);
+      const cargo = mount.locator('[data-drag-kind="cargo"].is-draggable');
+      await expect(cargo).toBeVisible();
+      await cargo.scrollIntoViewIfNeeded();
+      const box = await cargo.boundingBox();
+      expect(box).not.toBeNull();
+      const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const assertActive = async () => {
+        await expect(cargo).toHaveClass(/is-dragging/);
+        expect(await page.evaluate(key => {
+          const harness = window.__dragLifecycleControllers[key];
+          return {
+            controllerActive: harness.controller.activeDigitalDrag,
+            rendererActive: harness.transferContainer._isoStockDragActive
+          };
+        }, action)).toEqual({ controllerActive: true, rendererActive: true });
+      };
+      const finishLifecycle = () => page.evaluate(key => {
+        const harness = window.__dragLifecycleControllers[key];
+        harness.controller[key]();
+      }, action);
+      if (testInfo.project.name === "mobile-chromium") {
+        await dispatchTouchDrag(page, cargo, { x: start.x + 90, y: start.y + 30 }, {
+          onMove: async () => {
+            await assertActive();
+            await finishLifecycle();
+          }
+        });
+      } else {
+        await page.mouse.move(start.x, start.y);
+        await page.mouse.down();
+        await page.mouse.move(start.x + 90, start.y + 30, { steps: 3 });
+        await assertActive();
+        await finishLifecycle();
+        await page.mouse.up();
+      }
+
+      expect(await page.evaluate(key => {
+        const harness = window.__dragLifecycleControllers[key];
+        return {
+          controllerActive: harness.controller.activeDigitalDrag,
+          draggingObjects: harness.transferContainer.querySelectorAll(".is-dragging").length,
+          mountChildren: harness.mount.childElementCount,
+          pendingRender: harness.controller.pendingDigitalDragRender,
+          rendererActive: harness.transferContainer._isoStockDragActive
+        };
+      }, action)).toEqual({
+        controllerActive: false,
+        draggingObjects: 0,
+        mountChildren: 0,
+        pendingRender: false,
+        rendererActive: false
+      });
+    }
+  });
+
   test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }) => {
     const sdkBase = process.env.CI
       ? "https://api.leerpretpark.nl/api"
@@ -1195,6 +1693,45 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(layout.locator("[data-session-layout-lego] > .iso-logistics-view")).toBeVisible();
     await expect(layout.locator(".iso-lego-box")).toHaveCount(6);
     await expect(layout.locator(".session-layout-config-summary")).not.toHaveAttribute("open", "");
+  });
+
+  test("9b. de gewone Entrepreneurship-kaart toont ook Handelaar en alle drie bouwstappen", async ({ page }) => {
+    await mockAuthenticatedApp(page);
+    await page.goto("/");
+    await page.waitForFunction(() => (
+      window.LEARNGameOMSimulator
+      && window.LOMLogisticsScene
+      && window.IsometricLogisticsView
+    ));
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+
+    const scene = await page.evaluate(() => {
+      window.LEARNGameOMSimulator.applyGameTypePreset("entrepreneurial", false);
+      const current = window.LOMLogisticsScene.current();
+      return {
+        title: current.title,
+        departmentIds: current.departments.map(department => department.id),
+        labels: current.departments.map(department => department.title)
+      };
+    });
+
+    expect(scene.title).toBe("Entrepreneurship · zelfstandige ondernemingen");
+    expect(scene.departmentIds).toEqual([
+      "operations",
+      "inbound",
+      "production_1",
+      "production_2",
+      "production_3",
+      "quality",
+      "dispatch"
+    ]);
+    expect(scene.labels).toEqual(expect.arrayContaining([
+      "Handelaar · Order & verkoop",
+      "Producent · Torenbouw 1",
+      "Producent · Torenbouw 2",
+      "Producent · Torenbouw 3",
+      "Handelaar · Gereed product"
+    ]));
   });
 
   test("10. Akkoord en toevoegen slaat een complete maatwerktoren op", async ({ page }) => {

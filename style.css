@@ -8730,19 +8730,19 @@ select {
 @keyframes iso-object-reject {
   0%,
   100% {
-    translate: 0 0;
+    opacity: 0.9;
   }
   20% {
-    translate: -9px 0;
+    opacity: 0.42;
   }
   40% {
-    translate: 8px 0;
+    opacity: 1;
   }
   60% {
-    translate: -6px 0;
+    opacity: 0.5;
   }
   80% {
-    translate: 4px 0;
+    opacity: 1;
   }
 }
 

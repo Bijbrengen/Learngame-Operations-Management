@@ -56,18 +56,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.6"', html)
+        self.assertIn('href="style.css?v=20260827.7"', html)
         self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.6"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.7"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
-        self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
-        self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
-        self.assertIn('src="game-sessions.js?v=20260827.4"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260827.5"', html)
-        self.assertIn('"script.js?v=20260827.7"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v249-cart-pointer-sync"', service_worker)
+        self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
+        self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
+        self.assertIn('src="game-sessions.js?v=20260827.5"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260827.6"', html)
+        self.assertIn('"script.js?v=20260827.8"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v250-drag-entrepreneurship"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v249-cart-pointer-sync")',
+            'register("service-worker.js?v=learngame-om-v250-drag-entrepreneurship")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -132,8 +132,8 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn("data-session-layout-lego", sessions)
         self.assertIn("Bekijk schematische configuratie", sessions)
-        self.assertIn("window.LOMLogisticsScene?.mountSessionLayout?.()", sessions)
-        self.assertIn("IsometricLogisticsView.mount(target, isometricScene()", game)
+        self.assertIn("window.LOMLogisticsScene?.mountSessionLayout?.(layoutConfig)", sessions)
+        self.assertIn("IsometricLogisticsView.mount(target, isometricScene(layoutConfig)", game)
         self.assertIn("window.LOMLogisticsScene = Object.freeze", game)
         self.assertIn(".session-layout-lego > .iso-logistics-view", styles)
 
@@ -234,7 +234,7 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("SuccesLeerobject", sdk)
         self.assertIn("WeerstandLeerobject", sdk)
         self.assertIn("OverigLeerobject", sdk)
-        self.assertIn("bridge.track(record)", (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
+        self.assertIn("bridge.track(queued.record)", (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
         self.assertNotIn("--lp-color-orange:", styles)
         self.assertIn("var(--toyist-border)", styles)
 
@@ -709,7 +709,7 @@ console.log(JSON.stringify({
         self.assertIn("class LogisticsGameEngine", engine_source)
         self.assertIn("towerSequence", engine_source)
         self.assertIn(
-            "window.LegoTowerRenderer.renderAnimated",
+            "window.LegoTowerRenderer.renderSequence",
             (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"),
         )
         self.assertIn("towerSequence: [...(product.towerSequence || [])]", game)
@@ -1242,8 +1242,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("processFlowSignature", ui)
         self.assertIn("simulationStateLabel", game)
         self.assertIn("simulationPartialSequence", game)
-        self.assertIn("cargoVisual: showProduct", game)
-        self.assertIn("stockVisuals: definition.roleId === \"srm\"", game)
+        self.assertIn("cargoVisual: showCargo", game)
+        self.assertIn("stockVisuals: definition.roleId === \"srm\" && !isMaterialCart", game)
         self.assertIn("towerSequence: cargoSequence", game)
         self.assertIn('mode: "player-transfer"', ui)
         self.assertIn("submitIsometricTransfer", ui)
@@ -2028,7 +2028,7 @@ process.stdout.write(JSON.stringify({
         auth = (PRODUCT_ROOT / "leerpret-auth.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn('src="leerpret-auth.js"', html)
+        self.assertRegex(html, r'src="leerpret-auth\.js(?:\?[^\"]+)?"')
         self.assertIn('id="leerpretGoogleSignIn"', html)
         self.assertIn('id="menuSettingsButton"', html)
         self.assertIn('id="accountSettingsMenu"', html)
@@ -2190,7 +2190,11 @@ process.stdout.write(JSON.stringify({
 const vm = require("vm");
 const sandbox = {{
   state: {{ busy: false, createSessionDraft: null }},
-  collectGameConfig: () => ({{ game_type: "lo4", play_mode: "physical" }}),
+  collectGameConfig: () => ({{
+    game_type: "lo4",
+    play_mode: "physical",
+    enabled_roles: ["customer"]
+  }}),
   mutate: (path, body) => {{ sandbox.mutation = {{ path, body }}; }}
 }};
 sandbox.form = {{
@@ -2684,11 +2688,22 @@ process.stdout.write(JSON.stringify({{
                 """
 global.window = global;
 global.localStorage = { getItem: () => null, setItem: () => {} };
+global.document = { readyState: "loading", addEventListener: () => {} };
+global.Element = class Element {};
+global.MutationObserver = class MutationObserver { observe() {} };
 require("./logistics-process.js");
 require("./runtime-role-contract.js");
+require("./game-variant-history.js");
 require("./game-configuration-store.js");
 const layout = require("./configuration-layout-preview.js");
 const lo4 = global.GameConfigurationStore.getConfiguration("lo4");
+const entrepreneurship = global.GameConfigurationStore.getConfiguration("entrepreneurial");
+const entrepreneurshipRoles = [...entrepreneurship.settings.enabled_roles];
+const entrepreneurshipWithoutProduction2 = {
+  ...entrepreneurship.settings,
+  enabled_roles: entrepreneurshipRoles.filter(roleId => roleId !== "production_2")
+};
+const entrepreneurshipAnalysis = global.LOMRuntimeRoles.analyze(entrepreneurshipRoles);
 const match = global.GameConfigurationStore.findMatchingConfiguration({
   ...lo4.settings,
   play_mode: "digital",
@@ -2703,6 +2718,25 @@ console.log(JSON.stringify({
   match: match && match.config_id,
   repairedRoles: repaired.enabled_roles,
   repairedHasSupplier: repaired.has_supplier,
+  entrepreneurshipRoles,
+  entrepreneurshipStations: entrepreneurshipAnalysis.role_ids.map(global.LOMRuntimeRoles.stationId),
+  entrepreneurshipCollisions: entrepreneurshipAnalysis.collisions,
+  entrepreneurshipTopologyNodes: [
+    ...layout.topology(entrepreneurship.settings).before,
+    ...layout.topology(entrepreneurship.settings).internal,
+    ...layout.topology(entrepreneurship.settings).after
+  ].map(node => node.id),
+  entrepreneurshipWithoutProduction2Nodes: [
+    ...layout.topology(entrepreneurshipWithoutProduction2).before,
+    ...layout.topology(entrepreneurshipWithoutProduction2).internal,
+    ...layout.topology(entrepreneurshipWithoutProduction2).after
+  ].map(node => node.id),
+  derivedEntrepreneurshipRoles: Object.fromEntries(
+    ["entrepreneurial_simple", "entrepreneurial_digital"].map(configId => [
+      configId,
+      global.GameConfigurationStore.getConfiguration(configId).settings.enabled_roles
+    ])
+  ),
   lo4TopologyNodes: [
     ...layout.topology(lo4.settings).before,
     ...layout.topology(lo4.settings).internal,
@@ -2726,12 +2760,61 @@ console.log(JSON.stringify({
         self.assertTrue(preset_result["repairedHasSupplier"])
         self.assertIn("supplier", preset_result["lo4TopologyNodes"])
         self.assertIn("raw", preset_result["lo4TopologyNodes"])
+        entrepreneurship_roles = [
+            "customer",
+            "sales",
+            "supplier",
+            "production_1",
+            "production_2",
+            "production_3",
+            "finished_warehouse",
+        ]
+        self.assertEqual(
+            entrepreneurship_roles,
+            preset_result["entrepreneurshipRoles"],
+        )
+        self.assertEqual(
+            ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"],
+            preset_result["entrepreneurshipStations"],
+        )
+        self.assertEqual([], preset_result["entrepreneurshipCollisions"])
+        self.assertEqual(
+            [
+                "trader-orders",
+                "raw-business",
+                "producer-build-1",
+                "producer-build-2",
+                "producer-build-3",
+                "trader-finished",
+                "customer",
+            ],
+            preset_result["entrepreneurshipTopologyNodes"],
+        )
+        self.assertNotIn(
+            "producer-build-2",
+            preset_result["entrepreneurshipWithoutProduction2Nodes"],
+        )
+        self.assertIn(
+            "producer-build-1",
+            preset_result["entrepreneurshipWithoutProduction2Nodes"],
+        )
+        self.assertIn(
+            "producer-build-3",
+            preset_result["entrepreneurshipWithoutProduction2Nodes"],
+        )
+        self.assertEqual(
+            {
+                "entrepreneurial_simple": entrepreneurship_roles,
+                "entrepreneurial_digital": entrepreneurship_roles,
+            },
+            preset_result["derivedEntrepreneurshipRoles"],
+        )
 
         html = html_path.read_text(encoding="utf-8")
-        self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
+        self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertLess(
             html.index('src="runtime-role-contract.js?v=20260821.2"'),
-            html.index('src="game-configuration-store.js?v=20260821.3"'),
+            html.index('src="game-configuration-store.js?v=20260827.1"'),
         )
         self.assertIn('id="saveConfigDialog"', html)
         self.assertIn('id="saveConfigButton"', html)

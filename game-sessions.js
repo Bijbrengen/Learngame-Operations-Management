@@ -571,6 +571,7 @@
   function renderGameAuxiliaryPanels(form, config = {}) {
     if (!form) return;
     if (!form.id) form.id = "gameSessionActiveConfigForm";
+    const layoutConfig = normalizedGameConfig(config);
     const rolesHost = document.querySelector("[data-session-role-selector]");
     if (rolesHost) rolesHost.innerHTML = roleSelectorMarkup(config, form.id);
     const matrices = gameComparisonMatricesMarkup();
@@ -592,20 +593,21 @@
           <details class="session-layout-config-summary">
             <summary>Bekijk schematische configuratie</summary>
             <div data-session-layout-config>
-              ${window.ConfigurationLayoutPreview?.markup(normalizedGameConfig(config)) || ""}
+              ${window.ConfigurationLayoutPreview?.markup(layoutConfig) || ""}
             </div>
           </details>
         </section>
       `;
-      window.LOMLogisticsScene?.mountSessionLayout?.();
+      window.LOMLogisticsScene?.mountSessionLayout?.(layoutConfig);
     }
   }
 
   function updateConfigurationLayout(form, config = null) {
     const host = document.querySelector("[data-session-layout-host] [data-session-layout-config]");
     if (!host) return;
-    host.innerHTML = window.ConfigurationLayoutPreview?.markup(config || collectGameConfig(form)) || "";
-    window.LOMLogisticsScene?.mountSessionLayout?.();
+    const layoutConfig = normalizedGameConfig(config || collectGameConfig(form));
+    host.innerHTML = window.ConfigurationLayoutPreview?.markup(layoutConfig) || "";
+    window.LOMLogisticsScene?.mountSessionLayout?.(layoutConfig);
   }
 
   function sessionCoreFieldsMarkup(draft) {

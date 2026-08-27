@@ -236,12 +236,14 @@
     }
 
     stop() {
+      this.cancelActiveDigitalDrag();
       this.engine.stop();
       this.mount.hidden = true;
       this.render();
     }
 
     pause() {
+      this.cancelActiveDigitalDrag();
       this.engine.loop.stop();
       this.mount.hidden = true;
     }
@@ -383,6 +385,7 @@
     }
 
     destroy() {
+      this.cancelActiveDigitalDrag();
       this.unsubscribe?.();
       this.engine.stop();
       this.mount.removeEventListener("click", this.handleClick);
@@ -408,7 +411,31 @@
       this.mount.innerHTML = "";
     }
 
+    cancelActiveDigitalDrag() {
+      // Een taak-/sessiewissel kan plaatsvinden terwijl de browser geen
+      // pointerup meer heeft afgeleverd. Laat de isometrische renderer zijn
+      // capture en lokale dragstate dan eerst expliciet opruimen.
+      this.pendingDigitalDragRender = false;
+      this.activeDigitalDrag = false;
+      this.mount.querySelector("[data-sim-isometric-transfer]")?._isoCancelDrag?.();
+      if (this.activeTransferPointer) {
+        const pointerId = this.activeTransferPointer.id;
+        this.activeTransferPointer = null;
+        try {
+          this.mount.releasePointerCapture?.(pointerId);
+        } catch (_error) {
+          // De pointer kan door een browsercancel al zijn vrijgegeven.
+        }
+        this.mount.classList.remove("is-digital-dragging");
+        this.clearDigitalDragFlight();
+      }
+      this.mount.classList.remove("is-digital-dragging");
+      this.clearDigitalDragFlight();
+      this.clearTransferDropTarget();
+    }
+
     resetPlayerInput() {
+      this.cancelActiveDigitalDrag();
       this.selectedParts = {};
       this.signed = false;
       this.signatureStrokes = [];
@@ -420,20 +447,6 @@
       this.digitalSelectedPartId = null;
       this.digitalPartRotated = false;
       this.digitalTransferSelected = false;
-      if (this.activeTransferPointer) {
-        const pointerId = this.activeTransferPointer.id;
-        this.activeTransferPointer = null;
-        try {
-          this.mount.releasePointerCapture?.(pointerId);
-        } catch (_error) {
-          // De pointer kan door een browsercancel al zijn vrijgegeven.
-        }
-        this.activeDigitalDrag = false;
-        this.pendingDigitalDragRender = false;
-        this.mount.classList.remove("is-digital-dragging");
-        this.clearDigitalDragFlight();
-      }
-      this.clearTransferDropTarget();
     }
 
     handleClick(event) {
