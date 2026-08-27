@@ -677,6 +677,118 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
+  test("6c. Magazijn Grondstoffen sleept een materiaalwagen met losse LEGO-onderdelen", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await page.waitForFunction(() => window.IsometricLogisticsView);
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.body.innerHTML = '<main id="material-cart-regression" class="sim-isometric-transfer-map"></main>';
+      window.__materialCartDrops = [];
+      window.IsometricLogisticsView.mount(
+        document.getElementById("material-cart-regression"),
+        {
+          title: "Materiaalwagen naar Productie A",
+          legend: [],
+          connections: [{ from: "srm", to: "pd1", active: true }],
+          departments: [{
+            id: "srm",
+            title: "Magazijn Grondstoffen",
+            shortTitle: "Grondstoffen",
+            departmentColor: "warehouse",
+            status: "active",
+            openRoof: true,
+            layout: { x: 1, y: 2, width: 3, depth: 3, height: 58 },
+            cargoVisual: {
+              kind: "material_cart",
+              cargoKind: "material_kits",
+              cargoId: "ORD-MAT-001",
+              label: "Materiaalwagen voor 2× Toren C",
+              quantity: 2,
+              draggable: true,
+              parts: [
+                { partId: "base_green", color: "green", width: 6, depth: 6, isPlate: true, count: 2 },
+                { partId: "white_8", color: "white", width: 4, depth: 2, count: 4 },
+                { partId: "blue_4", color: "blue", width: 2, depth: 2, count: 2 },
+                { partId: "red_4", color: "red", width: 2, depth: 2, count: 2 }
+              ]
+            }
+          }, {
+            id: "pd1",
+            title: "Productie A",
+            shortTitle: "Productie A",
+            departmentColor: "production-a",
+            status: "idle",
+            openRoof: true,
+            acceptsCargoDrop: true,
+            dropAriaLabel: "Zet de materiaalwagen neer bij Productie A",
+            layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+          }]
+        },
+        {
+          onCargoDrop: payload => {
+            window.__materialCartDrops.push(payload);
+            return true;
+          }
+        }
+      );
+    });
+
+    const map = page.locator("#material-cart-regression");
+    const cart = map.locator('.iso-cargo-material-cart[data-cargo-id="ORD-MAT-001"]');
+    const target = map.locator('[data-department-id="pd1"][data-accepts-drag-kind="cargo"]');
+    await expect(cart).toBeVisible();
+    await expect(cart).toHaveClass(/iso-cargo-object/);
+    await expect(cart).toHaveClass(/is-draggable/);
+    await expect(cart).toHaveAttribute("data-cargo-kind", "material_kits");
+    await expect(cart).toHaveAttribute("data-cargo-source-id", "srm");
+    await expect(cart).toHaveAttribute("data-cargo-quantity", "2");
+    await expect(cart).toHaveAttribute("data-material-part-count", "10");
+    await expect(cart).toHaveAttribute("role", "button");
+    await expect(cart).toHaveAttribute("tabindex", "0");
+    await expect(cart).toHaveAttribute("aria-label", /materiaalwagen met 10 losse LEGO-onderdelen/i);
+    await expect(map.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
+    await expect(cart.locator("[data-material-cart-part]")).toHaveCount(8);
+    await expect(cart.locator('[data-part-id="base_green"]')).toHaveCount(2);
+    await expect(cart.locator('[data-part-id="white_8"]')).toHaveCount(2);
+    await expect(cart.locator('[data-part-id="blue_4"]')).toHaveCount(2);
+    await expect(cart.locator('[data-part-id="red_4"]')).toHaveCount(2);
+    await expect(cart.locator(".iso-material-cart-overflow text")).toHaveText("+2");
+    await expect(cart.locator('[data-part-id="base_green"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(36);
+    await expect(cart.locator('[data-part-id="white_8"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(8);
+    await expect(cart.locator('[data-part-id="blue_4"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(4);
+
+    if (testInfo.project.name === "mobile-chromium") {
+      await dispatchTouchDrag(page, cart, target);
+    } else {
+      await cart.focus();
+      await page.keyboard.press("Enter");
+      await expect(cart).toHaveAttribute("aria-pressed", "true");
+      await expect(target).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(cart).toHaveAttribute("aria-pressed", "false");
+      await expect(cart).toBeFocused();
+      expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
+
+      const cartBox = await cart.boundingBox();
+      const targetBox = await target.boundingBox();
+      expect(cartBox).not.toBeNull();
+      expect(targetBox).not.toBeNull();
+      await page.mouse.move(cartBox.x + cartBox.width / 2, cartBox.y + cartBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+      await expect(target).toHaveClass(/is-drag-over/);
+      await page.mouse.up();
+    }
+
+    await expect.poll(() => page.evaluate(() => window.__materialCartDrops.length)).toBe(1);
+    expect(await page.evaluate(() => window.__materialCartDrops[0])).toMatchObject({
+      sourceDepartmentId: "srm",
+      targetDepartmentId: "pd1",
+      cargoId: "ORD-MAT-001",
+      quantity: 2
+    });
+  });
+
   test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }) => {
     const sdkBase = process.env.CI
       ? "https://api.leerpretpark.nl/api"

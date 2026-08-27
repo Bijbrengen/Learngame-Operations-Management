@@ -47,7 +47,7 @@
         name: "Materiaaluitgifteformulier",
         tasks: ["Verzamel alle benodigde onderdelen", "Controleer aantallen en kleuren", "Geef materiaal uit"],
         actionLabel: "Materiaal uitgeven",
-        transferLabel: "Breng naar Productie-afdeling 1",
+        transferLabel: "Breng materiaalwagen naar Productie-afdeling 1",
         requiresParts: true
       },
       processingSeconds: [7, 13]
@@ -959,7 +959,7 @@
         role.form.actionLabel = "Complete toren bouwen";
         role.form.transferLabel = "Breng gereed product naar SSF";
       } else if (order.productionRoute === "parallel" && roleId === "srm") {
-        role.form.transferLabel = `Breng complete materiaalset naar ${order.productionDepartment.toUpperCase()}`;
+        role.form.transferLabel = `Breng materiaalwagen naar ${order.productionDepartment.toUpperCase()}`;
       }
       return {
         role,
@@ -1021,7 +1021,7 @@
         }
       });
       if (!Number.isInteger(transfer.quantity) || transfer.quantity !== expected.quantity) {
-        errors.push("Het aantal torens van de batch klopt niet meer.");
+        errors.push("Het orderaantal van de batch klopt niet meer.");
       }
       if (!Number.isInteger(transfer.routeIndex) || transfer.routeIndex !== expected.routeIndex) {
         errors.push("De batch staat inmiddels bij een andere afdeling.");

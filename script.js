@@ -3106,6 +3106,32 @@
     });
   }
 
+  function simulationMaterialCartParts(snapshot, order, requiredParts = null) {
+    const product = snapshot.products?.[order?.productId];
+    if (!product?.stages && !requiredParts) return [];
+    const required = requiredParts && typeof requiredParts === "object"
+      ? { ...requiredParts }
+      : Object.values(product.stages).reduce((allParts, recipe) => {
+          Object.entries(recipe).forEach(([partId, amount]) => {
+            allParts[partId] = (allParts[partId] || 0)
+              + Number(amount || 0) * Number(order.quantity || 1);
+          });
+          return allParts;
+        }, {});
+    return Object.entries(required).map(([partId, count]) => {
+      const part = partById(partId);
+      return {
+        partId,
+        count: Math.max(0, Number(count || 0)),
+        color: part.color,
+        width: partId === "base_green" ? 6 : part.width === "wide" ? 4 : 2,
+        depth: partId === "base_green" ? 6 : 2,
+        isPlate: partId === "base_green",
+        label: part.name
+      };
+    });
+  }
+
   function standaloneLogisticsScene(snapshot, transferContext = null) {
     const orderById = new Map(snapshot.orders.map(order => [order.id, order]));
     const activeTransfer = transferContext?.mode === "player-transfer"
@@ -3156,14 +3182,18 @@
         activeTransfer
         && definition.roleId === activeTransfer.targetRoleId
       );
-      const cargoSequence = partialSequence.length
+      const isMaterialCart = Boolean(
+        isTransferSource
+        && activeTransfer.cargoKind === "material_kits"
+      );
+      const cargoSequence = !isMaterialCart && partialSequence.length
         ? partialSequence
-        : isTransferSource
+        : !isMaterialCart && isTransferSource
           ? [...(activeProduct?.towerSequence || [])]
           : [];
-      const showProduct = Boolean(
+      const showCargo = Boolean(
         activeProduct
-        && cargoSequence.length
+        && (isMaterialCart || cargoSequence.length)
         && (["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId) || isTransferSource)
       );
       return {
@@ -3172,7 +3202,9 @@
         acceptsCargoDrop: isTransferTarget,
         dropLabel: isTransferTarget ? "ZET HIER NEER" : undefined,
         dropAriaLabel: isTransferTarget
-          ? `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
+          ? activeTransfer.cargoKind === "material_kits"
+            ? `Zet de materiaalwagen met losse onderdelen voor ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
+            : `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
           : undefined,
         emptyLabel: isTransferTarget ? "ontvangstvak" : definition.emptyLabel,
         status: simulationDepartmentStatus(runtime),
@@ -3184,15 +3216,25 @@
           product: `${order.quantity}× ${order.productName}`,
           stage: simulationStateLabel(runtime)
         })),
-        stockVisuals: definition.roleId === "srm"
+        stockVisuals: definition.roleId === "srm" && !isMaterialCart
           ? simulationStockVisuals(snapshot, activeOrder)
           : [],
-        cargoVisual: showProduct ? {
-          kind: "tower",
+        cargoVisual: showCargo ? {
+          kind: isMaterialCart ? "material_cart" : "tower",
+          cargoKind: activeTransfer?.cargoKind || "tower_batch",
           cargoId: activeOrder.id,
           productId: activeOrder.productId,
-          label: `${activeOrder.productName} · ${activeOrder.id}`,
+          label: isMaterialCart
+            ? `Materiaalwagen voor ${activeOrder.productName} · ${activeOrder.id}`
+            : `${activeOrder.productName} · ${activeOrder.id}`,
           towerSequence: cargoSequence,
+          parts: isMaterialCart
+            ? simulationMaterialCartParts(
+                snapshot,
+                activeOrder,
+                transferContext?.selectedParts
+              )
+            : [],
           groundPlateColor: activeProduct?.groundPlate?.color || "green",
           quantity: Number(activeOrder.quantity || 1),
           displayScale: isTransferSource
@@ -3273,7 +3315,9 @@
     });
     return {
       title: activeTransfer
-        ? `${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
+        ? activeTransfer.cargoKind === "material_kits"
+          ? `Materiaalwagen voor ${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
+          : `${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
         : parallelEnabled && sequentialEnabled
         ? "Live simulatie · Hybride productiestroom"
         : parallelEnabled
@@ -7899,7 +7943,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v246-lego-stage-session-controls").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v247-material-cart").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

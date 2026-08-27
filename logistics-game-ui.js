@@ -460,8 +460,11 @@
         this.digitalTransferSelected = !this.digitalTransferSelected;
         const task = this.engine.playerTask();
         const quantity = Number(task?.order?.quantity || 1);
+        const materialCart = task?.role?.id === "srm";
         this.feedback = this.digitalTransferSelected
-          ? `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de volgende afdeling.`
+          ? materialCart
+            ? `De materiaalwagen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de productieafdeling.`
+            : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de volgende afdeling.`
           : "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
         this.render();
         if (this.digitalTransferSelected) {
@@ -756,7 +759,9 @@
       if (!task || this.transferred || this.remoteActionPending) return false;
       if (!this.partsComplete(task) || !this.signed) {
         this.feedback = !this.partsComplete(task)
-          ? "Maak eerst alle torens van deze order af."
+          ? task.role.id === "srm"
+            ? "Leg eerst alle losse grondstoffen voor deze order in de materiaalwagen."
+            : "Maak eerst alle torens van deze order af."
           : "Zet eerst één paraaf voor de volledige order.";
         this.render();
         return false;
@@ -772,7 +777,9 @@
       const quantity = Number(task.order.quantity || 1);
       const result = await this.submitPlayerAction(
         this.digitalCompletionPayload(task),
-        `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
+        task.role.id === "srm"
+          ? `De materiaalwagen met losse grondstoffen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
+          : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
       );
       if (result?.ok === false) {
         this.transferred = false;
@@ -780,7 +787,7 @@
         this.render();
         if (keyboardMethod) {
           requestAnimationFrame(() => this.mount
-            .querySelector("[data-sim-transfer-cargo], .iso-cargo-tower.is-draggable")
+            .querySelector('[data-sim-transfer-cargo], [data-drag-kind="cargo"].is-draggable')
             ?.focus());
         }
         return false;
@@ -807,7 +814,7 @@
         this.render();
         if (payload.inputMethod === "keyboard") {
           requestAnimationFrame(() => this.mount
-            .querySelector("[data-sim-transfer-cargo], .iso-cargo-tower.is-draggable")
+            .querySelector('[data-sim-transfer-cargo], [data-drag-kind="cargo"].is-draggable')
             ?.focus());
         }
         return false;
@@ -1225,6 +1232,7 @@
         mode: "player-transfer",
         task,
         transfer,
+        selectedParts: { ...this.selectedParts },
         batchReady,
         pending: Boolean(this.transferred || this.remoteActionPending),
         onCargoDrop: payload => this.submitIsometricTransfer(payload),
@@ -1285,12 +1293,77 @@
       `;
     }
 
-    productLayerGuideMarkup(product, quantity) {
+    materialCartMarkup(task) {
+      const requiredTotal = Object.values(task.requiredParts || {})
+        .reduce((total, amount) => total + Math.max(0, Number(amount || 0)), 0);
+      const selectedPartIds = Object.entries(task.requiredParts || {}).flatMap(([partId, required]) => (
+        Array(Math.min(
+          Math.max(0, Number(required || 0)),
+          Math.max(0, Number(this.selectedParts[partId] || 0))
+        )).fill(partId)
+      ));
+      const remainingByPart = Object.entries(task.requiredParts || {}).map(([partId, required]) => ({
+        partId,
+        remaining: Math.min(
+          Math.max(0, Number(required || 0)),
+          Math.max(0, Number(this.selectedParts[partId] || 0))
+        )
+      }));
+      const visiblePartIds = [];
+      while (visiblePartIds.length < 8 && remainingByPart.some(part => part.remaining > 0)) {
+        remainingByPart.forEach(part => {
+          if (visiblePartIds.length >= 8 || part.remaining <= 0) return;
+          visiblePartIds.push(part.partId);
+          part.remaining -= 1;
+        });
+      }
+      const visibleParts = visiblePartIds.map((partId, index) => {
+        const part = this.engine.parts[partId] || { label: partId, color: "white" };
+        const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
+        return `
+          <span class="sim-material-cart-part"
+                data-sim-material-cart-part="${escapeHtml(partId)}"
+                style="--sim-cart-part-index:${index}"
+                aria-hidden="true">
+            ${this.digitalPartVisualMarkup(partId, part, dimensions)}
+          </span>
+        `;
+      }).join("");
+      return `
+        <div class="sim-material-cart-reference"
+             data-sim-material-cart
+             data-sim-material-cart-reference
+             data-material-part-count="${selectedPartIds.length}"
+             role="img"
+             aria-label="Materiaalwagen met ${selectedPartIds.length} van ${requiredTotal} losse LEGO-onderdelen voor ${escapeHtml(task.product?.name || "de order")}">
+          <svg class="sim-material-cart-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="20" cy="52" r="4" class="sim-material-cart-wheel"></circle>
+              <circle cx="44" cy="52" r="4" class="sim-material-cart-wheel"></circle>
+              <path d="M12 24 L36 38 L52 28"></path>
+              <path d="M20 52 L20 42"></path>
+              <path d="M44 52 L44 42"></path>
+              <path d="M8 20 L28 8 L56 22 L36 34 Z" class="sim-material-cart-basket-top"></path>
+              <path d="M8 20 L8 28 L36 42 L36 34 Z" class="sim-material-cart-basket-left"></path>
+              <path d="M56 22 L56 30 L36 42" class="sim-material-cart-basket-right"></path>
+              <path d="M4 18 L12 14"></path>
+            </g>
+          </svg>
+          <span class="sim-material-cart-load" aria-hidden="true">${visibleParts}</span>
+          ${selectedPartIds.length > visiblePartIds.length
+            ? `<span class="sim-material-cart-overflow" aria-hidden="true">+${selectedPartIds.length - visiblePartIds.length}</span>`
+            : ""}
+          <strong>${selectedPartIds.length}/${requiredTotal}</strong>
+        </div>
+      `;
+    }
+
+    materialPickListMarkup(product, quantity) {
       const batchQuantity = Math.max(1, Number(quantity || 1));
       const stageLabels = {
-        pd1: "Laag 1",
-        pd2: "Laag 2",
-        pd3: "Laag 3"
+        pd1: "Startonderdelen",
+        pd2: "Vervolgonderdelen",
+        pd3: "Afrondingsonderdelen"
       };
       const rows = Object.entries(stageLabels).map(([stageId, label]) => {
         const recipe = product?.stages?.[stageId] || {};
@@ -1315,10 +1388,10 @@
         `;
       }).join("");
       return `
-        <div class="sim-product-layer-guide"
+        <div class="sim-product-layer-guide sim-material-pick-list"
              role="group"
-             aria-label="Benodigde lagen voor de volledige batch met ${batchQuantity} ${batchQuantity === 1 ? "toren" : "torens"}">
-          <span>Van onder naar boven · volledige batch</span>
+             aria-label="Picklijst met losse grondstoffen voor de volledige batch van ${batchQuantity} ${batchQuantity === 1 ? "toren" : "torens"}">
+          <span>Losse grondstoffen &middot; niet assembleren</span>
           <ol>${rows}</ol>
         </div>
       `;
@@ -1369,11 +1442,15 @@
                 </div>
               </div>
               <div class="sim-product-visual">
-                ${towerMarkup(displayProduct)}
-                <strong>${escapeHtml(displayProduct.name)}</strong>
-                <small>${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}</small>
                 ${role.id === "srm"
-                  ? this.productLayerGuideMarkup(displayProduct, displayQuantity)
+                  ? this.materialCartMarkup(task)
+                  : towerMarkup(displayProduct)}
+                <strong>${role.id === "srm" ? "Materiaalwagen" : escapeHtml(displayProduct.name)}</strong>
+                <small>${role.id === "srm"
+                  ? `Voor ${displayQuantity}&times; ${escapeHtml(displayProduct.name)}`
+                  : `${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}`}</small>
+                ${role.id === "srm"
+                  ? this.materialPickListMarkup(displayProduct, displayQuantity)
                   : '<small class="sim-product-reference-note">Alle lagen blijven zichtbaar</small>'}
               </div>
             </div>
@@ -1473,8 +1550,12 @@
           <div>
             <strong>${this.signed ? "Order geparafeerd ✓" : "Paraaf volledige order"}</strong>
             <small>${enabled
-              ? `Teken met muis of vinger voor ${Number(task.order.quantity || 1)} toren(s).`
-              : `Bouw eerst alle ${Number(task.order.quantity || 1)} toren(s).`}</small>
+              ? task.role.id === "srm"
+                ? "Teken met muis of vinger om de complete materiaalwagen vrij te geven."
+                : `Teken met muis of vinger voor ${Number(task.order.quantity || 1)} toren(s).`
+              : task.role.id === "srm"
+                ? "Leg eerst alle losse grondstoffen in de materiaalwagen."
+                : `Bouw eerst alle ${Number(task.order.quantity || 1)} toren(s).`}</small>
           </div>
           <svg viewBox="0 0 320 96"
                role="img"
@@ -1817,28 +1898,30 @@
       return `
         <div class="sim-digital-workbench is-staging"
              data-sim-virtual-stage
+             data-sim-material-cart
+             data-material-part-count="${selected.length}"
              data-sim-part-dropzone
              role="region"
              tabindex="-1"
-             aria-label="Klaarlegvlak voor magazijnonderdelen">
+             aria-label="Materiaalwagen voor losse magazijnonderdelen">
           <div>
-            <span>Klaarlegvlak</span>
-            <strong role="status" aria-live="polite" aria-atomic="true">${selected.length} ${selected.length === 1 ? "onderdeel" : "onderdelen"} klaargelegd</strong>
+            <span>Materiaalwagen</span>
+            <strong role="status" aria-live="polite" aria-atomic="true">${selected.length} ${selected.length === 1 ? "onderdeel" : "onderdelen"} in de wagen</strong>
           </div>
           <button class="sim-stage-drop-action"
                   type="button"
                   data-sim-stage-drop-action
                   ${selectedPart ? "" : "disabled"}
                   aria-label="${selectedPart
-                    ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} neer op het klaarlegvlak`
+                    ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} in de materiaalwagen`
                     : "Selecteer eerst een LEGO-onderdeel uit de magazijnstelling"}">
             <span aria-hidden="true">&darr;</span>
             <strong>${selectedPart
-              ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} hier neer`
+              ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} in de wagen`
               : "Selecteer eerst een onderdeel"}</strong>
           </button>
-          <ul class="sim-staged-bricks" role="list" aria-label="Klaargelegde LEGO-onderdelen">
-            ${selected.length ? selected.join("") : '<li class="sim-staged-empty"><small>Sleep de juiste LEGO-onderdelen hierheen.</small></li>'}
+          <ul class="sim-staged-bricks sim-material-cart-basket" role="list" aria-label="Losse LEGO-onderdelen in de materiaalwagen">
+            ${selected.length ? selected.join("") : '<li class="sim-staged-empty"><small>Leg de juiste losse LEGO-onderdelen in de materiaalwagen.</small></li>'}
           </ul>
         </div>
       `;
@@ -1896,6 +1979,7 @@
       const quantity = Number(task.order.quantity || 1);
       const transfer = this.batchTransferDescriptor(task);
       const selected = Boolean(this.digitalTransferSelected);
+      const materialCart = task.role.id === "srm";
       const instructionId = this.transferInstructionId || "simTransferInstruction";
       if (this.renderProcessFlow) {
         return `
@@ -1907,8 +1991,12 @@
                  data-sim-transfer-target="${escapeHtml(transfer?.targetRoleId || "customer")}"></div>
             <p id="${instructionId}" class="sim-transfer-instruction" aria-live="polite">
               ${batchReady
-                ? `Pak de ${quantity === 1 ? "toren" : `${quantity} torens`} in ${escapeHtml(task.role.department)} op en zet de complete batch neer in ${escapeHtml(task.role.form.transferLabel)}.`
-                : "Bouw en parafeer eerst de volledige order; daarna kun je de torens in de isometrische kaart verslepen."}
+                ? materialCart
+                  ? `Pak de materiaalwagen met alle losse onderdelen op en zet hem neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                  : `Pak de ${quantity === 1 ? "toren" : `${quantity} torens`} in ${escapeHtml(task.role.department)} op en zet de complete batch neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                : materialCart
+                  ? "Leg alle losse grondstoffen in de materiaalwagen en parafeer de order; daarna kun je de wagen verslepen."
+                  : "Bouw en parafeer eerst de volledige order; daarna kun je de torens in de isometrische kaart verslepen."}
             </p>
           </div>
         `;
@@ -1922,10 +2010,14 @@
                   draggable="${batchReady ? "true" : "false"}"
                   aria-pressed="${selected ? "true" : "false"}"
                   aria-describedby="${instructionId}"
-                  aria-label="Sleep de complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}"
+                  aria-label="${materialCart
+                    ? `Sleep de materiaalwagen met losse grondstoffen naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`
+                    : `Sleep de complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`}"
                   ${batchReady ? "" : "disabled"}>
             ${this.digitalCargoVisualMarkup(task)}
-            <strong>${quantity}× ${task.role.id === "srm" ? "complete materiaalset" : task.product.name}</strong>
+            <strong>${task.role.id === "srm"
+              ? `Materiaalwagen voor ${quantity}× ${escapeHtml(task.product.name)}`
+              : `${quantity}× ${escapeHtml(task.product.name)}`}</strong>
           </button>
           <span aria-hidden="true">⇢</span>
           <button type="button"
@@ -1943,7 +2035,9 @@
               ? "Batch opgepakt. Activeer het doelvak om hem neer te zetten, of druk Escape om te annuleren."
               : batchReady
                 ? "Sleep de complete batch naar het doelvak. Met het toetsenbord: activeer eerst de batch en daarna het doelvak."
-                : "Bouw en parafeer eerst de volledige order; daarna wordt de complete batch verplaatsbaar."}
+                : materialCart
+                  ? "Vul en parafeer eerst de materiaalwagen; daarna wordt de wagen verplaatsbaar."
+                  : "Bouw en parafeer eerst de volledige order; daarna wordt de complete batch verplaatsbaar."}
           </p>
         </div>
       `;
@@ -1974,7 +2068,7 @@
       const partsComplete = this.partsComplete(task);
       const batchReady = partsComplete && this.signed;
       const partActionTitle = task.role.id === "srm"
-        ? "1. Haal onderdelen uit het magazijn en leg ze klaar"
+        ? "1. Haal losse onderdelen uit het magazijn en leg ze in de materiaalwagen"
         : partEntries.length
           ? "1. Selecteer onderdelen en zet ze op de toren"
           : "1. Controleer de digitale opdracht";
@@ -1990,7 +2084,9 @@
               <summary aria-label="Help bij deze handeling">i</summary>
               <div>
                 <strong>Hulp</strong>
-                <p>Sleep de juiste blokken vanuit de materiaalbak naar het klaarlegvlak of de toren. Sleep daarna de materiaalset of toren naar de volgende afdeling.</p>
+                <p>${task.role.id === "srm"
+                  ? "Leg de juiste losse LEGO-onderdelen vanuit de magazijnstelling in de materiaalwagen. Parafeer daarna de wagen en lever hem als één materiaalbatch af bij Productie."
+                  : "Sleep de juiste blokken vanuit de materiaalbak naar de toren. Sleep daarna de complete torenbatch naar de volgende afdeling."}</p>
               </div>
             </details>
           </header>
@@ -2004,7 +2100,9 @@
           </section>
           ${this.transferred ? "" : `
             <section class="sim-action-section sim-digital-transfer-section" aria-label="Virtuele logistieke overdracht">
-              <h3>3. Lever alle ${Number(task.order.quantity || 1)} torens tegelijk af</h3>
+              <h3>${task.role.id === "srm"
+                ? "3. Lever de complete materiaalwagen af"
+                : `3. Lever alle ${Number(task.order.quantity || 1)} torens tegelijk af`}</h3>
               ${this.digitalTransportMarkup(task, batchReady)}
             </section>
           `}

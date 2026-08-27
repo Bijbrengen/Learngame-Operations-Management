@@ -2,15 +2,18 @@ const { test, expect } = require("./fixtures");
 
 test.use({ reducedMotion: "no-preference" });
 
-test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zichtbaar", async ({ page }, testInfo) => {
+test("Magazijn Grondstoffen legt losse onderdelen in een materiaalwagen zonder toren te bouwen", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.waitForFunction(() => (
     window.LogisticsGameEngine
     && window.LogisticsGameUI
+    && window.IsometricLogisticsView
+    && window.LEARNGameOMSimulator?.getSharedGameController?.()?.renderProcessFlow
     && window.LegoTowerRenderer?.renderSequence
     && window.LeerpretSDK?.components?.["lego-builder"]?.logic
   ));
   await page.evaluate(() => {
+    const renderProcessFlow = window.LEARNGameOMSimulator.getSharedGameController().renderProcessFlow;
     document.body.className = "";
     document.body.innerHTML = '<main id="raw-warehouse-reference"></main>';
 
@@ -25,7 +28,7 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
     });
     const controller = window.LogisticsGameUI.mount(
       document.getElementById("raw-warehouse-reference"),
-      { engine }
+      { engine, renderProcessFlow }
     );
     controller.start({
       humanRoleId: "srm",
@@ -45,50 +48,50 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
     window.__rawWarehouseReference = { engine, controller };
   });
 
-  const reference = page.locator("[data-sim-static-tower-reference]");
-  const assertCompleteReference = async () => {
-    await expect(reference).toBeVisible();
-    // De renderer gebruikt dezelfde primitive voor de groene grondplaat en de
-    // vier productblokken: groen, wit, wit, blauw en rood.
-    await expect(reference.locator(".iso-brick")).toHaveCount(5);
-    await expect(reference.locator('[class^="animated-tower-block-"]')).toHaveCount(0);
-    const rendering = await reference.locator(".iso-brick").evaluateAll(layers => ({
-      opacities: layers.map(layer => getComputedStyle(layer).opacity),
-      animations: layers.map(layer => getComputedStyle(layer).animationName)
-    }));
-    expect(rendering.opacities).toEqual(["1", "1", "1", "1", "1"]);
-    expect(rendering.animations).toEqual(["none", "none", "none", "none", "none"]);
-    expect(await reference.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
-  };
-
-  await expect(page.locator(".sim-product-visual > strong")).toHaveText("Toren C");
+  await expect(page.locator("[data-sim-static-tower-reference]")).toHaveCount(0);
+  await expect(page.locator(".sim-product-visual > strong")).toHaveText("Materiaalwagen");
+  const cartReference = page.locator("[data-sim-material-cart-reference]");
+  await expect(cartReference).toBeVisible();
+  await expect(cartReference).toHaveAttribute("data-material-part-count", "0");
+  await expect(cartReference.locator("[data-sim-material-cart-part]")).toHaveCount(0);
+  const isometricCart = page.locator('.sim-isometric-transfer-map [data-cargo-kind="material_kits"]');
+  await expect(isometricCart).toBeVisible();
+  await expect(isometricCart).toHaveClass(/iso-cargo-material-cart/);
+  await expect(isometricCart).toHaveAttribute("data-cargo-quantity", "2");
+  await expect(isometricCart).toHaveAttribute("data-material-part-count", "0");
+  await expect(isometricCart).toHaveAttribute("role", "img");
+  expect(await isometricCart.getAttribute("aria-pressed")).toBeNull();
+  await expect(isometricCart).toHaveAttribute("aria-label", /0 losse LEGO-onderdelen/);
+  await expect(page.locator(".sim-isometric-transfer-map .iso-cargo-tower")).toHaveCount(0);
   const stage = page.locator("[data-sim-virtual-stage]");
   const stageAction = page.locator("[data-sim-stage-drop-action]");
+  await expect(stage).toHaveAttribute("data-sim-material-cart", "");
+  await expect(stage).toHaveAttribute("data-material-part-count", "0");
   await expect(stage).toHaveAttribute("role", "region");
   await expect(stage).toHaveAttribute("tabindex", "-1");
   await expect(stage.getByRole("button", { name: /Selecteer eerst een LEGO-onderdeel/ })).toHaveCount(1);
   await expect(stageAction).toBeDisabled();
   await expect(stage.locator(".sim-staged-bricks")).toHaveAttribute(
     "aria-label",
-    "Klaargelegde LEGO-onderdelen"
+    "Losse LEGO-onderdelen in de materiaalwagen"
   );
   await expect(
     page.locator('[data-sim-drag-part="base_green"] svg.lego-part-3d.base-plate')
   ).toHaveCount(1);
-  const layerGuide = page.locator(".sim-product-layer-guide");
-  await expect(layerGuide).toHaveAttribute("role", "group");
-  await expect(layerGuide).toHaveAttribute(
+  const pickList = page.locator(".sim-material-pick-list");
+  await expect(pickList).toHaveAttribute("role", "group");
+  await expect(pickList).toHaveAttribute(
     "aria-label",
-    "Benodigde lagen voor de volledige batch met 2 torens"
+    "Picklijst met losse grondstoffen voor de volledige batch van 2 torens"
   );
-  await expect(layerGuide).toContainText("Laag 1");
-  await expect(layerGuide).toContainText("2× Grondplaat groen");
-  await expect(layerGuide).toContainText("4× Steen wit");
-  await expect(layerGuide).toContainText("Laag 2");
-  await expect(layerGuide).toContainText("2× Steen blauw");
-  await expect(layerGuide).toContainText("Laag 3");
-  await expect(layerGuide).toContainText("2× Steen rood");
-  await assertCompleteReference();
+  await expect(pickList).toContainText("Losse grondstoffen · niet assembleren");
+  await expect(pickList).toContainText("Startonderdelen");
+  await expect(pickList).toContainText("2× Grondplaat groen");
+  await expect(pickList).toContainText("4× Steen wit");
+  await expect(pickList).toContainText("Vervolgonderdelen");
+  await expect(pickList).toContainText("2× Steen blauw");
+  await expect(pickList).toContainText("Afrondingsonderdelen");
+  await expect(pickList).toContainText("2× Steen rood");
 
   const firstGroundPlate = page.locator('[data-sim-drag-part="base_green"]');
   if (testInfo.project.name === "mobile-chromium") {
@@ -103,6 +106,9 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
   }
   await expect(stage.locator('[data-sim-staged-part="base_green"]')).toHaveCount(1);
   await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(1);
+  await expect(stage).toHaveAttribute("data-material-part-count", "1");
+  await expect(cartReference).toHaveAttribute("data-material-part-count", "1");
+  await expect(isometricCart).toHaveAttribute("data-material-part-count", "1");
 
   let stagedCount = 1;
   for (const partId of [
@@ -117,7 +123,9 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
     expect(accepted).toBe(true);
     stagedCount += 1;
     await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(stagedCount);
-    await assertCompleteReference();
+    await expect(stage).toHaveAttribute("data-material-part-count", String(stagedCount));
+    await expect(cartReference).toHaveAttribute("data-material-part-count", String(stagedCount));
+    await expect(isometricCart).toHaveAttribute("data-material-part-count", String(stagedCount));
   }
 
   await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(10);
@@ -128,6 +136,17 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
   await expect(stage.locator('[data-sim-staged-part="red_4"]')).toHaveCount(2);
   await expect(stage.locator("svg.lego-part-3d")).toHaveCount(10);
   await expect(stage.locator(".sim-staged-brick")).toHaveCount(0);
+  await expect(stage.locator(".sim-inline-builder-board,.sim-tower-reference")).toHaveCount(0);
+  await expect(cartReference.locator("[data-sim-material-cart-part]")).toHaveCount(8);
+  await expect(cartReference.locator('[data-sim-material-cart-part="base_green"]')).toHaveCount(2);
+  await expect(cartReference.locator('[data-sim-material-cart-part="white_8"]')).toHaveCount(2);
+  await expect(cartReference.locator('[data-sim-material-cart-part="blue_4"]')).toHaveCount(2);
+  await expect(cartReference.locator('[data-sim-material-cart-part="red_4"]')).toHaveCount(2);
+  await expect(cartReference.locator(".sim-material-cart-overflow")).toHaveText("+2");
+  await expect(isometricCart.locator("[data-material-cart-part]")).toHaveCount(8);
+  await expect(isometricCart.locator(".iso-material-cart-overflow text")).toHaveText("+2");
+  await expect(isometricCart).toHaveAttribute("aria-label", /10 losse LEGO-onderdelen/);
+  await expect(page.locator(".sim-isometric-transfer-map .iso-cargo-tower")).toHaveCount(0);
   await expect(stage.locator('[data-sim-staged-part="white_8"]').first()).toHaveAttribute(
     "aria-label",
     /Steen wit, 2 bij 4, onderdeel 1 van 4 klaargelegd/
@@ -160,10 +179,10 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
     return { before, after: { ...controller.selectedParts } };
   });
   expect(preservedParts.after).toEqual(preservedParts.before);
-  await assertCompleteReference();
+  await expect(cartReference).toHaveAttribute("data-material-part-count", "10");
 
-  await page.locator(".sim-digital-stage-section").screenshot({
-    path: testInfo.outputPath("raw-warehouse-static-tower-and-staged-parts.png")
+  await page.locator("#raw-warehouse-reference").screenshot({
+    path: testInfo.outputPath("raw-warehouse-material-cart-full.png")
   });
 });
 
@@ -243,6 +262,12 @@ test("Magazijn Grondstoffen kan een complete digitale batchoverdracht afronden",
   expect(result.handling).toMatchObject({
     roleId: "srm",
     orderSignature: true,
-    playMode: "digital"
+    playMode: "digital",
+    transfer: {
+      sourceRoleId: "srm",
+      targetRoleId: "pd1",
+      cargoKind: "material_kits",
+      atomicTransfer: true
+    }
   });
 });

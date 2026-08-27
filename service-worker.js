@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v246-lego-stage-session-controls";
+const CACHE_VERSION = "learngame-om-v247-material-cart";
 const APP_SHELL = [
   "./",
   "./index.html",

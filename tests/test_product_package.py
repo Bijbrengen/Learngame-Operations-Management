@@ -56,17 +56,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.4"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.4"', html)
+        self.assertIn('href="style.css?v=20260827.5"', html)
+        self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.5"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260827.4"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260827.2"', html)
-        self.assertIn('"script.js?v=20260827.4"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v246-lego-stage-session-controls"', service_worker)
+        self.assertIn('"isometric-logistics-view.js?v=20260827.3"', html)
+        self.assertIn('"script.js?v=20260827.5"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v247-material-cart"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v246-lego-stage-session-controls")',
+            'register("service-worker.js?v=learngame-om-v247-material-cart")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -519,6 +520,86 @@ process.stdout.write(JSON.stringify({
         self.assertEqual(4, rendered["largeInstances"])
         self.assertTrue(rendered["largeOverflow"])
 
+    def test_srm_material_kits_render_as_one_cart_with_loose_parts(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        self.assertIn('activeTransfer.cargoKind === "material_kits"', game)
+        self.assertIn('kind: isMaterialCart ? "material_cart" : "tower"', game)
+        self.assertIn("simulationMaterialCartParts", game)
+        self.assertIn("materialCartCargoMarkup", renderer)
+
+        node_program = r'''
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const container = {
+  clientWidth: 800,
+  clientHeight: 600,
+  innerHTML: "",
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  contains: () => true
+};
+window.IsometricLogisticsView.mount(container, {
+  title: "Materiaalwagen",
+  connections: [],
+  departments: [{
+    id: "srm",
+    title: "Magazijn Grondstoffen",
+    departmentColor: "warehouse",
+    status: "active",
+    openRoof: true,
+    layout: { x: 1, y: 2, width: 4.2, depth: 3.8, height: 78 },
+    cargoVisual: {
+      kind: "material_cart",
+      cargoKind: "material_kits",
+      cargoId: "order-materials",
+      quantity: 2,
+      draggable: true,
+      parts: [
+        { partId: "base_green", color: "green", width: 6, depth: 6, isPlate: true, count: 2 },
+        { partId: "white_8", color: "white", width: 4, depth: 2, count: 4 },
+        { partId: "blue_4", color: "blue", width: 2, depth: 2, count: 2 },
+        { partId: "red_4", color: "red", width: 2, depth: 2, count: 2 }
+      ]
+    }
+  }]
+}, {});
+process.stdout.write(JSON.stringify({
+  carts: (container.innerHTML.match(/iso-cargo-material-cart/g) || []).length,
+  towers: (container.innerHTML.match(/iso-cargo-tower(?:\s|\")/g) || []).length,
+  visibleParts: (container.innerHTML.match(/data-material-cart-part(?:\s|>)/g) || []).length,
+  quantity: /data-cargo-quantity="2"/.test(container.innerHTML),
+  partCount: /data-material-part-count="10"/.test(container.innerHTML),
+  cargoKind: /data-cargo-kind="material_kits"/.test(container.innerHTML),
+  overflow: />\+2<\/text>/.test(container.innerHTML),
+  base: (container.innerHTML.match(/data-part-id="base_green"/g) || []).length,
+  white: (container.innerHTML.match(/data-part-id="white_8"/g) || []).length,
+  blue: (container.innerHTML.match(/data-part-id="blue_4"/g) || []).length,
+  red: (container.innerHTML.match(/data-part-id="red_4"/g) || []).length
+}));
+'''
+        result = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rendered = json.loads(result.stdout)
+        self.assertEqual(1, rendered["carts"])
+        self.assertEqual(0, rendered["towers"])
+        self.assertEqual(8, rendered["visibleParts"])
+        self.assertTrue(rendered["quantity"])
+        self.assertTrue(rendered["partCount"])
+        self.assertTrue(rendered["cargoKind"])
+        self.assertTrue(rendered["overflow"])
+        self.assertEqual(2, rendered["base"])
+        self.assertEqual(2, rendered["white"])
+        self.assertEqual(2, rendered["blue"])
+        self.assertEqual(2, rendered["red"])
+
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
@@ -769,6 +850,16 @@ const parallel = engine.batchTransferDescriptor({{
   roleFlow: ["customer", "operations", "srm", "pd2", "ssf"],
   productionRoute: "parallel"
 }}, "pd2");
+const sequentialMaterials = engine.batchTransferDescriptor({{
+  id: "MAT-SEQ-1", productId: "C", quantity: 2,
+  roleFlow: ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"],
+  productionRoute: "sequential"
+}}, "srm");
+const parallelMaterials = engine.batchTransferDescriptor({{
+  id: "MAT-PAR-1", productId: "B", quantity: 2,
+  roleFlow: ["customer", "operations", "srm", "pd2", "ssf"],
+  productionRoute: "parallel"
+}}, "srm");
 const finalDelivery = engine.batchTransferDescriptor({{
   id: "FIN-1", productId: "C", quantity: 4,
   roleFlow: ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"],
@@ -818,6 +909,8 @@ process.stdout.write(JSON.stringify({{
   currentRoleId: order.currentRoleId,
   customer,
   parallel,
+  sequentialMaterials,
+  parallelMaterials,
   finalDelivery,
   finalAccepted,
   finalEvents
@@ -858,6 +951,11 @@ process.stdout.write(JSON.stringify({{
         self.assertEqual("operations", result["customer"]["targetRoleId"])
         self.assertEqual("order_information", result["customer"]["cargoKind"])
         self.assertEqual("finished_towers", result["parallel"]["cargoKind"])
+        self.assertEqual("pd1", result["sequentialMaterials"]["targetRoleId"])
+        self.assertEqual("material_kits", result["sequentialMaterials"]["cargoKind"])
+        self.assertEqual(2, result["sequentialMaterials"]["quantity"])
+        self.assertEqual("pd2", result["parallelMaterials"]["targetRoleId"])
+        self.assertEqual("material_kits", result["parallelMaterials"]["cargoKind"])
         self.assertEqual("ssf", result["parallel"]["targetRoleId"])
         self.assertEqual("customer", result["finalDelivery"]["targetRoleId"])
         self.assertTrue(result["finalDelivery"]["finalDelivery"])
@@ -2138,7 +2236,11 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("renderGroundPlatePart", ui)
         self.assertIn("renderBrickPart", ui)
         self.assertIn("data-sim-staged-part", ui)
-        self.assertIn("Klaargelegde LEGO-onderdelen", ui)
+        self.assertIn("Losse LEGO-onderdelen in de materiaalwagen", ui)
+        self.assertIn("data-sim-material-cart", ui)
+        self.assertIn("data-material-part-count", ui)
+        self.assertIn("materialCartMarkup", ui)
+        self.assertIn("Losse grondstoffen &middot; niet assembleren", ui)
         self.assertIn('role="region"', ui)
         self.assertIn("data-sim-stage-drop-action", ui)
         self.assertNotIn('class="sim-staged-brick"', ui)
@@ -2170,7 +2272,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('event.dataTransfer.dropEffect = "move"', ui)
         self.assertIn("data-sim-virtual-stage", ui)
         self.assertIn("data-sim-staged-part", ui)
-        self.assertIn("Klaargelegde LEGO-onderdelen", ui)
+        self.assertIn("Losse LEGO-onderdelen in de materiaalwagen", ui)
         self.assertNotIn('class="sim-staged-brick"', ui)
         self.assertIn("data-sim-drag-part", ui)
         self.assertIn("data-sim-part-dropzone", ui)
