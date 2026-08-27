@@ -677,7 +677,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("6c. Magazijn Grondstoffen sleept een materiaalwagen met losse LEGO-onderdelen", async ({ page }, testInfo) => {
+  test("6c. Magazijn Grondstoffen verplaatst de materiaalwagen met toetsenbord, pointer en touch", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.waitForFunction(() => window.IsometricLogisticsView);
     await page.evaluate(() => {
@@ -747,17 +747,20 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(cart).toHaveAttribute("tabindex", "0");
     await expect(cart).toHaveAttribute("aria-label", /materiaalwagen met 10 losse LEGO-onderdelen/i);
     await expect(map.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
-    await expect(cart.locator("[data-material-cart-part]")).toHaveCount(8);
-    await expect(cart.locator('[data-part-id="base_green"]')).toHaveCount(2);
-    await expect(cart.locator('[data-part-id="white_8"]')).toHaveCount(2);
-    await expect(cart.locator('[data-part-id="blue_4"]')).toHaveCount(2);
-    await expect(cart.locator('[data-part-id="red_4"]')).toHaveCount(2);
-    await expect(cart.locator(".iso-material-cart-overflow text")).toHaveText("+2");
-    await expect(cart.locator('[data-part-id="base_green"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(36);
-    await expect(cart.locator('[data-part-id="white_8"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(8);
-    await expect(cart.locator('[data-part-id="blue_4"]').first().locator(".iso-material-cart-studs circle")).toHaveCount(4);
+    const engineCart = cart.locator("[data-lego-material-cart]");
+    await expect(engineCart).toHaveCount(1);
+    await expect(engineCart).toHaveAttribute("data-material-part-count", "10");
+    await expect(engineCart.locator("[data-material-cart-part]")).toHaveCount(8);
+    await expect(engineCart.locator("[data-material-cart-part]:not([data-part-id])")).toHaveCount(0);
+    await expect(engineCart.locator("[data-material-cart-overflow]")).toContainText("+2");
 
     if (testInfo.project.name === "mobile-chromium") {
+      await dispatchTouchDrag(page, cart, target, { cancel: true });
+      expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
+
+      await dispatchTouchDrag(page, cart, { x: 2, y: 2 });
+      expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
+
       await dispatchTouchDrag(page, cart, target);
     } else {
       await cart.focus();
@@ -768,6 +771,21 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       await expect(cart).toHaveAttribute("aria-pressed", "false");
       await expect(cart).toBeFocused();
       expect(await page.evaluate(() => window.__materialCartDrops.length)).toBe(0);
+
+      await page.keyboard.press("Enter");
+      await expect(cart).toHaveAttribute("aria-pressed", "true");
+      await expect(target).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect.poll(() => page.evaluate(() => window.__materialCartDrops.length)).toBe(1);
+      expect(await page.evaluate(() => window.__materialCartDrops[0])).toMatchObject({
+        sourceDepartmentId: "srm",
+        targetDepartmentId: "pd1",
+        cargoId: "ORD-MAT-001",
+        quantity: 2,
+        inputMethod: "keyboard"
+      });
+      await expect(cart).toHaveAttribute("aria-pressed", "false");
+      await page.evaluate(() => { window.__materialCartDrops = []; });
 
       const cartBox = await cart.boundingBox();
       const targetBox = await target.boundingBox();
@@ -785,7 +803,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       sourceDepartmentId: "srm",
       targetDepartmentId: "pd1",
       cargoId: "ORD-MAT-001",
-      quantity: 2
+      quantity: 2,
+      inputMethod: "pointer"
     });
   });
 

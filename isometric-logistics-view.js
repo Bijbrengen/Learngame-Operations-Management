@@ -3,6 +3,12 @@
 
   const VIEWBOX = { width: 1320, height: 900 };
   const PROJECTION = { originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 };
+  const MATERIAL_CART_BLOK = Object.freeze({
+    id: "logistics.material-cart",
+    file: "logistics/materiaalwagen.blok",
+    preset: "logistics-material-cart.green"
+  });
+  const MATERIAL_CART_VIEW = Object.freeze({ originX: 32, originY: 58, scale: 0.36 });
   let legoGradientInstance = 0;
   const TUTORIAL_WAREHOUSE_PALETTES = Object.freeze({
     "tutorial-blue": {
@@ -365,43 +371,7 @@
     `;
   }
 
-  function materialCartPartMarkup(part, index) {
-    const positions = [
-      [16, 20], [29, 16], [41, 20], [22, 25],
-      [35, 26], [48, 17], [30, 10], [43, 11]
-    ];
-    const [x, y] = positions[index] || positions[positions.length - 1];
-    const isPlate = Boolean(part.isPlate || part.partId === "base_green");
-    const width = isPlate ? 18 : Number(part.width || 2) >= 4 ? 13 : 9;
-    const depth = isPlate ? 7 : 6;
-    const rise = isPlate ? 2.2 : 4;
-    const top = `${x},${y} ${x + width},${y - depth} ${x + width + depth},${y - depth + 3} ${x + depth},${y + 3}`;
-    const front = `${x + depth},${y + 3} ${x + width + depth},${y - depth + 3} ${x + width + depth},${y - depth + 3 + rise} ${x + depth},${y + 3 + rise}`;
-    const side = `${x},${y} ${x + depth},${y + 3} ${x + depth},${y + 3 + rise} ${x},${y + rise}`;
-    const studColumns = Math.max(1, Math.min(6, Math.round(Number(part.width || 2))));
-    const studRows = Math.max(1, Math.min(6, Math.round(Number(part.depth || 2))));
-    const studs = Array.from({ length: studColumns * studRows }, (_, studIndex) => {
-      const column = studIndex % studColumns;
-      const row = Math.floor(studIndex / studColumns);
-      const columnRatio = (column + 0.5) / studColumns;
-      const rowRatio = (row + 0.5) / studRows;
-      return `<circle cx="${(x + columnRatio * width + rowRatio * depth).toFixed(2)}"
-                      cy="${(y - columnRatio * depth + rowRatio * 3).toFixed(2)}"
-                      r="${isPlate ? 0.58 : 0.82}"></circle>`;
-    }).join("");
-    return `
-      <g class="iso-material-cart-part is-${escapeHtml(part.color || "white")}${isPlate ? " is-plate" : ""}"
-         data-material-cart-part
-         data-part-id="${escapeHtml(part.partId || "")}">
-        <polygon class="iso-material-cart-part-top" points="${top}"></polygon>
-        <polygon class="iso-material-cart-part-front" points="${front}"></polygon>
-        <polygon class="iso-material-cart-part-side" points="${side}"></polygon>
-        <g class="iso-material-cart-studs">${studs}</g>
-      </g>
-    `;
-  }
-
-  function materialCartCargoMarkup(department, geometry) {
+  function materialCartCargoMarkup(department, geometry, legoGradientScope) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "material_cart") return "";
     const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
@@ -410,24 +380,30 @@
       (total, part) => total + Math.max(0, Math.floor(Number(part.count) || 0)),
       0
     );
-    const remainingByGroup = partGroups.map(part => ({
-      ...part,
-      remaining: Math.max(0, Math.floor(Number(part.count) || 0))
-    }));
-    const visibleParts = [];
-    while (visibleParts.length < 8 && remainingByGroup.some(part => part.remaining > 0)) {
-      remainingByGroup.forEach(part => {
-        if (visibleParts.length >= 8 || part.remaining <= 0) return;
-        visibleParts.push(part);
-        part.remaining -= 1;
-      });
-    }
-    const overflow = materialPartCount > visibleParts.length
-      ? `<g class="iso-material-cart-overflow" aria-hidden="true">
-           <circle cx="57" cy="8" r="8"></circle>
-           <text x="57" y="11" text-anchor="middle">+${materialPartCount - visibleParts.length}</text>
-         </g>`
-      : "";
+    const renderer = window.LegoTowerRenderer;
+    const cartPrimitive = typeof renderer?.materialCart === "function"
+      ? renderer.materialCart({
+          x: 0,
+          y: 0,
+          zHalfLayers: 0,
+          color: "green",
+          wheelColor: "black",
+          parts: partGroups,
+          maxVisibleParts: 8,
+          scope: `${legoGradientScope}-material-cart`,
+          view: MATERIAL_CART_VIEW
+        })
+      : `
+          <g data-lego-material-cart
+             data-material-part-count="${materialPartCount}"
+             data-material-cart-fallback="true"
+             data-blok-id="${MATERIAL_CART_BLOK.id}"
+             data-blok-file="${MATERIAL_CART_BLOK.file}"
+             data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
+            <title>Materiaalwagen met ${materialPartCount} losse LEGO-onderdelen</title>
+            <text class="iso-material-cart-fallback-copy" x="32" y="34" text-anchor="middle">MATERIAALWAGEN</text>
+          </g>
+        `;
     const scale = 2.35;
     return `
       <g class="iso-cargo-material-cart iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
@@ -438,6 +414,9 @@
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
          data-material-part-count="${materialPartCount}"
+         data-blok-id="${MATERIAL_CART_BLOK.id}"
+         data-blok-file="${MATERIAL_CART_BLOK.file}"
+         data-blok-render-preset="${MATERIAL_CART_BLOK.preset}"
          role="${cargo.draggable ? "button" : "img"}"
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
@@ -447,26 +426,14 @@
         ${cargo.draggable
           ? '<rect class="iso-cargo-hitbox" x="-4" y="-5" width="72" height="72" fill="transparent" pointer-events="all"></rect>'
           : ""}
-        <g class="iso-material-cart-frame" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 20 L28 8 L56 22 L36 34 Z" class="iso-material-cart-basket-top"></path>
-          <g class="iso-material-cart-load">${visibleParts.map(materialCartPartMarkup).join("")}</g>
-          <path d="M8 20 L8 28 L36 42 L36 34 Z" class="iso-material-cart-basket-left"></path>
-          <path d="M56 22 L56 30 L36 42" class="iso-material-cart-basket-right"></path>
-          <path d="M12 24 L36 38 L52 28"></path>
-          <path d="M20 52 L20 42"></path>
-          <path d="M44 52 L44 42"></path>
-          <circle cx="20" cy="52" r="4" class="iso-material-cart-wheel"></circle>
-          <circle cx="44" cy="52" r="4" class="iso-material-cart-wheel"></circle>
-          <path d="M4 18 L12 14"></path>
-        </g>
-        ${overflow}
+        ${cartPrimitive}
       </g>
     `;
   }
 
   function cargoMarkup(department, geometry, legoGradientScope) {
     if (department.cargoVisual?.kind === "material_cart") {
-      return materialCartCargoMarkup(department, geometry);
+      return materialCartCargoMarkup(department, geometry, legoGradientScope);
     }
     return towerCargoMarkup(department, geometry, legoGradientScope);
   }

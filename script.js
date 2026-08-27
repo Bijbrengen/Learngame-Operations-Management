@@ -3124,8 +3124,8 @@
         partId,
         count: Math.max(0, Number(count || 0)),
         color: part.color,
-        width: partId === "base_green" ? 6 : part.width === "wide" ? 4 : 2,
-        depth: partId === "base_green" ? 6 : 2,
+        width: partId === "base_green" ? 6 : 2,
+        depth: partId === "base_green" ? 6 : part.width === "wide" ? 4 : 2,
         isPlate: partId === "base_green",
         label: part.name
       };
@@ -7943,7 +7943,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v247-material-cart").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v248-engine-material-cart").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

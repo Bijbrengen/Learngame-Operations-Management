@@ -3455,101 +3455,6 @@ body[data-app-view="player"] .topbar {
   place-items: center;
 }
 
-.sim-material-cart-reference {
-  position: relative;
-  width: min(100%, 174px);
-  min-height: 124px;
-  display: grid;
-  place-items: center;
-  color: #27434a;
-}
-
-.sim-material-cart-icon {
-  width: 152px;
-  height: 122px;
-  overflow: visible;
-  filter: drop-shadow(0 8px 7px rgba(20, 46, 48, 0.2));
-}
-
-.sim-material-cart-wheel {
-  fill: #3498db;
-}
-
-.sim-material-cart-basket-top {
-  fill: rgba(236, 240, 241, 0.68);
-}
-
-.sim-material-cart-basket-left {
-  fill: rgba(189, 195, 199, 0.62);
-}
-
-.sim-material-cart-basket-right {
-  fill: rgba(149, 165, 166, 0.6);
-}
-
-.sim-material-cart-load {
-  position: absolute;
-  top: 12px;
-  left: 36px;
-  width: 102px;
-  height: 52px;
-  pointer-events: none;
-}
-
-.sim-material-cart-part {
-  position: absolute;
-  width: 34px;
-  height: 27px;
-  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.28));
-}
-
-.sim-material-cart-part:nth-child(1) { left: 4px; top: 20px; }
-.sim-material-cart-part:nth-child(2) { left: 27px; top: 25px; }
-.sim-material-cart-part:nth-child(3) { left: 50px; top: 20px; }
-.sim-material-cart-part:nth-child(4) { left: 68px; top: 9px; }
-.sim-material-cart-part:nth-child(5) { left: 42px; top: 8px; }
-.sim-material-cart-part:nth-child(6) { left: 17px; top: 7px; }
-.sim-material-cart-part:nth-child(7) { left: 57px; top: -1px; }
-.sim-material-cart-part:nth-child(8) { left: 30px; top: -3px; }
-
-.sim-material-cart-part .lego-part-3d {
-  width: 34px;
-  height: 27px;
-}
-
-.sim-material-cart-part .lego-part-3d.base-plate {
-  width: 40px;
-}
-
-.sim-material-cart-reference > strong {
-  position: absolute;
-  right: 4px;
-  bottom: 13px;
-  min-width: 34px;
-  padding: 3px 6px;
-  border: 2px solid #27434a;
-  border-radius: 999px;
-  color: #fff;
-  background: #123b45;
-  font-size: 0.68rem;
-  text-align: center;
-}
-
-.sim-material-cart-overflow {
-  position: absolute;
-  top: 8px;
-  right: 4px;
-  min-width: 29px;
-  padding: 3px 6px;
-  border-radius: 999px;
-  color: #fff4c5;
-  background: #684e12;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.24);
-  font-size: 0.68rem;
-  font-weight: 900;
-  text-align: center;
-}
-
 .sim-product-reference-note {
   max-width: 18ch;
   color: #42575b !important;
@@ -4444,43 +4349,55 @@ body[data-app-view="player"] .topbar {
   list-style: none;
 }
 
+.sim-material-cart-stage-load {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(118px, 0.34fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.sim-material-cart-stage-visual {
+  width: 100%;
+  max-width: 180px;
+  min-height: 0;
+  aspect-ratio: 1;
+  align-self: start;
+  justify-self: center;
+  overflow: visible;
+  border: 1px solid #315961;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(50, 221, 210, 0.1), transparent 62%),
+    #07161c;
+  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.25));
+}
+
+.sim-material-cart-fallback-symbol {
+  fill: #62d6c7;
+  font-family: var(--lp-font-heading);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.sim-material-cart-fallback-copy {
+  fill: #a9c4c7;
+  font-size: 5px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .sim-material-cart-basket {
-  position: relative;
-  margin: 6px 12px 22px 18px;
-  padding: 12px 10px 16px;
-  border: 3px solid #54767d;
-  border-top-color: #89a8ac;
-  border-radius: 9px 9px 14px 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #315961;
+  border-radius: 10px;
   background:
-    linear-gradient(rgba(201, 219, 220, 0.08), rgba(88, 117, 122, 0.18)),
+    linear-gradient(rgba(201, 219, 220, 0.05), rgba(88, 117, 122, 0.12)),
     repeating-linear-gradient(90deg, transparent 0 34px, rgba(178, 204, 205, 0.09) 34px 36px);
-  box-shadow: inset 0 -9px 0 rgba(3, 15, 19, 0.22), 0 8px 14px rgba(0, 0, 0, 0.2);
-}
-
-.sim-material-cart-basket::before {
-  content: "";
-  position: absolute;
-  top: -11px;
-  left: -18px;
-  width: 24px;
-  height: 12px;
-  border-top: 4px solid #89a8ac;
-  border-left: 4px solid #89a8ac;
-  border-radius: 8px 0 0;
-  transform: skewY(-18deg);
-}
-
-.sim-material-cart-basket::after {
-  content: "";
-  position: absolute;
-  right: 14px;
-  bottom: -19px;
-  left: 14px;
-  height: 14px;
-  background:
-    radial-gradient(circle at 8px 6px, #3498db 0 5px, #d9f3ff 5.5px 7px, transparent 7.5px),
-    radial-gradient(circle at calc(100% - 8px) 6px, #3498db 0 5px, #d9f3ff 5.5px 7px, transparent 7.5px);
-  pointer-events: none;
+  box-shadow: inset 0 -5px 0 rgba(3, 15, 19, 0.18);
 }
 
 .sim-staged-empty {
@@ -5537,6 +5454,14 @@ body[data-app-view="player"] .topbar {
   .sim-material-action,
   .sim-digital-transport {
     grid-template-columns: 1fr;
+  }
+
+  .sim-material-cart-stage-load {
+    grid-template-columns: 1fr;
+  }
+
+  .sim-material-cart-stage-visual {
+    width: min(100%, 220px);
   }
 
   .sim-drag-route,
@@ -8829,67 +8754,11 @@ select {
   filter: drop-shadow(0 8px 7px rgba(9, 26, 18, 0.5));
 }
 
-.iso-material-cart-frame {
-  stroke: #d8eef0;
-  stroke-width: 1.35;
-}
-
-.iso-material-cart-basket-top {
-  fill: rgba(220, 234, 235, 0.42);
-}
-
-.iso-material-cart-basket-left {
-  fill: rgba(115, 143, 148, 0.7);
-}
-
-.iso-material-cart-basket-right {
-  fill: rgba(73, 103, 110, 0.78);
-}
-
-.iso-material-cart-wheel {
-  fill: #3498db;
-  stroke: #d9f3ff;
-}
-
-.iso-material-cart-part {
-  stroke: rgba(3, 18, 22, 0.62);
-  stroke-width: 0.8;
-}
-
-.iso-material-cart-part-top,
-.iso-material-cart-studs circle {
-  fill: var(--iso-cart-part-color);
-}
-
-.iso-material-cart-part-front {
-  fill: color-mix(in srgb, var(--iso-cart-part-color), #071014 22%);
-}
-
-.iso-material-cart-part-side {
-  fill: color-mix(in srgb, var(--iso-cart-part-color), #071014 36%);
-}
-
-.iso-material-cart-part.is-green { --iso-cart-part-color: #36a765; }
-.iso-material-cart-part.is-blue { --iso-cart-part-color: #337fcb; }
-.iso-material-cart-part.is-red { --iso-cart-part-color: #d84a42; }
-.iso-material-cart-part.is-yellow { --iso-cart-part-color: #edbf3f; }
-.iso-material-cart-part.is-white { --iso-cart-part-color: #edf4f2; }
-.iso-material-cart-part.is-dark_gray { --iso-cart-part-color: #66757a; }
-
-.iso-material-cart-part.is-plate {
-  opacity: 0.92;
-}
-
-.iso-material-cart-overflow circle {
-  fill: #10272d;
-  stroke: #f5cb72;
-  stroke-width: 1.3;
-}
-
-.iso-material-cart-overflow text {
-  fill: #fff3c4;
-  font-size: 6px;
+.iso-material-cart-fallback-copy {
+  fill: #d8eef0;
+  font-size: 4px;
   font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .iso-cargo-quantity-overflow circle {

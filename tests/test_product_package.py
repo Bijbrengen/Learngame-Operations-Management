@@ -56,18 +56,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.5"', html)
+        self.assertIn('href="style.css?v=20260827.6"', html)
         self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.5"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.6"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260827.4"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260827.3"', html)
-        self.assertIn('"script.js?v=20260827.5"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v247-material-cart"', service_worker)
+        self.assertIn('"isometric-logistics-view.js?v=20260827.4"', html)
+        self.assertIn('"script.js?v=20260827.6"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v248-engine-material-cart"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v247-material-cart")',
+            'register("service-worker.js?v=learngame-om-v248-engine-material-cart")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -527,11 +527,28 @@ process.stdout.write(JSON.stringify({
         self.assertIn('kind: isMaterialCart ? "material_cart" : "tower"', game)
         self.assertIn("simulationMaterialCartParts", game)
         self.assertIn("materialCartCargoMarkup", renderer)
+        self.assertIn(".materialCart(", renderer)
 
         node_program = r'''
 const fs = require("fs");
 const vm = require("vm");
 global.window = global;
+const materialCartCalls = [];
+window.LegoTowerRenderer = {
+  definitions: () => "",
+  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" }),
+  materialCart: options => {
+    materialCartCalls.push(options);
+    const parts = (options.parts || []).flatMap(part => (
+      Array.from({ length: Number(part.count || 0) }, () => part)
+    ));
+    const visible = parts.slice(0, Number(options.maxVisibleParts || parts.length));
+    return `<g data-lego-material-cart data-material-part-count="${parts.length}">
+      ${visible.map(part => `<g data-material-cart-part data-part-id="${part.partId}"></g>`).join("")}
+      ${parts.length > visible.length ? `<g data-material-cart-overflow>+${parts.length - visible.length}</g>` : ""}
+    </g>`;
+  }
+};
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const container = {
   clientWidth: 800,
@@ -569,15 +586,17 @@ window.IsometricLogisticsView.mount(container, {
 process.stdout.write(JSON.stringify({
   carts: (container.innerHTML.match(/iso-cargo-material-cart/g) || []).length,
   towers: (container.innerHTML.match(/iso-cargo-tower(?:\s|\")/g) || []).length,
+  enginePrimitive: (container.innerHTML.match(/data-lego-material-cart/g) || []).length,
   visibleParts: (container.innerHTML.match(/data-material-cart-part(?:\s|>)/g) || []).length,
   quantity: /data-cargo-quantity="2"/.test(container.innerHTML),
   partCount: /data-material-part-count="10"/.test(container.innerHTML),
   cargoKind: /data-cargo-kind="material_kits"/.test(container.innerHTML),
-  overflow: />\+2<\/text>/.test(container.innerHTML),
-  base: (container.innerHTML.match(/data-part-id="base_green"/g) || []).length,
-  white: (container.innerHTML.match(/data-part-id="white_8"/g) || []).length,
-  blue: (container.innerHTML.match(/data-part-id="blue_4"/g) || []).length,
-  red: (container.innerHTML.match(/data-part-id="red_4"/g) || []).length
+  overflow: /data-material-cart-overflow/.test(container.innerHTML),
+  primitiveCalls: materialCartCalls.length,
+  primitiveOptions: materialCartCalls[0] && {
+    maxVisibleParts: materialCartCalls[0].maxVisibleParts,
+    partCounts: Object.fromEntries(materialCartCalls[0].parts.map(part => [part.partId, part.count]))
+  }
 }));
 '''
         result = subprocess.run(
@@ -590,15 +609,18 @@ process.stdout.write(JSON.stringify({
         rendered = json.loads(result.stdout)
         self.assertEqual(1, rendered["carts"])
         self.assertEqual(0, rendered["towers"])
+        self.assertEqual(1, rendered["enginePrimitive"])
         self.assertEqual(8, rendered["visibleParts"])
         self.assertTrue(rendered["quantity"])
         self.assertTrue(rendered["partCount"])
         self.assertTrue(rendered["cargoKind"])
         self.assertTrue(rendered["overflow"])
-        self.assertEqual(2, rendered["base"])
-        self.assertEqual(2, rendered["white"])
-        self.assertEqual(2, rendered["blue"])
-        self.assertEqual(2, rendered["red"])
+        self.assertEqual(1, rendered["primitiveCalls"])
+        self.assertEqual(8, rendered["primitiveOptions"]["maxVisibleParts"])
+        self.assertEqual(
+            {"base_green": 2, "white_8": 4, "blue_4": 2, "red_4": 2},
+            rendered["primitiveOptions"]["partCounts"],
+        )
 
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -2239,7 +2261,9 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("Losse LEGO-onderdelen in de materiaalwagen", ui)
         self.assertIn("data-sim-material-cart", ui)
         self.assertIn("data-material-part-count", ui)
-        self.assertIn("materialCartMarkup", ui)
+        self.assertIn("data-sim-static-tower-reference", ui)
+        self.assertIn("${towerMarkup(displayProduct)}", ui)
+        self.assertIn("${escapeHtml(displayProduct.name)}", ui)
         self.assertIn("Losse grondstoffen &middot; niet assembleren", ui)
         self.assertIn('role="region"', ui)
         self.assertIn("data-sim-stage-drop-action", ui)

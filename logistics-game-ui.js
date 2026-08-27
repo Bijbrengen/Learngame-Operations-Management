@@ -3,6 +3,12 @@
 
   const MAX_SIGNATURE_STROKES = 64;
   const MAX_SIGNATURE_POINTS = 512;
+  const MATERIAL_CART_BLOK = Object.freeze({
+    id: "logistics.material-cart",
+    file: "logistics/materiaalwagen.blok",
+    preset: "logistics-material-cart.green"
+  });
+  const MATERIAL_CART_VIEW = Object.freeze({ originX: 32, originY: 58, scale: 0.36 });
   let uiControllerSequence = 0;
 
   function escapeHtml(value) {
@@ -80,6 +86,39 @@
     `;
   }
 
+  function materialCartPrimitiveMarkup(parts, scope) {
+    const renderer = window.LegoTowerRenderer;
+    const partCount = (parts || []).reduce(
+      (total, part) => total + Math.max(0, Math.floor(Number(part.count) || 0)),
+      0
+    );
+    if (typeof renderer?.materialCart === "function") {
+      return renderer.materialCart({
+        x: 0,
+        y: 0,
+        zHalfLayers: 0,
+        color: "green",
+        wheelColor: "black",
+        parts,
+        maxVisibleParts: 8,
+        scope,
+        view: MATERIAL_CART_VIEW
+      });
+    }
+    return `
+      <g data-lego-material-cart
+         data-material-part-count="${partCount}"
+         data-material-cart-fallback="true"
+         data-blok-id="${MATERIAL_CART_BLOK.id}"
+         data-blok-file="${MATERIAL_CART_BLOK.file}"
+         data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
+        <title>Materiaalwagen met ${partCount} losse LEGO-onderdelen</title>
+        <text class="sim-material-cart-fallback-symbol" x="32" y="29" text-anchor="middle" aria-hidden="true">WAGEN</text>
+        <text class="sim-material-cart-fallback-copy" x="32" y="44" text-anchor="middle">Materiaalwagen</text>
+      </g>
+    `;
+  }
+
   class LogisticsGameUIController {
     constructor(mount, options = {}) {
       if (!mount) throw new Error("Een mount-element is verplicht.");
@@ -105,6 +144,7 @@
       this.transferDropTarget = null;
       this.suppressTransferClickUntil = 0;
       this.transferInstructionId = `simTransferInstruction${++uiControllerSequence}`;
+      this.materialCartScope = `sim-material-cart-${uiControllerSequence}`;
       this.feedback = "";
       this.remoteActionSubmitter = typeof options.actionSubmitter === "function"
         ? options.actionSubmitter
@@ -1293,71 +1333,6 @@
       `;
     }
 
-    materialCartMarkup(task) {
-      const requiredTotal = Object.values(task.requiredParts || {})
-        .reduce((total, amount) => total + Math.max(0, Number(amount || 0)), 0);
-      const selectedPartIds = Object.entries(task.requiredParts || {}).flatMap(([partId, required]) => (
-        Array(Math.min(
-          Math.max(0, Number(required || 0)),
-          Math.max(0, Number(this.selectedParts[partId] || 0))
-        )).fill(partId)
-      ));
-      const remainingByPart = Object.entries(task.requiredParts || {}).map(([partId, required]) => ({
-        partId,
-        remaining: Math.min(
-          Math.max(0, Number(required || 0)),
-          Math.max(0, Number(this.selectedParts[partId] || 0))
-        )
-      }));
-      const visiblePartIds = [];
-      while (visiblePartIds.length < 8 && remainingByPart.some(part => part.remaining > 0)) {
-        remainingByPart.forEach(part => {
-          if (visiblePartIds.length >= 8 || part.remaining <= 0) return;
-          visiblePartIds.push(part.partId);
-          part.remaining -= 1;
-        });
-      }
-      const visibleParts = visiblePartIds.map((partId, index) => {
-        const part = this.engine.parts[partId] || { label: partId, color: "white" };
-        const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
-        return `
-          <span class="sim-material-cart-part"
-                data-sim-material-cart-part="${escapeHtml(partId)}"
-                style="--sim-cart-part-index:${index}"
-                aria-hidden="true">
-            ${this.digitalPartVisualMarkup(partId, part, dimensions)}
-          </span>
-        `;
-      }).join("");
-      return `
-        <div class="sim-material-cart-reference"
-             data-sim-material-cart
-             data-sim-material-cart-reference
-             data-material-part-count="${selectedPartIds.length}"
-             role="img"
-             aria-label="Materiaalwagen met ${selectedPartIds.length} van ${requiredTotal} losse LEGO-onderdelen voor ${escapeHtml(task.product?.name || "de order")}">
-          <svg class="sim-material-cart-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-            <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="20" cy="52" r="4" class="sim-material-cart-wheel"></circle>
-              <circle cx="44" cy="52" r="4" class="sim-material-cart-wheel"></circle>
-              <path d="M12 24 L36 38 L52 28"></path>
-              <path d="M20 52 L20 42"></path>
-              <path d="M44 52 L44 42"></path>
-              <path d="M8 20 L28 8 L56 22 L36 34 Z" class="sim-material-cart-basket-top"></path>
-              <path d="M8 20 L8 28 L36 42 L36 34 Z" class="sim-material-cart-basket-left"></path>
-              <path d="M56 22 L56 30 L36 42" class="sim-material-cart-basket-right"></path>
-              <path d="M4 18 L12 14"></path>
-            </g>
-          </svg>
-          <span class="sim-material-cart-load" aria-hidden="true">${visibleParts}</span>
-          ${selectedPartIds.length > visiblePartIds.length
-            ? `<span class="sim-material-cart-overflow" aria-hidden="true">+${selectedPartIds.length - visiblePartIds.length}</span>`
-            : ""}
-          <strong>${selectedPartIds.length}/${requiredTotal}</strong>
-        </div>
-      `;
-    }
-
     materialPickListMarkup(product, quantity) {
       const batchQuantity = Math.max(1, Number(quantity || 1));
       const stageLabels = {
@@ -1442,13 +1417,9 @@
                 </div>
               </div>
               <div class="sim-product-visual">
-                ${role.id === "srm"
-                  ? this.materialCartMarkup(task)
-                  : towerMarkup(displayProduct)}
-                <strong>${role.id === "srm" ? "Materiaalwagen" : escapeHtml(displayProduct.name)}</strong>
-                <small>${role.id === "srm"
-                  ? `Voor ${displayQuantity}&times; ${escapeHtml(displayProduct.name)}`
-                  : `${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}`}</small>
+                ${towerMarkup(displayProduct)}
+                <strong>${escapeHtml(displayProduct.name)}</strong>
+                <small>${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}</small>
                 ${role.id === "srm"
                   ? this.materialPickListMarkup(displayProduct, displayQuantity)
                   : '<small class="sim-product-reference-note">Alle lagen blijven zichtbaar</small>'}
@@ -1892,9 +1863,25 @@
           </li>
         `);
       });
+      const materialCartParts = Object.entries(task.requiredParts || {}).map(([partId, required]) => {
+        const part = this.engine.parts[partId] || { color: "white", width: 2, depth: 2 };
+        const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
+        return {
+          partId,
+          color: part.color || "white",
+          width: Number(dimensions.width || part.width || 2),
+          depth: Number(dimensions.depth || part.depth || 2),
+          isPlate: partId === "base_green",
+          count: Math.min(
+            Math.max(0, Number(required || 0)),
+            Math.max(0, Number(this.selectedParts[partId] || 0))
+          )
+        };
+      });
       if (["pd1", "pd2", "pd3"].includes(task.role.id)) {
         return this.digitalBuilderBoardMarkup(task);
       }
+      const materialCartScope = `${this.materialCartScope}-stage`;
       return `
         <div class="sim-digital-workbench is-staging"
              data-sim-virtual-stage
@@ -1920,9 +1907,20 @@
               ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} in de wagen`
               : "Selecteer eerst een onderdeel"}</strong>
           </button>
-          <ul class="sim-staged-bricks sim-material-cart-basket" role="list" aria-label="Losse LEGO-onderdelen in de materiaalwagen">
-            ${selected.length ? selected.join("") : '<li class="sim-staged-empty"><small>Leg de juiste losse LEGO-onderdelen in de materiaalwagen.</small></li>'}
-          </ul>
+          <div class="sim-material-cart-stage-load">
+            <svg class="sim-material-cart-stage-visual"
+                 viewBox="0 0 64 64"
+                 role="img"
+                 aria-label="Canonieke materiaalwagen met ${selected.length} losse LEGO-onderdelen"
+                 data-blok-id="${MATERIAL_CART_BLOK.id}"
+                 data-blok-file="${MATERIAL_CART_BLOK.file}"
+                 data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
+              ${materialCartPrimitiveMarkup(materialCartParts, materialCartScope)}
+            </svg>
+            <ul class="sim-staged-bricks sim-material-cart-basket" role="list" aria-label="Losse LEGO-onderdelen in de materiaalwagen">
+              ${selected.length ? selected.join("") : '<li class="sim-staged-empty"><small>Leg de juiste losse LEGO-onderdelen in de materiaalwagen.</small></li>'}
+            </ul>
+          </div>
         </div>
       `;
     }
