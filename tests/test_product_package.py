@@ -56,16 +56,17 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260825.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260825.2"', html)
+        self.assertIn('href="style.css?v=20260827.1"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.1"', html)
+        self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260821.3"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260825a"', html)
-        self.assertIn('"script.js?v=20260825a"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v242-ci-preview-runtime"', service_worker)
+        self.assertIn('"script.js?v=20260827.1"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v243-batch-transfer"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v242-ci-preview-runtime")',
+            'register("service-worker.js?v=learngame-om-v243-batch-transfer")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -630,7 +631,8 @@ const completed = engine.completePlayerAction({{
   signed: true,
   signature: [[[1, 1], [20, 20]]],
   completedQuantity: task.order.quantity,
-  transferred: true
+  transferred: true,
+  transfer: engine.batchTransferDescriptor(task.order, task.role.id)
 }});
 for (let i = 0; i < 30; i += 1) {{
   now += 1000;
@@ -667,6 +669,173 @@ process.stdout.write(JSON.stringify({{
             ["IDLE", "PROCESSING", "WAITING_FOR_NEXT", "AWAITING_PLAYER"],
             result["roleStates"],
         )
+
+    def test_digital_batch_transfer_is_atomic_and_bound_to_current_route(self) -> None:
+        engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
+        node_program = f"""
+const fs = require("fs");
+global.window = global;
+window.setInterval = () => 1;
+window.clearInterval = () => {{}};
+eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
+let now = 1000;
+const Engine = window.LogisticsGameEngine.LogisticsGameEngine;
+const engine = new Engine({{
+  now: () => now,
+  random: () => 0,
+  config: {{
+    initialOrderDelayMs: 999999999,
+    transferDelayMinMs: 0,
+    transferDelayMaxMs: 0,
+    incidentChance: 0
+  }}
+}});
+const transfers = [];
+engine.subscribe(event => {{ if (event.type === "order-transferred") transfers.push(event.detail?.transfer); }});
+engine.start({{humanRoleId: "operations", playMode: "digital", productionProcesses: ["sequential"]}});
+const created = engine.generateOrder();
+const order = engine.orders.get(created.id);
+order.quantity = 3;
+Object.values(engine.roleRuntime).forEach(runtime => {{
+  runtime.queue = runtime.queue.filter(orderId => orderId !== order.id);
+}});
+engine.beginRoleWork("operations", order.id, now);
+const task = engine.playerTask();
+const descriptor = engine.batchTransferDescriptor(task.order, task.role.id);
+const basePayload = {{
+  parts: {{}},
+  signed: true,
+  signature: [[[1, 1], [20, 20]]],
+  completedQuantity: 3,
+  transferred: true
+}};
+const wrongTarget = engine.completePlayerAction({{
+  ...basePayload,
+  transfer: {{...descriptor, targetRoleId: "pd3"}}
+}});
+const wrongIdentity = engine.completePlayerAction({{
+  ...basePayload,
+  transfer: {{...descriptor, batchId: "STALE", sourceRoleId: "srm"}}
+}});
+const wrongQuantityAndRoute = engine.completePlayerAction({{
+  ...basePayload,
+  transfer: {{...descriptor, quantity: "3", routeIndex: descriptor.routeIndex + 1}}
+}});
+const missingTransfer = engine.completePlayerAction(basePayload);
+const nullTransfer = engine.completePlayerAction({{...basePayload, transfer: null}});
+const accepted = engine.completePlayerAction({{...basePayload, transfer: descriptor}});
+now = Number(engine.roleRuntime.operations.transfersAt || now);
+engine.updateRole("operations", now);
+const transferHistory = order.history.filter(item => item.type === "transferred");
+const customer = engine.batchTransferDescriptor({{
+  id: "CUS-1", productId: "A", quantity: 1,
+  roleFlow: ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"],
+  productionRoute: "sequential"
+}}, "customer");
+const parallel = engine.batchTransferDescriptor({{
+  id: "PAR-1", productId: "B", quantity: 2,
+  roleFlow: ["customer", "operations", "srm", "pd2", "ssf"],
+  productionRoute: "parallel"
+}}, "pd2");
+const finalDelivery = engine.batchTransferDescriptor({{
+  id: "FIN-1", productId: "C", quantity: 4,
+  roleFlow: ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"],
+  productionRoute: "sequential"
+}}, "ssf");
+const finalEngine = new Engine({{
+  now: () => now,
+  random: () => 0,
+  config: {{initialOrderDelayMs: 999999999, transferDelayMinMs: 0, transferDelayMaxMs: 0, incidentChance: 0}}
+}});
+const finalEvents = [];
+finalEngine.subscribe(event => {{
+  if (["order-transferred", "order-delivered"].includes(event.type)) {{
+    finalEvents.push({{
+      type: event.type,
+      historyTypes: event.detail?.order?.history?.map(item => item.type) || []
+    }});
+  }}
+}});
+finalEngine.start({{humanRoleId: "ssf", playMode: "digital", productionProcesses: ["sequential"]}});
+const finalOrder = finalEngine.generateOrder();
+finalOrder.roleFlow = ["customer", "operations", "srm", "pd1", "pd2", "pd3", "ssf"];
+finalOrder.currentRoleId = "ssf";
+finalOrder.routeIndex = 6;
+Object.values(finalEngine.roleRuntime).forEach(runtime => {{
+  runtime.queue = runtime.queue.filter(orderId => orderId !== finalOrder.id);
+}});
+finalEngine.beginRoleWork("ssf", finalOrder.id, now);
+const finalTask = finalEngine.playerTask();
+const finalAccepted = finalEngine.completePlayerAction({{
+  parts: {{}}, signed: true, signature: [[[1, 1], [20, 20]]],
+  completedQuantity: finalOrder.quantity, transferred: true,
+  transfer: finalEngine.batchTransferDescriptor(finalTask.order, "ssf")
+}});
+now = Number(finalEngine.roleRuntime.ssf.transfersAt || now);
+finalEngine.updateRole("ssf", now);
+process.stdout.write(JSON.stringify({{
+  descriptor,
+  wrongTarget,
+  wrongIdentity,
+  wrongQuantityAndRoute,
+  missingTransfer,
+  nullTransfer,
+  accepted,
+  transferHistory,
+  transfers,
+  currentRoleId: order.currentRoleId,
+  customer,
+  parallel,
+  finalDelivery,
+  finalAccepted,
+  finalEvents
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = json.loads(completed_process.stdout)
+        self.assertEqual("operations", result["descriptor"]["sourceRoleId"])
+        self.assertEqual("srm", result["descriptor"]["targetRoleId"])
+        self.assertEqual(3, result["descriptor"]["quantity"])
+        self.assertTrue(result["descriptor"]["atomicTransfer"])
+        self.assertFalse(result["wrongTarget"]["ok"])
+        self.assertIn("targetRoleId", " ".join(result["wrongTarget"]["errors"]))
+        self.assertFalse(result["wrongIdentity"]["ok"])
+        self.assertIn("batchId", " ".join(result["wrongIdentity"]["errors"]))
+        self.assertIn("sourceRoleId", " ".join(result["wrongIdentity"]["errors"]))
+        self.assertFalse(result["wrongQuantityAndRoute"]["ok"])
+        self.assertIn("aantal", " ".join(result["wrongQuantityAndRoute"]["errors"]))
+        self.assertIn("andere afdeling", " ".join(result["wrongQuantityAndRoute"]["errors"]))
+        self.assertFalse(result["missingTransfer"]["ok"])
+        self.assertFalse(result["nullTransfer"]["ok"])
+        self.assertIn("mist", " ".join(result["missingTransfer"]["errors"]))
+        self.assertTrue(result["accepted"]["ok"])
+        self.assertEqual("srm", result["currentRoleId"])
+        self.assertEqual(1, len(result["transferHistory"]))
+        self.assertEqual(1, len(result["transfers"]))
+        self.assertEqual(result["descriptor"]["orderId"], result["transfers"][0]["orderId"])
+        self.assertEqual(3, result["transfers"][0]["quantity"])
+        self.assertEqual("operations", result["transfers"][0]["sourceRoleId"])
+        self.assertEqual("srm", result["transfers"][0]["targetRoleId"])
+        self.assertEqual("order_information", result["transfers"][0]["cargoKind"])
+        self.assertEqual("operations", result["customer"]["targetRoleId"])
+        self.assertEqual("order_information", result["customer"]["cargoKind"])
+        self.assertEqual("finished_towers", result["parallel"]["cargoKind"])
+        self.assertEqual("ssf", result["parallel"]["targetRoleId"])
+        self.assertEqual("customer", result["finalDelivery"]["targetRoleId"])
+        self.assertTrue(result["finalDelivery"]["finalDelivery"])
+        self.assertEqual("delivery", result["finalDelivery"]["cargoKind"])
+        self.assertTrue(result["finalAccepted"]["ok"])
+        self.assertEqual(
+            ["order-transferred", "order-delivered"],
+            [event["type"] for event in result["finalEvents"]],
+        )
+        self.assertIn("transferred", result["finalEvents"][1]["historyTypes"])
 
     def test_standalone_engine_routes_parallel_orders_to_one_complete_product_department(self) -> None:
         engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
@@ -705,7 +874,8 @@ const completed = engine.completePlayerAction({{
   signed: true,
   signature: [[[1, 1], [20, 20]]],
   completedQuantity: task.order.quantity,
-  transferred: true
+  transferred: true,
+  transfer: engine.batchTransferDescriptor(task.order, task.role.id)
 }});
 for (let index = 0; index < 20; index += 1) {{
   now += 1000;
@@ -1947,6 +2117,12 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("data-sim-part-dropzone", ui)
         self.assertIn("data-sim-transfer-cargo", ui)
         self.assertIn("data-sim-transfer-dropzone", ui)
+        self.assertIn("data-sim-transfer-target", ui)
+        self.assertIn("activeTransferPointer", ui)
+        self.assertIn("setPointerCapture", ui)
+        self.assertIn('completeDigitalTransfer("touch")', ui)
+        self.assertIn("digitalCompletionPayload", ui)
+        self.assertNotIn('setData("application/x-learngame-transfer", "ready")', ui)
         self.assertIn("sim-action-help", ui)
         self.assertIn("data-sim-form-parts", ui)
         self.assertIn("Automatisch overgenomen", ui)
@@ -2004,6 +2180,7 @@ const digitalRejected = digital.completePlayerAction({{signed: true}});
 const digitalCompleted = digital.completePlayerAction({{
   parts: digitalTask.requiredParts,
   transferred: true,
+  transfer: digital.batchTransferDescriptor(digitalTask.order, digitalTask.role.id),
   signed: true,
   signature: [[[1, 1], [20, 20]]],
   completedQuantity: digitalTask.order.quantity
@@ -2015,6 +2192,7 @@ uiController.selectedParts = {{}};
 uiController.transferred = false;
 uiController.signed = false;
 uiController.signatureStrokes = [];
+uiController.digitalTransferSelected = false;
 uiController.feedback = "";
 let signatureRenderCount = 0;
 uiController.render = () => {{ signatureRenderCount += 1; }};
@@ -2049,13 +2227,17 @@ process.stdout.write(JSON.stringify({{
   digitalShowsSignatureForCompleteBatch: digitalBuilt.includes("data-sim-signature-pad"),
   digitalLocksTransferBeforeSignature: digitalBuilt.includes('draggable="false"'),
   digitalUnlocksBatchAfterSignature: signedDigitalPanel.includes('draggable="true"'),
+  digitalCarriesOrderBatch: signedDigitalPanel.includes(`data-sim-transfer-cargo="${{digitalTask.order.id}}"`),
+  digitalCarriesTarget: signedDigitalPanel.includes('data-sim-transfer-target="'),
+  digitalShowsWholeBatch: (signedDigitalPanel.match(/class="sim-transfer-tower"/g) || []).length === Math.min(4, digitalTask.order.quantity),
   physicalKeepsLegacyPartButton: physicalMarkup.includes('data-sim-part="'),
   signatureHasInk: signedMarkup.includes("sim-signature is-signed"),
   signedMarkupHasPad: signedMarkup.includes("data-sim-signature-pad"),
   signedMarkupIsActive: signedMarkup.includes("sim-signature is-signed"),
   signedMarkupConfirmsOrder: signedMarkup.includes("Order geparafeerd"),
   signedMarkupConfirms: signedMarkup.includes("Formulier geparafeerd ✓"),
-  signatureEnablesCompletionAfterTransfer: !completedDigitalPanel.match(/data-sim-complete\\s+disabled/)
+  transferShowsAuthoritativePendingState: completedDigitalPanel.includes("data-sim-transfer-pending"),
+  digitalHasNoSecondCompletionButton: !completedDigitalPanel.includes("data-sim-complete")
 }}));
 """
         completed_process = subprocess.run(
@@ -2084,12 +2266,16 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["digitalShowsSignatureForCompleteBatch"])
         self.assertTrue(result["digitalLocksTransferBeforeSignature"])
         self.assertTrue(result["digitalUnlocksBatchAfterSignature"])
+        self.assertTrue(result["digitalCarriesOrderBatch"])
+        self.assertTrue(result["digitalCarriesTarget"])
+        self.assertTrue(result["digitalShowsWholeBatch"])
         self.assertTrue(result["physicalKeepsLegacyPartButton"])
         self.assertTrue(result["signatureHasInk"])
         self.assertTrue(result["signedMarkupHasPad"])
         self.assertTrue(result["signedMarkupIsActive"])
         self.assertTrue(result["signedMarkupConfirmsOrder"])
-        self.assertTrue(result["signatureEnablesCompletionAfterTransfer"])
+        self.assertTrue(result["transferShowsAuthoritativePendingState"])
+        self.assertTrue(result["digitalHasNoSecondCompletionButton"])
 
         node_program = f"""
 const fs = require("fs");

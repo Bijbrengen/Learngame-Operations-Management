@@ -51,6 +51,52 @@ async function openManagerSessionSettings(page) {
   return form;
 }
 
+async function dispatchTouchDrag(page, source, target, { cancel = false } = {}) {
+  const pointInside = element => {
+    const bounds = element.getBoundingClientRect();
+    for (const vertical of [0.25, 0.5, 0.75]) {
+      for (const horizontal of [0.25, 0.5, 0.75]) {
+        const x = bounds.left + bounds.width * horizontal;
+        const y = bounds.top + bounds.height * vertical;
+        const hit = document.elementFromPoint(x, y);
+        if (hit === element || element.contains(hit)) return { x, y };
+      }
+    }
+    return null;
+  };
+  const start = await source.evaluate(pointInside);
+  expect(start).not.toBeNull();
+  const targetPoint = target && typeof target.evaluate === "function"
+    ? await target.evaluate(pointInside)
+    : target;
+  expect(targetPoint).not.toBeNull();
+  const end = targetPoint;
+  const client = await page.context().newCDPSession(page);
+  const point = (x, y) => [{ x, y, radiusX: 4, radiusY: 4, force: 0.7, id: 1 }];
+  try {
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: point(start.x, start.y)
+    });
+    for (let step = 1; step <= 6; step += 1) {
+      const progress = step / 6;
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: point(
+          start.x + (end.x - start.x) * progress,
+          start.y + (end.y - start.y) * progress
+        )
+      });
+    }
+    await client.send("Input.dispatchTouchEvent", {
+      type: cancel ? "touchCancel" : "touchEnd",
+      touchPoints: []
+    });
+  } finally {
+    await client.detach();
+  }
+}
+
 test.describe("Kritieke regressies: authenticatie, presets en productie", () => {
   test("1. karakteraanmaak gebruikt profielstatus 200 en actuele kwaliteits-API", async ({ page }) => {
     await mockAuthenticatedApp(page, { profileExists: false });
@@ -284,7 +330,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     );
   });
 
-  test("6. order van drie blokkeert overdracht tot batchbouw en getekende orderparaaf", async ({ page }) => {
+  test("6. order van drie blokkeert overdracht tot batchbouw en getekende orderparaaf", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.waitForFunction(() => (
       window.LogisticsGameEngine
@@ -403,20 +449,35 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(page.locator(".sim-signature")).toHaveClass(/is-signed/);
     await expect(transferCargo).toBeEnabled();
     await expect(transferCargo).toHaveAttribute("draggable", "true");
-    await transferCargo.click({ force: true });
-    await page.evaluate(() => {
-      if (window.__batchRegression?.controller) {
-        window.__batchRegression.controller.transferred = true;
-        window.__batchRegression.controller.render();
-      }
-    });
+    await expect(transferCargo.locator(".sim-transfer-tower")).toHaveCount(3);
 
+    // Een losse klik mag de batch niet meer afleveren. Voor toetsenbordgebruik
+    // pakt de eerste activatie de batch op en Escape zet hem weer terug.
+    await transferCargo.focus();
+    await page.keyboard.press("Enter");
+    await expect(transferCargo).toHaveAttribute("aria-pressed", "true");
     expect(await page.evaluate(
       () => window.__batchRegression.controller.transferred
-    )).toBe(true);
-    const complete = page.locator("[data-sim-complete]");
-    await expect(complete).toBeEnabled();
-    await complete.click();
+    )).toBe(false);
+    await expect(page.locator("[data-sim-transfer-dropzone]")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(transferCargo).toHaveAttribute("aria-pressed", "false");
+
+    // De drop zelf is nu de ene authoritative speleractie. Er volgt geen
+    // tweede administratieve knop of directe testmanipulatie meer.
+    const transferDestination = page.locator("[data-sim-transfer-dropzone]");
+    if (testInfo.project.name === "mobile-chromium") {
+      await page.locator(".sim-digital-transfer-section").evaluate(element => {
+        element.scrollIntoView({ block: "center" });
+      });
+      await dispatchTouchDrag(page, transferCargo, transferDestination);
+    } else {
+      await transferCargo.dragTo(transferDestination);
+    }
+    await expect(page.locator("[data-sim-complete]")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(
+      () => Boolean(window.__batchRegression.engine.playerTask())
+    )).toBe(false);
 
     const handling = await page.evaluate(() => {
       const { engine, orderId } = window.__batchRegression;
@@ -425,7 +486,144 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(handling).toMatchObject({
       completedQuantity: 3,
       orderSignature: true,
-      playMode: "digital"
+      playMode: "digital",
+      transfer: {
+        batchId: "ORD-001",
+        orderId: "ORD-001",
+        quantity: 3,
+        sourceRoleId: "pd1",
+        targetRoleId: "pd2",
+        atomicTransfer: true
+      }
+    });
+
+    const transferHistory = await page.evaluate(() => {
+      const { engine, orderId } = window.__batchRegression;
+      const runtime = engine.roleRuntime.pd1;
+      engine.updateRole("pd1", Number(runtime.transfersAt || Date.now()));
+      return engine.orders.get(orderId).history.filter(item => item.type === "transferred");
+    });
+    expect(transferHistory).toHaveLength(1);
+    expect(transferHistory[0]).toMatchObject({
+      orderId: "ORD-001",
+      quantity: 3,
+      sourceRoleId: "pd1",
+      targetRoleId: "pd2",
+      atomicTransfer: true
+    });
+  });
+
+  test("6b. complete batches van één of meer torens werken met toetsenbord en touch", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.evaluate(() => {
+      document.body.className = "";
+      document.body.innerHTML = `
+        <main class="batch-input-regression">
+          <section id="keyboard-batch"></section>
+          <section id="touch-batch"></section>
+        </main>
+      `;
+      const createHarness = (mountId, quantity) => {
+        const submissions = [];
+        const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+          random: () => 0,
+          config: {
+            initialOrderDelayMs: 999999999,
+            orderIntervalMinMs: 999999999,
+            orderIntervalMaxMs: 999999999,
+            transferDelayMinMs: 0,
+            transferDelayMaxMs: 0,
+            incidentChance: 0
+          }
+        });
+        const controller = window.LogisticsGameUI.mount(document.getElementById(mountId), {
+          engine,
+          actionSubmitter: async (payload, telemetry) => {
+            submissions.push({ payload, telemetry });
+            return { ok: true, queued: true, message: "Overdracht ontvangen." };
+          }
+        });
+        controller.start({ humanRoleId: "operations", playMode: "digital" });
+        const created = engine.generateOrder();
+        const order = engine.orders.get(created.id);
+        order.quantity = quantity;
+        Object.values(engine.roleRuntime).forEach(runtime => {
+          runtime.queue = runtime.queue.filter(orderId => orderId !== order.id);
+        });
+        engine.beginRoleWork("operations", order.id, Date.now());
+        controller.signatureStrokes = [[
+          { x: 5, y: 8 }, { x: 24, y: 22 }, { x: 42, y: 9 }, { x: 64, y: 25 }, { x: 85, y: 12 }
+        ]];
+        controller.signed = true;
+        controller.render();
+        return { engine, controller, submissions, orderId: order.id };
+      };
+      window.__batchInputs = {
+        keyboard: createHarness("keyboard-batch", 1),
+        touch: createHarness("touch-batch", 2)
+      };
+    });
+
+    const keyboard = page.locator("#keyboard-batch");
+    const keyboardCargo = keyboard.locator("[data-sim-transfer-cargo]");
+    await keyboardCargo.focus();
+    await page.keyboard.press("Enter");
+    await expect(keyboard.locator("[data-sim-transfer-dropzone]")).toBeFocused();
+    expect(await page.evaluate(() => window.__batchInputs.keyboard.submissions.length)).toBe(0);
+    await page.keyboard.press("Enter");
+    await expect(keyboard.locator("[data-sim-transfer-pending]")).toBeVisible();
+    await expect(keyboard.locator("[data-sim-transfer-pending]")).toBeFocused();
+
+    const keyboardSubmission = await page.evaluate(() => window.__batchInputs.keyboard.submissions[0]);
+    expect(keyboardSubmission.payload.transfer).toMatchObject({
+      quantity: 1,
+      sourceRoleId: "operations",
+      targetRoleId: "srm",
+      cargoKind: "order_information",
+      atomicTransfer: true
+    });
+    expect(keyboardSubmission.payload.completedQuantity).toBe(1);
+
+    // Keep the complete touch transfer in one viewport. The first, already
+    // verified harness otherwise pushes the source above the viewport while
+    // Playwright scrolls the destination into view.
+    await keyboard.evaluate(element => element.remove());
+    const touch = page.locator("#touch-batch");
+    const touchCargo = touch.locator("[data-sim-transfer-cargo]");
+    const touchDestination = touch.locator("[data-sim-transfer-dropzone]");
+    await touch.scrollIntoViewIfNeeded();
+    await touchDestination.scrollIntoViewIfNeeded();
+    await dispatchTouchDrag(page, touchCargo, touchDestination, { cancel: true });
+    expect(await page.evaluate(() => window.__batchInputs.touch.submissions.length)).toBe(0);
+    expect(await page.evaluate(() => window.__batchInputs.touch.controller.transferred)).toBe(false);
+
+    await dispatchTouchDrag(page, touchCargo, { x: 2, y: 2 });
+    expect(await page.evaluate(() => window.__batchInputs.touch.submissions.length)).toBe(0);
+    expect(await page.evaluate(() => window.__batchInputs.touch.controller.transferred)).toBe(false);
+
+    await dispatchTouchDrag(page, touchCargo, touchDestination);
+    const touchState = await page.evaluate(() => ({
+      submissions: window.__batchInputs.touch.submissions,
+      transferred: window.__batchInputs.touch.controller.transferred,
+      activeDigitalDrag: window.__batchInputs.touch.controller.activeDigitalDrag,
+      activeTransferPointer: Boolean(window.__batchInputs.touch.controller.activeTransferPointer),
+      feedback: window.__batchInputs.touch.controller.feedback
+    }));
+    expect(touchState.submissions, JSON.stringify(touchState)).toHaveLength(1);
+    expect(touchState).toMatchObject({
+      transferred: true,
+      activeDigitalDrag: false,
+      activeTransferPointer: false
+    });
+    await expect(touch.locator("[data-sim-transfer-pending]")).toBeVisible();
+    const touchSubmissions = touchState.submissions;
+    expect(touchSubmissions).toHaveLength(1);
+    expect(touchSubmissions[0].payload.transfer).toMatchObject({
+      quantity: 2,
+      sourceRoleId: "operations",
+      targetRoleId: "srm",
+      atomicTransfer: true
     });
   });
 

@@ -3287,6 +3287,7 @@
         "incident",
         "player-action-required",
         "player-action-completed",
+        "order-transferred",
         "order-delivered"
       ]);
       if (!trackedEvents.has(event.type)) return;
@@ -3295,13 +3296,23 @@
       // Generieke engine-events zouden ze anders ten onrechte aan de
       // controller toeschrijven.
       if (window.LOMMultiplayerRuntime?.getState?.().sessionId) return;
+      const transfer = event.detail?.transfer || {};
       dispatchInteraction({
         actionType: `simulation_${event.type.replace(/-/g, "_")}`,
         result: "success",
         objectRole: "standalone_logistics_engine",
         role: state.assignedRoleId ? roleById(state.assignedRoleId).title : "Speler",
         humanRoleId: event.snapshot.humanRoleId,
-        activeOrderCount: event.snapshot.orders.filter(order => order.status !== "DELIVERED").length
+        activeOrderCount: event.snapshot.orders.filter(order => order.status !== "DELIVERED").length,
+        batchId: transfer.batchId || null,
+        orderId: transfer.orderId || null,
+        productType: transfer.productId || null,
+        completedQuantity: transfer.quantity || null,
+        sourceRoleId: transfer.sourceRoleId || null,
+        targetRoleId: transfer.targetRoleId || null,
+        cargoKind: transfer.cargoKind || null,
+        atomicTransfer: transfer.atomicTransfer ?? null,
+        finalDelivery: transfer.finalDelivery ?? null
       });
     });
   }
@@ -7332,6 +7343,7 @@
       if (!command?.command_id || !command?.member_id) return;
       const result = event.detail?.result || {};
       const telemetry = command.payload?._telemetry || {};
+      const transfer = command.payload?.transfer || {};
       dispatchInteraction({
         personID: String(command.member_id),
         eventID: String(command.command_id),
@@ -7349,6 +7361,13 @@
         orderId: telemetry.order_id || null,
         productType: telemetry.product_id || null,
         commandId: String(command.command_id),
+        batchId: transfer.batchId || null,
+        completedQuantity: transfer.quantity || command.payload?.completedQuantity || null,
+        sourceRoleId: transfer.sourceRoleId || null,
+        targetRoleId: transfer.targetRoleId || null,
+        cargoKind: transfer.cargoKind || null,
+        atomicTransfer: transfer.atomicTransfer ?? null,
+        finalDelivery: transfer.finalDelivery ?? null,
         errors: Array.isArray(result.errors) ? result.errors.slice(0, 10) : []
       });
     });
@@ -7811,7 +7830,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v242-ci-preview-runtime").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v243-batch-transfer").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

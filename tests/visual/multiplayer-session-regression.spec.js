@@ -2368,6 +2368,367 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
     }
   });
 
+  test("een digitale Operations-batch blijft na responseverlies en reload exactly-once", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const backend = new StatefulMultiplayerApi();
+    const clients = [];
+
+    // De host houdt de controllerlease, terwijl Alice de menselijke
+    // Operations-rol van de agent overneemt. Zo loopt de sleepactie via het
+    // echte follower -> command POST -> controller -> CAS-resultaatpad.
+    backend.primary.members.find(
+      member => member.member_id === backend.person("host").memberId
+    ).assigned_role_id = "customer";
+    backend.primary.virtual_agents[0].role_id = "logistics_manager";
+
+    try {
+      const host = await openPerson(browser, backend, "host");
+      clients.push(host);
+      await waitForActiveRuntime(host.page, { controller: true });
+      await expect.poll(() => Array.isArray(backend.runtime.snapshot?.orders), {
+        timeout: 12_000
+      }).toBe(true);
+      await expect.poll(() => backend.injectConcurrentRevisionBeforeFirstPut).toBe(false);
+      await host.page.evaluate(async () => {
+        const engine = window.LEARNGameOMSimulator.getSharedGameController().engine;
+        engine.nextOrderAt = Number.MAX_SAFE_INTEGER;
+        engine.pendingPeakOrderAt = null;
+        engine.orders.clear();
+        Object.values(engine.roleRuntime).forEach(runtime => {
+          runtime.queue = [];
+          runtime.activeOrderId = null;
+          runtime.state = "IDLE";
+          runtime.completesAt = null;
+          runtime.transfersAt = null;
+          runtime.incident = null;
+          runtime.hesitation = false;
+        });
+        await window.LOMMultiplayerRuntime.publishSnapshot();
+      });
+      await expect.poll(() => backend.runtime.snapshot?.orders?.length, {
+        timeout: 12_000
+      }).toBe(0);
+
+      const alice = await openPerson(browser, backend, "alice");
+      clients.push(alice);
+      await expect(
+        alice.page.locator(`[data-join-session="${PRIMARY_SESSION_ID}"]`)
+      ).toContainText("Agentrol overnemen");
+      await alice.page.locator(`[data-join-session="${PRIMARY_SESSION_ID}"]`).click();
+      expect(backend.activeMember("alice")?.assigned_role_id).toBe("logistics_manager");
+      await waitForActiveRuntime(alice.page, { controller: false });
+      await host.page.evaluate(() => window.LOMMultiplayerRuntime.poll({ forceRestore: true }));
+      await expect.poll(() => host.page.evaluate(() => (
+        [...window.LEARNGameOMSimulator
+          .getSharedGameController()
+          .engine
+          .humanRoleIds]
+          .sort()
+      )), { timeout: 10_000 }).toEqual([...FULL_LO4_STATIONS].sort());
+
+      const prepared = await host.page.evaluate(async () => {
+        const controller = window.LEARNGameOMSimulator.getSharedGameController();
+        const engine = controller.engine;
+        engine.nextOrderAt = Number.MAX_SAFE_INTEGER;
+        engine.pendingPeakOrderAt = null;
+        engine.config.incidentChance = 0;
+        engine.config.transferDelayMinMs = 100;
+        engine.config.transferDelayMaxMs = 100;
+
+        const regression = { enqueues: [], transfers: [] };
+        const originalEnqueue = engine.enqueue.bind(engine);
+        engine.enqueue = (roleId, orderId) => {
+          regression.enqueues.push({ roleId, orderId });
+          return originalEnqueue(roleId, orderId);
+        };
+        regression.unsubscribe = engine.subscribe(event => {
+          if (event.type === "order-transferred") {
+            regression.transfers.push(event.detail?.transfer || null);
+          }
+        });
+        window.__operationsBatchRegression = regression;
+
+        const created = engine.generateOrder();
+        engine.updateRole("customer", Date.now());
+        const customerTask = engine.playerTask("customer");
+        if (customerTask?.order?.id !== created.id) {
+          throw new Error(`Verwachte ${created.id} als klanttaak, kreeg ${customerTask?.order?.id || "geen"}.`);
+        }
+        const productId = Object.keys(engine.products).sort().at(-1);
+        const result = engine.completePlayerAction({
+          customerOrder: { productId, quantity: 3, dueMinutes: 45 }
+        }, "customer");
+        if (!result.ok) throw new Error(result.errors.join(" | "));
+        engine.transferOrder("customer", created.id, Date.now());
+        engine.updateRole("operations", Date.now());
+        controller.render();
+        await window.LOMMultiplayerRuntime.publishSnapshot();
+
+        const task = engine.playerTask("operations");
+        return {
+          orderId: created.id,
+          productId,
+          state: engine.roleRuntime.operations.state,
+          transfer: engine.batchTransferDescriptor(task.order, "operations")
+        };
+      });
+      expect(prepared).toMatchObject({
+        state: "AWAITING_PLAYER",
+        transfer: {
+          batchId: prepared.orderId,
+          orderId: prepared.orderId,
+          productId: prepared.productId,
+          quantity: 3,
+          sourceRoleId: "operations",
+          targetRoleId: "srm",
+          routeIndex: 1,
+          productionRoute: "parallel",
+          cargoKind: "order_information",
+          atomicTransfer: true,
+          finalDelivery: false
+        }
+      });
+      await expect.poll(() => backend.runtime.snapshot?.roleRuntime?.operations, {
+        timeout: 12_000
+      }).toMatchObject({
+        state: "AWAITING_PLAYER",
+        activeOrderId: prepared.orderId,
+        completesAt: null
+      });
+
+      await alice.page.evaluate(() => window.LOMMultiplayerRuntime.poll({ forceRestore: true }));
+      await expect.poll(() => alice.page.evaluate(() => {
+        const task = window.LEARNGameOMSimulator.getSharedGameController().engine.playerTask();
+        return task && {
+          roleId: task.role.id,
+          orderId: task.order.id,
+          quantity: task.order.quantity
+        };
+      }), { timeout: 12_000 }).toEqual({
+        roleId: "operations",
+        orderId: prepared.orderId,
+        quantity: 3
+      });
+
+      await alice.page.evaluate(() => {
+        const controller = window.LEARNGameOMSimulator.getSharedGameController();
+        controller.signatureStrokes = [[
+          { x: 8, y: 18 },
+          { x: 34, y: 42 },
+          { x: 67, y: 16 },
+          { x: 102, y: 48 }
+        ]];
+        controller.signed = true;
+        controller.render();
+      });
+      const cargo = alice.page.locator("[data-sim-transfer-cargo]");
+      const destination = alice.page.locator("[data-sim-transfer-dropzone]");
+      await expect(cargo).toBeEnabled();
+      await expect(cargo).toHaveAttribute("data-sim-transfer-quantity", "3");
+      await expect(cargo.locator(".sim-transfer-tower")).toHaveCount(3);
+      await expect(destination).toHaveAttribute("data-sim-transfer-target", "srm");
+
+      const resultBarrier = backend.armCommandResultBarrier();
+      backend.loseNextAcceptedResponse("alice");
+      const snapshotRevisionBeforeCommand = backend.runtime.snapshotRevision;
+      const postsBeforeCommand = backend.stats.commandPosts.length;
+      await cargo.dragTo(destination);
+
+      await expect.poll(() => backend.stats.commandPosts.length).toBeGreaterThan(postsBeforeCommand);
+      const acceptedPost = backend.stats.commandPosts.findLast(post => (
+        post.key === "alice"
+        && post.payload?.transfer?.orderId === prepared.orderId
+      ));
+      expect(acceptedPost).toMatchObject({
+        key: "alice",
+        commandStatus: "accepted",
+        responseLost: true,
+        payload: {
+          completedQuantity: 3,
+          transferred: true,
+          transfer: prepared.transfer,
+          _telemetry: {
+            action_type: "simulation_role_action_submitted",
+            order_id: prepared.orderId,
+            product_id: prepared.productId,
+            timestamp: expect.any(String)
+          }
+        }
+      });
+      const commandId = acceptedPost.commandId;
+      expect(backend.runtime.pendingCommands.filter(
+        command => command.command_id === commandId
+      )).toHaveLength(1);
+      expect(backend.runtime.pendingCommands[0].role_id).toBe("logistics_manager");
+      expect(backend.runtime.pendingCommands[0].payload.transfer).toEqual(prepared.transfer);
+      await expect(alice.page.locator("[data-sim-transfer-pending]")).toBeVisible();
+      await expect.poll(async () => alice.page.evaluate(storageKey => {
+        const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+        return stored && {
+          commandId: stored.command_id,
+          needsRetry: stored.needs_retry,
+          transfer: stored.payload?.transfer
+        };
+      }, commandStorageKey(commandId)), { timeout: 5_000 }).toEqual({
+        commandId,
+        needsRetry: true,
+        transfer: prepared.transfer
+      });
+
+      await expect.poll(() => resultBarrier.started, { timeout: 15_000 }).toBe(true);
+      expect(backend.runtime.snapshotRevision).toBe(snapshotRevisionBeforeCommand);
+      expect(backend.stats.telemetryAttempts.filter(
+        attempt => attempt.event_id === commandId
+      )).toEqual([]);
+
+      // De server heeft de opdracht al geaccepteerd, maar Alice heeft geen
+      // response ontvangen. Na herladen herstelt de duurzame command-outbox
+      // daarom dezelfde visuele pending batch en post exact hetzelfde id.
+      await alice.page.reload();
+      await waitForApplication(alice.page, backend, alice.diagnostics);
+      await waitForActiveRuntime(alice.page, { controller: false });
+      await expect(alice.page.locator("[data-sim-transfer-pending]")).toBeVisible();
+      expect(await alice.page.evaluate(() => {
+        const controller = window.LEARNGameOMSimulator.getSharedGameController();
+        return {
+          remoteActionPending: controller.remoteActionPending,
+          transferred: controller.transferred,
+          taskOrderId: controller.engine.playerTask()?.order?.id || null
+        };
+      })).toEqual({
+        remoteActionPending: true,
+        transferred: true,
+        taskOrderId: prepared.orderId
+      });
+      await expect.poll(() => backend.stats.commandPosts.filter(
+        post => post.commandId === commandId
+      ).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+      const retriedPosts = backend.stats.commandPosts.filter(post => post.commandId === commandId);
+      expect(retriedPosts.filter(post => post.commandStatus === "accepted")).toHaveLength(1);
+      expect(retriedPosts.slice(1).every(
+        post => post.commandStatus === "duplicate_pending"
+      )).toBe(true);
+      expect(new Set(retriedPosts.map(post => JSON.stringify(post.payload)))).toEqual(
+        new Set([JSON.stringify(acceptedPost.payload)])
+      );
+
+      const commandResultPuts = backend.stats.runtimePutBodies.filter(body => (
+        body.command_results?.some(result => result.command_id === commandId)
+      ));
+      expect(commandResultPuts).toHaveLength(1);
+      expect(commandResultPuts[0]).toMatchObject({
+        base_revision: expect.any(Number),
+        snapshot: {
+          orders: [expect.objectContaining({ id: prepared.orderId, quantity: 3 })]
+        },
+        applied_command_ids: [],
+        command_results: [{
+          command_id: commandId,
+          status: "applied",
+          error_code: null
+        }]
+      });
+
+      resultBarrier.release();
+      await expect.poll(
+        () => backend.stats.commandAcknowledgements.get(commandId),
+        { timeout: 12_000 }
+      ).toBe("applied");
+      await expect.poll(
+        () => alice.page.evaluate(() => window.LOMMultiplayerRuntime.getState().ownPendingCommandIds),
+        { timeout: 12_000 }
+      ).toEqual([]);
+      expect(await alice.page.evaluate(
+        storageKey => localStorage.getItem(storageKey),
+        commandStorageKey(commandId)
+      )).toBeNull();
+      expect(backend.runtime.commandResults.get(commandId)).toMatchObject({
+        command_id: commandId,
+        member_id: "member-alice",
+        status: "applied",
+        error_code: null
+      });
+      expect(backend.runtime.appliedCommandIds.has(commandId)).toBe(true);
+
+      await expect.poll(() => backend.runtime.snapshot?.orders
+        ?.find(order => order.id === prepared.orderId)
+        ?.history
+        ?.filter(item => item.roleId === "operations" && item.type === "transferred")
+        .length, { timeout: 12_000 }).toBe(1);
+      const finalOrder = backend.runtime.snapshot.orders.find(
+        order => order.id === prepared.orderId
+      );
+      expect(finalOrder.currentRoleId).toBe("srm");
+      expect(finalOrder.history.filter(
+        item => item.roleId === "operations" && item.type === "player_handling"
+      )).toHaveLength(1);
+      expect(finalOrder.history.filter(
+        item => item.roleId === "operations" && item.type === "transferred"
+      )).toEqual([expect.objectContaining(prepared.transfer)]);
+
+      await expect.poll(() => host.page.evaluate(orderId => {
+        const regression = window.__operationsBatchRegression;
+        return {
+          targetEnqueues: regression.enqueues.filter(
+            item => item.roleId === "srm" && item.orderId === orderId
+          ),
+          transferEvents: regression.transfers.filter(
+            transfer => transfer?.sourceRoleId === "operations" && transfer?.orderId === orderId
+          )
+        };
+      }, prepared.orderId), { timeout: 12_000 }).toEqual({
+        targetEnqueues: [{ roleId: "srm", orderId: prepared.orderId }],
+        transferEvents: [prepared.transfer]
+      });
+
+      await expect.poll(() => backend.stats.telemetryAttempts.filter(
+        attempt => attempt.event_id === commandId && !attempt.failed
+      ).length, { timeout: 10_000 }).toBe(1);
+      expect(backend.stats.logicalTelemetry.get(commandId)).toMatchObject({
+        event_id: commandId,
+        person_id: "member-alice",
+        action_type: "simulation_role_action_completed"
+      });
+      await expect.poll(() => alice.page.evaluate(id => (
+        window.LEARNGameOMSimulator.getInteractionBuffer().filter(
+          event => event.eventID === id
+        ).length
+      ), commandId), { timeout: 10_000 }).toBe(1);
+      expect(await alice.page.evaluate(id => {
+        const event = window.LEARNGameOMSimulator.getInteractionBuffer().find(
+          candidate => candidate.eventID === id
+        );
+        return {
+          personID: event.personID,
+          actionType: event.actionType,
+          commandId: event.commandId,
+          batchId: event.batchId,
+          completedQuantity: event.completedQuantity,
+          sourceRoleId: event.sourceRoleId,
+          targetRoleId: event.targetRoleId,
+          cargoKind: event.cargoKind,
+          atomicTransfer: event.atomicTransfer,
+          finalDelivery: event.finalDelivery
+        };
+      }, commandId)).toEqual({
+        personID: "member-alice",
+        actionType: "simulation_role_action_completed",
+        commandId,
+        batchId: prepared.orderId,
+        completedQuantity: 3,
+        sourceRoleId: "operations",
+        targetRoleId: "srm",
+        cargoKind: "order_information",
+        atomicTransfer: true,
+        finalDelivery: false
+      });
+      expect(backend.stats.evilApiRequests).toEqual([]);
+      expect(backend.stats.unknownApiRequests).toEqual([]);
+    } finally {
+      await Promise.all(clients.map(client => client.context.close().catch(() => {})));
+    }
+  });
+
   test("window.open deelt de login maar nooit de controller-instance", async ({ browser }) => {
     test.setTimeout(45_000);
     const backend = new StatefulMultiplayerApi();

@@ -3,6 +3,7 @@
 
   const MAX_SIGNATURE_STROKES = 64;
   const MAX_SIGNATURE_POINTS = 512;
+  let uiControllerSequence = 0;
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -89,10 +90,15 @@
       this.customerOrderDraft = null;
       this.digitalSelectedPartId = null;
       this.digitalPartRotated = false;
+      this.digitalTransferSelected = false;
       this.activeDigitalDrag = false;
       this.pendingDigitalDragRender = false;
       this.digitalDragFlight = null;
       this.digitalDragNativeGhost = null;
+      this.activeTransferPointer = null;
+      this.transferDropTarget = null;
+      this.suppressTransferClickUntil = 0;
+      this.transferInstructionId = `simTransferInstruction${++uiControllerSequence}`;
       this.feedback = "";
       this.remoteActionSubmitter = typeof options.actionSubmitter === "function"
         ? options.actionSubmitter
@@ -161,6 +167,7 @@
       this.mount.addEventListener("pointermove", this.handlePointerMove);
       this.mount.addEventListener("pointerup", this.handlePointerUp);
       this.mount.addEventListener("pointercancel", this.handlePointerUp);
+      this.mount.addEventListener("lostpointercapture", this.handlePointerUp);
       document.getElementById("topDepartmentMiniView")
         ?.addEventListener("click", this.handleTopDepartmentClick);
       document.getElementById("topDepartmentMiniView")
@@ -213,10 +220,40 @@
 
     rejectRemoteAction(errors = []) {
       this.remoteActionPending = false;
+      this.transferred = false;
+      this.digitalTransferSelected = false;
       this.feedback = (errors.length ? errors : ["De handeling past niet meer bij de actuele spelsituatie."])
         .map(error => String(error))
         .join(" Â· ");
       this.render();
+    }
+
+    restoreRemoteActionPending(payload = null) {
+      const task = this.engine.playerTask();
+      if (!task) return false;
+      const transfer = payload?.transfer;
+      if (
+        transfer
+        && (
+          String(transfer.orderId || "") !== String(task.order.id)
+          || String(transfer.sourceRoleId || "") !== String(task.role.id)
+        )
+      ) {
+        return false;
+      }
+      this.remoteActionPending = true;
+      if (transfer) {
+        this.transferred = true;
+        this.digitalTransferSelected = false;
+      }
+      this.feedback = "Deze handeling is al ontvangen en wordt met de andere spelers gesynchroniseerdâ€¦";
+      this.render();
+      if (transfer) this.focusTransferStatus();
+      return true;
+    }
+
+    focusTransferStatus() {
+      requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-pending]")?.focus());
     }
 
     restoreSnapshot(snapshot, options = {}) {
@@ -304,11 +341,13 @@
       this.mount.removeEventListener("pointermove", this.handlePointerMove);
       this.mount.removeEventListener("pointerup", this.handlePointerUp);
       this.mount.removeEventListener("pointercancel", this.handlePointerUp);
+      this.mount.removeEventListener("lostpointercapture", this.handlePointerUp);
       document.getElementById("topDepartmentMiniView")
         ?.removeEventListener("click", this.handleTopDepartmentClick);
       document.getElementById("topDepartmentMiniView")
         ?.removeEventListener("keydown", this.handleTopDepartmentKeydown);
       window.removeEventListener("keydown", this.handleBuilderKeydown, true);
+      this.clearTransferDropTarget();
       this.clearDigitalDragFlight();
       this.mount.innerHTML = "";
     }
@@ -324,6 +363,21 @@
       this.customerOrderDraft = null;
       this.digitalSelectedPartId = null;
       this.digitalPartRotated = false;
+      this.digitalTransferSelected = false;
+      if (this.activeTransferPointer) {
+        const pointerId = this.activeTransferPointer.id;
+        this.activeTransferPointer = null;
+        try {
+          this.mount.releasePointerCapture?.(pointerId);
+        } catch (_error) {
+          // De pointer kan door een browsercancel al zijn vrijgegeven.
+        }
+        this.activeDigitalDrag = false;
+        this.pendingDigitalDragRender = false;
+        this.mount.classList.remove("is-digital-dragging");
+        this.clearDigitalDragFlight();
+      }
+      this.clearTransferDropTarget();
     }
 
     handleClick(event) {
@@ -338,6 +392,7 @@
       if (clearSignatureButton && !clearSignatureButton.disabled) {
         this.signatureStrokes = [];
         this.signed = false;
+        this.digitalTransferSelected = false;
         this.feedback = "De orderparaaf is gewist.";
         this.render();
         return;
@@ -367,7 +422,28 @@
 
       const transferCargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
       if (transferCargo && !transferCargo.disabled) {
-        this.completeDigitalTransfer();
+        if (Date.now() < this.suppressTransferClickUntil) return;
+        this.digitalTransferSelected = !this.digitalTransferSelected;
+        const task = this.engine.playerTask();
+        const quantity = Number(task?.order?.quantity || 1);
+        this.feedback = this.digitalTransferSelected
+          ? `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de volgende afdeling.`
+          : "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
+        this.render();
+        if (this.digitalTransferSelected) {
+          requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-dropzone]")?.focus());
+        }
+        return;
+      }
+
+      const transferDestination = eventTargetClosest(event, "[data-sim-transfer-dropzone]");
+      if (transferDestination && !transferDestination.disabled) {
+        if (!this.digitalTransferSelected) {
+          this.feedback = "Pak eerst de complete batch op of sleep hem rechtstreeks naar deze afdeling.";
+          this.render();
+          return;
+        }
+        void this.completeDigitalTransfer("keyboard");
         return;
       }
 
@@ -388,6 +464,7 @@
         this.transferred = false;
         this.signed = false;
         this.signatureStrokes = [];
+        this.digitalTransferSelected = false;
         this.render();
         return;
       }
@@ -432,6 +509,7 @@
       this.transferred = false;
       this.signed = false;
       this.signatureStrokes = [];
+      this.digitalTransferSelected = false;
       this.feedback = "";
       this.render();
       return true;
@@ -512,7 +590,74 @@
       this.digitalDragNativeGhost = null;
     }
 
+    createTransferDragFlight(cargo, event) {
+      this.clearDigitalDragFlight();
+      const flight = document.createElement("div");
+      flight.className = "sim-transfer-drag-flight";
+      flight.setAttribute("aria-hidden", "true");
+      flight.innerHTML = cargo.innerHTML;
+      document.body.appendChild(flight);
+      this.digitalDragFlight = flight;
+      this.moveDigitalDragFlight(event.clientX, event.clientY);
+    }
+
+    setTransferDropTarget(target) {
+      if (target === this.transferDropTarget) return;
+      this.transferDropTarget?.classList.remove("is-drag-over");
+      this.transferDropTarget = target || null;
+      this.transferDropTarget?.classList.add("is-drag-over");
+    }
+
+    clearTransferDropTarget() {
+      this.transferDropTarget?.classList.remove("is-drag-over");
+      this.transferDropTarget = null;
+    }
+
+    transferDropTargetAt(clientX, clientY) {
+      const target = (document.elementsFromPoint?.(clientX, clientY) || [])
+        .map(element => element?.closest?.("[data-sim-transfer-dropzone]") || null)
+        .find(Boolean) || null;
+      return target && this.mount.contains(target) && !target.disabled ? target : null;
+    }
+
+    finishTransferPointer(event, { deliver = false } = {}) {
+      const active = this.activeTransferPointer;
+      if (!active) return;
+      const target = deliver ? this.transferDropTargetAt(event.clientX, event.clientY) : null;
+      const dragged = active.dragging;
+      this.activeTransferPointer = null;
+      try {
+        this.mount.releasePointerCapture?.(active.id);
+      } catch (_error) {
+        // Een synthetische testpointer of een al verloren capture hoeft geen
+        // overdracht te blokkeren; de lokale dragstatus wordt hieronder gewist.
+      }
+      this.activeDigitalDrag = false;
+      this.mount.classList.remove("is-digital-dragging");
+      this.clearTransferDropTarget();
+      this.clearDigitalDragFlight();
+      if (dragged) this.suppressTransferClickUntil = Date.now() + 500;
+      const needsRender = this.pendingDigitalDragRender;
+      this.pendingDigitalDragRender = false;
+      if (dragged && target) {
+        void this.completeDigitalTransfer("touch");
+      } else if (dragged && deliver) {
+        this.feedback = "Zet de complete batch neer in het gemarkeerde vak van de volgende afdeling.";
+        this.render();
+      } else if (needsRender) {
+        this.render();
+      }
+    }
+
     handleBuilderKeydown(event) {
+      if (event.key === "Escape" && this.digitalTransferSelected) {
+        event.preventDefault();
+        this.digitalTransferSelected = false;
+        this.feedback = "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
+        this.render();
+        requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-cargo]")?.focus());
+        return;
+      }
       if (event.key !== "r" && event.key !== "R") return;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
       if (!this.mount.querySelector("[data-sim-builder-board]") || !this.digitalSelectedPartId) return;
@@ -528,8 +673,51 @@
       this.rotateDigitalSelectedPart();
     }
 
-    completeDigitalTransfer() {
+    batchTransferDescriptor(task) {
+      if (!task?.order || !task?.role?.id) return null;
+      if (typeof this.engine.batchTransferDescriptor === "function") {
+        return this.engine.batchTransferDescriptor(task.order, task.role.id);
+      }
+      const route = Array.isArray(task.order.roleFlow) ? task.order.roleFlow : [];
+      const routeIndex = Math.max(0, route.indexOf(task.role.id));
+      const targetRoleId = route[routeIndex + 1] || "customer";
+      return {
+        batchId: String(task.order.id),
+        orderId: String(task.order.id),
+        productId: String(task.order.productId || task.product?.id || ""),
+        quantity: Math.max(1, Number(task.order.quantity || 1)),
+        sourceRoleId: String(task.role.id),
+        targetRoleId,
+        routeIndex,
+        productionRoute: String(task.order.productionRoute || "sequential"),
+        cargoKind: ["customer", "operations"].includes(task.role.id)
+          ? "order_information"
+          : task.role.id === "srm"
+            ? "material_kits"
+            : task.role.id === "ssf"
+              ? "delivery"
+              : targetRoleId === "ssf"
+                ? "finished_towers"
+                : "wip_towers",
+        atomicTransfer: true,
+        finalDelivery: task.role.id === "ssf"
+      };
+    }
+
+    digitalCompletionPayload(task) {
+      return {
+        parts: { ...this.selectedParts },
+        signed: this.signed,
+        signature: this.signatureEvidence(),
+        completedQuantity: this.completedOrderQuantity(task),
+        transferred: true,
+        transfer: this.batchTransferDescriptor(task)
+      };
+    }
+
+    async completeDigitalTransfer(method = "drag") {
       const task = this.engine.playerTask();
+      if (!task || this.transferred || this.remoteActionPending) return false;
       if (!this.partsComplete(task) || !this.signed) {
         this.feedback = !this.partsComplete(task)
           ? "Maak eerst alle torens van deze order af."
@@ -538,8 +726,27 @@
         return false;
       }
       this.transferred = true;
-      this.feedback = "";
+      this.digitalTransferSelected = false;
+      this.feedback = method === "keyboard"
+        ? "De complete batch wordt bij de volgende afdeling neergezet…"
+        : "De complete batch wordt naar de volgende afdeling verplaatst…";
       this.render();
+      if (method === "keyboard") this.focusTransferStatus();
+      const quantity = Number(task.order.quantity || 1);
+      const result = await this.submitPlayerAction(
+        this.digitalCompletionPayload(task),
+        `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
+      );
+      if (result?.ok === false) {
+        this.transferred = false;
+        this.digitalTransferSelected = false;
+        this.render();
+        if (method === "keyboard") {
+          requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-cargo]")?.focus());
+        }
+        return false;
+      }
+      if (method === "keyboard") this.focusTransferStatus();
       return true;
     }
 
@@ -561,7 +768,11 @@
       if (cargo && !cargo.disabled) {
         this.activeDigitalDrag = true;
         this.mount.classList.add("is-digital-dragging");
-        event.dataTransfer?.setData("application/x-learngame-transfer", "ready");
+        event.dataTransfer?.setData(
+          "application/x-learngame-transfer",
+          String(cargo.dataset.simTransferCargo || "")
+        );
+        event.dataTransfer?.setData("text/plain", String(cargo.dataset.simTransferCargo || ""));
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
       }
     }
@@ -570,6 +781,7 @@
       if (!this.activeDigitalDrag) return;
       this.activeDigitalDrag = false;
       this.mount.classList.remove("is-digital-dragging");
+      this.clearTransferDropTarget();
       this.clearDigitalDragFlight();
       if (this.pendingDigitalDragRender) {
         this.pendingDigitalDragRender = false;
@@ -584,10 +796,14 @@
         if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
         return;
       }
-      if (eventTargetClosest(event, "[data-sim-transfer-dropzone]")) {
+      const transferTarget = eventTargetClosest(event, "[data-sim-transfer-dropzone]");
+      if (transferTarget) {
         event.preventDefault();
+        this.setTransferDropTarget(transferTarget);
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+        return;
       }
+      this.clearTransferDropTarget();
     }
 
     handleDrop(event) {
@@ -604,8 +820,15 @@
       const transferTarget = eventTargetClosest(event, "[data-sim-transfer-dropzone]");
       if (transferTarget) {
         event.preventDefault();
-        const ready = event.dataTransfer?.getData("application/x-learngame-transfer");
-        if (ready === "ready") this.completeDigitalTransfer();
+        const draggedOrderId = event.dataTransfer?.getData("application/x-learngame-transfer")
+          || event.dataTransfer?.getData("text/plain");
+        const task = this.engine.playerTask();
+        if (draggedOrderId && draggedOrderId === String(task?.order?.id || "")) {
+          void this.completeDigitalTransfer("drag");
+        } else {
+          this.feedback = "Deze batch hoort niet meer bij de actuele opdracht. Pak de actuele batch opnieuw op.";
+          this.pendingDigitalDragRender = true;
+        }
       }
     }
 
@@ -637,6 +860,25 @@
     }
 
     handlePointerDown(event) {
+      const cargo = eventTargetClosest(event, "[data-sim-transfer-cargo]");
+      if (cargo && !cargo.disabled && event.pointerType !== "mouse" && !this.activeTransferPointer) {
+        event.preventDefault();
+        this.activeDigitalDrag = true;
+        this.activeTransferPointer = {
+          id: event.pointerId,
+          source: cargo,
+          startX: event.clientX,
+          startY: event.clientY,
+          dragging: false
+        };
+        try {
+          this.mount.setPointerCapture?.(event.pointerId);
+        } catch (_error) {
+          // Pointer capture is een verbetering voor touch, geen voorwaarde om
+          // de drop veilig tegen de actuele order te kunnen valideren.
+        }
+        return;
+      }
       const pad = eventTargetClosest(event, "[data-sim-signature-pad]");
       if (!pad || pad.getAttribute("aria-disabled") === "true") return;
       if (
@@ -655,6 +897,21 @@
     }
 
     handlePointerMove(event) {
+      const transfer = this.activeTransferPointer;
+      if (transfer && transfer.id === event.pointerId) {
+        const distance = Math.hypot(event.clientX - transfer.startX, event.clientY - transfer.startY);
+        if (!transfer.dragging && distance >= 8) {
+          transfer.dragging = true;
+          this.mount.classList.add("is-digital-dragging");
+          this.createTransferDragFlight(transfer.source, event);
+        }
+        if (transfer.dragging) {
+          event.preventDefault();
+          this.moveDigitalDragFlight(event.clientX, event.clientY);
+          this.setTransferDropTarget(this.transferDropTargetAt(event.clientX, event.clientY));
+        }
+        return;
+      }
       const active = this.activeSignaturePointer;
       if (!active || active.id !== event.pointerId) return;
       event.preventDefault();
@@ -673,6 +930,13 @@
     }
 
     handlePointerUp(event) {
+      const transfer = this.activeTransferPointer;
+      if (transfer && transfer.id === event.pointerId) {
+        const deliver = event.type === "pointerup";
+        if (transfer.dragging) event.preventDefault();
+        this.finishTransferPointer(event, { deliver });
+        return;
+      }
       const active = this.activeSignaturePointer;
       if (!active || active.id !== event.pointerId) return;
       active.pad.releasePointerCapture?.(event.pointerId);
@@ -1427,25 +1691,69 @@
       `;
     }
 
+    digitalCargoVisualMarkup(task) {
+      const quantity = Math.max(1, Number(task.order.quantity || 1));
+      const visibleItems = Math.min(4, quantity);
+      const colors = Array.isArray(task.product?.colors) && task.product.colors.length
+        ? task.product.colors
+        : ["yellow", "red", "white"];
+      const items = Array.from({ length: visibleItems }, (_, index) => {
+        if (task.role.id === "srm") {
+          return `<span class="sim-transfer-kit" style="--sim-cargo-index:${index}"><i></i><i></i><i></i></span>`;
+        }
+        return `
+          <span class="sim-transfer-tower" style="--sim-cargo-index:${index}">
+            <i style="--sim-tower-color:var(--brick-${escapeHtml(colors[2] || colors[0])})"></i>
+            <i style="--sim-tower-color:var(--brick-${escapeHtml(colors[1] || colors[0])})"></i>
+            <i style="--sim-tower-color:var(--brick-${escapeHtml(colors[0])})"></i>
+          </span>
+        `;
+      }).join("");
+      return `
+        <span class="sim-transfer-cargo-visual" aria-hidden="true">
+          ${items}
+          ${quantity > visibleItems ? `<b>+${quantity - visibleItems}</b>` : ""}
+        </span>
+      `;
+    }
+
     digitalTransportMarkup(task, batchReady) {
       const quantity = Number(task.order.quantity || 1);
+      const transfer = this.batchTransferDescriptor(task);
+      const selected = Boolean(this.digitalTransferSelected);
+      const instructionId = this.transferInstructionId || "simTransferInstruction";
       return `
-        <div class="sim-digital-transport ${batchReady ? "is-ready" : "is-locked"}">
+        <div class="sim-digital-transport ${batchReady ? "is-ready" : "is-locked"} ${selected ? "has-selected-cargo" : ""}">
           <button type="button"
-                  class="sim-transfer-cargo"
-                  data-sim-transfer-cargo
+                  class="sim-transfer-cargo ${selected ? "is-selected" : ""}"
+                  data-sim-transfer-cargo="${escapeHtml(task.order.id)}"
+                  data-sim-transfer-quantity="${quantity}"
                   draggable="${batchReady ? "true" : "false"}"
+                  aria-pressed="${selected ? "true" : "false"}"
+                  aria-describedby="${instructionId}"
+                  aria-label="Sleep de complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}"
                   ${batchReady ? "" : "disabled"}>
-            <span aria-hidden="true">${task.role.id === "srm" ? "▦" : "▤"}</span>
+            ${this.digitalCargoVisualMarkup(task)}
             <strong>${quantity}× ${task.role.id === "srm" ? "complete materiaalset" : task.product.name}</strong>
           </button>
           <span aria-hidden="true">⇢</span>
-          <div class="sim-transfer-destination"
+          <button type="button"
+               class="sim-transfer-destination"
                data-sim-transfer-dropzone
-               aria-label="${escapeHtml(task.role.form.transferLabel)}">
+               data-sim-transfer-target="${escapeHtml(transfer?.targetRoleId || "customer")}"
+               aria-describedby="${instructionId}"
+               aria-label="Zet de complete batch neer: ${escapeHtml(task.role.form.transferLabel)}"
+               ${batchReady ? "" : "disabled"}>
             <span aria-hidden="true">⌂</span>
             <strong>${escapeHtml(task.role.form.transferLabel)}</strong>
-          </div>
+          </button>
+          <p id="${instructionId}" class="sim-transfer-instruction" aria-live="polite">
+            ${selected
+              ? "Batch opgepakt. Activeer het doelvak om hem neer te zetten, of druk Escape om te annuleren."
+              : batchReady
+                ? "Sleep de complete batch naar het doelvak. Met het toetsenbord: activeer eerst de batch en daarna het doelvak."
+                : "Bouw en parafeer eerst de volledige order; daarna wordt de complete batch verplaatsbaar."}
+          </p>
         </div>
       `;
     }
@@ -1474,7 +1782,6 @@
       const partEntries = Object.entries(task.requiredParts || {});
       const partsComplete = this.partsComplete(task);
       const batchReady = partsComplete && this.signed;
-      const canComplete = partsComplete && this.transferred && this.signed;
       const partActionTitle = task.role.id === "srm"
         ? "1. Haal onderdelen uit het magazijn en leg ze klaar"
         : partEntries.length
@@ -1511,15 +1818,13 @@
             </section>
           `}
           ${this.transferred ? `
-            <section class="sim-action-section">
-              <h3>4. Administratief afronden</h3>
+            <section class="sim-action-section" data-sim-transfer-pending role="status" aria-live="polite" tabindex="-1">
+              <h3>3. Batch afgeleverd</h3>
               ${this.digitalFormSummaryMarkup(task)}
-              <button type="button"
-                      class="primary-button sim-complete-button"
-                      data-sim-complete
-                      ${canComplete && !this.remoteActionPending ? "" : "disabled"}>
-                Uitgevoerd
-              </button>
+              <div class="sim-digital-check is-complete">
+                <span aria-hidden="true">✓</span>
+                <strong>${this.remoteActionPending ? "Overdracht wordt met de andere spelers gesynchroniseerd…" : "Overdracht is verwerkt."}</strong>
+              </div>
               ${this.feedback ? `<p class="sim-action-feedback">${escapeHtml(this.feedback)}</p>` : ""}
             </section>
           ` : ""}

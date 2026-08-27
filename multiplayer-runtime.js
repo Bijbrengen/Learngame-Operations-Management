@@ -275,6 +275,17 @@
     // deferred simulator exists. Mirror that recovered pending state into the
     // action panel after snapshot restoration, so a user cannot resubmit while
     // the idempotent command is still awaiting its authoritative result.
+    const task = controller.engine?.playerTask?.();
+    const matchingEntry = [...state.ownPendingCommandIds]
+      .map(commandId => state.pendingCommandRequests.get(commandId))
+      .find(entry => {
+        const orderId = entry?.payload?.transfer?.orderId || entry?.payload?._telemetry?.order_id;
+        const sourceRoleId = entry?.payload?.transfer?.sourceRoleId || entry?.role_id;
+        return task
+          && String(orderId || "") === String(task.order?.id || "")
+          && String(sourceRoleId || "") === String(task.role?.id || "");
+      });
+    if (controller.restoreRemoteActionPending?.(matchingEntry?.payload)) return;
     controller.remoteActionPending = true;
     controller.render?.();
   }
@@ -674,6 +685,9 @@
     }
     const memberId = String(state.session?.current_member_id || "member");
     const submittedAt = new Date().toISOString();
+    const transfer = payload?.transfer && typeof payload.transfer === "object"
+      ? payload.transfer
+      : null;
     const commandPayload = {
       ...payload,
       _telemetry: {
@@ -681,6 +695,13 @@
         learning_object_id: String(telemetry.learning_object_id || `lom.role.${telemetry.role_id || "unknown"}`),
         order_id: telemetry.order_id == null ? null : String(telemetry.order_id),
         product_id: telemetry.product_id == null ? null : String(telemetry.product_id),
+        batch_id: transfer?.batchId == null ? null : String(transfer.batchId),
+        quantity: transfer?.quantity == null ? null : Number(transfer.quantity),
+        source_role_id: transfer?.sourceRoleId == null ? null : String(transfer.sourceRoleId),
+        target_role_id: transfer?.targetRoleId == null ? null : String(transfer.targetRoleId),
+        cargo_kind: transfer?.cargoKind == null ? null : String(transfer.cargoKind),
+        atomic_transfer: transfer?.atomicTransfer == null ? null : Boolean(transfer.atomicTransfer),
+        final_delivery: transfer?.finalDelivery == null ? null : Boolean(transfer.finalDelivery),
         timestamp: submittedAt
       }
     };

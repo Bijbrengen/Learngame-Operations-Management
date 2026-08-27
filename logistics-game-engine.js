@@ -842,6 +842,7 @@
         this.releaseRole(runtime, now);
         return;
       }
+      const transfer = this.batchTransferDescriptor(order, roleId);
       order.history.push({
         at: now,
         roleId,
@@ -850,6 +851,7 @@
       });
       const currentIndex = order.roleFlow.indexOf(roleId);
       const nextRoleId = order.roleFlow[currentIndex + 1] || null;
+      let deliveredOrders = null;
       if (!nextRoleId) {
         order.status = "DELIVERED";
         order.currentRoleId = null;
@@ -860,12 +862,9 @@
           order.id,
           now
         );
-        this.emit("order-delivered", { order: deepClone(order) });
-        const delivered = [...this.orders.values()]
+        deliveredOrders = [...this.orders.values()]
           .filter(item => item.status === "DELIVERED")
           .sort((first, second) => Number(first.deliveredAt || 0) - Number(second.deliveredAt || 0));
-        delivered.slice(0, Math.max(0, delivered.length - MAX_RETAINED_DELIVERED_ORDERS))
-          .forEach(item => this.orders.delete(item.id));
       } else {
         order.currentRoleId = nextRoleId;
         order.routeIndex = currentIndex + 1;
@@ -877,7 +876,24 @@
           now
         );
       }
+      order.history.push({
+        at: now,
+        roleId,
+        type: "transferred",
+        label: transfer.finalDelivery ? "Volledige batch aan klant geleverd" : "Volledige batch overgedragen",
+        ...deepClone(transfer)
+      });
       this.releaseRole(runtime, now);
+      this.emit("order-transferred", {
+        order: deepClone(order),
+        transfer: deepClone(transfer)
+      });
+      if (!nextRoleId) {
+        this.emit("order-delivered", { order: deepClone(order) });
+        deliveredOrders
+          .slice(0, Math.max(0, deliveredOrders.length - MAX_RETAINED_DELIVERED_ORDERS))
+          .forEach(item => this.orders.delete(item.id));
+      }
     }
 
     releaseRole(runtime, now) {
@@ -960,6 +976,62 @@
       };
     }
 
+    batchTransferDescriptor(order, roleId) {
+      if (!order || !roleId) return null;
+      const route = Array.isArray(order.roleFlow) ? order.roleFlow : [];
+      const routeIndex = route.indexOf(roleId);
+      const targetRoleId = routeIndex >= 0 ? route[routeIndex + 1] || "customer" : null;
+      const cargoKind = ["customer", "operations"].includes(roleId)
+        ? "order_information"
+        : roleId === "srm"
+          ? "material_kits"
+          : roleId === "ssf"
+            ? "delivery"
+            : targetRoleId === "ssf"
+              ? "finished_towers"
+              : "wip_towers";
+      return {
+        batchId: String(order.id),
+        orderId: String(order.id),
+        productId: String(order.productId || ""),
+        quantity: Math.max(1, Number(order.quantity || 1)),
+        sourceRoleId: String(roleId),
+        targetRoleId,
+        routeIndex,
+        productionRoute: String(order.productionRoute || "sequential"),
+        cargoKind,
+        atomicTransfer: true,
+        finalDelivery: roleId === "ssf"
+      };
+    }
+
+    validateBatchTransfer(task, transfer) {
+      if (!transfer || typeof transfer !== "object") {
+        return ["De batchoverdracht mist geldige order-, bron- en doelgegevens."];
+      }
+      const expected = this.batchTransferDescriptor(task.order, task.role.id);
+      const errors = [];
+      const exactFields = [
+        "batchId", "orderId", "productId", "sourceRoleId", "targetRoleId",
+        "productionRoute", "cargoKind"
+      ];
+      exactFields.forEach(field => {
+        if (String(transfer[field] ?? "") !== String(expected[field] ?? "")) {
+          errors.push(`De batchoverdracht heeft een verouderd ${field}.`);
+        }
+      });
+      if (!Number.isInteger(transfer.quantity) || transfer.quantity !== expected.quantity) {
+        errors.push("Het aantal torens van de batch klopt niet meer.");
+      }
+      if (!Number.isInteger(transfer.routeIndex) || transfer.routeIndex !== expected.routeIndex) {
+        errors.push("De batch staat inmiddels bij een andere afdeling.");
+      }
+      if (transfer.atomicTransfer !== true || transfer.finalDelivery !== expected.finalDelivery) {
+        errors.push("De volledige batch moet atomair naar de actuele bestemming worden overgedragen.");
+      }
+      return errors;
+    }
+
     completePlayerAction(payload = {}, roleId = this.humanRoleId) {
       const task = this.playerTask(roleId);
       if (!task) return { ok: false, errors: ["Er staat geen handeling voor jouw rol klaar."] };
@@ -985,6 +1057,9 @@
             : "Bevestig de fysieke logistieke overdracht op het formulier."
         );
       }
+      if (this.playMode === "digital") {
+        errors.push(...this.validateBatchTransfer(task, payload.transfer));
+      }
       const signatureHasInk = Array.isArray(payload.signature)
         ? payload.signature.some(stroke => Array.isArray(stroke) && stroke.length >= 2)
         : String(payload.signature || "").trim().length >= 2;
@@ -999,6 +1074,7 @@
       const now = this.now();
       const runtime = this.roleRuntime[roleId];
       const order = this.orders.get(runtime.activeOrderId);
+      const transfer = this.batchTransferDescriptor(order, roleId);
       const handlingTimeMs = Math.max(0, now - Number(runtime.stateSince || now));
       order.history.push({
         at: now,
@@ -1008,7 +1084,8 @@
         handlingTimeMs,
         playMode: this.playMode,
         completedQuantity: Number(payload.completedQuantity || task.order.quantity || 1),
-        orderSignature: true
+        orderSignature: true,
+        transfer: deepClone(transfer)
       });
       const incident = this.rollIncident(roleId, order);
       this.addFeed(
@@ -1035,7 +1112,8 @@
         order: deepClone(order),
         roleId,
         playMode: this.playMode,
-        handlingTimeMs
+        handlingTimeMs,
+        transfer: deepClone(transfer)
       });
       return { ok: true, errors: [] };
     }

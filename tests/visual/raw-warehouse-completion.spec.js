@@ -1,6 +1,6 @@
 const { test, expect } = require("./fixtures");
 
-test("Magazijn Grondstoffen kan een complete digitale handeling met Uitgevoerd afronden", async ({ page }) => {
+test("Magazijn Grondstoffen kan een complete digitale batchoverdracht afronden", async ({ page }) => {
   await page.goto("/");
   await page.waitForFunction(() => (
     window.LogisticsGameEngine
@@ -60,7 +60,8 @@ test("Magazijn Grondstoffen kan een complete digitale handeling met Uitgevoerd a
       signed: controller.signed,
       signature: controller.signatureEvidence(),
       completedQuantity: controller.completedOrderQuantity(task),
-      transferred: controller.transferred
+      transferred: controller.transferred,
+      transfer: engine.batchTransferDescriptor(task.order, task.role.id)
     });
   });
   expect(actionResult.ok).toBe(true);

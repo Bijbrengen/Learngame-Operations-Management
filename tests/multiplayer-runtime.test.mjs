@@ -61,15 +61,19 @@ test("menselijke multiplayerrollen worden niet door lokale agents uitgevoerd", (
   engine.updateRole("customer", customerTransferAt);
   engine.updateRole("operations", customerTransferAt);
 
-  // Plaatsing en overdracht zijn twee geldige lifecycle-events van dezelfde
-  // rol. Een exactly-once-assertie moet daarom de plaatsing identificeren en
-  // mag niet alle customer-historyrecords bij elkaar optellen.
+  // Plaatsing, rolafronding en de atomische batchoverdracht zijn drie geldige
+  // lifecycle-events van dezelfde rol. Exactly-once wordt per eventtype
+  // gecontroleerd en niet door alle customer-historyrecords samen te tellen.
   assert.equal(
     storedOrder.history.filter(item => item.roleId === "customer").length,
-    2
+    3
   );
   assert.equal(
     storedOrder.history.filter(item => item.label === "Klantorder geplaatst").length,
+    1
+  );
+  assert.equal(
+    storedOrder.history.filter(item => item.type === "transferred").length,
     1
   );
 
@@ -174,6 +178,7 @@ test("controllerfailover normaliseert deadlines over browserklokken", () => {
   ahead.engine.completePlayerAction({
     parts: { ...task.requiredParts },
     transferred: true,
+    transfer: ahead.engine.batchTransferDescriptor(task.order, task.role.id),
     signed: true,
     signature: [[{ x: 0, y: 0 }, { x: 1, y: 1 }]]
   }, "operations");
@@ -340,7 +345,7 @@ test("service-worker levert offline de geversioneerde JS en gebruikt HTML alleen
     return responsePromise;
   }
 
-  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260821.2"), scriptResponse);
+  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260827.1"), scriptResponse);
   assert.equal(await fetchOffline("missing.js?v=1"), errorResponse);
   assert.equal(await fetchOffline("route", "navigate"), indexResponse);
   assert.ok(matchCalls.some(call => call.options?.ignoreSearch === true));
