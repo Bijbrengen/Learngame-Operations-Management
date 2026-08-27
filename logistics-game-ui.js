@@ -279,6 +279,11 @@
         this.renderTopLiveEvents(restored);
         const countdown = this.mount.querySelector(".sim-countdown");
         if (countdown && nextTask) countdown.textContent = formatCountdown(nextTask.order.dueAt);
+        if (this.activeDigitalDrag) {
+          this.pendingDigitalDragRender = true;
+        } else {
+          this.mountTaskTransferFlow(restored, nextTask);
+        }
       }
       return this;
     }
@@ -727,11 +732,12 @@
       }
       this.transferred = true;
       this.digitalTransferSelected = false;
-      this.feedback = method === "keyboard"
+      const keyboardMethod = method.includes("keyboard");
+      this.feedback = keyboardMethod
         ? "De complete batch wordt bij de volgende afdeling neergezet…"
         : "De complete batch wordt naar de volgende afdeling verplaatst…";
       this.render();
-      if (method === "keyboard") this.focusTransferStatus();
+      if (keyboardMethod) this.focusTransferStatus();
       const quantity = Number(task.order.quantity || 1);
       const result = await this.submitPlayerAction(
         this.digitalCompletionPayload(task),
@@ -741,12 +747,43 @@
         this.transferred = false;
         this.digitalTransferSelected = false;
         this.render();
-        if (method === "keyboard") {
-          requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-cargo]")?.focus());
+        if (keyboardMethod) {
+          requestAnimationFrame(() => this.mount
+            .querySelector("[data-sim-transfer-cargo], .iso-cargo-tower.is-draggable")
+            ?.focus());
         }
         return false;
       }
-      if (method === "keyboard") this.focusTransferStatus();
+      if (keyboardMethod) this.focusTransferStatus();
+      return true;
+    }
+
+    submitIsometricTransfer(payload = {}) {
+      const task = this.engine.playerTask();
+      const expected = this.batchTransferDescriptor(task);
+      const quantity = Number(payload.quantity ?? expected?.quantity);
+      const valid = Boolean(
+        task
+        && expected
+        && String(payload.cargoId || "") === String(expected.orderId)
+        && String(payload.sourceDepartmentId || "") === String(expected.sourceRoleId)
+        && String(payload.targetDepartmentId || "") === String(expected.targetRoleId)
+        && Number.isInteger(quantity)
+        && quantity === Number(expected.quantity)
+      );
+      if (!valid) {
+        this.feedback = "Deze batch hoort niet meer bij de actuele bron- en doelafdeling.";
+        this.render();
+        if (payload.inputMethod === "keyboard") {
+          requestAnimationFrame(() => this.mount
+            .querySelector("[data-sim-transfer-cargo], .iso-cargo-tower.is-draggable")
+            ?.focus());
+        }
+        return false;
+      }
+      void this.completeDigitalTransfer(
+        payload.inputMethod === "keyboard" ? "isometric-keyboard" : "isometric"
+      );
       return true;
     }
 
@@ -1030,6 +1067,7 @@
           this.taskKey = nextKey;
         }
         this.mount.innerHTML = this.taskDashboardMarkup(snapshot, task);
+        this.mountTaskTransferFlow(snapshot, task);
         return;
       }
       this.taskKey = null;
@@ -1140,6 +1178,34 @@
         return;
       }
       processMount.innerHTML = this.fallbackProcessFlowMarkup(snapshot);
+    }
+
+    mountTaskTransferFlow(snapshot, task) {
+      const target = this.mount.querySelector("[data-sim-isometric-transfer]");
+      if (!target || !this.renderProcessFlow) return;
+      const transfer = this.batchTransferDescriptor(task);
+      const batchReady = Boolean(
+        this.partsComplete(task)
+        && this.signed
+        && !this.transferred
+        && !this.remoteActionPending
+      );
+      this.renderProcessFlow(target, snapshot, {
+        mode: "player-transfer",
+        task,
+        transfer,
+        batchReady,
+        pending: Boolean(this.transferred || this.remoteActionPending),
+        onCargoDrop: payload => this.submitIsometricTransfer(payload),
+        onDragStateChange: active => {
+          this.activeDigitalDrag = Boolean(active);
+          this.mount.classList.toggle("is-digital-dragging", Boolean(active));
+          if (active) return;
+          const shouldRender = this.pendingDigitalDragRender;
+          this.pendingDigitalDragRender = false;
+          if (shouldRender) this.render();
+        }
+      });
     }
 
     processFlowSignature(snapshot) {
@@ -1722,6 +1788,22 @@
       const transfer = this.batchTransferDescriptor(task);
       const selected = Boolean(this.digitalTransferSelected);
       const instructionId = this.transferInstructionId || "simTransferInstruction";
+      if (this.renderProcessFlow) {
+        return `
+          <div class="sim-isometric-transfer ${batchReady ? "is-ready" : "is-locked"}">
+            <div class="sim-isometric-transfer-map"
+                 data-sim-isometric-transfer
+                 data-sim-transfer-order="${escapeHtml(task.order.id)}"
+                 data-sim-transfer-source="${escapeHtml(transfer?.sourceRoleId || task.role.id)}"
+                 data-sim-transfer-target="${escapeHtml(transfer?.targetRoleId || "customer")}"></div>
+            <p id="${instructionId}" class="sim-transfer-instruction" aria-live="polite">
+              ${batchReady
+                ? `Pak de ${quantity === 1 ? "toren" : `${quantity} torens`} in ${escapeHtml(task.role.department)} op en zet de complete batch neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                : "Bouw en parafeer eerst de volledige order; daarna kun je de torens in de isometrische kaart verslepen."}
+            </p>
+          </div>
+        `;
+      }
       return `
         <div class="sim-digital-transport ${batchReady ? "is-ready" : "is-locked"} ${selected ? "has-selected-cargo" : ""}">
           <button type="button"

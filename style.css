@@ -3884,6 +3884,53 @@ body[data-app-view="player"] .topbar {
   font-size: 1.35rem;
 }
 
+.sim-isometric-transfer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sim-isometric-transfer-map {
+  min-width: 0;
+  min-height: 330px;
+  overflow: hidden;
+  border: 1px solid #315961;
+  border-radius: 10px;
+  background: #07171d;
+}
+
+.sim-isometric-transfer-map .iso-logistics-view {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sim-isometric-transfer-map .iso-map-frame {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.sim-isometric-transfer-map .iso-map-toolbar {
+  min-height: 52px;
+  padding: 8px 12px;
+}
+
+.sim-isometric-transfer-map .iso-map-toolbar .eyebrow,
+.sim-isometric-transfer-map .iso-map-legend {
+  display: none;
+}
+
+.sim-isometric-transfer-map .iso-map-toolbar strong {
+  font-size: 0.8rem;
+}
+
+.sim-isometric-transfer-map .iso-map {
+  min-height: 278px;
+  aspect-ratio: 16 / 9;
+  touch-action: none;
+}
+
 .sim-transfer-cargo,
 .sim-transfer-destination {
   min-height: 92px;
@@ -5099,6 +5146,14 @@ body[data-app-view="player"] .topbar {
   .sim-drag-route,
   .sim-digital-transport > span {
     transform: rotate(90deg);
+  }
+
+  .sim-isometric-transfer-map {
+    min-height: 292px;
+  }
+
+  .sim-isometric-transfer-map .iso-map {
+    min-height: 240px;
   }
 
   .sim-action-panel,
@@ -8308,6 +8363,16 @@ select {
   opacity: 0.9;
 }
 
+.iso-cargo-tower.is-draggable:focus-visible,
+.iso-draggable-object.is-keyboard-dragging {
+  outline: none;
+  filter: brightness(1.22) drop-shadow(0 0 14px rgba(255, 238, 148, 0.95));
+}
+
+.iso-draggable-object.is-keyboard-dragging {
+  opacity: 0.82;
+}
+
 .iso-logistics-view.is-stock-dragging,
 .iso-logistics-view.is-stock-dragging * {
   cursor: grabbing !important;
@@ -8340,6 +8405,18 @@ select {
   filter: drop-shadow(0 8px 7px rgba(9, 26, 18, 0.46));
 }
 
+.iso-cargo-quantity-overflow circle {
+  fill: #10272d;
+  stroke: #f5cb72;
+  stroke-width: 4;
+}
+
+.iso-cargo-quantity-overflow text {
+  fill: #fff3c4;
+  font-size: 31px;
+  font-weight: 900;
+}
+
 .iso-stock-drop-label {
   pointer-events: none;
 }
@@ -8358,16 +8435,24 @@ select {
   letter-spacing: 0.04em;
 }
 
-.iso-department.is-drop-target.is-drag-over .iso-building {
+.iso-department.is-drop-target.is-drag-over .iso-building,
+.iso-department.is-drop-target.is-keyboard-target .iso-building {
   filter: none;
 }
 
-.iso-department.is-drop-target.is-drag-over .iso-building-roof {
+.iso-department.is-drop-target.is-drag-over .iso-building-roof,
+.iso-department.is-drop-target.is-keyboard-target .iso-building-roof {
   fill: #7acb8f;
 }
 
-.iso-department.is-drop-target.is-drag-over .iso-stock-drop-label rect {
+.iso-department.is-drop-target.is-drag-over .iso-stock-drop-label rect,
+.iso-department.is-drop-target.is-keyboard-target .iso-stock-drop-label rect {
   fill: #d9ffe4;
+  stroke-width: 5;
+}
+
+.iso-department.is-drop-target.is-keyboard-target:focus-visible .iso-zone-floor {
+  stroke: #fff3c4;
   stroke-width: 5;
 }
 

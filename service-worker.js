@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v243-batch-transfer";
+const CACHE_VERSION = "learngame-om-v244-isometric-transfer";
 const APP_SHELL = [
   "./",
   "./index.html",

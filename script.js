@@ -3106,8 +3106,11 @@
     });
   }
 
-  function standaloneLogisticsScene(snapshot) {
+  function standaloneLogisticsScene(snapshot, transferContext = null) {
     const orderById = new Map(snapshot.orders.map(order => [order.id, order]));
+    const activeTransfer = transferContext?.mode === "player-transfer"
+      ? transferContext.transfer
+      : null;
     const activeRole = snapshot.roleFlow.find(roleId => (
       snapshot.roleRuntime[roleId]?.state !== "IDLE"
     ));
@@ -3117,7 +3120,7 @@
     }
     const parallelEnabled = snapshot.productionProcesses?.includes("parallel");
     const sequentialEnabled = snapshot.productionProcesses?.includes("sequential");
-    const departments = STANDALONE_SIMULATION_DEPARTMENTS.map(baseDefinition => {
+    let departments = STANDALONE_SIMULATION_DEPARTMENTS.map(baseDefinition => {
       const productionIndex = ["pd1", "pd2", "pd3"].indexOf(baseDefinition.roleId);
       const definition = parallelEnabled && productionIndex >= 0
         ? {
@@ -3133,16 +3136,45 @@
         ...(runtime.queue || [])
       ].filter(Boolean)));
       const orders = orderIds.map(orderId => orderById.get(orderId)).filter(Boolean);
-      const activeOrder = orderById.get(runtime.activeOrderId);
-      const activeProduct = snapshot.products?.[activeOrder?.productId];
+      const isTransferSourceRole = Boolean(
+        activeTransfer && definition.roleId === activeTransfer.sourceRoleId
+      );
+      const activeOrder = isTransferSourceRole
+        ? orderById.get(activeTransfer.orderId) || transferContext?.task?.order || null
+        : orderById.get(runtime.activeOrderId);
+      const activeProduct = snapshot.products?.[activeOrder?.productId]
+        || (isTransferSourceRole ? transferContext?.task?.product : null);
       const latestEvent = snapshot.feed.find(item => (
         !activeOrder || item.orderId === activeOrder.id
       ));
       const partialSequence = simulationPartialSequence(activeProduct, definition.roleId, activeOrder);
-      const showProduct = ["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId)
-        && partialSequence.length;
+      const isTransferSource = Boolean(
+        isTransferSourceRole
+        && activeOrder?.id === activeTransfer.orderId
+      );
+      const isTransferTarget = Boolean(
+        activeTransfer
+        && definition.roleId === activeTransfer.targetRoleId
+      );
+      const cargoSequence = partialSequence.length
+        ? partialSequence
+        : isTransferSource
+          ? [...(activeProduct?.towerSequence || [])]
+          : [];
+      const showProduct = Boolean(
+        activeProduct
+        && cargoSequence.length
+        && (["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId) || isTransferSource)
+      );
       return {
         ...definition,
+        openRoof: definition.openRoof || isTransferSource || isTransferTarget,
+        acceptsCargoDrop: isTransferTarget,
+        dropLabel: isTransferTarget ? "ZET HIER NEER" : undefined,
+        dropAriaLabel: isTransferTarget
+          ? `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
+          : undefined,
+        emptyLabel: isTransferTarget ? "ontvangstvak" : definition.emptyLabel,
         status: simulationDepartmentStatus(runtime),
         badgeValue: orders.length,
         badgeLabel: `${orders.length} orders in behandeling`,
@@ -3160,10 +3192,17 @@
           cargoId: activeOrder.id,
           productId: activeOrder.productId,
           label: `${activeOrder.productName} · ${activeOrder.id}`,
-          towerSequence: partialSequence,
+          towerSequence: cargoSequence,
           groundPlateColor: activeProduct?.groundPlate?.color || "green",
           quantity: Number(activeOrder.quantity || 1),
-          draggable: false
+          displayScale: isTransferSource
+            ? Number(activeOrder.quantity || 1) === 1
+              ? 0.7
+              : Number(activeOrder.quantity || 1) === 2
+                ? 0.58
+                : 0.48
+            : undefined,
+          draggable: Boolean(isTransferSource && transferContext?.batchReady)
         } : null,
         facts: [
           { label: "Simulatiestatus", value: simulationStateLabel(runtime) },
@@ -3177,6 +3216,23 @@
         } : null
       };
     });
+    if (activeTransfer) {
+      const focusedLayouts = {
+        [activeTransfer.sourceRoleId]: { x: 1, y: 5, width: 4.4, depth: 3.8, height: 70 },
+        [activeTransfer.targetRoleId]: { x: 10, y: 1, width: 4.4, depth: 3.8, height: 70 }
+      };
+      departments = departments
+        .filter(department => (
+          department.roleId === activeTransfer.sourceRoleId
+          || department.roleId === activeTransfer.targetRoleId
+        ))
+        .map(department => ({
+          ...department,
+          layout: focusedLayouts[department.roleId],
+          forceSelectedRender: true,
+          hideMetric: false
+        }));
+    }
     const configuredConnections = parallelEnabled && !sequentialEnabled
       ? [
           { from: "customer", to: "operations", kind: "customer" },
@@ -3197,18 +3253,28 @@
             { from: "pd2", to: "ssf", kind: "material" }
           ]
         : STANDALONE_SIMULATION_CONNECTIONS;
-    const connections = configuredConnections.map(connection => {
+    const connections = (activeTransfer
+      ? [{
+          from: activeTransfer.sourceRoleId,
+          to: activeTransfer.targetRoleId,
+          kind: "material",
+          highlight: true
+        }]
+      : configuredConnections).map(connection => {
       const sourceRuntime = snapshot.roleRuntime[connection.from];
       const targetRuntime = snapshot.roleRuntime[connection.to];
       return {
         ...connection,
-        highlight: sourceRuntime?.state === "WAITING_FOR_NEXT"
+        highlight: connection.highlight
+          || sourceRuntime?.state === "WAITING_FOR_NEXT"
           || targetRuntime?.state === "PROCESSING"
           || targetRuntime?.state === "AWAITING_PLAYER"
       };
     });
     return {
-      title: parallelEnabled && sequentialEnabled
+      title: activeTransfer
+        ? `${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
+        : parallelEnabled && sequentialEnabled
         ? "Live simulatie · Hybride productiestroom"
         : parallelEnabled
           ? "Live simulatie · Parallelle productorganisatie"
@@ -3258,15 +3324,18 @@
     if (!window.LogisticsGameUI || !els.logisticsGameMount) return;
     logisticsGameController = window.LogisticsGameUI.mount(els.logisticsGameMount, {
       engineOptions: { products: standaloneSimulationProducts() },
-      renderProcessFlow: (target, snapshot) => {
+      renderProcessFlow: (target, snapshot, interaction = null) => {
         if (!window.IsometricLogisticsView) return;
         const renderScene = () => {
-          const scene = standaloneLogisticsScene(snapshot);
+          const scene = standaloneLogisticsScene(snapshot, interaction);
           if (!standaloneDepartmentDetailOpen) scene.selectedDepartmentId = null;
           window.IsometricLogisticsView.mount(target, scene, {
             centerDepartments: true,
-            departmentDetailMode: "popup",
+            departmentDetailMode: interaction?.mode === "player-transfer" ? "none" : "popup",
+            onCargoDrop: payload => interaction?.onCargoDrop?.(payload) ?? false,
+            onDragStateChange: active => interaction?.onDragStateChange?.(active),
             onDepartmentSelect: departmentId => {
+              if (interaction?.mode === "player-transfer") return;
               standaloneSelectedDepartmentId = departmentId;
               standaloneDepartmentDetailOpen = true;
               renderScene();
@@ -7830,7 +7899,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v243-batch-transfer").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v244-isometric-transfer").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

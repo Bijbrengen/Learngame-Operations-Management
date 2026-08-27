@@ -56,17 +56,17 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.1"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.1"', html)
+        self.assertIn('href="style.css?v=20260827.2"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.2"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260821.3"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260825a"', html)
-        self.assertIn('"script.js?v=20260827.1"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v243-batch-transfer"', service_worker)
+        self.assertIn('"isometric-logistics-view.js?v=20260827.2"', html)
+        self.assertIn('"script.js?v=20260827.2"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v244-isometric-transfer"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v243-batch-transfer")',
+            'register("service-worker.js?v=learngame-om-v244-isometric-transfer")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -467,13 +467,40 @@ window.IsometricLogisticsView.mount(container, {
       cargoId: "order-b",
       label: "Toren B",
       quantity: 2,
+      draggable: true,
       towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+    }
+  }]
+}, {});
+const largeContainer = { ...container, innerHTML: "" };
+window.IsometricLogisticsView.mount(largeContainer, {
+  title: "Grote batchweergave",
+  connections: [],
+  departments: [{
+    id: "production_c",
+    title: "Productie C",
+    departmentColor: "production-c",
+    status: "active",
+    openRoof: true,
+    layout: { x: 1, y: 2, width: 4.2, depth: 3.8, height: 78 },
+    cargoVisual: {
+      kind: "tower",
+      cargoId: "order-large",
+      label: "Toren C",
+      quantity: 6,
+      draggable: true,
+      towerSequence: ["white_8", "white_8", "blue_4", "red_4"]
     }
   }]
 }, {});
 process.stdout.write(JSON.stringify({
   instances: (container.innerHTML.match(/iso-cargo-tower-instance/g) || []).length,
-  quantity: /data-cargo-quantity="2"/.test(container.innerHTML)
+  quantity: /data-cargo-quantity="2"/.test(container.innerHTML),
+  cargoId: /data-cargo-id="order-b"/.test(container.innerHTML),
+  sourceId: /data-cargo-source-id="production_b"/.test(container.innerHTML),
+  keyboardButton: /role="button"[\s\S]*tabindex="0"/.test(container.innerHTML),
+  largeInstances: (largeContainer.innerHTML.match(/iso-cargo-tower-instance/g) || []).length,
+  largeOverflow: />\+2<\/text>/.test(largeContainer.innerHTML)
 }));
 '''
         result = subprocess.run(
@@ -486,6 +513,11 @@ process.stdout.write(JSON.stringify({
         rendered = json.loads(result.stdout)
         self.assertEqual(2, rendered["instances"])
         self.assertTrue(rendered["quantity"])
+        self.assertTrue(rendered["cargoId"])
+        self.assertTrue(rendered["sourceId"])
+        self.assertTrue(rendered["keyboardButton"])
+        self.assertEqual(4, rendered["largeInstances"])
+        self.assertTrue(rendered["largeOverflow"])
 
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
@@ -1078,21 +1110,24 @@ process.stdout.write(JSON.stringify({{
         self.assertNotIn("<h2>Live fabrieksoverzicht</h2>", ui)
         self.assertIn("grid-template-rows: minmax(0, 1fr)", styles)
         self.assertIn("mountProcessFlow", ui)
-        self.assertIn("renderProcessFlow: (target, snapshot) =>", game)
+        self.assertIn("renderProcessFlow: (target, snapshot, interaction = null) =>", game)
         self.assertIn("centerDepartments: true", game)
         self.assertIn('departmentDetailMode: "popup"', game)
         self.assertIn("onDepartmentClose", game)
         self.assertIn("centeredDepartmentViewBox", isometric)
         self.assertIn("iso-department-detail-popup", isometric)
         self.assertIn("data-department-detail-close", isometric)
-        self.assertIn("standaloneLogisticsScene(snapshot)", game)
+        self.assertIn("standaloneLogisticsScene(snapshot, interaction)", game)
         self.assertIn("window.IsometricLogisticsView.mount(target", game)
         self.assertIn("processFlowSignature", ui)
         self.assertIn("simulationStateLabel", game)
         self.assertIn("simulationPartialSequence", game)
         self.assertIn("cargoVisual: showProduct", game)
         self.assertIn("stockVisuals: definition.roleId === \"srm\"", game)
-        self.assertIn("towerSequence: partialSequence", game)
+        self.assertIn("towerSequence: cargoSequence", game)
+        self.assertIn('mode: "player-transfer"', ui)
+        self.assertIn("submitIsometricTransfer", ui)
+        self.assertIn("onCargoDrop: payload", game)
         self.assertIn("runtime.incident", game)
         self.assertIn(".sim-waiting-tabs", styles)
         self.assertIn(".sim-process-flow-mount", styles)

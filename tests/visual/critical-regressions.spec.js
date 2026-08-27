@@ -335,9 +335,12 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.waitForFunction(() => (
       window.LogisticsGameEngine
       && window.LogisticsGameUI
+      && window.IsometricLogisticsView
+      && window.LEARNGameOMSimulator?.getSharedGameController?.()?.renderProcessFlow
       && window.LeerpretSDK?.components?.["lego-builder"]?.logic?.planRecipeBuild
     ));
     await page.evaluate(() => {
+      const renderProcessFlow = window.LEARNGameOMSimulator.getSharedGameController().renderProcessFlow;
       document.body.className = "";
       document.body.innerHTML = '<main id="batch-regression"></main>';
 
@@ -354,7 +357,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       });
       const controller = window.LogisticsGameUI.mount(
         document.getElementById("batch-regression"),
-        { engine }
+        { engine, renderProcessFlow }
       );
       controller.start({
         humanRoleId: "pd1",
@@ -374,10 +377,23 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
     const progress = page.locator(".sim-inline-builder-status strong");
     const signaturePad = page.locator("[data-sim-signature-pad]");
-    const transferCargo = page.locator("[data-sim-transfer-cargo]");
+    const transferMap = page.locator(".sim-isometric-transfer-map");
+    const transferCargo = page.locator('.sim-isometric-transfer-map .iso-cargo-tower[data-cargo-id="ORD-001"]');
+    const transferDestination = page.locator('.sim-isometric-transfer-map [data-department-id="pd2"][data-accepts-drag-kind="cargo"]');
+    await expect(transferMap).toBeVisible();
+    await expect(transferMap.locator(".iso-department")).toHaveCount(2);
+    const transferSectionBox = await page.locator(".sim-digital-transfer-section").boundingBox();
+    const transferMapBox = await transferMap.boundingBox();
+    expect(transferSectionBox).not.toBeNull();
+    expect(transferMapBox).not.toBeNull();
+    expect(transferMapBox.x).toBeGreaterThanOrEqual(transferSectionBox.x - 1);
+    expect(transferMapBox.x + transferMapBox.width).toBeLessThanOrEqual(
+      transferSectionBox.x + transferSectionBox.width + 1
+    );
     await expect(progress).toHaveText("0 van 3 torens gebouwd · bouw toren 1");
     await expect(signaturePad).toHaveAttribute("aria-disabled", "true");
-    await expect(transferCargo).toBeDisabled();
+    await expect(transferCargo).toHaveAttribute("tabindex", "-1");
+    await expect(transferCargo).not.toHaveClass(/is-draggable/);
 
     const lastGameBrick = page.locator('[data-sim-drag-part="yellow_8"]');
     const lastGameBrickBox = await lastGameBrick.boundingBox();
@@ -402,7 +418,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       });
       await expect(progress).toHaveText(expected);
       await expect(signaturePad).toHaveAttribute("aria-disabled", "true");
-      await expect(transferCargo).toBeDisabled();
+      await expect(transferCargo).toHaveAttribute("tabindex", "-1");
       expect(await page.evaluate(
         () => window.__batchRegression.controller.transferred
       )).toBe(false);
@@ -422,8 +438,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
     await expect(progress).toHaveText("3 van 3 torens gebouwd");
     await expect(signaturePad).toHaveAttribute("aria-disabled", "false");
-    await expect(transferCargo).toBeDisabled();
-    await expect(transferCargo).toContainText("3×");
+    await expect(transferCargo).toHaveAttribute("tabindex", "-1");
 
     await signaturePad.scrollIntoViewIfNeeded();
     const box = await signaturePad.boundingBox();
@@ -447,9 +462,10 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     }
 
     await expect(page.locator(".sim-signature")).toHaveClass(/is-signed/);
-    await expect(transferCargo).toBeEnabled();
-    await expect(transferCargo).toHaveAttribute("draggable", "true");
-    await expect(transferCargo.locator(".sim-transfer-tower")).toHaveCount(3);
+    await expect(transferCargo).toHaveClass(/is-draggable/);
+    await expect(transferCargo).toHaveAttribute("role", "button");
+    await expect(transferCargo).toHaveAttribute("tabindex", "0");
+    await expect(transferCargo.locator(".iso-cargo-tower-instance")).toHaveCount(3);
 
     // Een losse klik mag de batch niet meer afleveren. Voor toetsenbordgebruik
     // pakt de eerste activatie de batch op en Escape zet hem weer terug.
@@ -459,20 +475,31 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(await page.evaluate(
       () => window.__batchRegression.controller.transferred
     )).toBe(false);
-    await expect(page.locator("[data-sim-transfer-dropzone]")).toBeFocused();
+    await expect(transferDestination).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(transferCargo).toHaveAttribute("aria-pressed", "false");
+    await expect(transferCargo).toBeFocused();
 
     // De drop zelf is nu de ene authoritative speleractie. Er volgt geen
     // tweede administratieve knop of directe testmanipulatie meer.
-    const transferDestination = page.locator("[data-sim-transfer-dropzone]");
     if (testInfo.project.name === "mobile-chromium") {
       await page.locator(".sim-digital-transfer-section").evaluate(element => {
         element.scrollIntoView({ block: "center" });
       });
       await dispatchTouchDrag(page, transferCargo, transferDestination);
     } else {
-      await transferCargo.dragTo(transferDestination);
+      const cargoBox = await transferCargo.boundingBox();
+      const targetBox = await transferDestination.boundingBox();
+      expect(cargoBox).not.toBeNull();
+      expect(targetBox).not.toBeNull();
+      await page.mouse.move(cargoBox.x + cargoBox.width / 2, cargoBox.y + cargoBox.height / 2);
+      await page.mouse.down();
+      await expect(page.locator("#batch-regression")).toHaveClass(/is-digital-dragging/);
+      await page.evaluate(() => window.__batchRegression.controller.render());
+      await expect(transferCargo).toHaveClass(/is-dragging/);
+      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+      await expect(transferDestination).toHaveClass(/is-drag-over/);
+      await page.mouse.up();
     }
     await expect(page.locator("[data-sim-complete]")).toHaveCount(0);
     await expect.poll(() => page.evaluate(
@@ -515,8 +542,14 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("6b. complete batches van één of meer torens werken met toetsenbord en touch", async ({ page }) => {
     await page.goto("/");
-    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.waitForFunction(() => (
+      window.LogisticsGameEngine
+      && window.LogisticsGameUI
+      && window.IsometricLogisticsView
+      && window.LEARNGameOMSimulator?.getSharedGameController?.()?.renderProcessFlow
+    ));
     await page.evaluate(() => {
+      const renderProcessFlow = window.LEARNGameOMSimulator.getSharedGameController().renderProcessFlow;
       document.body.className = "";
       document.body.innerHTML = `
         <main class="batch-input-regression">
@@ -539,6 +572,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
         });
         const controller = window.LogisticsGameUI.mount(document.getElementById(mountId), {
           engine,
+          renderProcessFlow,
           actionSubmitter: async (payload, telemetry) => {
             submissions.push({ payload, telemetry });
             return { ok: true, queued: true, message: "Overdracht ontvangen." };
@@ -566,11 +600,22 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
 
     const keyboard = page.locator("#keyboard-batch");
-    const keyboardCargo = keyboard.locator("[data-sim-transfer-cargo]");
+    const keyboardCargo = keyboard.locator('.iso-cargo-tower[data-cargo-id="ORD-001"]');
+    const keyboardDestination = keyboard.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
     await keyboardCargo.focus();
     await page.keyboard.press("Enter");
-    await expect(keyboard.locator("[data-sim-transfer-dropzone]")).toBeFocused();
+    await expect(keyboardDestination).toBeFocused();
     expect(await page.evaluate(() => window.__batchInputs.keyboard.submissions.length)).toBe(0);
+    const keyboardWrongDepartment = keyboard.locator('[data-department-id="operations"]');
+    await keyboardWrongDepartment.focus();
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => window.__batchInputs.keyboard.submissions.length)).toBe(0);
+    await expect(keyboardCargo).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(keyboardCargo).toHaveAttribute("aria-pressed", "false");
+    await expect(keyboardCargo).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(keyboardDestination).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(keyboard.locator("[data-sim-transfer-pending]")).toBeVisible();
     await expect(keyboard.locator("[data-sim-transfer-pending]")).toBeFocused();
@@ -590,8 +635,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     // Playwright scrolls the destination into view.
     await keyboard.evaluate(element => element.remove());
     const touch = page.locator("#touch-batch");
-    const touchCargo = touch.locator("[data-sim-transfer-cargo]");
-    const touchDestination = touch.locator("[data-sim-transfer-dropzone]");
+    const touchCargo = touch.locator('.iso-cargo-tower[data-cargo-id="ORD-001"]');
+    const touchDestination = touch.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
     await touch.scrollIntoViewIfNeeded();
     await touchDestination.scrollIntoViewIfNeeded();
     await dispatchTouchDrag(page, touchCargo, touchDestination, { cancel: true });
@@ -599,6 +644,11 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(await page.evaluate(() => window.__batchInputs.touch.controller.transferred)).toBe(false);
 
     await dispatchTouchDrag(page, touchCargo, { x: 2, y: 2 });
+    expect(await page.evaluate(() => window.__batchInputs.touch.submissions.length)).toBe(0);
+    expect(await page.evaluate(() => window.__batchInputs.touch.controller.transferred)).toBe(false);
+
+    const wrongDepartment = touch.locator('[data-department-id="operations"]');
+    await dispatchTouchDrag(page, touchCargo, wrongDepartment);
     expect(await page.evaluate(() => window.__batchInputs.touch.submissions.length)).toBe(0);
     expect(await page.evaluate(() => window.__batchInputs.touch.controller.transferred)).toBe(false);
 

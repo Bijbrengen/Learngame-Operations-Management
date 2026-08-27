@@ -2521,18 +2521,49 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         controller.signed = true;
         controller.render();
       });
-      const cargo = alice.page.locator("[data-sim-transfer-cargo]");
-      const destination = alice.page.locator("[data-sim-transfer-dropzone]");
-      await expect(cargo).toBeEnabled();
-      await expect(cargo).toHaveAttribute("data-sim-transfer-quantity", "3");
-      await expect(cargo.locator(".sim-transfer-tower")).toHaveCount(3);
-      await expect(destination).toHaveAttribute("data-sim-transfer-target", "srm");
+      const transferMap = alice.page.locator(".sim-isometric-transfer-map");
+      const cargo = transferMap.locator(`.iso-cargo-tower[data-cargo-id="${prepared.orderId}"]`);
+      const destination = transferMap.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
+      await expect(transferMap).toBeVisible();
+      const transferDiagnostic = await alice.page.evaluate(() => {
+        const controller = window.LEARNGameOMSimulator.getSharedGameController();
+        const task = controller.engine.playerTask();
+        return {
+          taskOrderId: task?.order?.id || null,
+          taskRoleId: task?.role?.id || null,
+          activeOrderId: controller.engine.roleRuntime.operations.activeOrderId,
+          productId: task?.order?.productId || null,
+          towerSequence: task?.product?.towerSequence || null,
+          descriptor: controller.batchTransferDescriptor(task)
+        };
+      });
+      expect(await cargo.count(), JSON.stringify(transferDiagnostic)).toBe(1);
+      await expect(cargo).toHaveClass(/is-draggable/);
+      await expect(cargo).toHaveAttribute("data-cargo-quantity", "3");
+      await expect(cargo.locator(".iso-cargo-tower-instance")).toHaveCount(3);
+      await expect(destination).toHaveAttribute("data-department-id", "srm");
 
       const resultBarrier = backend.armCommandResultBarrier();
       backend.loseNextAcceptedResponse("alice");
       const snapshotRevisionBeforeCommand = backend.runtime.snapshotRevision;
       const postsBeforeCommand = backend.stats.commandPosts.length;
-      await cargo.dragTo(destination);
+      await transferMap.scrollIntoViewIfNeeded();
+      const cargoBox = await cargo.boundingBox();
+      const destinationBox = await destination.boundingBox();
+      expect(cargoBox).not.toBeNull();
+      expect(destinationBox).not.toBeNull();
+      await alice.page.mouse.move(
+        cargoBox.x + cargoBox.width / 2,
+        cargoBox.y + cargoBox.height / 2
+      );
+      await alice.page.mouse.down();
+      await alice.page.mouse.move(
+        destinationBox.x + destinationBox.width / 2,
+        destinationBox.y + destinationBox.height / 2,
+        { steps: 12 }
+      );
+      await expect(destination).toHaveClass(/is-drag-over/);
+      await alice.page.mouse.up();
 
       await expect.poll(() => backend.stats.commandPosts.length).toBeGreaterThan(postsBeforeCommand);
       const acceptedPost = backend.stats.commandPosts.findLast(post => (
