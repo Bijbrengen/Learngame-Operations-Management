@@ -67,7 +67,7 @@ module.exports = defineConfig({
     },
     {
       name: "mobile-chromium",
-      testMatch: /(?:authentication|character-creation|critical-regressions|raw-warehouse-completion|smoke)\.spec\.js/,
+      testMatch: /(?:authentication|character-creation|critical-regressions|raw-warehouse-completion|session-topbar-controls|smoke)\.spec\.js/,
       use: {
         ...devices["Pixel 7"]
       }

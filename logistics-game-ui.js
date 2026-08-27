@@ -422,11 +422,29 @@
 
       const digitalPart = eventTargetClosest(event, "[data-sim-drag-part]");
       if (digitalPart) {
+        const selectedWithKeyboard = event.detail === 0;
         const changedPart = this.digitalSelectedPartId !== digitalPart.dataset.simDragPart;
         this.digitalSelectedPartId = digitalPart.dataset.simDragPart;
         if (changedPart) this.digitalPartRotated = false;
         this.feedback = "";
         this.render();
+        if (selectedWithKeyboard) {
+          requestAnimationFrame(() => this.mount.querySelector("[data-sim-stage-drop-action]")?.focus());
+        }
+        return;
+      }
+
+      const digitalStageAction = eventTargetClosest(event, "[data-sim-stage-drop-action]");
+      if (digitalStageAction && this.digitalSelectedPartId) {
+        const partId = this.digitalSelectedPartId;
+        this.digitalSelectedPartId = null;
+        this.digitalPartRotated = false;
+        this.addDigitalPart(partId);
+        requestAnimationFrame(() => {
+          const samePart = this.mount.querySelector(`[data-sim-drag-part="${partId}"]:not(:disabled)`);
+          const nextPart = this.mount.querySelector("[data-sim-drag-part]:not(:disabled)");
+          (samePart || nextPart || this.mount.querySelector("[data-sim-virtual-stage]"))?.focus();
+        });
         return;
       }
 
@@ -560,18 +578,7 @@
       );
       if (!piece) return;
       this.digitalDragFlight.dataset.rotated = String(Boolean(this.digitalPartRotated));
-      this.digitalDragFlight.innerHTML = window.LegoTowerRenderer.renderBrickPart
-        ? window.LegoTowerRenderer.renderBrickPart({
-            id: partId,
-            color: part.color,
-            width: piece.width,
-            depth: piece.depth
-          }, part.label)
-        : window.LegoTowerRenderer.renderPart({
-            id: partId,
-            color: part.color,
-            width: piece.width === piece.depth ? "narrow" : "wide"
-          }, part.label);
+      this.digitalDragFlight.innerHTML = this.digitalPartVisualMarkup(partId, part, piece);
     }
 
     moveDigitalDragFlight(clientX, clientY) {
@@ -666,6 +673,19 @@
     }
 
     handleBuilderKeydown(event) {
+      const activeStage = document.activeElement?.matches?.("[data-sim-stage-drop-action]")
+        ? document.activeElement
+        : null;
+      if (activeStage && event.key === "Escape" && this.digitalSelectedPartId) {
+        event.preventDefault();
+        const partId = this.digitalSelectedPartId;
+        this.digitalSelectedPartId = null;
+        this.digitalPartRotated = false;
+        this.feedback = "Het geselecteerde onderdeel is teruggezet in de magazijnstelling.";
+        this.render();
+        requestAnimationFrame(() => this.mount.querySelector(`[data-sim-drag-part="${partId}"]`)?.focus());
+        return;
+      }
       if (event.key === "Escape" && this.digitalTransferSelected) {
         event.preventDefault();
         this.digitalTransferSelected = false;
@@ -1533,6 +1553,33 @@
       `;
     }
 
+    digitalPartVisualMarkup(partId, part, dimensions = null) {
+      const renderer = window.LegoTowerRenderer;
+      if (!renderer) return '<i class="sim-lego-part-fallback" aria-hidden="true"><span></span><span></span></i>';
+      const piece = dimensions || this.builderCore().pieceDimensions(partId, this.engine.parts);
+      const label = part?.label || partId;
+      const color = part?.color || "white";
+      if (partId === "base_green") {
+        if (renderer.renderGroundPlatePart) {
+          return renderer.renderGroundPlatePart(piece.width, piece.depth, color, label);
+        }
+        return renderer.renderPart({ id: partId, color, width: "wide" }, label);
+      }
+      if (renderer.renderBrickPart) {
+        return renderer.renderBrickPart({
+          id: partId,
+          color,
+          width: piece.width,
+          depth: piece.depth
+        }, label);
+      }
+      return renderer.renderPart({
+        id: partId,
+        color,
+        width: piece.width === piece.depth ? "narrow" : "wide"
+      }, label);
+    }
+
     digitalSourceParts(task) {
       const requiredIds = Object.keys(task.requiredParts || {})
         .filter(partId => task.role.id === "srm" || partId !== "base_green");
@@ -1552,26 +1599,7 @@
         const displayDimensions = rotated
           ? { width: dimensions.depth, depth: dimensions.width }
           : dimensions;
-        const partVisual = window.LegoTowerRenderer
-          ? (window.LegoTowerRenderer.renderBrickPart
-            ? window.LegoTowerRenderer.renderBrickPart(
-              {
-                id: partId,
-                color: part.color,
-                width: displayDimensions.width,
-                depth: displayDimensions.depth
-              },
-              part.label
-            )
-            : window.LegoTowerRenderer.renderPart(
-              {
-                id: partId,
-                color: part.color,
-                width: dimensions.width === dimensions.depth ? "narrow" : "wide"
-              },
-              part.label
-            ))
-          : `<i aria-hidden="true"><span></span><span></span></i>`;
+        const partVisual = this.digitalPartVisualMarkup(partId, part, displayDimensions);
         return `
           <button type="button"
                   class="builder-palette-item brick-${escapeHtml(part.color)} sim-material-brick ${required ? "is-required" : "is-distractor"}${selectedClass}${rotated ? " is-rotated" : ""}"
@@ -1759,15 +1787,28 @@
     }
 
     digitalPartStageMarkup(task) {
+      const selectedPart = this.digitalSelectedPartId
+        ? this.engine.parts[this.digitalSelectedPartId]
+        : null;
       const selected = Object.entries(task.requiredParts || {}).flatMap(([partId, required]) => {
         const part = this.engine.parts[partId] || { label: partId, color: "white", size: "" };
         const amount = Math.min(required, Number(this.selectedParts[partId] || 0));
+        const dimensions = this.builderCore().pieceDimensions(partId, this.engine.parts);
+        const accessibleSize = String(part.size || "").replace(/[^0-9]+/, " bij ");
         return Array.from({ length: amount }, (_, index) => `
-          <span class="sim-staged-brick"
-                style="--sim-brick-color: var(--brick-${escapeHtml(part.color)})"
-                title="${escapeHtml(part.label)} ${index + 1}">
-            ${escapeHtml(part.size)}
-          </span>
+          <li class="sim-staged-part"
+              role="listitem"
+              data-sim-staged-part="${escapeHtml(partId)}"
+              data-sim-staged-instance="${index + 1}"
+              aria-label="${escapeHtml(part.label)}, ${escapeHtml(accessibleSize)}, onderdeel ${index + 1} van ${amount} klaargelegd">
+            <span class="sim-staged-part-visual" aria-hidden="true">
+              ${this.digitalPartVisualMarkup(partId, part, dimensions)}
+            </span>
+            <span class="sim-staged-part-copy" aria-hidden="true">
+              <strong>${escapeHtml(part.label)}</strong>
+              <small>${escapeHtml(part.size)} - ${index + 1}/${amount}</small>
+            </span>
+          </li>
         `);
       });
       if (["pd1", "pd2", "pd3"].includes(task.role.id)) {
@@ -1778,12 +1819,27 @@
              data-sim-virtual-stage
              data-sim-part-dropzone
              role="region"
+             tabindex="-1"
              aria-label="Klaarlegvlak voor magazijnonderdelen">
           <div>
             <span>Klaarlegvlak</span>
-            <strong>${selected.length} ${selected.length === 1 ? "onderdeel" : "onderdelen"} klaargelegd</strong>
+            <strong role="status" aria-live="polite" aria-atomic="true">${selected.length} ${selected.length === 1 ? "onderdeel" : "onderdelen"} klaargelegd</strong>
           </div>
-          <div class="sim-staged-bricks">${selected.length ? selected.join("") : "<small>Sleep de juiste blokken hierheen.</small>"}</div>
+          <button class="sim-stage-drop-action"
+                  type="button"
+                  data-sim-stage-drop-action
+                  ${selectedPart ? "" : "disabled"}
+                  aria-label="${selectedPart
+                    ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} neer op het klaarlegvlak`
+                    : "Selecteer eerst een LEGO-onderdeel uit de magazijnstelling"}">
+            <span aria-hidden="true">&darr;</span>
+            <strong>${selectedPart
+              ? `Leg ${escapeHtml(selectedPart.label || this.digitalSelectedPartId)} hier neer`
+              : "Selecteer eerst een onderdeel"}</strong>
+          </button>
+          <ul class="sim-staged-bricks" role="list" aria-label="Klaargelegde LEGO-onderdelen">
+            ${selected.length ? selected.join("") : '<li class="sim-staged-empty"><small>Sleep de juiste LEGO-onderdelen hierheen.</small></li>'}
+          </ul>
         </div>
       `;
     }

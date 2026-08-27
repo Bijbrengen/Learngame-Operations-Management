@@ -1362,7 +1362,7 @@ async function waitForApplication(page, backend, diagnostics = []) {
   }
   await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
   await expect(page.locator("#characterCreationGate")).toBeHidden();
-  await expect(page.locator("#playerSessionPanel")).toBeVisible();
+  await expect(page.locator("#playerSessionPanel")).toBeAttached();
 }
 
 async function waitForActiveRuntime(page, { controller }) {
@@ -1666,7 +1666,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
       const membershipBeforeTakeover = backend.runtime.membershipRevision;
       const snapshotBeforeTakeover = backend.runtime.snapshotRevision;
       await alice.page.locator(`[data-join-session="${PRIMARY_SESSION_ID}"]`).click();
-      await expect(alice.page.locator(".player-running-session")).toContainText("Klant");
+      await expect(alice.page.locator("#topSessionStatusButton")).toContainText("Klant");
       expect(backend.primary.virtual_agents).toHaveLength(0);
       expect(backend.activeMember("alice")?.assigned_role_id).toBe("customer");
       expect(backend.runtime.membershipRevision).toBe(membershipBeforeTakeover + 1);
@@ -1788,7 +1788,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
 
       await alice.page.reload();
       await waitForApplication(alice.page, backend, alice.diagnostics);
-      await expect(alice.page.locator(".player-running-session")).toBeVisible();
+      await expect(alice.page.locator("#topSessionControls")).toBeVisible();
       await expect(alice.page.locator("#playerSessionContent .active-game-card")).toHaveCount(2);
       expect(backend.primary.members.filter(
         member => member.member_id === "member-alice"
@@ -1981,7 +1981,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
 
       await alice.page.reload();
       await waitForApplication(alice.page, backend, alice.diagnostics);
-      await expect(alice.page.locator(".player-running-session")).toBeVisible();
+      await expect(alice.page.locator("#topSessionControls")).toBeVisible();
       await expect.poll(() => backend.stats.commandPosts.filter(
         command => command.commandId === commandId
       ).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
@@ -2237,7 +2237,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
       expect(backend.primary.waiting).toEqual(["dave"]);
       expect(backend.runtimeContract("host").human_role_ids).toEqual(FULL_LO4_ROLES);
 
-      await expect(carol.page.locator(".player-running-session"), { timeout: 10_000 })
+      await expect(carol.page.locator("#topSessionStatusButton"), { timeout: 10_000 })
         .toContainText("Klant");
       await waitForActiveRuntime(carol.page, { controller: false });
       await expect(dave.page.locator(".player-queued-session"), { timeout: 10_000 })

@@ -62,6 +62,19 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
   };
 
   await expect(page.locator(".sim-product-visual > strong")).toHaveText("Toren C");
+  const stage = page.locator("[data-sim-virtual-stage]");
+  const stageAction = page.locator("[data-sim-stage-drop-action]");
+  await expect(stage).toHaveAttribute("role", "region");
+  await expect(stage).toHaveAttribute("tabindex", "-1");
+  await expect(stage.getByRole("button", { name: /Selecteer eerst een LEGO-onderdeel/ })).toHaveCount(1);
+  await expect(stageAction).toBeDisabled();
+  await expect(stage.locator(".sim-staged-bricks")).toHaveAttribute(
+    "aria-label",
+    "Klaargelegde LEGO-onderdelen"
+  );
+  await expect(
+    page.locator('[data-sim-drag-part="base_green"] svg.lego-part-3d.base-plate')
+  ).toHaveCount(1);
   const layerGuide = page.locator(".sim-product-layer-guide");
   await expect(layerGuide).toHaveAttribute("role", "group");
   await expect(layerGuide).toHaveAttribute(
@@ -77,8 +90,23 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
   await expect(layerGuide).toContainText("2× Steen rood");
   await assertCompleteReference();
 
+  const firstGroundPlate = page.locator('[data-sim-drag-part="base_green"]');
+  if (testInfo.project.name === "mobile-chromium") {
+    await firstGroundPlate.tap();
+    await expect(stageAction).toBeEnabled();
+    await stageAction.tap();
+  } else {
+    await firstGroundPlate.focus();
+    await firstGroundPlate.press("Enter");
+    await expect(stageAction).toBeFocused();
+    await stageAction.press("Enter");
+  }
+  await expect(stage.locator('[data-sim-staged-part="base_green"]')).toHaveCount(1);
+  await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(1);
+
+  let stagedCount = 1;
   for (const partId of [
-    "base_green", "base_green",
+    "base_green",
     "white_8", "white_8", "white_8", "white_8",
     "blue_4", "blue_4",
     "red_4", "red_4"
@@ -87,8 +115,40 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
       window.__rawWarehouseReference.controller.addDigitalPart(selectedPartId)
     ), partId);
     expect(accepted).toBe(true);
+    stagedCount += 1;
+    await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(stagedCount);
     await assertCompleteReference();
   }
+
+  await expect(stage.locator("[data-sim-staged-part]")).toHaveCount(10);
+  await expect(stage.locator('[data-sim-staged-part="base_green"]')).toHaveCount(2);
+  await expect(stage.locator('[data-sim-staged-part="base_green"] svg.base-plate')).toHaveCount(2);
+  await expect(stage.locator('[data-sim-staged-part="white_8"]')).toHaveCount(4);
+  await expect(stage.locator('[data-sim-staged-part="blue_4"]')).toHaveCount(2);
+  await expect(stage.locator('[data-sim-staged-part="red_4"]')).toHaveCount(2);
+  await expect(stage.locator("svg.lego-part-3d")).toHaveCount(10);
+  await expect(stage.locator(".sim-staged-brick")).toHaveCount(0);
+  await expect(stage.locator('[data-sim-staged-part="white_8"]').first()).toHaveAttribute(
+    "aria-label",
+    /Steen wit, 2 bij 4, onderdeel 1 van 4 klaargelegd/
+  );
+  const stageLayout = await stage.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    const items = [...element.querySelectorAll("[data-sim-staged-part]")];
+    return {
+      allInside: items.every(item => {
+        const rect = item.getBoundingClientRect();
+        return rect.left >= bounds.left - 0.5
+          && rect.right <= bounds.right + 0.5
+          && rect.top >= bounds.top - 0.5
+          && rect.bottom <= bounds.bottom + 0.5;
+      }),
+      pageWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth
+    };
+  });
+  expect(stageLayout.allInside).toBe(true);
+  expect(stageLayout.pageWidth).toBeLessThanOrEqual(stageLayout.viewportWidth);
 
   const preservedParts = await page.evaluate(() => {
     const { engine, controller } = window.__rawWarehouseReference;
@@ -102,8 +162,8 @@ test("Magazijn Grondstoffen houdt alle lagen van de referentietoren permanent zi
   expect(preservedParts.after).toEqual(preservedParts.before);
   await assertCompleteReference();
 
-  await page.locator(".sim-order-form").screenshot({
-    path: testInfo.outputPath("raw-warehouse-static-tower-c.png")
+  await page.locator(".sim-digital-stage-section").screenshot({
+    path: testInfo.outputPath("raw-warehouse-static-tower-and-staged-parts.png")
   });
 });
 

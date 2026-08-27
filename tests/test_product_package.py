@@ -56,17 +56,17 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.3"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.3"', html)
+        self.assertIn('href="style.css?v=20260827.4"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.4"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
-        self.assertIn('src="game-sessions.js?v=20260821.3"', html)
+        self.assertIn('src="game-sessions.js?v=20260827.4"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260827.2"', html)
-        self.assertIn('"script.js?v=20260827.3"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v245-static-tower-reference"', service_worker)
+        self.assertIn('"script.js?v=20260827.4"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v246-lego-stage-session-controls"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v245-static-tower-reference")',
+            'register("service-worker.js?v=learngame-om-v246-lego-stage-session-controls")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -2011,6 +2011,11 @@ process.stdout.write(JSON.stringify({
         self.assertIn("player-running-session", runtime)
         self.assertIn("placePlayerSessionPanel", runtime)
         self.assertIn('id="playerSessionMetricMount"', html)
+        self.assertIn('id="topSessionControls"', html)
+        self.assertIn('id="topSessionStatusButton"', html)
+        self.assertIn('id="topSessionStopButton"', html)
+        self.assertIn("data-open-game-session-overview", runtime)
+        self.assertIn("els.playerPanel.hidden = Boolean(running)", runtime)
         self.assertIn('id="liveEventsToggle"', html)
         self.assertNotIn('id="liveEventsPopover"', html)
         self.assertIn('id="topLiveEventsPopover"', html)
@@ -2026,7 +2031,7 @@ process.stdout.write(JSON.stringify({
         )
         self.assertNotIn('id="openOrdersValue"', html)
         self.assertNotIn("Gamecode &amp; lobby", runtime)
-        self.assertIn("is-metric-session", runtime)
+        self.assertNotIn("els.playerMetricMount.append(els.playerPanel)", runtime)
         self.assertIn("data-game-master-role-select", runtime)
         self.assertIn("game-master-role", runtime)
         self.assertIn("(rolruil)", runtime)
@@ -2049,7 +2054,7 @@ process.stdout.write(JSON.stringify({
         self.assertIn("response.status === 501", runtime)
         self.assertIn("error.status = response.status", runtime)
         self.assertIn("Je neemt al deel aan een lobby of actieve gamesessie.", runtime)
-        self.assertIn("await refreshAfterMutation()", runtime)
+        self.assertIn("await refreshAfterMutation(mutationVersion)", runtime)
         self.assertIn('localStorage.setItem("leerpret.apiBase"', runtime)
         self.assertIn("createSessionDraft", runtime)
         self.assertIn("state.createSessionDraft.game_config = config", runtime)
@@ -2126,6 +2131,20 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("displayProduct", ui)
         self.assertIn("selectedProductId", ui)
 
+    def test_srm_stage_renders_each_dropped_lego_part_in_3d(self) -> None:
+        ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn("digitalPartVisualMarkup", ui)
+        self.assertIn("renderGroundPlatePart", ui)
+        self.assertIn("renderBrickPart", ui)
+        self.assertIn("data-sim-staged-part", ui)
+        self.assertIn("Klaargelegde LEGO-onderdelen", ui)
+        self.assertIn('role="region"', ui)
+        self.assertIn("data-sim-stage-drop-action", ui)
+        self.assertNotIn('class="sim-staged-brick"', ui)
+        self.assertIn(".sim-staged-part-visual .lego-part-3d", styles)
+        self.assertNotIn(".sim-staged-brick::before", styles)
+
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-componenten niet geconfigureerd")
     def test_physical_and_digital_modes_require_different_player_actions(self) -> None:
         engine_path = PRODUCT_ROOT / "logistics-game-engine.js"
@@ -2136,6 +2155,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("physicalActionPanelMarkup", ui)
         self.assertIn("digitalActionPanelMarkup", ui)
         self.assertIn("digitalPartStageMarkup", ui)
+        self.assertIn("digitalPartVisualMarkup", ui)
+        self.assertIn("renderGroundPlatePart", ui)
         self.assertIn("digitalBuilderBoardMarkup", ui)
         self.assertIn("placeDigitalBoardPart", ui)
         self.assertIn('components?.["lego-builder"]?.logic', ui)
@@ -2148,6 +2169,9 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('event.dataTransfer.dropEffect = "copy"', ui)
         self.assertIn('event.dataTransfer.dropEffect = "move"', ui)
         self.assertIn("data-sim-virtual-stage", ui)
+        self.assertIn("data-sim-staged-part", ui)
+        self.assertIn("Klaargelegde LEGO-onderdelen", ui)
+        self.assertNotIn('class="sim-staged-brick"', ui)
         self.assertIn("data-sim-drag-part", ui)
         self.assertIn("data-sim-part-dropzone", ui)
         self.assertIn("data-sim-transfer-cargo", ui)
@@ -2162,6 +2186,9 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("data-sim-form-parts", ui)
         self.assertIn("Automatisch overgenomen", ui)
         self.assertIn(".sim-digital-workbench", styles)
+        self.assertIn(".sim-staged-part-visual .lego-part-3d", styles)
+        self.assertIn(".top-session-stop-button", styles)
+        self.assertIn(".top-session-control:focus-within > .top-session-tooltip", styles)
         self.assertIn(".sim-inline-builder-board", styles)
         self.assertIn(
             "grid-template-columns: minmax(330px, 0.78fr) minmax(520px, 1.22fr)",

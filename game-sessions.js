@@ -216,6 +216,13 @@
     topPeopleCount: document.getElementById("topPeopleCount"),
     topAgentsButton: document.getElementById("topAgentsButton"),
     topAgentCount: document.getElementById("topAgentCount"),
+    topSessionControls: document.getElementById("topSessionControls"),
+    topSessionStatusButton: document.getElementById("topSessionStatusButton"),
+    topSessionStatusValue: document.getElementById("topSessionStatusValue"),
+    topSessionStatusTitle: document.getElementById("topSessionStatusTitle"),
+    topSessionStatusCounts: document.getElementById("topSessionStatusCounts"),
+    topSessionParticipationText: document.getElementById("topSessionParticipationText"),
+    topSessionStopButton: document.getElementById("topSessionStopButton"),
     createForm: document.getElementById("gameSessionCreateForm"),
     sessionType: document.getElementById("gameSessionType"),
     dialog: document.getElementById("gameConsensusDialog"),
@@ -1690,17 +1697,59 @@
   function renderTopParticipation(session) {
     const els = elements();
     const visible = Boolean(session);
+    const queued = ["waiting", "queued"].includes(session?.participation_status);
+    const compactSessionVisible = Boolean(visible && session.status === "running" && !queued);
     const humanCount = visible
       ? (session.members || []).filter(member => member.present !== false).length
       : 0;
     const agentCount = visible ? (session.virtual_agents || []).length : 0;
+    const capacity = visible
+      ? Number(session.required_role_ids?.length || session.capacity || humanCount + agentCount)
+      : 0;
+    const currentMember = visible
+      ? (session.members || []).find(member => member.member_id === session.current_member_id)
+      : null;
+    const assignedRole = currentMember?.assigned_role_id
+      ? roleLabel(currentMember.assigned_role_id)
+      : "Speler";
+    const sessionType = visible
+      ? (TYPE_LABELS[session.session_type] || session.session_type || "Game")
+      : "Game";
+    const creatorText = session?.created_by_current_player || session?.is_game_master
+      ? " - door jou aangemaakt"
+      : "";
+    if (els.playerMetricMount) els.playerMetricMount.hidden = !compactSessionVisible;
+    if (els.topSessionControls) els.topSessionControls.hidden = !compactSessionVisible;
+    if (els.topSessionStatusValue) els.topSessionStatusValue.textContent = assignedRole;
+    if (els.topSessionStatusTitle) {
+      els.topSessionStatusTitle.textContent = `${sessionType} sessie - gestart${creatorText}`;
+    }
+    if (els.topSessionStatusCounts) {
+      els.topSessionStatusCounts.textContent = `${humanCount}/${capacity} mensen - ${agentCount} agents`;
+    }
+    if (els.topSessionParticipationText) els.topSessionParticipationText.textContent = "Jij neemt deel";
+    if (els.topSessionStatusButton) {
+      els.topSessionStatusButton.setAttribute(
+        "aria-label",
+        `${sessionType} sessie gestart. Jouw rol: ${assignedRole}. Open sessie-overzicht.`
+      );
+    }
+    if (els.topSessionStopButton) {
+      els.topSessionStopButton.disabled = !compactSessionVisible;
+    }
     if (els.topPeopleButton) {
       els.topPeopleButton.hidden = !visible;
       els.topPeopleButton.disabled = !visible;
+      els.topPeopleButton.title = visible
+        ? `${humanCount} van ${capacity} rollen zijn door mensen bezet. Open de sessie.`
+        : "Open de actieve rollen in Sessie";
     }
     if (els.topAgentsButton) {
       els.topAgentsButton.hidden = !visible;
       els.topAgentsButton.disabled = !visible;
+      els.topAgentsButton.title = visible
+        ? `${agentCount} ${agentCount === 1 ? "virtuele agent neemt" : "virtuele agents nemen"} een rol over. Open de sessie.`
+        : "Open de actieve rollen in Sessie";
     }
     if (els.topPeopleCount) els.topPeopleCount.textContent = String(humanCount);
     if (els.topAgentCount) els.topAgentCount.textContent = String(agentCount);
@@ -1942,13 +1991,9 @@
   function placePlayerSessionPanel(running) {
     const els = elements();
     if (!els.playerPanel) return;
-    if (running && els.playerMetricMount) {
-      els.playerPanel.classList.add("is-metric-session");
-      els.playerMetricMount.append(els.playerPanel);
-      return;
-    }
     els.playerPanel.classList.remove("is-metric-session");
-    if (els.playerWorkbench) {
+    els.playerPanel.hidden = Boolean(running);
+    if (els.playerWorkbench && els.playerPanel.parentElement !== els.playerWorkbench) {
       els.playerWorkbench.insertBefore(els.playerPanel, els.logisticsGameMount || null);
     }
   }
@@ -2017,7 +2062,10 @@
         sessionRoleDistributionMarkup(state.session),
         gameMasterConfigMarkup(state.session),
         gameMasterDifficultyMarkup(state.session),
-        gameMasterRoleMarkup(state.session)
+        gameMasterRoleMarkup(state.session),
+        `<section class="other-active-sessions" aria-label="Alle actieve gamesessies">
+          ${availableMarkup(state.availability, { allowJoining: false, showCodeForm: false })}
+        </section>`
       ].join("");
       if (!queued && state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
         state.startedSessionId = state.session.session_id;
@@ -2448,6 +2496,8 @@
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/start-requests`);
       } else if (target.hasAttribute("data-finish-game-session") && state.session) {
         requestFinishConfirmation(target);
+      } else if (target.hasAttribute("data-open-game-session-overview")) {
+        document.querySelector('.app-view-switcher [data-main-menu-tab="session"]')?.click();
       } else if (target.hasAttribute("data-leave-game-session") && state.session) {
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/leave`);
       } else if (target.dataset.copyGameCode) {

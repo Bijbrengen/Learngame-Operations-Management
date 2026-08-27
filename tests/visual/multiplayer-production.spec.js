@@ -201,7 +201,7 @@ test.describe("LOM multiplayer productieproef", () => {
 
       const host = await openLearner(browser, players.host.token, appUrl.origin);
       contexts.push(host.context);
-      await expect(host.page.locator(".player-running-session")).toBeVisible({ timeout: 30_000 });
+      await expect(host.page.locator("#topSessionControls")).toBeVisible({ timeout: 30_000 });
       await expect.poll(
         () => host.page.evaluate(() => window.LOMMultiplayerRuntime?.getState()?.isController),
         { timeout: 30_000 }
@@ -226,7 +226,7 @@ test.describe("LOM multiplayer productieproef", () => {
       const aliceJoin = alice.page.locator(`[data-join-session="${sessionId}"]`);
       await expect(aliceJoin).toContainText("Agentrol overnemen", { timeout: 30_000 });
       await aliceJoin.click();
-      await expect(alice.page.locator(".player-running-session")).toContainText("Klant", {
+      await expect(alice.page.locator("#topSessionStatusButton")).toContainText("Klant", {
         timeout: 30_000
       });
       const afterTakeover = await engineCall(
@@ -311,7 +311,7 @@ test.describe("LOM multiplayer productieproef", () => {
       );
       await expect(dashboard.locator("#simulation-session-id")).toContainText(sessionId);
 
-      await alice.page.locator("[data-leave-game-session]").click();
+      await alice.page.locator("#topSessionStopButton").click();
       await expect.poll(async () => {
         const promoted = await engineCall(
           request,

@@ -2702,74 +2702,159 @@ body[data-app-view="player"] .manager-only {
   grid-column: 1;
   width: 100%;
   min-width: 0;
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
+  min-height: 44px;
 }
 
-.player-session-metric-mount:empty {
-  display: none;
+.player-session-metric-mount[hidden],
+.top-session-controls[hidden] {
+  display: none !important;
 }
 
-.player-session-metric-mount .game-session-panel.is-metric-session {
+.top-session-controls {
   width: 100%;
   min-width: 0;
-  height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 44px;
+  gap: 6px;
 }
 
-.player-session-metric-mount .is-metric-session .game-session-heading {
-  display: none;
-}
-
-.player-session-metric-mount .is-metric-session .game-session-content {
-  height: 100%;
-  margin: 0;
-}
-
-.player-session-metric-mount .is-metric-session .player-running-session {
+.top-session-control {
+  position: relative;
   min-width: 0;
-  height: 36px;
-  min-height: 36px;
-  gap: 7px;
-  padding: 3px 8px;
-  border: 1px solid var(--lp-line);
-  border-radius: 6px;
-  background: var(--lp-surface-soft);
 }
 
-.player-session-metric-mount .is-metric-session .session-member-token {
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  font-size: 0.66rem;
-}
-
-.player-session-metric-mount .is-metric-session .player-running-session > span:last-child {
+.top-session-status-button {
+  width: 100%;
   min-width: 0;
-  display: flex;
+  min-height: 44px;
+  grid-template-columns: 27px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
-  overflow: hidden;
+  padding: 5px 9px;
+  color: #dff9f4;
+  background: #10242b;
+  cursor: pointer;
 }
 
-.player-session-metric-mount .is-metric-session .player-running-session strong {
-  flex: 0 0 auto;
-  font-size: 0.74rem;
+.top-session-status-button > svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: #5eead4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.top-session-status-button > span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  text-align: left;
+}
+
+.top-session-status-button small {
+  overflow: hidden;
+  color: #8eb2b7;
+  font-size: 0.59rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.player-session-metric-mount .is-metric-session .player-running-session small {
-  min-width: 0;
+.top-session-status-button strong {
   overflow: hidden;
-  font-size: 0.66rem;
+  color: #f3fffd;
+  font-size: 0.78rem;
+  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.top-session-stop-button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 1px solid #6f3039;
+  border-radius: 8px;
+  color: #fff;
+  background: #251217;
+  cursor: pointer;
+}
+
+.top-session-stop-button > svg {
+  width: 28px;
+  height: 28px;
+}
+
+.top-session-stop-button path {
+  fill: #dc3545;
+  stroke: #ffabb2;
+  stroke-width: 1;
+}
+
+.top-session-stop-button rect {
+  fill: #fff;
+}
+
+.top-session-status-button:hover,
+.top-session-status-button:focus-visible {
+  border-color: #2dd4bf;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.24);
+}
+
+.top-session-stop-button:hover,
+.top-session-stop-button:focus-visible {
+  border-color: #ff6b78;
+  outline: none;
+  background: #3a171e;
+  box-shadow: 0 0 0 2px rgba(255, 107, 120, 0.24);
+}
+
+.top-session-tooltip {
+  position: absolute;
+  z-index: 160;
+  top: calc(100% + 7px);
+  left: 0;
+  width: min(330px, calc(100vw - 24px));
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #2f6f69;
+  border-radius: 8px;
+  color: #e7f7f5;
+  background: #07191f;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.48);
+  opacity: 0;
+  pointer-events: none;
+  translate: 0 -3px;
+  visibility: hidden;
+  transition: opacity 120ms ease, translate 120ms ease, visibility 120ms;
+}
+
+.top-session-tooltip span,
+.top-session-tooltip small {
+  color: #a8c4c7;
+  font-size: 0.7rem;
+}
+
+.top-session-tooltip.is-stop-tooltip {
+  right: 0;
+  left: auto;
+  width: min(230px, calc(100vw - 24px));
+  border-color: #7e3a42;
+}
+
+.top-session-control:hover > .top-session-tooltip,
+.top-session-control:focus-within > .top-session-tooltip {
+  opacity: 1;
+  translate: 0 0;
+  visibility: visible;
 }
 
 .session-member-list li {
@@ -3803,14 +3888,26 @@ body[data-app-view="player"] .topbar {
   place-items: center;
   color: var(--lp-accent);
   font-size: 1.4rem;
+  pointer-events: none;
 }
 
 .sim-digital-workbench {
   transition: border-color 160ms ease, background 160ms ease;
 }
 
+.sim-digital-workbench.is-staging {
+  align-content: start;
+}
+
 .sim-digital-workbench:hover {
   border-color: var(--lp-accent);
+  background-color: rgba(50, 221, 210, 0.08);
+}
+
+.sim-digital-workbench:focus-visible {
+  border-color: var(--lp-accent);
+  outline: 3px solid color-mix(in srgb, var(--lp-accent), transparent 58%);
+  outline-offset: 2px;
   background-color: rgba(50, 221, 210, 0.08);
 }
 
@@ -4195,50 +4292,127 @@ body[data-app-view="player"] .topbar {
   text-transform: uppercase;
 }
 
-.sim-staged-bricks {
+.sim-stage-drop-action {
+  width: 100%;
+  min-height: 44px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 7px;
-  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #2f7773;
+  border-radius: 7px;
+  color: #e7fffb;
+  background: #0c2c31;
+  cursor: pointer;
 }
 
-.sim-staged-bricks > small {
+.sim-stage-drop-action > span {
+  color: #5eead4;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.sim-stage-drop-action:hover,
+.sim-stage-drop-action:focus-visible {
+  border-color: var(--lp-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-accent), transparent 64%);
+}
+
+.sim-stage-drop-action:disabled {
+  border-color: #29464d;
+  color: #789397;
+  background: #0a1d23;
+  cursor: default;
+  box-shadow: none;
+}
+
+.sim-staged-bricks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+  min-height: 82px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sim-staged-empty {
+  grid-column: 1 / -1;
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  text-align: center;
+}
+
+.sim-staged-empty > small {
   color: var(--lp-muted);
 }
 
-.sim-staged-brick {
-  position: relative;
+.sim-staged-part {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-rows: minmax(64px, 1fr) auto;
+  place-items: center;
+  gap: 2px;
+  padding: 5px 6px 7px;
+  border: 1px solid #315961;
+  border-radius: 8px;
+  color: var(--lp-ink);
+  background:
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.08), transparent 55%),
+    #07161c;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04), 0 5px 11px rgba(0, 0, 0, 0.22);
+}
+
+.sim-staged-part-visual {
+  min-width: 0;
   display: grid;
   place-items: center;
-  min-width: 54px;
-  min-height: 30px;
-  border: 2px solid color-mix(in srgb, var(--sim-brick-color), #061014 42%);
-  border-radius: 5px;
-  color: #071014;
-  background: var(--sim-brick-color);
-  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.13), 0 4px 8px rgba(0, 0, 0, 0.25);
-  font-size: 0.64rem;
-  font-weight: 900;
 }
 
-.sim-staged-brick::before,
-.sim-staged-brick::after {
-  content: "";
-  position: absolute;
-  top: -6px;
-  width: 12px;
-  height: 7px;
-  border-radius: 50% 50% 20% 20%;
-  background: var(--sim-brick-color);
+.sim-staged-part-visual .lego-part-3d {
+  width: 82px;
+  height: 66px;
 }
 
-.sim-staged-brick::before {
-  left: 8px;
+.sim-staged-part-visual .lego-part-3d.base-plate {
+  width: 88px;
 }
 
-.sim-staged-brick::after {
-  right: 8px;
+.sim-staged-part-copy {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.sim-staged-part-copy strong,
+.sim-staged-part-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-staged-part-copy strong {
+  min-height: 1.35em;
+  display: grid;
+  place-items: center;
+  color: #dbeaea;
+  font-size: 0.66rem;
+  line-height: 1.08;
+  white-space: normal;
+}
+
+.sim-staged-part-copy small {
+  color: #91adb1;
+  font-size: 0.6rem;
+  font-weight: 800;
 }
 
 .sim-auto-form-summary {
@@ -5727,6 +5901,22 @@ body[data-app-view="player"] .topbar {
   font-size: 0.9rem;
 }
 
+.game-menu .top-session-status-button {
+  height: 44px;
+  min-height: 44px;
+  grid-template-columns: 27px minmax(0, 1fr);
+  gap: 7px;
+  padding: 5px 9px;
+  border-color: #275052;
+  color: #dff9f4;
+  background: #10242b;
+}
+
+.game-menu .top-session-status-button strong {
+  color: #f3fffd;
+  font-size: 0.78rem;
+}
+
 .game-menu .menu-live-events-button,
 .game-menu .menu-events-button,
 .game-menu .menu-events-download {
@@ -6354,8 +6544,16 @@ body[data-app-view="player"] .topbar {
   }
 
   .game-menu .metric-strip-values {
-    grid-template-columns: 68px 68px minmax(150px, 1fr) 116px;
+    grid-template-columns: 60px 60px minmax(120px, 1fr) 100px;
+    width: 100%;
+    justify-self: stretch;
+    justify-content: start;
     overflow-x: auto;
+  }
+
+  .game-menu .top-participant-count {
+    width: 100%;
+    min-width: 0;
   }
 
   .game-menu .app-view-switcher {
@@ -6365,7 +6563,7 @@ body[data-app-view="player"] .topbar {
 
 @media (max-width: 480px) {
   .game-menu .metric-strip-values {
-    grid-template-columns: 68px 68px minmax(130px, 1fr) 108px;
+    grid-template-columns: 60px 60px minmax(120px, 1fr) 100px;
   }
 }
 
