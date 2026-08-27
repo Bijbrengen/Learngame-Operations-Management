@@ -7899,7 +7899,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v244-isometric-transfer").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v245-static-tower-reference").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

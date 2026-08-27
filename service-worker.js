@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v244-isometric-transfer";
+const CACHE_VERSION = "learngame-om-v245-static-tower-reference";
 const APP_SHELL = [
   "./",
   "./index.html",

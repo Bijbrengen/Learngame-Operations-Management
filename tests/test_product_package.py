@@ -56,17 +56,17 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.2"', html)
+        self.assertIn('href="style.css?v=20260827.3"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260827.3"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260821.3"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260821.3"', html)
         self.assertIn('src="game-sessions.js?v=20260821.3"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260827.2"', html)
-        self.assertIn('"script.js?v=20260827.2"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v244-isometric-transfer"', service_worker)
+        self.assertIn('"script.js?v=20260827.3"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v245-static-tower-reference"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v244-isometric-transfer")',
+            'register("service-worker.js?v=learngame-om-v245-static-tower-reference")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 

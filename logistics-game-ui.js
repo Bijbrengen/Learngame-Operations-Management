@@ -52,24 +52,30 @@
 
   function towerMarkup(product) {
     if (
-      window.LegoTowerRenderer
+      typeof window.LegoTowerRenderer?.renderSequence === "function"
       && Array.isArray(product?.towerSequence)
       && product.towerSequence.length
     ) {
-      return window.LegoTowerRenderer.renderAnimated(
-        product.towerSequence,
-        `Geanimeerde bouw van ${product.name}`,
-        "sim-tower-renderer",
-        product.groundPlate?.color || "green"
-      );
+      return `
+        <div class="sim-tower-reference" data-sim-static-tower-reference>
+          ${window.LegoTowerRenderer.renderSequence(
+            product.towerSequence,
+            `Volledige referentietoren ${product.name}; alle lagen blijven zichtbaar`,
+            "sim-tower-renderer",
+            product.groundPlate?.color || "green"
+          )}
+        </div>
+      `;
     }
     const colors = Array.isArray(product?.colors) ? product.colors : ["yellow", "red", "white"];
     return `
-      <div class="sim-tower" aria-label="${escapeHtml(product?.name || "LEGO-toren")}">
-        <span class="sim-tower-layer is-top" style="--tower-color: var(--brick-${escapeHtml(colors[2])})"></span>
-        <span class="sim-tower-layer" style="--tower-color: var(--brick-${escapeHtml(colors[1])})"></span>
-        <span class="sim-tower-layer is-wide" style="--tower-color: var(--brick-${escapeHtml(colors[0])})"></span>
-        <span class="sim-tower-base"></span>
+      <div class="sim-tower-reference" data-sim-static-tower-reference>
+        <div class="sim-tower" aria-label="Volledige referentietoren ${escapeHtml(product?.name || "LEGO-toren")}; alle lagen blijven zichtbaar">
+          <span class="sim-tower-layer is-top" style="--tower-color: var(--brick-${escapeHtml(colors[2])})"></span>
+          <span class="sim-tower-layer" style="--tower-color: var(--brick-${escapeHtml(colors[1])})"></span>
+          <span class="sim-tower-layer is-wide" style="--tower-color: var(--brick-${escapeHtml(colors[0])})"></span>
+          <span class="sim-tower-base"></span>
+        </div>
       </div>
     `;
   }
@@ -135,7 +141,12 @@
           }
           return;
         }
-        if (event.type === "player-action-required") this.resetPlayerInput();
+        if (
+          event.type === "player-action-required"
+          && event.detail?.roleId === this.engine.humanRoleId
+        ) {
+          this.resetPlayerInput();
+        }
         if (event.type === "snapshot-restored" && !this.engine.playerTask()) {
           this.remoteActionPending = false;
         }
@@ -1254,6 +1265,45 @@
       `;
     }
 
+    productLayerGuideMarkup(product, quantity) {
+      const batchQuantity = Math.max(1, Number(quantity || 1));
+      const stageLabels = {
+        pd1: "Laag 1",
+        pd2: "Laag 2",
+        pd3: "Laag 3"
+      };
+      const rows = Object.entries(stageLabels).map(([stageId, label]) => {
+        const recipe = product?.stages?.[stageId] || {};
+        const parts = Object.entries(recipe).map(([partId, amount]) => {
+          const part = this.engine.parts[partId] || {
+            label: partId,
+            size: "",
+            color: "white"
+          };
+          return `
+            <span class="sim-product-layer-part">
+              <i style="--sim-layer-color: var(--brick-${escapeHtml(part.color)})" aria-hidden="true"></i>
+              <span>${Math.max(0, Number(amount || 0)) * batchQuantity}&times; ${escapeHtml(part.label)}${part.size ? ` ${escapeHtml(part.size)}` : ""}</span>
+            </span>
+          `;
+        }).join("");
+        return `
+          <li>
+            <strong>${label}</strong>
+            <div>${parts}</div>
+          </li>
+        `;
+      }).join("");
+      return `
+        <div class="sim-product-layer-guide"
+             role="group"
+             aria-label="Benodigde lagen voor de volledige batch met ${batchQuantity} ${batchQuantity === 1 ? "toren" : "torens"}">
+          <span>Van onder naar boven · volledige batch</span>
+          <ol>${rows}</ol>
+        </div>
+      `;
+    }
+
     taskDashboardMarkup(snapshot, task) {
       const { role, order, product } = task;
       const selectedProductId = role.id === "customer"
@@ -1302,6 +1352,9 @@
                 ${towerMarkup(displayProduct)}
                 <strong>${escapeHtml(displayProduct.name)}</strong>
                 <small>${displayQuantity} exempl${displayQuantity === 1 ? "aar" : "aren"}</small>
+                ${role.id === "srm"
+                  ? this.productLayerGuideMarkup(displayProduct, displayQuantity)
+                  : '<small class="sim-product-reference-note">Alle lagen blijven zichtbaar</small>'}
               </div>
             </div>
           </article>

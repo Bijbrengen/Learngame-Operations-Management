@@ -3363,6 +3363,84 @@ body[data-app-view="player"] .topbar {
   color: #5d6a6e;
 }
 
+.sim-tower-reference {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+}
+
+.sim-product-reference-note {
+  max-width: 18ch;
+  color: #42575b !important;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.sim-product-layer-guide {
+  display: grid;
+  width: min(100%, 218px);
+  gap: 6px;
+  margin-top: 5px;
+  padding: 9px;
+  border: 1px solid #a8b9b4;
+  border-radius: 8px;
+  background: rgba(247, 251, 249, 0.82);
+  color: #20393e;
+  text-align: left;
+}
+
+.sim-product-layer-guide > span {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.sim-product-layer-guide ol,
+.sim-product-layer-guide li,
+.sim-product-layer-guide li > div {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+.sim-product-layer-guide ol {
+  list-style: none;
+}
+
+.sim-product-layer-guide li {
+  grid-template-columns: 45px minmax(0, 1fr);
+  align-items: start;
+  padding-top: 5px;
+  border-top: 1px solid rgba(75, 101, 100, 0.22);
+}
+
+.sim-product-layer-guide li > strong,
+.sim-product-layer-part {
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.sim-product-layer-part {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
+.sim-product-layer-part i {
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(5, 18, 22, 0.48);
+  border-radius: 2px;
+  background: var(--sim-layer-color);
+}
+
 .sim-tower {
   width: 170px;
   height: 210px;
