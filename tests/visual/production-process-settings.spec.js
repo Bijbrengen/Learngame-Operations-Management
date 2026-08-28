@@ -11,6 +11,9 @@ const ENTREPRENEURSHIP_ROLES = [
 ];
 
 async function openManagerSettings(page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("learngame.om.tutorialCompleted", "true");
+  });
   await page.route("**/auth/leerbox/session**", route => route.fulfill({
     status: 200,
     contentType: "application/json",

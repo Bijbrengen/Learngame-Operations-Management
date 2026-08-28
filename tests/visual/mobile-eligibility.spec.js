@@ -226,7 +226,9 @@ test("telefoon/tablet toont alleen Speler en laat uitsluitend fysieke deelname t
   await expect(page.locator('[data-app-view="manager"]:visible')).toHaveCount(0);
   await expect(page.locator("#managerWorkbench")).toBeHidden();
 
-  await expect(page.locator("#playerSessionContent .mobile-play-notice")).toContainText("alleen fysiek");
+  await expect(page.locator("#playerSessionContent .mobile-play-notice")).toContainText(
+    "bestaande fysieke gamesessie"
+  );
   const digitalCard = page.locator(`[data-join-session="${DIGITAL_SESSION_ID}"]`);
   const physicalCard = page.locator(`[data-join-session="${PHYSICAL_SESSION_ID}"]`);
   await expect(digitalCard).toBeDisabled();

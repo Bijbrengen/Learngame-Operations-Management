@@ -92,7 +92,6 @@ test("hoofdstuk 9 toont live systeemsignalen, rolactiviteit en contextuele uitle
   await expect(page.locator("#chapter9LiveIndicators")).toContainText("Actief: druk met niets");
 
   const helpButton = page.getByRole("button", { name: "Uitleg over de sturingsparadox" });
-  await helpButton.scrollIntoViewIfNeeded();
   await helpButton.click();
   const infoDialog = page.locator("#configurationHelpDialog");
   await expect(infoDialog).toContainText("Vergelijk managementactiviteit");
