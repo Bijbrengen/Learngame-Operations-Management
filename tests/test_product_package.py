@@ -62,18 +62,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260828.2"', html)
+        self.assertIn('href="style.css?v=20260828.3"', html)
         self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="logistics-game-ui.js?v=20260828.1"', html)
-        self.assertIn('src="multiplayer-runtime.js?v=20260828.1"', html)
+        self.assertIn('src="multiplayer-runtime.js?v=20260828.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
-        self.assertIn('src="game-sessions.js?v=20260828.2"', html)
+        self.assertIn('src="game-sessions.js?v=20260828.4"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260827.6"', html)
-        self.assertIn('"script.js?v=20260828.3"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v253-player-game-layout"', service_worker)
+        self.assertIn('"script.js?v=20260828.5"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v255-creator-finish-notice"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v253-player-game-layout")',
+            'register("service-worker.js?v=learngame-om-v255-creator-finish-notice")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -2195,7 +2195,13 @@ process.stdout.write(JSON.stringify({
         self.assertIn('id="topSessionControls"', html)
         self.assertIn('id="topSessionStatusButton"', html)
         self.assertIn('id="topSessionStopButton"', html)
+        self.assertIn('id="topSessionStopTitle"', html)
+        self.assertIn('id="gameSessionEndedDialog"', html)
+        self.assertIn('role="alertdialog"', html)
         self.assertIn("data-open-game-session-overview", runtime)
+        self.assertIn("currentPlayerCreatedSession(state.session)", runtime)
+        self.assertIn('window.addEventListener("learngame-session-finished"', runtime)
+        self.assertIn("handleFinishedSession(latestSession)", runtime)
         self.assertIn("els.playerPanel.hidden = Boolean(running)", runtime)
         self.assertIn('id="liveEventsToggle"', html)
         self.assertNotIn('id="liveEventsPopover"', html)
@@ -2239,6 +2245,75 @@ process.stdout.write(JSON.stringify({
         self.assertIn('localStorage.setItem("leerpret.apiBase"', runtime)
         self.assertIn("createSessionDraft", runtime)
         self.assertIn("state.createSessionDraft.game_config = config", runtime)
+        self.assertIn("function canRequestSessionStart", runtime)
+        self.assertIn("soloNonCreatorAgentStartBlocked", runtime)
+        self.assertIn("function renderAvailablePlayerContent", runtime)
+        self.assertIn('autocapitalize="characters"', runtime)
+        self.assertIn('pattern="[A-Za-z0-9]{6,10}"', runtime)
+        self.assertIn('.trim().toUpperCase()', runtime)
+
+    def test_solo_agent_start_ui_requires_the_original_session_creator(self) -> None:
+        runtime = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        helper_source = "function presentSessionMembers" + runtime.split(
+            "function presentSessionMembers",
+            1,
+        )[1].split("function validSoloCreatorConsensus", 1)[0]
+        node_program = f"""
+const vm = require("vm");
+const sandbox = {{}};
+vm.runInNewContext({json.dumps(helper_source)} + `
+  const base = {{
+    status: "lobby",
+    current_member_id: "member-creator",
+    created_by_member_id: "member-creator",
+    members: [{{ member_id: "member-creator", present: true }}],
+    role_vacancies: ["production_b"],
+    consensus: null
+  }};
+  creatorSolo = canRequestSessionStart(base);
+  nonCreatorSolo = canRequestSessionStart({{
+    ...base,
+    current_member_id: "member-successor",
+    members: [{{ member_id: "member-successor", present: true }}]
+  }});
+  multiPlayer = canRequestSessionStart({{
+    ...base,
+    current_member_id: "member-peer",
+    members: [
+      {{ member_id: "member-creator", present: true }},
+      {{ member_id: "member-peer", present: true }}
+    ]
+  }});
+  noAgentVacancies = canRequestSessionStart({{
+    ...base,
+    current_member_id: "member-successor",
+    members: [{{ member_id: "member-successor", present: true }}],
+    role_vacancies: []
+  }});
+`, sandbox);
+process.stdout.write(JSON.stringify({{
+  creatorSolo: sandbox.creatorSolo,
+  nonCreatorSolo: sandbox.nonCreatorSolo,
+  multiPlayer: sandbox.multiPlayer,
+  noAgentVacancies: sandbox.noAgentVacancies
+}}));
+"""
+        completed_process = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            {
+                "creatorSolo": True,
+                "nonCreatorSolo": False,
+                "multiPlayer": True,
+                "noAgentVacancies": True,
+            },
+            json.loads(completed_process.stdout),
+        )
 
     def test_create_session_button_executes_post_contract_directly(self) -> None:
         runtime = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")

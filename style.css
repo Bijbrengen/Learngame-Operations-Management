@@ -1870,6 +1870,10 @@ html[data-device-kind="mobile"] #nextLevelChallenge {
   background: rgba(3, 14, 18, 0.72);
 }
 
+.game-code-join-form input {
+  text-transform: uppercase;
+}
+
 .no-open-games,
 .session-vote-progress,
 .session-running-message {

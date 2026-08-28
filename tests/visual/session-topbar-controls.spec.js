@@ -8,7 +8,7 @@ async function fulfillJson(route, status, body) {
   });
 }
 
-async function mockRunningSession(page, playMode) {
+async function mockRunningSession(page, playMode, { creator = true } = {}) {
   const sessionId = "session-topbar-regression";
   const requiredRoles = [
     "customer",
@@ -47,7 +47,8 @@ async function mockRunningSession(page, playMode) {
     queue_position: null,
     current_member_id: member.member_id,
     controller_member_id: member.member_id,
-    created_by_current_player: true,
+    created_by_member_id: creator ? member.member_id : "member-original-creator",
+    created_by_current_player: creator,
     is_game_master: true,
     capacity: requiredRoles.length,
     required_role_ids: requiredRoles,
@@ -72,9 +73,16 @@ async function mockRunningSession(page, playMode) {
     participation_status: "active",
     queue_position: null,
     join_mode: "resume",
-    created_by_current_player: true
+    created_by_current_player: creator
   };
-  const stats = { leaveCalls: 0 };
+  const stats = {
+    leaveCalls: 0,
+    finishCalls: 0,
+    finished: false,
+    holdNextAvailability: false,
+    heldAvailabilityCalls: 0,
+    releaseHeldAvailability: null
+  };
   let left = false;
 
   await page.addInitScript(() => {
@@ -98,15 +106,22 @@ async function mockRunningSession(page, playMode) {
   await page.route("**/v1/game-sessions/availability**", route => {
     const supportsDigitalPlay = new URL(route.request().url())
       .searchParams.get("supports_digital_play") !== "false";
-    return fulfillJson(route, 200, {
+    const finishedWhenRequested = stats.finished;
+    const respond = () => fulfillJson(route, 200, {
       status: "ok",
-      current_session: left ? null : session,
-      active_sessions: [summary],
+      current_session: left || finishedWhenRequested ? null : session,
+      active_sessions: finishedWhenRequested ? [] : [summary],
       discoverable_sessions: [],
       created_sessions: left ? [summary] : [],
-      participating_sessions: left ? [] : [summary],
+      participating_sessions: left || finishedWhenRequested ? [] : [summary],
       open_sessions: [],
       can_start_free_game: left && supportsDigitalPlay
+    });
+    if (!stats.holdNextAvailability) return respond();
+    stats.holdNextAvailability = false;
+    stats.heldAvailabilityCalls += 1;
+    return new Promise(resolve => {
+      stats.releaseHeldAvailability = () => resolve(respond());
     });
   });
   await page.route(`**/v1/game-sessions/${sessionId}/leave`, async route => {
@@ -118,10 +133,20 @@ async function mockRunningSession(page, playMode) {
       session: summary
     });
   });
+  await page.route(`**/v1/game-sessions/${sessionId}/finish`, async route => {
+    stats.finishCalls += 1;
+    stats.finished = true;
+    await fulfillJson(route, 200, { ...session, status: "finished" });
+  });
+  await page.route(`**/v1/game-sessions/${sessionId}`, route => fulfillJson(
+    route,
+    200,
+    stats.finished ? { ...session, status: "finished" } : session
+  ));
   await page.route(`**/v1/game-sessions/${sessionId}/runtime**`, route => fulfillJson(route, 200, {
     contract_version: "1.0",
     session_id: sessionId,
-    status: "running",
+    status: stats.finished ? "finished" : "running",
     revision: 1,
     snapshot_revision: 0,
     membership_revision: 1,
@@ -162,7 +187,7 @@ test("actieve sessie en stopactie blijven compacte bovenbalkknoppen", async ({ p
   await expect(statusButton).toBeVisible();
   await expect(statusButton).toContainText("Operations");
   await expect(stopButton).toBeVisible();
-  await expect(stopButton).toHaveAttribute("aria-label", "Stoppen met spelen");
+  await expect(stopButton).toHaveAttribute("aria-label", "Gamesessie afsluiten");
   await expect(page.locator("#playerSessionPanel")).toBeHidden();
   await expect(mount.locator("#playerSessionPanel")).toHaveCount(0);
   await expect(page.locator(".topbar .active-game-card")).toHaveCount(0);
@@ -255,7 +280,53 @@ test("actieve sessie en stopactie blijven compacte bovenbalkknoppen", async ({ p
   await expect(stopTooltip).toHaveCSS("visibility", "hidden");
   await topbar.screenshot({ path: testInfo.outputPath("compact-session-controls.png") });
   await stopButton.click();
-  await expect.poll(() => stats.leaveCalls).toBe(1);
+  await expect(stopButton).toHaveAttribute(
+    "aria-label",
+    "Nogmaals klikken om de gamesessie af te sluiten"
+  );
+  await expect(stopTooltip).toContainText("Weet je het zeker?");
+  expect(stats.finishCalls).toBe(0);
+  await stopButton.click();
+  await expect.poll(() => stats.finishCalls).toBe(1);
+  expect(stats.leaveCalls).toBe(0);
   await expect(controls).toBeHidden();
   await expect(page.locator("#playerSessionPanel")).toBeVisible();
+  await expect(page.locator("#gameSessionEndedDialog")).toBeVisible();
+  await expect(page.locator("#gameSessionEndedSummary")).toContainText(
+    "voor alle spelers gestopt"
+  );
+});
+
+test("overgenomen Game Master kan niet afsluiten en krijgt direct de beëindigingsmelding", async ({ page }, testInfo) => {
+  const stats = await mockRunningSession(
+    page,
+    testInfo.project.name === "mobile-chromium" ? "physical" : "digital",
+    { creator: false }
+  );
+  await page.goto("/");
+  await page.locator("body.auth-authenticated").waitFor();
+
+  const stopButton = page.locator("#topSessionStopButton");
+  await expect(stopButton).toHaveAttribute("data-leave-game-session", "");
+  await expect(stopButton).not.toHaveAttribute("data-finish-game-session", "");
+  await expect(stopButton).toHaveAttribute("aria-label", "Stoppen met spelen");
+  if (testInfo.project.name !== "mobile-chromium") {
+    await page.locator("#topSessionStatusButton").click();
+    await expect(page.locator("#managerSessionActionButton")).toBeHidden();
+  }
+
+  stats.holdNextAvailability = true;
+  await expect.poll(() => stats.heldAvailabilityCalls, { timeout: 4500 }).toBe(1);
+  stats.finished = true;
+  await expect(page.locator("#gameSessionEndedDialog")).toBeVisible({ timeout: 3500 });
+  await expect(page.locator("#gameSessionEndedSummary")).toHaveText(
+    "De sessiemaker heeft de gamesessie beëindigd. De game is voor alle spelers gestopt."
+  );
+  await expect(page.locator("#topSessionControls")).toBeHidden();
+  stats.releaseHeldAvailability();
+  await page.waitForTimeout(150);
+  await expect(page.locator("#topSessionControls")).toBeHidden();
+  await expect(page.locator("#gameSessionEndedDialog")).toBeVisible();
+  expect(stats.finishCalls).toBe(0);
+  expect(stats.leaveCalls).toBe(0);
 });

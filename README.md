@@ -198,13 +198,18 @@ De game gebruikt een gedeelde, servergestuurde multiplayerlobby én één
 authoritatieve spelruntime. Een Game
 Master maakt uitsluitend vanuit `Beheer > Gamesessie` een gesloten, open of
 semi-gesloten sessie aan en deelt de unieke gamecode. Spelers kunnen met een
-code deelnemen. De spelersweergave toont alle actieve, vindbare sessies,
+code deelnemen; gamecodes zijn hoofdletterongevoelig. De spelersweergave toont
+alle actieve, vindbare sessies,
 inclusief sessies die al spelen. Bij een lopende game neemt een nieuwe speler
 eerst atomair een virtuele-agentrol over. Zijn alle rollen door mensen bezet,
 dan komt de speler in een FIFO-wachtrij. Vertrekt een actieve speler of verloopt
 diens aanwezigheid, dan krijgt de eerste wachtende speler precies die rol; als
-niemand wacht, neemt een agent de rol tijdelijk terug over. `Stoppen met spelen`
-verlaat alleen de eigen deelname en sluit de gedeelde sessie niet.
+niemand wacht, neemt een agent de rol tijdelijk terug over. Voor gewone spelers
+verlaat `Stoppen met spelen` alleen de eigen deelname. Bij de oorspronkelijke
+sessiemaker sluit dezelfde stopknop, na een verplichte tweede bevestigingsklik,
+de hele sessie. Een overdraagbare Game Master kan dat recht niet overnemen.
+Alle nog actieve spelers stoppen via de gedeelde runtime direct en krijgen een
+expliciete melding dat de sessiemaker de game heeft beëindigd.
 
 De digitale runtime heeft zeven onafhankelijk bestuurbare stations. Sommige
 onderwijsrollen delen bewust zo'n station (bijvoorbeeld Logistiek Manager,
@@ -217,7 +222,8 @@ Op een telefoon, tablet, spelconsole, smart-tv of ander niet-computerscherm is
 uitsluitend de Speler-weergave beschikbaar. Een speler kan daar alleen aan een
 bestaande fysieke gamesessie deelnemen; een
 sessie aanmaken (ook een vrije game), beheren of configureren kan uitsluitend
-op een computer of laptop. De tabs Game, Torens en Inzicht en de verwijzingen
+op een computer of laptop. Alleen de oorspronkelijke sessiemaker kan een al
+lopende sessie via de stopknop ook mobiel beëindigen. De tabs Game, Torens en Inzicht en de verwijzingen
 naar Beheer worden daarom mobiel verwijderd. Digitale sessies blijven
 zichtbaar, maar deelname is uitgeschakeld met een korte uitleg. Ook de
 bouwtutorial is daar niet beschikbaar, omdat die een computer of laptop met
@@ -230,11 +236,14 @@ terwijl een gelijktijdig actieve laptop van dezelfde speler aangesloten blijft.
 Een fysieke lobby met een mobiele deelnemer kan niet achteraf naar digitaal
 worden omgezet.
 
-Wanneer rollen onbezet zijn, kan iedere aanwezige speler een startverzoek doen.
-Alle reeds aanwezige spelers kiezen vervolgens unaniem tussen wachten en
-starten met gesimuleerde agents. Eén wachtstem wijst het verzoek af. Pas wanneer
-iedereen instemt, vult de backend alle resterende rollen met virtuele agents en
-gaat de sessiestatus naar `running`. De gedeelde toestand volgt
+Wanneer rollen onbezet zijn en alleen de sessiemaker aanwezig is, krijgt alleen
+die maker de keuze om met gesimuleerde agents te starten. Blijft na vertrek van
+de maker slechts één andere speler achter, dan kan die de solo-agentstart niet
+overnemen. Zodra minimaal twee spelers aanwezig zijn, kan iedere aanwezige
+speler een startverzoek doen en kiezen alle aanwezigen unaniem tussen wachten
+en starten met agents. Eén wachtstem wijst het verzoek af. Pas wanneer iedereen
+instemt, vult de backend alle resterende rollen met virtuele agents en gaat de
+sessiestatus naar `running`. De gedeelde toestand volgt
 `contracts/game-session-consensus-v1.schema.json`.
 
 Tijdens het spelen bewaart LeerpretEngine de gedeelde snapshot, monotone

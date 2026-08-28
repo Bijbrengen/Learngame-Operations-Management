@@ -66,7 +66,7 @@
       document.head.append(theme);
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260828.2">
+  <link rel="stylesheet" href="style.css?v=20260828.3">
 </head>
 <body class="auth-pending">
   <section id="leerpretAuthGate" class="auth-gate" aria-labelledby="leerpretAuthTitle">
@@ -190,8 +190,8 @@
               <div id="topSessionStopTooltip"
                    class="top-session-tooltip is-stop-tooltip"
                    role="tooltip">
-                <strong>Stoppen met spelen</strong>
-                <small>Verlaat jouw rol in deze gamesessie.</small>
+                <strong id="topSessionStopTitle">Stoppen met spelen</strong>
+                <small id="topSessionStopSummary">Verlaat jouw rol in deze gamesessie.</small>
               </div>
             </div>
           </div>
@@ -1491,6 +1491,23 @@
       </div>
     </div>
   </section>
+  <section id="gameSessionEndedDialog"
+           class="game-consensus-dialog"
+           role="alertdialog"
+           aria-modal="true"
+           aria-live="assertive"
+           aria-labelledby="gameSessionEndedTitle"
+           aria-describedby="gameSessionEndedSummary"
+           hidden>
+    <div class="game-consensus-card">
+      <p class="eyebrow">Gamesessie</p>
+      <h2 id="gameSessionEndedTitle">De gamesessie is beëindigd</h2>
+      <p id="gameSessionEndedSummary">De sessiemaker heeft de gamesessie beëindigd. De game is voor alle spelers gestopt.</p>
+      <div class="game-consensus-actions">
+        <button id="gameSessionEndedDismissButton" class="primary-button" type="button">Begrepen</button>
+      </div>
+    </div>
+  </section>
   <!-- Save Configuration Dialog -->
   <dialog id="saveConfigDialog" class="config-modal-dialog">
     <form id="saveConfigForm" method="dialog" class="config-modal-form">
@@ -1560,11 +1577,11 @@
   <script src="game-configuration-store.js?v=20260827.1"></script>
   <script src="configuration-layout-preview.js?v=20260827.1"></script>
   <script src="screen-interaction-manifest.js"></script>
-  <script src="game-sessions.js?v=20260828.2"></script>
+  <script src="game-sessions.js?v=20260828.4"></script>
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js?v=20260827.2"></script>
   <script src="logistics-game-ui.js?v=20260828.1"></script>
-  <script src="multiplayer-runtime.js?v=20260828.1"></script>
+  <script src="multiplayer-runtime.js?v=20260828.2"></script>
   <script src="chapter-9-insights.js"></script>
   <!-- LeerpretSDK-hub: runtime-config.js bepaalt de Engine-URL. Een expliciete
        testoverride is alleen geldig voor een geconfigureerde oorsprong of
@@ -1620,7 +1637,7 @@
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
       // werkt ook op een losse frontend op een andere poort.
       var sdkComponents = ["lego-renderer", "lego-cables", "lego-tower-editor", "lego-builder"];
-      var tail = ["isometric-logistics-view.js?v=20260827.6", "script.js?v=20260828.3"];
+      var tail = ["isometric-logistics-view.js?v=20260827.6", "script.js?v=20260828.5"];
       function loadTail(i) {
         if (i >= tail.length) return;
         var s = document.createElement("script");

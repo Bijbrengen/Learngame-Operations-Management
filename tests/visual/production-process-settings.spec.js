@@ -59,13 +59,111 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
   test("de gamecode en invoerfocus blijven tijdens lobbyverversingen behouden", async ({ page }) => {
     await page.evaluate(() => window.LEARNGameOMSimulator.setAppView("player"));
     const gameCode = page.locator('[data-game-code-join] input[name="join_code"]');
-    await gameCode.fill("ABC123");
-    await gameCode.evaluate(input => input.setSelectionRange(3, 3));
+    await gameCode.fill("a1b2c3");
+    await gameCode.evaluate(input => {
+      window.__joinCodeInputBeforeRefresh = input;
+      input.setSelectionRange(3, 3);
+    });
 
     await page.waitForTimeout(3_300);
 
-    await expect(gameCode).toHaveValue("ABC123");
+    const preserved = await gameCode.evaluate(input => ({
+      sameNode: input === window.__joinCodeInputBeforeRefresh,
+      selectionStart: input.selectionStart,
+      selectionEnd: input.selectionEnd
+    }));
+    expect(preserved).toEqual({ sameNode: true, selectionStart: 3, selectionEnd: 3 });
+    await expect(gameCode).toHaveValue("a1b2c3");
     await expect(gameCode).toBeFocused();
+    await expect(gameCode).toHaveAttribute("autocapitalize", "characters");
+    await expect(gameCode).toHaveAttribute("autocorrect", "off");
+    await expect(gameCode).toHaveAttribute("inputmode", "text");
+    await expect(gameCode).toHaveAttribute("enterkeyhint", "go");
+    await expect(gameCode).toHaveAttribute("pattern", "[A-Za-z0-9]{6,10}");
+    await expect(gameCode).toHaveCSS("text-transform", "uppercase");
+  });
+
+  test("alleen de sessiemaker krijgt de solo-keuze om met agents te starten", async ({ page }) => {
+    let asCreator = false;
+    let consensus = null;
+    let startRequests = 0;
+    const currentSession = () => {
+      const currentMemberId = asCreator ? "member-creator" : "member-successor";
+      return {
+        session_id: "session-solo-creator",
+        status: "lobby",
+        is_game_master: true,
+        join_code: "SOLO01",
+        session_type: "open",
+        difficulty_level: "normal",
+        participation_status: "active",
+        current_member_id: currentMemberId,
+        created_by_member_id: "member-creator",
+        game_master_member_id: currentMemberId,
+        controller_member_id: currentMemberId,
+        members: [{
+          member_id: currentMemberId,
+          assigned_role_id: "production_a",
+          present: true
+        }],
+        waiting_members: [],
+        virtual_agents: [],
+        required_role_ids: ["production_a", "production_b"],
+        role_vacancies: ["production_b"],
+        game_config: { game_type: "lo4", play_mode: "physical" },
+        consensus
+      };
+    };
+    await page.unroute("**/v1/game-sessions/availability**");
+    await page.route("**/v1/game-sessions/availability**", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        current_session: currentSession(),
+        discoverable_sessions: [],
+        open_sessions: [],
+        can_start_free_game: false
+      })
+    }));
+    await page.route("**/v1/game-sessions/session-solo-creator/start-requests", route => {
+      startRequests += 1;
+      consensus = {
+        proposal_id: "proposal-solo-creator",
+        proposal: "fill_vacant_roles_with_virtual_agents",
+        requested_by_member_id: "member-creator",
+        required_member_ids: ["member-creator"],
+        approved_member_ids: [],
+        status: "open"
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(currentSession())
+      });
+    });
+
+    await page.reload();
+    await page.waitForFunction(() => window.LEARNGameOMSimulator);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+    await page.evaluate(() => window.LEARNGameOMSimulator.setAppView("player"));
+    await expect(page.locator("#playerSessionContent [data-request-game-start]")).toHaveCount(0);
+    await expect(page.locator("#playerSessionContent .session-vote-progress")).toContainText(
+      "Alleen de sessiemaker"
+    );
+    await expect(page.locator("#managerSessionActionButton")).toHaveAttribute("hidden", "");
+    expect(startRequests).toBe(0);
+
+    asCreator = true;
+    await page.reload();
+    await page.waitForFunction(() => window.LEARNGameOMSimulator);
+    await page.locator("body.auth-authenticated").waitFor({ state: "attached" });
+    await page.evaluate(() => window.LEARNGameOMSimulator.setAppView("player"));
+    const startButton = page.locator("#playerSessionContent [data-request-game-start]");
+    await expect(startButton).toBeVisible();
+    await startButton.click();
+    await expect.poll(() => startRequests).toBe(1);
+    await expect(page.locator("#gameConsensusDialog")).toBeVisible();
+    await expect(page.locator("#gameConsensusSummary")).toContainText("Jij bent de sessiemaker");
   });
 
   test("Toren B gebruikt werkelijk blauwe 2 bij 4-blokken", async ({ page }) => {
@@ -534,6 +632,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       session_type: "closed",
       difficulty_level: "normal",
       current_member_id: "member-1",
+      created_by_member_id: "member-1",
       game_master_member_id: "member-1",
       members: [{
         member_id: "member-1",
@@ -593,6 +692,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
     await finishButton.click();
     await expect.poll(() => finishRequests).toBe(1);
     expect(dialogs).toEqual([]);
+    await expect(page.locator("#gameSessionEndedDialog")).toBeVisible();
   });
 
   test("een conceptlobby herstelt alle presetrollen en vergrendelt de rol pas na de start", async ({ page }) => {
@@ -610,6 +710,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       session_type: "closed",
       difficulty_level: "normal",
       current_member_id: "member-master",
+      created_by_member_id: "member-master",
       game_master_member_id: "member-master",
       members: [{ member_id: "member-master", assigned_role_id: "supplier", present: true }],
       virtual_agents: [],
@@ -691,6 +792,7 @@ test.describe("Parallelle en sequentiële productieroutes", () => {
       session_type: "closed",
       difficulty_level: "normal",
       current_member_id: "member-1",
+      created_by_member_id: "member-1",
       game_master_member_id: "member-2",
       members: [{ member_id: "member-1", assigned_role_id: "production_a", present: true }],
       virtual_agents: [],

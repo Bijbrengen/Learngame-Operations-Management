@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v253-player-game-layout";
+const CACHE_VERSION = "learngame-om-v255-creator-finish-notice";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -438,6 +438,102 @@ test("mobiele digitale deelname start geen poll of gedeelde runtime", async () =
   assert.equal(windowStub.LOMMultiplayerRuntime.getState().sessionId, null);
 });
 
+test("beëindigde runtime stopt direct en meldt de actieve sessie", async () => {
+  const source = readFileSync(new URL("../multiplayer-runtime.js", import.meta.url), "utf8");
+  const handlers = {};
+  const dispatched = [];
+  const storage = new Map();
+  let stopCalls = 0;
+  let startCalls = 0;
+  const storageStub = {
+    get length() { return storage.size; },
+    key: index => [...storage.keys()][index] ?? null,
+    getItem: key => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: key => storage.delete(key)
+  };
+  const windowStub = {
+    addEventListener: (type, handler) => { handlers[type] = handler; },
+    dispatchEvent: event => dispatched.push(event),
+    LeerpretAuth: { getSession: () => ({ apiBase: "https://engine.test" }) },
+    LEARNGameOMSimulator: {
+      getSharedGameController: () => ({ engine: { started: true } }),
+      startSharedGame: () => { startCalls += 1; },
+      stopSharedGame: () => { stopCalls += 1; }
+    }
+  };
+  class TestCustomEvent {
+    constructor(type, options = {}) {
+      this.type = type;
+      this.detail = options.detail;
+    }
+  }
+  vm.runInNewContext(source, {
+    window: windowStub,
+    document: { addEventListener: () => {}, visibilityState: "visible" },
+    localStorage: storageStub,
+    sessionStorage: storageStub,
+    crypto: { randomUUID: () => "runtime-finished-test-id" },
+    fetch: async () => ({
+      ok: true,
+      json: async () => ({
+        contract_version: "1.0",
+        session_id: "session-finished-runtime",
+        status: "finished",
+        revision: 4,
+        snapshot_revision: 3,
+        membership_revision: 2,
+        snapshot: {},
+        controller_member_id: "member-creator",
+        controller_lease_expires_at: null,
+        is_controller: false,
+        human_role_ids: ["operations"],
+        pending_commands: [],
+        applied_command_ids: [],
+        command_results: [],
+        participation_status: "active"
+      })
+    }),
+    setInterval: () => 1,
+    clearInterval: () => {},
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    CustomEvent: TestCustomEvent,
+    console,
+    Date,
+    Math,
+    Promise,
+    Set,
+    Map,
+    JSON,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Error,
+    Uint8Array,
+    encodeURIComponent
+  });
+
+  await windowStub.LOMMultiplayerRuntime.handleSessionStarted({
+    session_id: "session-finished-runtime",
+    status: "running",
+    participation_status: "active",
+    current_member_id: "member-peer",
+    created_by_member_id: "member-creator",
+    game_config: { play_mode: "digital" }
+  });
+
+  assert.equal(stopCalls, 1);
+  assert.equal(startCalls, 0);
+  assert.equal(windowStub.LOMMultiplayerRuntime.getState().sessionId, null);
+  assert.equal(dispatched.length, 1);
+  assert.equal(dispatched[0].type, "learngame-session-finished");
+  assert.equal(dispatched[0].detail.sessionId, "session-finished-runtime");
+  assert.equal(dispatched[0].detail.session.status, "finished");
+});
+
 test("service-worker cache en registerbusterversie dekken de multiplayerruntime", () => {
   const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
   const script = readFileSync(new URL("../script.js", import.meta.url), "utf8");
@@ -491,7 +587,7 @@ test("service-worker levert offline de geversioneerde JS en gebruikt HTML alleen
     return responsePromise;
   }
 
-  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260828.1"), scriptResponse);
+  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260828.2"), scriptResponse);
   assert.equal(await fetchOffline("missing.js?v=1"), errorResponse);
   assert.equal(await fetchOffline("route", "navigate"), indexResponse);
   assert.ok(matchCalls.some(call => call.options?.ignoreSearch === true));

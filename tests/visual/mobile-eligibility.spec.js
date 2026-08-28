@@ -250,7 +250,17 @@ test("digitale gamecode wordt op mobiel atomair en inline geweigerd", async ({ p
   await page.goto("/");
   await page.locator("body.auth-authenticated").waitFor();
 
-  await page.locator('[data-game-code-join] input[name="join_code"]').fill("DIGI01");
+  const gameCode = page.locator('[data-game-code-join] input[name="join_code"]');
+  await gameCode.fill("digi01");
+  await gameCode.evaluate(input => {
+    window.__mobileJoinCodeInputBeforeRefresh = input;
+  });
+  await page.waitForTimeout(3_300);
+  expect(await gameCode.evaluate(input => (
+    input === window.__mobileJoinCodeInputBeforeRefresh
+  ))).toBe(true);
+  await expect(gameCode).toHaveValue("digi01");
+  await expect(gameCode).toBeFocused();
   await page.locator('[data-game-code-join] button[type="submit"]').click();
   await expect.poll(() => stats.joins.length).toBe(1);
   expect(stats.joins[0]).toEqual({

@@ -554,6 +554,14 @@
     const operation = request(path)
       .then(async runtime => {
         if (generation !== state.generation || sessionId !== state.sessionId) return null;
+        if (runtime?.status === "finished") {
+          const finishedSession = { ...state.session, status: "finished" };
+          stop();
+          window.dispatchEvent(new CustomEvent("learngame-session-finished", {
+            detail: { sessionId, session: finishedSession }
+          }));
+          return runtime;
+        }
         applyRuntime(runtime, { forceRestore: shouldForceRestore });
         if (restoringConflict) {
           state.resyncedGeneration = Math.max(

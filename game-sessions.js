@@ -183,12 +183,17 @@
     session: null,
     busy: false,
     mutationVersion: 0,
+    sessionEndVersion: 0,
     mutationQueue: Promise.resolve(),
     pendingGameConfig: null,
     savingGameConfig: false,
     refreshPromise: null,
     finishConfirmationUntil: 0,
     finishConfirmationTimer: null,
+    finishConfirmationButton: null,
+    finishConfirmationSessionId: null,
+    lastRunningSession: null,
+    finishedNotificationSessionId: null,
     createSessionDraft: {
       session_type: "closed",
       difficulty_level: "normal",
@@ -229,12 +234,17 @@
     topSessionStatusCounts: document.getElementById("topSessionStatusCounts"),
     topSessionParticipationText: document.getElementById("topSessionParticipationText"),
     topSessionStopButton: document.getElementById("topSessionStopButton"),
+    topSessionStopTitle: document.getElementById("topSessionStopTitle"),
+    topSessionStopSummary: document.getElementById("topSessionStopSummary"),
     createForm: document.getElementById("gameSessionCreateForm"),
     sessionType: document.getElementById("gameSessionType"),
     dialog: document.getElementById("gameConsensusDialog"),
     dialogSummary: document.getElementById("gameConsensusSummary"),
     waitButton: document.getElementById("gameConsensusWaitButton"),
-    startButton: document.getElementById("gameConsensusStartButton")
+    startButton: document.getElementById("gameConsensusStartButton"),
+    endedDialog: document.getElementById("gameSessionEndedDialog"),
+    endedSummary: document.getElementById("gameSessionEndedSummary"),
+    endedDismissButton: document.getElementById("gameSessionEndedDismissButton")
   });
 
   function escapeHtml(value) {
@@ -1614,25 +1624,70 @@
     return null;
   }
 
-  function resetFinishConfirmation(button = elements().managerCreateButton) {
-    state.finishConfirmationUntil = 0;
-    clearTimeout(state.finishConfirmationTimer);
-    state.finishConfirmationTimer = null;
-    if (button?.hasAttribute("data-finish-game-session")) {
-      button.textContent = "Sessie afsluiten";
+  function finishConfirmationActiveFor(button) {
+    return Boolean(
+      button
+      && state.finishConfirmationButton === button
+      && state.finishConfirmationSessionId === state.session?.session_id
+      && state.finishConfirmationUntil > Date.now()
+    );
+  }
+
+  function setFinishButtonPresentation(button, confirming = false) {
+    if (!button) return;
+    if (button.id === "topSessionStopButton") {
+      const els = elements();
+      button.setAttribute(
+        "aria-label",
+        confirming
+          ? "Nogmaals klikken om de gamesessie af te sluiten"
+          : "Gamesessie afsluiten"
+      );
+      if (els.topSessionStopTitle) {
+        els.topSessionStopTitle.textContent = confirming
+          ? "Weet je het zeker?"
+          : "Gamesessie afsluiten";
+      }
+      if (els.topSessionStopSummary) {
+        els.topSessionStopSummary.textContent = confirming
+          ? "Klik nogmaals om de gamesessie voor iedereen te beëindigen."
+          : "Alleen jij als sessiemaker kunt de gamesessie voor iedereen beëindigen.";
+      }
+      return;
+    }
+    if (button.hasAttribute("data-finish-game-session")) {
+      button.textContent = confirming
+        ? "Nogmaals klikken om af te sluiten"
+        : "Sessie afsluiten";
     }
   }
 
+  function resetFinishConfirmation(button = state.finishConfirmationButton) {
+    const activeButton = state.finishConfirmationButton;
+    state.finishConfirmationUntil = 0;
+    clearTimeout(state.finishConfirmationTimer);
+    state.finishConfirmationTimer = null;
+    state.finishConfirmationButton = null;
+    state.finishConfirmationSessionId = null;
+    setFinishButtonPresentation(activeButton, false);
+    if (button && button !== activeButton) setFinishButtonPresentation(button, false);
+  }
+
   function requestFinishConfirmation(button) {
-    if (state.finishConfirmationUntil > Date.now()) {
-      resetFinishConfirmation(button);
-      mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/finish`);
+    if (!currentPlayerCreatedSession(state.session)) return;
+    if (finishConfirmationActiveFor(button)) {
+      const sessionId = state.session.session_id;
+      resetFinishConfirmation();
+      mutate(`/v1/game-sessions/${encodeURIComponent(sessionId)}/finish`);
       return;
     }
+    resetFinishConfirmation();
     state.finishConfirmationUntil = Date.now() + 5000;
-    button.textContent = "Nogmaals klikken om af te sluiten";
+    state.finishConfirmationButton = button;
+    state.finishConfirmationSessionId = state.session.session_id;
+    setFinishButtonPresentation(button, true);
     clearTimeout(state.finishConfirmationTimer);
-    state.finishConfirmationTimer = setTimeout(() => resetFinishConfirmation(button), 5000);
+    state.finishConfirmationTimer = setTimeout(() => resetFinishConfirmation(), 5000);
   }
 
   function saveSessionConfiguration(form) {
@@ -1801,7 +1856,7 @@
     const sessionType = visible
       ? (TYPE_LABELS[session.session_type] || session.session_type || "Game")
       : "Game";
-    const creatorText = session?.created_by_current_player || session?.is_game_master
+    const creatorText = currentPlayerCreatedSession(session)
       ? " - door jou aangemaakt"
       : "";
     if (els.playerMetricMount) els.playerMetricMount.hidden = !compactSessionVisible;
@@ -1821,6 +1876,26 @@
       );
     }
     if (els.topSessionStopButton) {
+      const creatorCanFinish = compactSessionVisible && currentPlayerCreatedSession(session);
+      if (!compactSessionVisible && state.finishConfirmationButton === els.topSessionStopButton) {
+        resetFinishConfirmation();
+      }
+      els.topSessionStopButton.removeAttribute("data-finish-game-session");
+      els.topSessionStopButton.removeAttribute("data-leave-game-session");
+      if (creatorCanFinish) {
+        els.topSessionStopButton.setAttribute("data-finish-game-session", "");
+        setFinishButtonPresentation(
+          els.topSessionStopButton,
+          finishConfirmationActiveFor(els.topSessionStopButton)
+        );
+      } else {
+        els.topSessionStopButton.setAttribute("data-leave-game-session", "");
+        els.topSessionStopButton.setAttribute("aria-label", "Stoppen met spelen");
+        if (els.topSessionStopTitle) els.topSessionStopTitle.textContent = "Stoppen met spelen";
+        if (els.topSessionStopSummary) {
+          els.topSessionStopSummary.textContent = "Verlaat jouw rol in deze gamesessie.";
+        }
+      }
       els.topSessionStopButton.disabled = !compactSessionVisible;
     }
     if (els.topPeopleButton) {
@@ -1899,6 +1974,55 @@
     `;
   }
 
+  function presentSessionMembers(session) {
+    return (session?.members || []).filter(member => member?.present !== false);
+  }
+
+  function sessionCreatorIdentityKnown(session) {
+    return Boolean(session?.created_by_member_id)
+      || typeof session?.created_by_current_player === "boolean";
+  }
+
+  function currentPlayerCreatedSession(session) {
+    if (session?.created_by_member_id) {
+      return session.created_by_member_id === session.current_member_id;
+    }
+    return session?.created_by_current_player === true;
+  }
+
+  function soloNonCreatorAgentStartBlocked(session) {
+    if (!(session?.role_vacancies || []).length) return false;
+    if (presentSessionMembers(session).length !== 1) return false;
+    if (!sessionCreatorIdentityKnown(session)) return false;
+    return !currentPlayerCreatedSession(session);
+  }
+
+  function canRequestSessionStart(session) {
+    if (!session || session.status === "running" || session.status === "finished") return false;
+    if (session.consensus?.status === "open") return false;
+    return !soloNonCreatorAgentStartBlocked(session);
+  }
+
+  function validSoloCreatorConsensus(session, consensus) {
+    const requiredMemberIds = consensus?.required_member_ids || [];
+    if (requiredMemberIds.length !== 1 || !sessionCreatorIdentityKnown(session)) return true;
+    if (session?.created_by_member_id) {
+      return requiredMemberIds[0] === session.created_by_member_id;
+    }
+    return currentPlayerCreatedSession(session)
+      && requiredMemberIds[0] === session.current_member_id;
+  }
+
+  function canCurrentMemberAnswerConsensus(session) {
+    const consensus = session?.consensus;
+    const memberId = session?.current_member_id;
+    return consensus?.status === "open"
+      && sessionSupportedOnDevice(session)
+      && validSoloCreatorConsensus(session, consensus)
+      && consensus.required_member_ids.includes(memberId)
+      && !consensus.approved_member_ids.includes(memberId);
+  }
+
   function sessionMarkup(session, context) {
     const vacancies = session.role_vacancies || [];
     const running = session.status === "running";
@@ -1945,7 +2069,9 @@
         </div>
       `;
     }
-    const canRequest = !running && (!session.consensus || session.consensus.status !== "open");
+    const canRequest = canRequestSessionStart(session);
+    const consensusOpen = session.consensus?.status === "open";
+    const waitingForCreator = soloNonCreatorAgentStartBlocked(session);
     const managementSupported = supportsGameManagement();
     return `
       <div class="active-game-session">
@@ -1990,10 +2116,13 @@
           <button class="primary-button" type="button" data-request-game-start>
             ${vacancies.length ? "Verzoek om nu te starten" : "Game starten"}
           </button>
-        ` : `
+        ` : consensusOpen ? `
           <p class="session-vote-progress">Startverzoek loopt: ${session.consensus.approved_member_ids.length}/${session.consensus.required_member_ids.length} akkoord.</p>
+        ` : waitingForCreator ? `
+          <p class="session-vote-progress">Alleen de sessiemaker kan zonder andere aanwezige spelers besluiten om met agents te starten.</p>
+        ` : `
         `}
-        ${context === "manager" && session.is_game_master ? `
+        ${context === "manager" && currentPlayerCreatedSession(session) ? `
           <button class="session-finish-button" type="button" data-finish-game-session>Sessie sluiten</button>
         ` : ""}
         ${context === "player" ? `
@@ -2068,7 +2197,18 @@
       ${showCodeForm ? `<form class="game-code-join-form" data-game-code-join>
         <label>
           <span>Gamecode</span>
-          <input name="join_code" minlength="6" maxlength="10" autocomplete="off" placeholder="Bijv. A1B2C3" required>
+          <input name="join_code"
+                 minlength="6"
+                 maxlength="10"
+                 pattern="[A-Za-z0-9]{6,10}"
+                 inputmode="text"
+                 enterkeyhint="go"
+                 autocapitalize="characters"
+                 autocorrect="off"
+                 spellcheck="false"
+                 autocomplete="off"
+                 placeholder="Bijv. A1B2C3"
+                 required>
         </label>
         <button class="primary-button" type="submit">Deelnemen</button>
       </form>` : ""}
@@ -2089,17 +2229,46 @@
     `;
   }
 
+  function renderAvailablePlayerContent(container, markup, preservedForm = null) {
+    const focusedInput = preservedForm?.querySelector('input[name="join_code"]');
+    if (
+      !preservedForm
+      || preservedForm.parentElement !== container
+      || document.activeElement !== focusedInput
+    ) {
+      container.innerHTML = markup;
+      return false;
+    }
+
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const nextForm = template.content.querySelector("[data-game-code-join]");
+    if (!nextForm || nextForm.parentNode !== template.content) {
+      container.innerHTML = markup;
+      return false;
+    }
+
+    const nextNodes = Array.from(template.content.childNodes);
+    const formIndex = nextNodes.indexOf(nextForm);
+    Array.from(container.childNodes).forEach(node => {
+      if (node !== preservedForm) node.remove();
+    });
+    nextNodes.slice(0, formIndex).forEach(node => {
+      container.insertBefore(node, preservedForm);
+    });
+    nextNodes.slice(formIndex + 1).forEach(node => container.appendChild(node));
+    return true;
+  }
+
   function renderConsensus() {
     const els = elements();
     const consensus = state.session?.consensus;
-    const memberId = state.session?.current_member_id;
-    const mustVote = consensus?.status === "open"
-      && sessionSupportedOnDevice(state.session)
-      && consensus.required_member_ids.includes(memberId)
-      && !consensus.approved_member_ids.includes(memberId);
+    const mustVote = canCurrentMemberAnswerConsensus(state.session);
     els.dialog.hidden = !mustVote;
     if (!mustVote) return;
-    els.dialogSummary.textContent = `${state.session.role_vacancies.length} ontbrekende rollen worden alleen na ieders akkoord door agents ingevuld.`;
+    els.dialogSummary.textContent = consensus.required_member_ids.length === 1
+      ? `Er zijn ${state.session.role_vacancies.length} rollen onbezet. Jij bent de sessiemaker en kiest of deze met agents worden ingevuld.`
+      : `${state.session.role_vacancies.length} ontbrekende rollen worden alleen na ieders akkoord door agents ingevuld.`;
   }
 
   function placePlayerSessionPanel(running) {
@@ -2126,6 +2295,10 @@
           selectionEnd: currentJoinCodeInput.selectionEnd
         }
       : null;
+    const currentJoinCodeForm = joinCodeDraft?.focused
+      ? currentJoinCodeInput.closest("[data-game-code-join]")
+      : null;
+    let joinCodeFormPreserved = false;
     const openPlayerIndices = Array.from(els.playerContent.querySelectorAll("details"))
       .map((el, i) => el.hasAttribute("open") ? i : -1)
       .filter(i => i !== -1);
@@ -2138,6 +2311,7 @@
       && !["waiting", "queued"].includes(state.session?.participation_status)
       && !sessionBlocked
     );
+    if (state.session?.status === "running") state.lastRunningSession = state.session;
 
     if (state.session) {
       renderTopParticipation(sessionBlocked ? null : state.session);
@@ -2159,8 +2333,15 @@
       els.managerBadge.hidden = true;
       if (els.managerCreateButton) {
         const managementSupported = supportsGameManagement();
+        const running = state.session.status === "running";
+        const startAllowed = canRequestSessionStart(state.session);
+        const finishAllowed = running && currentPlayerCreatedSession(state.session);
         els.managerCreateButton.hidden = (
-          !managementSupported || queued || !state.session.is_game_master
+          !managementSupported
+          || queued
+          || (running
+            ? !finishAllowed
+            : !state.session.is_game_master || !startAllowed)
         );
         els.managerCreateButton.disabled = (
           !managementSupported
@@ -2171,13 +2352,21 @@
         els.managerCreateButton.removeAttribute("data-create-game-session");
         els.managerCreateButton.removeAttribute("data-request-game-start");
         els.managerCreateButton.removeAttribute("data-finish-game-session");
-        if (state.session.status === "running") {
+        if (finishAllowed) {
           els.managerCreateButton.setAttribute("data-finish-game-session", "");
-          els.managerCreateButton.textContent = state.finishConfirmationUntil > Date.now()
-            ? "Nogmaals klikken om af te sluiten"
-            : "Sessie afsluiten";
+          setFinishButtonPresentation(
+            els.managerCreateButton,
+            finishConfirmationActiveFor(els.managerCreateButton)
+          );
+        } else if (running) {
+          if (state.finishConfirmationButton === els.managerCreateButton) {
+            resetFinishConfirmation();
+          }
+          els.managerCreateButton.textContent = "Sessie afsluiten";
         } else {
-          resetFinishConfirmation(els.managerCreateButton);
+          if (state.finishConfirmationButton === els.managerCreateButton) {
+            resetFinishConfirmation();
+          }
           els.managerCreateButton.setAttribute("data-request-game-start", "");
           els.managerCreateButton.textContent = sessionBlocked
             ? "Start op computer of laptop"
@@ -2219,7 +2408,7 @@
       els.managerTitle.textContent = "Gamesessie";
       if (els.managerCreateButton) {
         const creationSupported = supportsSessionCreation();
-        resetFinishConfirmation(els.managerCreateButton);
+        resetFinishConfirmation();
         els.managerCreateButton.hidden = !creationSupported;
         els.managerCreateButton.disabled = !creationSupported;
         els.managerCreateButton.type = creationSupported ? "submit" : "button";
@@ -2234,13 +2423,17 @@
         els.managerCreateButton.removeAttribute("data-finish-game-session");
         els.managerCreateButton.textContent = "Sessie aanmaken";
       }
-      els.playerContent.innerHTML = availableMarkup(state.availability);
+      joinCodeFormPreserved = renderAvailablePlayerContent(
+        els.playerContent,
+        availableMarkup(state.availability),
+        currentJoinCodeForm
+      );
       els.managerContent.hidden = false;
       if (!els.managerContent.querySelector("#gameSessionCreateForm[data-runtime-session-form]")) {
         els.managerContent.innerHTML = createSessionMarkup();
       }
     }
-    if (!state.session && joinCodeDraft) {
+    if (!state.session && joinCodeDraft && !joinCodeFormPreserved) {
       const nextJoinCodeInput = els.playerContent.querySelector(
         '[data-game-code-join] input[name="join_code"]'
       );
@@ -2282,12 +2475,41 @@
     if (!state.authenticated || state.busy) return;
     if (state.refreshPromise) return state.refreshPromise;
     const refreshVersion = state.mutationVersion;
+    const refreshSessionEndVersion = state.sessionEndVersion;
+    const refreshIsStale = () => (
+      !state.authenticated
+      || refreshVersion !== state.mutationVersion
+      || refreshSessionEndVersion !== state.sessionEndVersion
+    );
     const operation = (async () => {
       try {
+        const previousRunningSession = state.session?.status === "running"
+          ? state.session
+          : state.lastRunningSession;
         const availability = await request(availabilityPath());
-        if (refreshVersion !== state.mutationVersion) return;
+        if (refreshIsStale()) return;
         state.availability = availability;
         state.session = availability.current_session;
+        if (!state.session && previousRunningSession?.session_id) {
+          try {
+            const latestSession = await request(
+              `/v1/game-sessions/${encodeURIComponent(previousRunningSession.session_id)}`
+            );
+            if (refreshIsStale()) return;
+            if (latestSession?.status === "finished") {
+              handleFinishedSession(latestSession);
+              return;
+            }
+            if (latestSession?.status === "running") {
+              state.session = latestSession;
+              state.availability.current_session = latestSession;
+              state.lastRunningSession = latestSession;
+            }
+          } catch (error) {
+            if (refreshIsStale()) return;
+            if ([401, 403, 404].includes(error?.status)) state.lastRunningSession = null;
+          }
+        }
         const repairedConfig = repairedLobbyRoleConfig(state.session);
         if (repairedConfig) {
           try {
@@ -2295,18 +2517,18 @@
               `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/configuration`,
               { method: "POST", body: JSON.stringify({ game_config: repairedConfig }) }
             );
-            if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
+            if (refreshIsStale()) return;
             state.session = repairedSession;
             state.availability.current_session = state.session;
           } catch (error) {
-            if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
+            if (refreshIsStale()) return;
             console.warn("Conceptrollen konden niet automatisch worden hersteld.", error);
           }
         }
-        if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
+        if (refreshIsStale()) return;
         render();
       } catch (error) {
-        if (!state.authenticated || refreshVersion !== state.mutationVersion) return;
+        if (refreshIsStale()) return;
         if (isTransientRequestError(error)) return;
         if (!state.session) {
           elements().playerContent.innerHTML = `<p class="session-error">${escapeHtml(error.message)}</p>`;
@@ -2331,6 +2553,40 @@
     };
   }
 
+  function dismissSessionEndedNotice() {
+    const dialog = elements().endedDialog;
+    if (dialog) dialog.hidden = true;
+  }
+
+  function showSessionEndedNotice(session) {
+    const sessionId = session?.session_id;
+    if (!sessionId || state.finishedNotificationSessionId === sessionId) return;
+    state.finishedNotificationSessionId = sessionId;
+    const els = elements();
+    if (els.endedSummary) {
+      els.endedSummary.textContent = currentPlayerCreatedSession(session)
+        ? "Je hebt de gamesessie beëindigd. De game is voor alle spelers gestopt."
+        : "De sessiemaker heeft de gamesessie beëindigd. De game is voor alle spelers gestopt.";
+    }
+    if (els.endedDialog) els.endedDialog.hidden = false;
+    queueMicrotask(() => els.endedDismissButton?.focus());
+  }
+
+  function handleFinishedSession(session) {
+    const sessionId = session?.session_id;
+    const activeSessionId = state.session?.session_id || state.lastRunningSession?.session_id;
+    if (!sessionId || !activeSessionId || sessionId !== activeSessionId) return false;
+    state.sessionEndVersion += 1;
+    resetFinishConfirmation();
+    state.session = null;
+    state.lastRunningSession = null;
+    state.startedSessionId = null;
+    if (state.availability) state.availability.current_session = null;
+    render();
+    showSessionEndedNotice(session);
+    return true;
+  }
+
   async function performMutation(path, body) {
     if (!state.authenticated) return;
     state.busy = true;
@@ -2338,25 +2594,36 @@
     state.actionErrorNeedsAnnouncement = false;
     state.mutationVersion += 1;
     const mutationVersion = state.mutationVersion;
+    const sessionEndVersion = state.sessionEndVersion;
     try {
       const mutationResult = await request(path, {
         method: "POST",
         body: body === undefined ? undefined : JSON.stringify(body)
       });
-      if (!state.authenticated || mutationVersion !== state.mutationVersion) return;
+      if (
+        !state.authenticated
+        || mutationVersion !== state.mutationVersion
+        || sessionEndVersion !== state.sessionEndVersion
+      ) return;
       const leftSession = mutationResult?.participation_status === "none"
         && ["left", "left_queue", "not_participating"].includes(mutationResult?.status);
-      state.session = leftSession ? null : mutationResult;
-      if (state.session?.status === "finished" || state.session?.participation_status === "left") {
+      const finishedSession = mutationResult?.status === "finished"
+        ? { ...state.session, ...mutationResult }
+        : null;
+      if (leftSession) state.lastRunningSession = null;
+      const finishedHandled = finishedSession
+        ? handleFinishedSession(finishedSession)
+        : false;
+      if (finishedHandled) return;
+      state.session = leftSession || finishedSession ? null : mutationResult;
+      if (state.session?.participation_status === "left") {
         state.session = null;
       }
-      if (!state.session) {
-        state.startedSessionId = null;
-      }
+      if (!state.session) state.startedSessionId = null;
       pendingConfigOverlay();
       render();
       try {
-        const refreshed = await refreshAfterMutation(mutationVersion);
+        const refreshed = await refreshAfterMutation(mutationVersion, sessionEndVersion);
         if (!refreshed) return;
         pendingConfigOverlay();
         render();
@@ -2366,7 +2633,11 @@
         console.warn("Gamesessie is bijgewerkt, maar verversen mislukte:", refreshError);
       }
     } catch (error) {
-      if (!state.authenticated || mutationVersion !== state.mutationVersion) return;
+      if (
+        !state.authenticated
+        || mutationVersion !== state.mutationVersion
+        || sessionEndVersion !== state.sessionEndVersion
+      ) return;
       if (
         error.code === "digital_session_requires_computer"
         || error.code === "session_creation_requires_computer"
@@ -2444,9 +2715,16 @@
     }
   }
 
-  async function refreshAfterMutation(expectedMutationVersion = state.mutationVersion) {
+  async function refreshAfterMutation(
+    expectedMutationVersion = state.mutationVersion,
+    expectedSessionEndVersion = state.sessionEndVersion
+  ) {
     const availability = await request(availabilityPath());
-    if (!state.authenticated || expectedMutationVersion !== state.mutationVersion) return false;
+    if (
+      !state.authenticated
+      || expectedMutationVersion !== state.mutationVersion
+      || expectedSessionEndVersion !== state.sessionEndVersion
+    ) return false;
     state.availability = availability;
     state.session = availability.current_session;
     return true;
@@ -2459,6 +2737,8 @@
     state.authenticated = false;
     state.availability = null;
     state.session = null;
+    state.lastRunningSession = null;
+    state.finishedNotificationSessionId = null;
     state.startedSessionId = null;
     state.selectedSessionId = null;
     state.actionError = "";
@@ -2466,6 +2746,8 @@
     state.pendingGameConfig = null;
     state.savingGameConfig = false;
     state.busy = false;
+    resetFinishConfirmation();
+    dismissSessionEndedNotice();
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: { session: null, running: false, reason: "logout" }
     }));
@@ -2540,7 +2822,7 @@
         event.preventDefault();
         const code = new FormData(event.target).get("join_code");
         mutate("/v1/game-sessions/join", {
-          join_code: String(code || "").toUpperCase(),
+          join_code: String(code || "").trim().toUpperCase(),
           supports_digital_play: supportsDigitalPlay()
         });
       }
@@ -2701,12 +2983,13 @@
         target.hasAttribute("data-request-game-start")
         && state.session
         && sessionSupportedOnDevice(state.session)
+        && canRequestSessionStart(state.session)
       ) {
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/start-requests`);
       } else if (
         target.hasAttribute("data-finish-game-session")
         && state.session
-        && supportsGameManagement()
+        && currentPlayerCreatedSession(state.session)
       ) {
         requestFinishConfirmation(target);
       } else if (target.hasAttribute("data-open-game-session-overview")) {
@@ -2719,10 +3002,17 @@
       }
     });
     elements().waitButton?.addEventListener("click", () => {
-      if (state.session && sessionSupportedOnDevice(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "wait" });
+      if (canCurrentMemberAnswerConsensus(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "wait" });
     });
     elements().startButton?.addEventListener("click", () => {
-      if (state.session && sessionSupportedOnDevice(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "start_with_agents" });
+      if (canCurrentMemberAnswerConsensus(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "start_with_agents" });
+    });
+    elements().endedDismissButton?.addEventListener("click", dismissSessionEndedNotice);
+    window.addEventListener("learngame-session-finished", event => {
+      handleFinishedSession(event.detail?.session || {
+        session_id: event.detail?.sessionId,
+        status: "finished"
+      });
     });
     window.addEventListener("leerpret-auth-changed", event => {
       state.authenticated = Boolean(event.detail?.authenticated);
