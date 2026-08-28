@@ -368,6 +368,76 @@ test("ticks markeren alleen werkelijk synchroniseerbare statuswijzigingen", () =
   unsubscribe();
 });
 
+test("mobiele digitale deelname start geen poll of gedeelde runtime", async () => {
+  const source = readFileSync(new URL("../multiplayer-runtime.js", import.meta.url), "utf8");
+  const handlers = {};
+  const storage = new Map();
+  let fetchCount = 0;
+  let intervalCount = 0;
+  const localStorageStub = {
+    get length() { return storage.size; },
+    key: index => [...storage.keys()][index] ?? null,
+    getItem: key => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: key => storage.delete(key)
+  };
+  const windowStub = {
+    addEventListener: (type, handler) => { handlers[type] = handler; },
+    LeerpretAuth: { getSession: () => ({ apiBase: "https://engine.test" }) },
+    LOMDeviceCapabilities: {
+      current: () => ({ supportsDigitalPlay: false }),
+      supportsSession: playMode => playMode === "physical"
+    },
+    LEARNGameOMSimulator: { stopSharedGame: () => {} }
+  };
+  vm.runInNewContext(source, {
+    window: windowStub,
+    document: { addEventListener: () => {}, visibilityState: "visible" },
+    localStorage: localStorageStub,
+    sessionStorage: localStorageStub,
+    crypto: { randomUUID: () => "runtime-test-id" },
+    fetch: async () => {
+      fetchCount += 1;
+      throw new Error("Een geblokkeerde runtime mag geen request doen.");
+    },
+    setInterval: () => {
+      intervalCount += 1;
+      return intervalCount;
+    },
+    clearInterval: () => {},
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    CustomEvent: class CustomEvent {},
+    console,
+    Date,
+    Math,
+    Promise,
+    Set,
+    Map,
+    JSON,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Error,
+    Uint8Array,
+    encodeURIComponent
+  });
+
+  await windowStub.LOMMultiplayerRuntime.handleSessionStarted({
+    session_id: "session-mobile-digital",
+    status: "running",
+    participation_status: "active",
+    current_member_id: "member-mobile",
+    game_config: { play_mode: "digital" }
+  });
+
+  assert.equal(fetchCount, 0);
+  assert.equal(intervalCount, 0);
+  assert.equal(windowStub.LOMMultiplayerRuntime.getState().sessionId, null);
+});
+
 test("service-worker cache en registerbusterversie dekken de multiplayerruntime", () => {
   const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
   const script = readFileSync(new URL("../script.js", import.meta.url), "utf8");
@@ -421,7 +491,7 @@ test("service-worker levert offline de geversioneerde JS en gebruikt HTML alleen
     return responsePromise;
   }
 
-  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260827.1"), scriptResponse);
+  assert.equal(await fetchOffline("multiplayer-runtime.js?v=20260828.1"), scriptResponse);
   assert.equal(await fetchOffline("missing.js?v=1"), errorResponse);
   assert.equal(await fetchOffline("route", "navigate"), indexResponse);
   assert.ok(matchCalls.some(call => call.options?.ignoreSearch === true));

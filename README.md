@@ -163,6 +163,10 @@ De runtime heeft twee afzonderlijke werkoppervlakken op dezelfde game-state:
 - `Beheer` bevat de volledige cockpit met orderinvoer, instellingen, voorraad,
   events en de verschillende procesweergaven.
 
+De schematische `Logistieke opstelling` staat uitsluitend onder
+`Game > Opstelling`. Zij wordt bij fysiek noch digitaal spelen in `Speler`
+herhaald; een wachtende speler ziet daar alleen `Productiestroom` en `Heatmap`.
+
 De schakelaar bovenin maakt het tijdens de ontwikkeling mogelijk om direct
 tussen beide perspectieven te springen. Tijdens de self-starting tutorial is
 de schakelaar verborgen. Na een bevestigde formulierhandeling gaat de
@@ -209,6 +213,23 @@ wederzijds exclusief en de Engine weigert botsende of onbekende rolconfiguraties
 capaciteit, agentovername en wachtrij blijven zo gelijk aan het werkelijk
 speelbare aantal rollen.
 
+Op een telefoon, tablet, spelconsole, smart-tv of ander niet-computerscherm is
+uitsluitend de Speler-weergave beschikbaar. Een speler kan daar alleen aan een
+bestaande fysieke gamesessie deelnemen; een
+sessie aanmaken (ook een vrije game), beheren of configureren kan uitsluitend
+op een computer of laptop. De tabs Game, Torens en Inzicht en de verwijzingen
+naar Beheer worden daarom mobiel verwijderd. Digitale sessies blijven
+zichtbaar, maar deelname is uitgeschakeld met een korte uitleg. Ook de
+bouwtutorial is daar niet beschikbaar, omdat die een computer of laptop met
+muis vereist. De mobiele beperking wordt niet als afgeronde of overgeslagen
+tutorial opgeslagen, zodat dezelfde speler de tutorial later op een geschikt
+apparaat nog kan volgen.
+Een mobiele beschikbaarheidspoll houdt een digitale rol niet kunstmatig
+aanwezig. Zonder actieve computer- of laptopinstantie wordt die rol vrijgegeven,
+terwijl een gelijktijdig actieve laptop van dezelfde speler aangesloten blijft.
+Een fysieke lobby met een mobiele deelnemer kan niet achteraf naar digitaal
+worden omgezet.
+
 Wanneer rollen onbezet zijn, kan iedere aanwezige speler een startverzoek doen.
 Alle reeds aanwezige spelers kiezen vervolgens unaniem tussen wachten en
 starten met gesimuleerde agents. Eén wachtstem wijst het verzoek af. Pas wanneer
@@ -229,7 +250,9 @@ Daarom simuleren browsers geen rollen die door andere mensen zijn bezet en
 zien alle deelnemers dezelfde orders, klok, incidenten en uitkomsten. De
 taalneutrale runtimekopie staat in
 `contracts/game-session-runtime-v1.schema.json`; de sessielijst in
-`contracts/game-session-availability-v1.schema.json`.
+`contracts/game-session-availability-v2.schema.json`. Contract-v1 blijft
+ongewijzigd voor oudere consumers. Rol bij deployment eerst de Engine met
+capability- en v2-ondersteuning uit en daarna deze consumer.
 
 Iedere interactie krijgt een wereldwijd uniek client-event-id en gebruikt de
 pseudonieme `current_member_id` als stabiele persoon binnen de gamesessie. Een
@@ -487,7 +510,7 @@ verwijderd.
 - verstoringen genereren zoals machine-uitval, spoeddruk, leveranciersvertraging en herwerk;
 - rolvrijheid/disruptief gedrag als configureerbare conditie meenemen;
 - ruwe interactie-events bewaren voor de Leerpret Simulator.
-- op iPhone-formaat werken met grotere touchdoelen, horizontaal swipebare procesbanen, safe-area ondersteuning en iOS-standalone styling;
+- op telefoon, tablet en andere niet-computerschermen uitsluitend als Speler deelnemen aan bestaande fysieke games, met grotere touchdoelen, horizontaal swipebare procesbanen, safe-area ondersteuning en iOS-standalone styling; sessies aanmaken en beheren, digitale games en de bouwtutorial blijven voor computer of laptop;
 - als PWA worden toegevoegd aan het beginscherm via `manifest.webmanifest`, `service-worker.js` en het app-icoon in `icons/icon.svg`.
 
 De eventbuffer is in de browser beschikbaar via:
@@ -557,7 +580,8 @@ opgeslagen.
 
 ## Interactieve LEGO-bouwmodule
 
-De bouwmodule start altijd met een woordarme tutorial voor Toren A. Bovenaan
+Op een computer of laptop start de bouwmodule met een woordarme tutorial voor
+Toren A. Op telefoon en tablet wordt deze route niet gestart. Bovenaan
 staat alleen dat de speler leverancier van LEGO-torens is en dat een klant de
 afgebeelde toren wil. De geanimeerde klanttoren laat de opbouw visueel zien.
 De grondplaat, noppen, blokken en grijze doelvlakken

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leerpret.nl/contracts/game-session-availability-v2.schema.json",
+  "title": "LEARNGame OM multiplayer availability v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "active_sessions",
+    "open_sessions",
+    "discoverable_sessions",
+    "created_sessions",
+    "participating_sessions",
+    "can_start_free_game",
+    "current_session"
+  ],
+  "properties": {
+    "status": {"const": "ok"},
+    "active_sessions": {"$ref": "#/$defs/sessionSummaries"},
+    "open_sessions": {"$ref": "#/$defs/sessionSummaries"},
+    "discoverable_sessions": {"$ref": "#/$defs/sessionSummaries"},
+    "created_sessions": {"$ref": "#/$defs/sessionSummaries"},
+    "participating_sessions": {"$ref": "#/$defs/sessionSummaries"},
+    "can_start_free_game": {"type": "boolean"},
+    "current_session": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "https://leerpret.nl/contracts/game-session-consensus-v1.schema.json"}
+      ]
+    }
+  },
+  "$defs": {
+    "sessionSummaries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/sessionSummary"}
+    },
+    "sessionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "session_type",
+        "play_mode",
+        "difficulty_level",
+        "status",
+        "member_count",
+        "human_count",
+        "agent_count",
+        "queue_count",
+        "capacity",
+        "available_places",
+        "participation_status",
+        "queue_position",
+        "join_mode",
+        "created_by_current_player",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "session_id": {"type": "string", "minLength": 8, "maxLength": 120},
+        "session_type": {"enum": ["closed", "open", "semi_closed"]},
+        "play_mode": {"enum": ["physical", "digital"]},
+        "difficulty_level": {"enum": ["easy", "normal", "hard"]},
+        "status": {"enum": ["lobby", "ready", "running"]},
+        "member_count": {"type": "integer", "minimum": 0},
+        "human_count": {"type": "integer", "minimum": 0},
+        "agent_count": {"type": "integer", "minimum": 0},
+        "queue_count": {"type": "integer", "minimum": 0},
+        "capacity": {"type": "integer", "minimum": 1},
+        "available_places": {"type": "integer", "minimum": 0},
+        "participation_status": {"enum": ["active", "waiting", "none"]},
+        "queue_position": {"type": ["integer", "null"], "minimum": 1},
+        "join_mode": {"enum": ["join", "resume", "replace_agent", "queue", "waiting", "full", "code_required", "closed"]},
+        "created_by_current_player": {"type": "boolean"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

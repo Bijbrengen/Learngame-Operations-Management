@@ -39,6 +39,11 @@ jobs:
       - name: Chromium en systeemdependencies installeren
         run: npx playwright install --with-deps chromium
 
+      - name: Device- en multiplayerregressies uitvoeren
+        run: |
+          npm run test:device
+          npm run test:multiplayer
+
       - name: Acceptatietests uitvoeren
         run: npm run test:visual
 

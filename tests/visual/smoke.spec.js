@@ -80,38 +80,35 @@ test("klant kan een order plaatsen en naar Operations sturen", async ({ page }) 
   });
 });
 
-test("speloverzicht toont de actieve logistieke opstelling los van de productiestroom", async ({ page }) => {
-  await page.goto("/");
-  await page.waitForFunction(() => (
-    window.LogisticsGameEngine
-    && window.LogisticsGameUI
-    && window.ConfigurationLayoutPreview
-  ));
-  await page.evaluate(() => {
-    document.body.className = "";
-    document.body.innerHTML = '<main id="live-layout-test"></main>';
-    const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
-      random: () => 0,
-      config: { initialOrderDelayMs: 999999999 }
-    });
-    window.LogisticsGameUI.mount(document.getElementById("live-layout-test"), { engine }).start({
-      humanRoleId: "pd1",
-      gameType: "lo4",
-      organizationModel: "single_enterprise",
-      playMode: "physical",
-      productionProcesses: ["parallel"],
-      intermediateStock: false,
-      enabledRoles: ["supplier", "customer"]
-    });
-  });
+for (const playMode of ["physical", "digital"]) {
+  test(`speloverzicht verbergt de logistieke opstelling bij ${playMode} spelen`, async ({ page }, testInfo) => {
+    test.skip(
+      playMode === "digital" && testInfo.project.name === "mobile-chromium",
+      "Digitale sessies zijn alleen beschikbaar op computer of laptop."
+    );
+    await page.goto("/");
+    await page.waitForFunction(() => window.LogisticsGameEngine && window.LogisticsGameUI);
+    await page.evaluate(mode => {
+      document.body.className = "";
+      document.body.innerHTML = '<main id="player-overview-test"></main>';
+      const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+        random: () => 0,
+        config: { initialOrderDelayMs: 999999999 }
+      });
+      window.LogisticsGameUI.mount(document.getElementById("player-overview-test"), { engine }).start({
+        humanRoleId: "pd1",
+        gameType: "lo4",
+        organizationModel: "single_enterprise",
+        playMode: mode,
+        productionProcesses: ["parallel"],
+        intermediateStock: false,
+        enabledRoles: ["supplier", "customer"]
+      });
+    }, playMode);
 
-  const layout = page.locator("[data-sim-live-layout]");
-  await expect(layout).toBeVisible();
-  await expect(layout.locator('[data-layout-topology="parallel"]')).toBeVisible();
-  await expect(layout.locator('[data-layout-node="supplier"]')).toBeVisible();
-  await expect(layout.locator('[data-layout-node="production-a"]')).toBeVisible();
-  await expect(layout.locator('[data-layout-node="production-b"]')).toBeVisible();
-  await expect(layout.locator('[data-layout-node="production-c"]')).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Productiestroom" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Heatmap" })).toBeVisible();
-});
+    await expect(page.locator("[data-sim-live-layout]")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Logistieke opstelling" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Productiestroom" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Heatmap" })).toBeVisible();
+  });
+}

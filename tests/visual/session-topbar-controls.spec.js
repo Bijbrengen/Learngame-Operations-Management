@@ -8,7 +8,7 @@ async function fulfillJson(route, status, body) {
   });
 }
 
-async function mockRunningSession(page) {
+async function mockRunningSession(page, playMode) {
   const sessionId = "session-topbar-regression";
   const requiredRoles = [
     "customer",
@@ -30,7 +30,7 @@ async function mockRunningSession(page) {
     .filter(roleId => roleId !== member.assigned_role_id)
     .map(roleId => ({ agent_id: `agent-${roleId}`, role_id: roleId }));
   const gameConfig = {
-    play_mode: "digital",
+    play_mode: playMode,
     game_type: "lo4",
     enabled_roles: requiredRoles,
     production_processes: ["sequential"],
@@ -61,6 +61,8 @@ async function mockRunningSession(page) {
   const summary = {
     session_id: sessionId,
     session_type: "closed",
+    play_mode: playMode,
+    difficulty_level: "normal",
     status: "running",
     human_count: 1,
     agent_count: 6,
@@ -93,16 +95,20 @@ async function mockRunningSession(page) {
     exists: true,
     profile: {}
   }));
-  await page.route("**/v1/game-sessions/availability**", route => fulfillJson(route, 200, {
-    status: "ok",
-    current_session: left ? null : session,
-    active_sessions: [summary],
-    discoverable_sessions: [],
-    created_sessions: left ? [summary] : [],
-    participating_sessions: left ? [] : [summary],
-    open_sessions: [],
-    can_start_free_game: left
-  }));
+  await page.route("**/v1/game-sessions/availability**", route => {
+    const supportsDigitalPlay = new URL(route.request().url())
+      .searchParams.get("supports_digital_play") !== "false";
+    return fulfillJson(route, 200, {
+      status: "ok",
+      current_session: left ? null : session,
+      active_sessions: [summary],
+      discoverable_sessions: [],
+      created_sessions: left ? [summary] : [],
+      participating_sessions: left ? [] : [summary],
+      open_sessions: [],
+      can_start_free_game: left && supportsDigitalPlay
+    });
+  });
   await page.route(`**/v1/game-sessions/${sessionId}/leave`, async route => {
     stats.leaveCalls += 1;
     left = true;
@@ -137,7 +143,10 @@ async function mockRunningSession(page) {
 }
 
 test("actieve sessie en stopactie blijven compacte bovenbalkknoppen", async ({ page }, testInfo) => {
-  const stats = await mockRunningSession(page);
+  const stats = await mockRunningSession(
+    page,
+    testInfo.project.name === "mobile-chromium" ? "physical" : "digital"
+  );
   await page.goto("/");
   await page.locator("body.auth-authenticated").waitFor();
 
@@ -173,11 +182,20 @@ test("actieve sessie en stopactie blijven compacte bovenbalkknoppen", async ({ p
   await statusButton.focus();
   await expect(statusTooltip).toHaveCSS("visibility", "visible");
   await statusButton.press("Enter");
-  await expect(page.locator("#managerWorkbench")).toBeVisible();
-  await expect(page.locator('button[data-manager-tab="session"]')).toHaveClass(/is-active/);
-  await expect(page.locator("#managerSessionContent .active-game-card")).toHaveCount(1);
-
-  await page.locator("#playerViewButton").click();
+  if (testInfo.project.name === "mobile-chromium") {
+    await expect(page.locator("#playerWorkbench")).toBeVisible();
+    await expect(page.locator("#managerWorkbench")).toBeHidden();
+    await expect(page.locator(".app-view-switcher [data-main-menu-tab]:visible")).toHaveCount(0);
+    expect(await page.evaluate(() => ({
+      appView: window.LEARNGameOMSimulator.getStateSnapshot().appView,
+      storedAppView: sessionStorage.getItem("learngame.om.appView")
+    }))).toEqual({ appView: "player", storedAppView: "player" });
+  } else {
+    await expect(page.locator("#managerWorkbench")).toBeVisible();
+    await expect(page.locator('button[data-manager-tab="session"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#managerSessionContent .active-game-card")).toHaveCount(1);
+    await page.locator("#playerViewButton").click();
+  }
   await stopButton.focus();
   await expect(stopTooltip).toHaveCSS("visibility", "visible");
 

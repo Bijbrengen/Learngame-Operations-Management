@@ -38,16 +38,22 @@ os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
 
 
 class ProductPackageTests(unittest.TestCase):
-    def test_live_game_reuses_configuration_layout_next_to_process_flow(self) -> None:
+    def test_player_game_excludes_configuration_layout_while_game_tab_keeps_it(self) -> None:
         engine = (PRODUCT_ROOT / "logistics-game-engine.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("gameType: this.gameType", engine)
         self.assertIn("organizationModel: this.organizationModel", engine)
         self.assertIn("intermediateStock: this.intermediateStock", engine)
-        self.assertIn("ConfigurationLayoutPreview?.diagramMarkup", ui)
-        self.assertIn("data-sim-live-layout", ui)
-        self.assertIn("Drie gelijktijdige liveweergaven", ui)
+        self.assertNotIn("ConfigurationLayoutPreview?.diagramMarkup", ui)
+        self.assertNotIn("data-sim-live-layout", ui)
+        self.assertNotIn("Logistieke opstelling", ui)
+        self.assertIn('data-manager-panel="layout"', html)
+        self.assertIn('<h2 id="sessionLayoutTitle">Logistieke opstelling</h2>', html)
+        self.assertIn("data-session-layout-host", html)
+        self.assertIn("window.ConfigurationLayoutPreview?.markup(layoutConfig)", sessions)
         self.assertIn("gameType: state.config.gameType", game)
         self.assertIn("intermediateStock: state.config.intermediateStock", game)
 
@@ -56,18 +62,18 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260827.7"', html)
+        self.assertIn('href="style.css?v=20260828.2"', html)
         self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260827.7"', html)
-        self.assertIn('src="multiplayer-runtime.js?v=20260827.1"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260828.1"', html)
+        self.assertIn('src="multiplayer-runtime.js?v=20260828.1"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
-        self.assertIn('src="game-sessions.js?v=20260827.5"', html)
+        self.assertIn('src="game-sessions.js?v=20260828.2"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260827.6"', html)
-        self.assertIn('"script.js?v=20260827.8"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v250-drag-entrepreneurship"', service_worker)
+        self.assertIn('"script.js?v=20260828.3"', html)
+        self.assertIn('CACHE_VERSION = "learngame-om-v253-player-game-layout"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v250-drag-entrepreneurship")',
+            'register("service-worker.js?v=learngame-om-v253-player-game-layout")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -95,6 +101,59 @@ class ProductPackageTests(unittest.TestCase):
                 r"background:\s*(?:#fff(?:fff)?|#fffbeb|#f0fdf4|#fff7f2|white)\s*;",
                 selector,
             )
+
+    def test_mobile_devices_only_offer_player_view_and_physical_participation(self) -> None:
+        html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
+        worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
+        device_policy = (PRODUCT_ROOT / "device-capabilities.js").read_text(encoding="utf-8")
+        sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        multiplayer = (PRODUCT_ROOT / "multiplayer-runtime.js").read_text(encoding="utf-8")
+        availability_v1 = json.loads(
+            (PRODUCT_ROOT / "contracts/game-session-availability-v1.schema.json")
+            .read_text(encoding="utf-8")
+        )
+        availability_v2 = json.loads(
+            (PRODUCT_ROOT / "contracts/game-session-availability-v2.schema.json")
+            .read_text(encoding="utf-8")
+        )
+
+        self.assertLess(
+            html.index('src="device-capabilities.js?v=20260828.2"'),
+            html.index('src="character-creation.js"'),
+        )
+        self.assertIn('"./device-capabilities.js"', worker)
+        self.assertIn("supportsDigitalPlay", device_policy)
+        self.assertIn("supportsTutorial", device_policy)
+        self.assertIn("supportsGameManagement", device_policy)
+        self.assertIn("supportsSessionCreation", device_policy)
+        self.assertIn("contract_version=2&supports_digital_play=", sessions)
+        self.assertIn("supports_digital_play: supportsDigitalPlay()", sessions)
+        self.assertIn('"X-Leerpret-Game-Instance": SESSION_INSTANCE_ID', sessions)
+        self.assertIn('"X-Leerpret-Device-Kind": deviceCapabilities().deviceKind', sessions)
+        self.assertIn("digital_session_requires_computer", sessions)
+        self.assertIn("session_creation_requires_computer", sessions)
+        self.assertIn("game_management_requires_computer", sessions)
+        self.assertIn("supportsSessionCreation() && availability?.can_start_free_game", sessions)
+        self.assertIn("managementSupported ? gameMasterConfigMarkup(session)", sessions)
+        self.assertIn("function supportsGameManagement()", sessions)
+        self.assertIn("&& supportsSessionCreation()", sessions)
+        self.assertIn("tutorialSupportedOnDevice()", game)
+        self.assertIn("gameManagementSupportedOnDevice()", game)
+        self.assertIn("applyDeviceAccessPolicy()", game)
+        self.assertIn('html[data-device-kind="mobile"] .app-view-switcher', styles)
+        self.assertIn("sessionSupportedOnDevice(session)", multiplayer)
+        self.assertNotIn(
+            "play_mode",
+            availability_v1["$defs"]["sessionSummary"]["required"],
+        )
+        summary = availability_v2["$defs"]["sessionSummary"]
+        self.assertIn("play_mode", summary["required"])
+        self.assertEqual(
+            ["physical", "digital"],
+            summary["properties"]["play_mode"]["enum"],
+        )
 
     def test_all_departments_use_the_shared_transparent_lego_box_primitive(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
@@ -1202,14 +1261,16 @@ process.stdout.write(JSON.stringify({{
         self.assertTrue(result["hasRawDelay"])
         self.assertTrue(result["hasPeakFlow"])
 
-    def test_waiting_player_sees_three_large_live_views_and_top_departments(self) -> None:
+    def test_waiting_player_sees_process_and_heatmap_but_not_game_layout(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         ui = (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         isometric = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         self.assertNotIn("data-sim-waiting-tab", ui)
-        self.assertIn('aria-label="Drie gelijktijdige liveweergaven"', ui)
+        self.assertIn('aria-label="Twee gelijktijdige liveweergaven"', ui)
+        self.assertNotIn('data-sim-live-layout', ui)
+        self.assertNotIn('<h3 id="simWaitingLayoutTitle">', ui)
         self.assertLess(
             ui.index('<h3 id="simWaitingFlowTitle">'),
             ui.index('<h3 id="simWaitingHeatmapTitle">'),
@@ -2189,12 +2250,21 @@ process.stdout.write(JSON.stringify({
         node_program = f"""
 const vm = require("vm");
 const sandbox = {{
-  state: {{ busy: false, createSessionDraft: null }},
+  state: {{
+    busy: false,
+    createSessionDraft: null,
+    actionError: "",
+    actionErrorNeedsAnnouncement: false
+  }},
+  sessionCreationSupported: true,
+  MOBILE_SESSION_CREATION_MESSAGE: "mobiel kan geen sessie aanmaken",
   collectGameConfig: () => ({{
     game_type: "lo4",
     play_mode: "physical",
     enabled_roles: ["customer"]
   }}),
+  supportsDigitalPlay: () => true,
+  supportsSessionCreation: () => sandbox.sessionCreationSupported,
   mutate: (path, body) => {{ sandbox.mutation = {{ path, body }}; }}
 }};
 sandbox.form = {{
@@ -2203,12 +2273,22 @@ sandbox.form = {{
   }})
 }};
 vm.runInNewContext({json.dumps(function_source)} + `
-  result = createSessionFromForm(form);
+  desktopResult = createSessionFromForm(form);
+  desktopDraft = state.createSessionDraft;
+  desktopMutation = mutation;
+  sessionCreationSupported = false;
+  state.createSessionDraft = null;
+  mutation = null;
+  mobileResult = createSessionFromForm(form);
 `, sandbox);
 process.stdout.write(JSON.stringify({{
-  result: sandbox.result,
-  draft: sandbox.state.createSessionDraft,
-  mutation: sandbox.mutation
+  desktopResult: sandbox.desktopResult,
+  desktopDraft: sandbox.desktopDraft,
+  desktopMutation: sandbox.desktopMutation,
+  mobileResult: sandbox.mobileResult,
+  mobileDraft: sandbox.state.createSessionDraft,
+  mobileMutation: sandbox.mutation,
+  mobileError: sandbox.state.actionError
 }}));
 """
         completed_process = subprocess.run(
@@ -2220,12 +2300,21 @@ process.stdout.write(JSON.stringify({{
             text=True,
         )
         result = json.loads(completed_process.stdout)
-        self.assertTrue(result["result"])
-        self.assertEqual("/v1/game-sessions", result["mutation"]["path"])
-        self.assertEqual("closed", result["mutation"]["body"]["session_type"])
-        self.assertEqual("normal", result["mutation"]["body"]["difficulty_level"])
-        self.assertEqual("lo4", result["mutation"]["body"]["game_config"]["game_type"])
-        self.assertEqual(result["draft"], result["mutation"]["body"])
+        self.assertTrue(result["desktopResult"])
+        mutation = result["desktopMutation"]
+        draft = result["desktopDraft"]
+        self.assertEqual("/v1/game-sessions", mutation["path"])
+        self.assertEqual("closed", mutation["body"]["session_type"])
+        self.assertEqual("normal", mutation["body"]["difficulty_level"])
+        self.assertEqual("lo4", mutation["body"]["game_config"]["game_type"])
+        self.assertEqual(
+            {**draft, "supports_digital_play": True},
+            mutation["body"],
+        )
+        self.assertFalse(result["mobileResult"])
+        self.assertIsNone(result["mobileDraft"])
+        self.assertIsNone(result["mobileMutation"])
+        self.assertIn("geen sessie aanmaken", result["mobileError"])
         self.assertIn("data-create-game-session", html)
         self.assertIn('id="managerSessionActionButton"', html)
         self.assertIn('getElementById("managerSessionActionButton")', runtime)

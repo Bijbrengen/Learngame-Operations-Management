@@ -2182,34 +2182,11 @@
       `;
     }
 
-    liveLayoutMarkup(snapshot) {
-      const diagram = window.ConfigurationLayoutPreview?.diagramMarkup?.({
-        game_type: snapshot.gameType,
-        organization_model: snapshot.organizationModel,
-        play_mode: snapshot.playMode,
-        production_processes: snapshot.productionProcesses,
-        intermediate_stock: snapshot.intermediateStock,
-        enabled_roles: snapshot.enabledRoles
-      });
-      return diagram || this.fallbackProcessFlowMarkup(snapshot);
-    }
-
     factoryOverviewMarkup(snapshot) {
       const openOrders = snapshot.orders.filter(order => order.status !== "DELIVERED").length;
       return `
         <section class="sim-factory-overview">
-          <div class="sim-waiting-overview" aria-label="Drie gelijktijdige liveweergaven">
-            <section class="sim-waiting-view sim-live-layout-view" aria-labelledby="simWaitingLayoutTitle">
-              <header>
-                <h3 id="simWaitingLayoutTitle">Logistieke opstelling</h3>
-                <strong>Live</strong>
-              </header>
-              <div class="sim-waiting-view-body sim-live-layout-body"
-                   data-sim-live-layout
-                   aria-label="Actieve logistieke opstelling">
-                ${this.liveLayoutMarkup(snapshot)}
-              </div>
-            </section>
+          <div class="sim-waiting-overview" aria-label="Twee gelijktijdige liveweergaven">
             <section class="sim-waiting-view" aria-labelledby="simWaitingFlowTitle">
               <header>
                 <h3 id="simWaitingFlowTitle">Productiestroom</h3>

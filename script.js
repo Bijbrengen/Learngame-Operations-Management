@@ -1985,7 +1985,9 @@
   }
 
   function syncWorkbenchVisibility(view = state.appView) {
-    const nextView = view === "manager" ? "manager" : "player";
+    const nextView = view === "manager" && gameManagementSupportedOnDevice()
+      ? "manager"
+      : "player";
     const tutorialFocused = document.body.classList.contains("tutorial-focus");
     if (els.playerWorkbench) {
       els.playerWorkbench.hidden = tutorialFocused || nextView !== "player";
@@ -1998,7 +2000,9 @@
   }
 
   function setAppView(view, dispatch = true) {
-    const nextView = view === "manager" ? "manager" : "player";
+    const nextView = view === "manager" && gameManagementSupportedOnDevice()
+      ? "manager"
+      : "player";
     state.appView = nextView;
     document.body.dataset.appView = nextView;
     if (nextView === "manager") {
@@ -2029,6 +2033,11 @@
   }
 
   function setManagerTab(tab, dispatch = true) {
+    if (!gameManagementSupportedOnDevice()) {
+      state.managerTab = "session";
+      sessionStorage.setItem("learngame.om.managerTab", "session");
+      return;
+    }
     const allowed = new Set([
       "session",
       "layout",
@@ -4575,7 +4584,11 @@
     const levelIndex = NEXT_LEVEL_SEQUENCE.indexOf(metrics.gameType);
     const nextGameType = levelIndex >= 0 ? NEXT_LEVEL_SEQUENCE[levelIndex + 1] : null;
     const challengeVisible = Boolean(
-      nextGameType && metrics.completedCount && !metrics.activeCount && metrics.efficiency !== null
+      gameManagementSupportedOnDevice()
+      && nextGameType
+      && metrics.completedCount
+      && !metrics.activeCount
+      && metrics.efficiency !== null
     );
     if (els.nextLevelChallenge) els.nextLevelChallenge.hidden = !challengeVisible;
     if (challengeVisible) {
@@ -4922,7 +4935,67 @@
     state.logisticsTutorial.feedback = "";
   }
 
+  function deviceCapabilities() {
+    return window.LOMDeviceCapabilities?.current?.() || {
+      isMobileDevice: false,
+      supportsDigitalPlay: true,
+      supportsTutorial: true,
+      supportsGameManagement: true,
+      supportsSessionCreation: true
+    };
+  }
+
+  function gameManagementSupportedOnDevice() {
+    const capabilities = deviceCapabilities();
+    return capabilities.isMobileDevice !== true
+      && capabilities.supportsDigitalPlay !== false
+      && capabilities.supportsGameManagement !== false;
+  }
+
+  function applyDeviceAccessPolicy() {
+    if (gameManagementSupportedOnDevice()) return;
+    document.documentElement.dataset.deviceKind = "mobile";
+    document.body.classList.add("mobile-player-only");
+    document.querySelectorAll(
+      '.app-view-switcher [data-main-menu-tab], [data-app-view="manager"]'
+    ).forEach(control => {
+      control.hidden = true;
+      control.setAttribute("aria-hidden", "true");
+      if ("disabled" in control) control.disabled = true;
+    });
+    document.querySelectorAll("[data-main-menu-tab]").forEach(control => {
+      if (control.closest(".app-view-switcher")) return;
+      control.setAttribute("aria-disabled", "true");
+      control.dataset.managementUnavailable = "true";
+    });
+    state.appView = "player";
+    state.managerTab = "session";
+    sessionStorage.setItem("learngame.om.appView", "player");
+    sessionStorage.setItem("learngame.om.managerTab", "session");
+  }
+
+  function tutorialSupportedOnDevice() {
+    return deviceCapabilities().supportsTutorial !== false;
+  }
+
+  function sessionSupportedOnDevice(session) {
+    const playMode = session?.game_config?.play_mode;
+    return window.LOMDeviceCapabilities?.supportsSession?.(playMode, deviceCapabilities())
+      ?? true;
+  }
+
   function setTutorialFocus(stage = "builder") {
+    if (!tutorialSupportedOnDevice()) {
+      document.body.classList.remove(
+        "tutorial-focus",
+        "tutorial-stage-builder",
+        "tutorial-stage-logistics",
+        "tutorial-stage-tower"
+      );
+      if (els.tutorialExitButton) els.tutorialExitButton.hidden = true;
+      updateTutorialResumeButton();
+      return false;
+    }
     state.tutorialDismissed = false;
     logisticsGameController?.pause();
     setManagerTab(stage === "logistics" ? "process" : stage === "tower" ? "tower-editor" : "session", false);
@@ -4937,6 +5010,7 @@
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
       button.hidden = true;
     });
+    return true;
   }
 
   function leaveTutorialFocus() {
@@ -4955,17 +5029,25 @@
 
   function updateTutorialResumeButton() {
     const isFocus = document.body.classList.contains("tutorial-focus");
-    const label = state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten";
+    const supported = tutorialSupportedOnDevice();
+    const label = supported
+      ? (state.tutorialCompleted ? "Tutorial opnieuw" : "Tutorial hervatten")
+      : "Tutorial op computer/laptop";
     document.querySelectorAll("[data-tutorial-launch]").forEach(button => {
-      button.hidden = isFocus;
+      button.hidden = isFocus || !supported;
+      button.disabled = !supported;
+      button.classList.toggle("is-device-unavailable", !supported);
+      button.setAttribute("aria-disabled", String(!supported));
       if (!isFocus) {
         button.style.display = "";
         const labelNode = button.querySelector("[data-tutorial-label]")
           || button.querySelector("span:last-child");
         if (labelNode) labelNode.textContent = label;
-        button.title = state.tutorialCompleted
-          ? "Tutorial opnieuw starten vanaf Stap 1"
-          : "Tutorial hervatten waar je bent gestopt";
+        button.title = supported
+          ? state.tutorialCompleted
+            ? "Tutorial opnieuw starten vanaf Stap 1"
+            : "Tutorial hervatten waar je bent gestopt"
+          : "De bouwtutorial werkt alleen op een computer of laptop met muis";
       }
     });
   }
@@ -4973,6 +5055,10 @@
   let lastTutorialStateUpdateTimestamp = 0;
 
   function launchTutorial() {
+    if (!tutorialSupportedOnDevice()) {
+      leaveTutorialFocus();
+      return false;
+    }
     if (document.body.classList.contains("tutorial-focus")) return true;
     if (state.tutorialPaused || state.tutorialCompleted) return resumeTutorial();
     lastTutorialStateUpdateTimestamp = Date.now();
@@ -5083,6 +5169,10 @@
   }
 
   function resumeTutorial() {
+    if (!tutorialSupportedOnDevice()) {
+      leaveTutorialFocus();
+      return false;
+    }
     lastTutorialStateUpdateTimestamp = Date.now();
     try {
       localStorage.removeItem("learngame.om.tutorialCompleted");
@@ -5173,6 +5263,7 @@
   }
 
   function startLogisticsTutorial(force = false) {
+    if (!tutorialSupportedOnDevice()) return false;
     if (state.logisticsTutorial.active && !force) {
       els.dataModelPanel.classList.add("visible");
       state.config.processView = "isometric";
@@ -5329,6 +5420,7 @@
   }
 
   function startInternalLogisticsTutorial() {
+    if (!tutorialSupportedOnDevice()) return false;
     state.logisticsTutorial.active = true;
     setTutorialFocus("logistics");
     state.logisticsTutorial.phase = "internal_ready";
@@ -5451,6 +5543,7 @@
   }
 
   function startFinancialTutorial() {
+    if (!tutorialSupportedOnDevice()) return false;
     const finance = state.logisticsTutorial.finance;
     const salePrice = financialTutorialSalePrice();
     finance.enabled = true;
@@ -5646,6 +5739,7 @@
   }
 
   function startTowerDesignTutorial(resuming = false) {
+    if (!tutorialSupportedOnDevice()) return false;
     state.logisticsTutorial.active = false;
     if (!resuming || state.logisticsTutorial.phase !== "tower_assortment_complete") {
       state.logisticsTutorial.phase = "tower_design";
@@ -7538,7 +7632,7 @@
     resetInventory();
     resetLogisticsTutorial();
 
-    if (state.tutorialCompleted || state.tutorialDismissed) {
+    if (!tutorialSupportedOnDevice() || state.tutorialCompleted || state.tutorialDismissed) {
       leaveTutorialFocus();
       updateTutorialResumeButton();
     } else {
@@ -7636,6 +7730,12 @@
     window.addEventListener("learngame-session-started", event => {
       const session = event.detail?.session;
       if (!session?.session_id) return;
+      if (!sessionSupportedOnDevice(session)) {
+        state.gameSessionRunning = false;
+        logisticsGameController?.stop();
+        renderAll();
+        return;
+      }
       measurementPersonId = session.current_member_id
         ? String(session.current_member_id)
         : fallbackPersonId;
@@ -7713,6 +7813,10 @@
     window.addEventListener("learngame-top-department-close", closeTopDepartmentDetail);
     document.querySelectorAll("[data-main-menu-tab]").forEach(button => {
       button.addEventListener("click", () => {
+        if (!gameManagementSupportedOnDevice()) {
+          setAppView("player", false);
+          return;
+        }
         setLiveEventsOpen(false);
         setEventsOpen(false);
         setAppView("manager", false);
@@ -7839,6 +7943,7 @@
     els.menuExportButton?.addEventListener("click", exportEvents);
     els.resetButton?.addEventListener("click", resetState);
     els.nextLevelChallengeButton?.addEventListener("click", () => {
+      if (!gameManagementSupportedOnDevice()) return;
       const nextGameType = els.nextLevelChallengeButton.dataset.nextGamePreset;
       if (!nextGameType) return;
       setAppView("manager");
@@ -8068,7 +8173,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v250-drag-entrepreneurship").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v253-player-game-layout").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -8079,6 +8184,13 @@
   }
 
   function applyInitialRoute() {
+    const tutorialDeepLink = location.hash === "#tutorialStep4"
+      || location.hash === "#tutorialStep2";
+    if (tutorialDeepLink && !tutorialSupportedOnDevice()) {
+      leaveTutorialFocus();
+      updateTutorialResumeButton();
+      return;
+    }
     if (location.hash === "#tutorialStep4") {
       startFinancialTutorial();
       return;
@@ -8126,7 +8238,10 @@
     state.managerTab = storedManagerTab === "core" ? "session" : storedManagerTab || "session";
     state.insightsTab = sessionStorage.getItem("learngame.om.insightsTab") || "overview";
     state.towerTab = sessionStorage.getItem("learngame.om.towerTab") || "builder";
-    state.appView = sessionStorage.getItem("learngame.om.appView") || "player";
+    applyDeviceAccessPolicy();
+    state.appView = gameManagementSupportedOnDevice()
+      ? sessionStorage.getItem("learngame.om.appView") || "player"
+      : "player";
     setAppView(state.appView, false);
     updatePriceInput();
     updateTutorialResumeButton();
@@ -8284,6 +8399,11 @@
       logisticsGameController?.stop();
     },
     beginOnboardingTutorial: () => {
+      if (!tutorialSupportedOnDevice()) {
+        leaveTutorialFocus();
+        updateTutorialResumeButton();
+        return false;
+      }
       if (location.hash === "#tutorialStep4") {
         startFinancialTutorial();
         return;
@@ -8368,13 +8488,15 @@
   resetState();
   const currentGameSession = window.LOMGameSessions?.getCurrentSession?.();
   if (currentGameSession?.session_id) {
+    const currentSessionSupported = sessionSupportedOnDevice(currentGameSession);
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: {
         session: currentGameSession,
-        running: currentGameSession.status === "running"
+        running: currentGameSession.status === "running" && currentSessionSupported,
+        accessBlocked: !currentSessionSupported
       }
     }));
-    if (currentGameSession.status === "running") {
+    if (currentGameSession.status === "running" && currentSessionSupported) {
       window.dispatchEvent(new CustomEvent("learngame-session-started", {
         detail: { session: currentGameSession }
       }));

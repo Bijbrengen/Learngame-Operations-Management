@@ -50,6 +50,10 @@
     open: "Open",
     semi_closed: "Semi-gesloten"
   };
+  const MOBILE_PLAY_MESSAGE = "Op dit apparaat kun je alleen als speler deelnemen aan een bestaande fysieke gamesessie. Een sessie aanmaken of beheren, de tutorial en digitale gamesessies werken alleen op een computer of laptop met muis.";
+  const MOBILE_SESSION_CREATION_MESSAGE = "Op dit apparaat kun je geen gamesessie aanmaken. Neem als speler deel aan een bestaande fysieke sessie of gebruik een computer of laptop.";
+  const SESSION_INSTANCE_ID = `session-${globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
   const MONEY_PRESET_GAMES = new Set([
     "entrepreneurial", "lo4", "lo5", "lo6", "lo7", "lo8", "le_training"
   ]);
@@ -196,7 +200,9 @@
     },
     pollTimer: null,
     startedSessionId: null,
-    selectedSessionId: null
+    selectedSessionId: null,
+    actionError: "",
+    actionErrorNeedsAnnouncement: false
   };
 
   const elements = () => ({
@@ -240,6 +246,66 @@
       .replaceAll("'", "&#39;");
   }
 
+  function deviceCapabilities() {
+    return window.LOMDeviceCapabilities?.current?.() || {
+      isMobileDevice: false,
+      supportsDigitalPlay: true,
+      supportsTutorial: true,
+      supportsGameManagement: true,
+      supportsSessionCreation: true
+    };
+  }
+
+  function supportsDigitalPlay() {
+    return deviceCapabilities().supportsDigitalPlay !== false;
+  }
+
+  function supportsSessionCreation() {
+    const capabilities = deviceCapabilities();
+    return capabilities.isMobileDevice !== true
+      && capabilities.supportsDigitalPlay !== false
+      && capabilities.supportsGameManagement !== false
+      && capabilities.supportsSessionCreation !== false;
+  }
+
+  function supportsGameManagement() {
+    const capabilities = deviceCapabilities();
+    return capabilities.isMobileDevice !== true
+      && capabilities.supportsDigitalPlay !== false
+      && capabilities.supportsGameManagement !== false;
+  }
+
+  function availabilityPath() {
+    return "/v1/game-sessions/availability"
+      + `?contract_version=2&supports_digital_play=${supportsDigitalPlay()}`;
+  }
+
+  function freeGamePath() {
+    return `/v1/game-sessions/free?supports_digital_play=${supportsDigitalPlay()}`;
+  }
+
+  function sessionPlayMode(session) {
+    const value = session?.play_mode || session?.game_config?.play_mode;
+    return value === "physical" || value === "digital" ? value : null;
+  }
+
+  function sessionSupportedOnDevice(session) {
+    const playMode = sessionPlayMode(session);
+    return window.LOMDeviceCapabilities?.supportsSession?.(playMode, deviceCapabilities())
+      ?? (supportsDigitalPlay() || playMode === "physical");
+  }
+
+  function mobilePlayNoticeMarkup({ blocking = false } = {}) {
+    if (supportsDigitalPlay()) return "";
+    return `
+      <aside class="mobile-play-notice${blocking ? " is-blocking" : ""}"
+             role="note">
+        <strong>Op dit apparaat ben je alleen speler</strong>
+        <p>${escapeHtml(MOBILE_PLAY_MESSAGE)}</p>
+      </aside>
+    `;
+  }
+
   function isTransientRequestError(error) {
     const message = String(error?.message || error || "");
     return error?.name === "AbortError"
@@ -263,7 +329,12 @@
     const response = await fetch(requestUrl, {
       cache: "no-store",
       credentials: "include",
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Leerpret-Device-Kind": deviceCapabilities().deviceKind,
+        "X-Leerpret-Game-Instance": SESSION_INSTANCE_ID,
+        ...(options.headers || {})
+      },
       service: "lom-game-sessions",
       timeoutMs: 30000,
       ...options
@@ -636,6 +707,7 @@
 
   function gameConfigFieldsMarkup(config = {}, sessionFields = "") {
     const value = normalizedGameConfig(config);
+    const digitalPlaySupported = supportsDigitalPlay();
     const matchingConfiguration = typeof window !== "undefined" && window.GameConfigurationStore
       ? window.GameConfigurationStore.findMatchingConfiguration(value)
       : null;
@@ -696,11 +768,13 @@
               <span>Spelmodus</span>
               <select name="play_mode" data-game-config-control>
                 <option value="physical"${value.play_mode === "physical" ? " selected" : ""}>Fysiek · echte LEGO en administratief dashboard</option>
-                <option value="digital"${value.play_mode === "digital" ? " selected" : ""}>Digitaal · volledig bouwen en verplaatsen op het scherm</option>
+                <option value="digital"${value.play_mode === "digital" ? " selected" : ""}${digitalPlaySupported ? "" : " disabled"}>Digitaal · alleen op computer of laptop</option>
               </select>
-              <small>${value.play_mode === "digital"
-                ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
-                : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
+              <small>${!digitalPlaySupported
+                ? "Op dit apparaat kan alleen een fysieke gamesessie worden gebruikt."
+                : value.play_mode === "digital"
+                  ? "Bouwen, klaarleggen en transporteren gebeurt verplicht in de game."
+                  : "Bouwen en transporteren gebeurt aan tafel; de game registreert de administratie."}</small>
             </label>
             <label class="session-config-field" data-config-help="game-type">
               <span>Gametype</span>
@@ -1255,6 +1329,16 @@
       if (control.type === "checkbox") control.checked = Boolean(value);
       else control.value = String(value);
     });
+    const playModeControl = form.elements.namedItem("play_mode");
+    const preservesExistingDigitalSession = form.matches("[data-active-game-config]")
+      && state.session?.game_config?.play_mode === "digital";
+    if (
+      playModeControl?.value === "digital"
+      && !supportsDigitalPlay()
+      && !preservesExistingDigitalSession
+    ) {
+      playModeControl.value = "physical";
+    }
     const processes = window.LogisticsProcess?.normalizeProcesses(
       settings.production_processes,
       gameType
@@ -1552,7 +1636,7 @@
   }
 
   function saveSessionConfiguration(form) {
-    if (!form || !window.GameConfigurationStore) return null;
+    if (!supportsGameManagement() || !form || !window.GameConfigurationStore) return null;
     const name = String(form.elements.namedItem("configuration_name")?.value || "").trim();
     if (!name) {
       form.elements.namedItem("configuration_name")?.focus();
@@ -1803,8 +1887,12 @@
   }
 
   function createSessionMarkup() {
+    if (!supportsSessionCreation()) {
+      return mobilePlayNoticeMarkup({ blocking: true });
+    }
     const draft = state.createSessionDraft;
     return `
+      ${mobilePlayNoticeMarkup()}
       <form id="gameSessionCreateForm" class="game-session-create-form" data-runtime-session-form>
         ${gameConfigFieldsMarkup(draft.game_config, sessionCoreFieldsMarkup(draft))}
       </form>
@@ -1815,6 +1903,15 @@
     const vacancies = session.role_vacancies || [];
     const running = session.status === "running";
     const participationStatus = session.participation_status || "active";
+    if (context === "player" && !sessionSupportedOnDevice(session)) {
+      return `
+        <div class="mobile-blocked-session" aria-label="Digitale gamesessie niet beschikbaar">
+          ${mobilePlayNoticeMarkup({ blocking: true })}
+          <p>Je deelname wordt op dit apparaat niet gestart. Open LOM op een computer of laptop om deze digitale sessie te gebruiken.</p>
+          <button class="secondary-button" type="button" data-leave-game-session>Gamesessie verlaten</button>
+        </div>
+      `;
+    }
     if (context === "player" && ["waiting", "queued"].includes(participationStatus)) {
       const queuePosition = Number(session.queue_position || 1);
       return `
@@ -1849,8 +1946,10 @@
       `;
     }
     const canRequest = !running && (!session.consensus || session.consensus.status !== "open");
+    const managementSupported = supportsGameManagement();
     return `
       <div class="active-game-session">
+        ${!managementSupported ? mobilePlayNoticeMarkup() : ""}
         <div class="game-code-block">
           <span>Gamecode</span>
           <strong>${escapeHtml(session.join_code)}</strong>
@@ -1871,11 +1970,13 @@
             ? `Meerdere kleuren · ${(session.game_config.editable_color_layers || []).length}/4 lagen`
             : "Klassieke kleuren"}</span>
           <span>${session.members.length}/${session.required_role_ids.length} spelers</span>
-          <span>${session.is_game_master ? "Jij bent Game Master" : "Game Master aanwezig"}</span>
+          <span>${session.is_game_master
+            ? managementSupported ? "Jij bent Game Master" : "Game Master-beheer op computer/laptop"
+            : "Game Master aanwezig"}</span>
         </div>
-        ${gameMasterConfigMarkup(session)}
-        ${gameMasterDifficultyMarkup(session)}
-        ${gameMasterRoleMarkup(session)}
+        ${managementSupported ? gameMasterConfigMarkup(session) : ""}
+        ${managementSupported ? gameMasterDifficultyMarkup(session) : ""}
+        ${managementSupported ? gameMasterRoleMarkup(session) : ""}
         <ul class="session-member-list">${memberCards(session)}</ul>
         ${vacancies.length ? `
           <div class="session-vacancies">
@@ -1923,15 +2024,22 @@
       const isRunning = game.status === "running";
       const joinMode = game.join_mode
         || (isRunning && agentCount ? "replace_agent" : isRunning ? "queue" : "join");
+      const playMode = sessionPlayMode(game);
+      const playModeLabel = playMode === "digital"
+        ? "Digitaal"
+        : playMode === "physical" ? "Fysiek" : "Spelmodus onbekend";
+      const deviceUnsupported = !sessionSupportedOnDevice(game);
       const codeRequired = joinMode === "code_required"
         || (!game.join_mode && game.session_type !== "open");
       const unavailable = ["closed", "full"].includes(joinMode);
-      const disabled = isCurrent || !allowJoining || codeRequired || unavailable;
+      const disabled = isCurrent || !allowJoining || codeRequired || unavailable || deviceUnsupported;
       const actionLabel = isCurrent
         ? ["waiting", "queued"].includes(availability?.current_session?.participation_status)
           ? "Jij staat in de wachtrij"
           : "Jij neemt deel"
-        : codeRequired
+        : deviceUnsupported
+          ? "Alleen op computer of laptop"
+          : codeRequired
           ? "Gebruik de gamecode"
           : joinMode === "replace_agent"
             ? "Agentrol overnemen"
@@ -1944,16 +2052,19 @@
                   : "Deelnemen";
       return `
         <button type="button"
-                class="active-game-card${isCurrent ? " is-current" : ""}"
+                class="active-game-card${isCurrent ? " is-current" : ""}${deviceUnsupported ? " is-device-unsupported" : ""}"
                 data-join-session="${escapeHtml(game.session_id)}"
+                data-play-mode="${escapeHtml(playMode || "unknown")}"
                 ${disabled ? "disabled" : ""}>
-          <span>${escapeHtml(TYPE_LABELS[game.session_type] || game.session_type)} sessie · ${isRunning ? "gestart" : "lobby"}${game.created_by_current_player ? " · door jou aangemaakt" : ""}</span>
+          <span>${escapeHtml(playModeLabel)} · ${escapeHtml(TYPE_LABELS[game.session_type] || game.session_type)} sessie · ${isRunning ? "gestart" : "lobby"}${game.created_by_current_player ? " · door jou aangemaakt" : ""}</span>
           <strong>${humanCount}/${game.capacity} mensen${agentCount ? ` · ${agentCount} agents` : ""}</strong>
           <small>${queueCount ? `${queueCount} wachtend · ` : ""}${escapeHtml(actionLabel)}</small>
         </button>
       `;
     };
     return `
+      ${allowJoining ? mobilePlayNoticeMarkup() : ""}
+      ${allowJoining && state.actionError ? `<p class="session-action-error"${state.actionErrorNeedsAnnouncement ? ' role="alert"' : ""}>${escapeHtml(state.actionError)}</p>` : ""}
       ${showCodeForm ? `<form class="game-code-join-form" data-game-code-join>
         <label>
           <span>Gamecode</span>
@@ -1969,7 +2080,7 @@
       ` : `
         <p class="no-open-games">Er is nu geen actieve gamesessie om aan deel te nemen.</p>
       `}
-      ${allowJoining && availability?.can_start_free_game ? `
+      ${allowJoining && supportsSessionCreation() && availability?.can_start_free_game ? `
         <button class="free-game-button" type="button" data-start-free-game>
           <strong>Vrije game starten</strong>
           <span>Je wordt automatisch Game Master van de nieuwe sessie.</span>
@@ -1983,6 +2094,7 @@
     const consensus = state.session?.consensus;
     const memberId = state.session?.current_member_id;
     const mustVote = consensus?.status === "open"
+      && sessionSupportedOnDevice(state.session)
       && consensus.required_member_ids.includes(memberId)
       && !consensus.approved_member_ids.includes(memberId);
     els.dialog.hidden = !mustVote;
@@ -2020,23 +2132,40 @@
     const openManagerIndices = Array.from(els.managerContent.querySelectorAll("details"))
       .map((el, i) => el.hasAttribute("open") ? i : -1)
       .filter(i => i !== -1);
+    const sessionBlocked = Boolean(state.session && !sessionSupportedOnDevice(state.session));
+    const sessionRunningOnDevice = Boolean(
+      state.session?.status === "running"
+      && !["waiting", "queued"].includes(state.session?.participation_status)
+      && !sessionBlocked
+    );
 
     if (state.session) {
-      renderTopParticipation(state.session);
+      renderTopParticipation(sessionBlocked ? null : state.session);
       const queued = ["waiting", "queued"].includes(state.session.participation_status);
-      placePlayerSessionPanel(state.session.status === "running" && !queued);
-      els.playerTitle.textContent = queued
+      placePlayerSessionPanel(sessionRunningOnDevice);
+      els.playerTitle.textContent = sessionBlocked
+        ? "Digitale gamesessie niet beschikbaar"
+        : queued
         ? "Wachtrij voor gamesessie"
         : state.session.status === "running"
         ? "Jouw actieve gamesessie"
         : "Lobby van jouw gamesessie";
-      els.playerBadge.textContent = queued
+      els.playerBadge.textContent = sessionBlocked
+        ? "Computer nodig"
+        : queued
         ? `Wachtrij ${state.session.queue_position || ""}`.trim()
         : state.session.status === "running" ? "Gestart" : "In lobby";
       els.managerTitle.textContent = "Gamesessie";
       els.managerBadge.hidden = true;
       if (els.managerCreateButton) {
-        els.managerCreateButton.hidden = queued || !state.session.is_game_master;
+        const managementSupported = supportsGameManagement();
+        els.managerCreateButton.hidden = (
+          !managementSupported || queued || !state.session.is_game_master
+        );
+        els.managerCreateButton.disabled = (
+          !managementSupported
+          || (sessionBlocked && state.session.status !== "running")
+        );
         els.managerCreateButton.type = "button";
         els.managerCreateButton.removeAttribute("form");
         els.managerCreateButton.removeAttribute("data-create-game-session");
@@ -2050,7 +2179,9 @@
         } else {
           resetFinishConfirmation(els.managerCreateButton);
           els.managerCreateButton.setAttribute("data-request-game-start", "");
-          els.managerCreateButton.textContent = "Sessie starten";
+          els.managerCreateButton.textContent = sessionBlocked
+            ? "Start op computer of laptop"
+            : "Sessie starten";
         }
       }
       els.playerContent.innerHTML = [
@@ -2060,16 +2191,19 @@
         </section>`
       ].join("");
       els.managerContent.hidden = false;
-      els.managerContent.innerHTML = [
-        sessionRoleDistributionMarkup(state.session),
-        gameMasterConfigMarkup(state.session),
-        gameMasterDifficultyMarkup(state.session),
-        gameMasterRoleMarkup(state.session),
-        `<section class="other-active-sessions" aria-label="Alle actieve gamesessies">
-          ${availableMarkup(state.availability, { allowJoining: false, showCodeForm: false })}
-        </section>`
-      ].join("");
-      if (!queued && state.session.status === "running" && state.startedSessionId !== state.session.session_id) {
+      els.managerContent.innerHTML = supportsGameManagement()
+        ? [
+            sessionRoleDistributionMarkup(state.session),
+            gameMasterConfigMarkup(state.session),
+            gameMasterDifficultyMarkup(state.session),
+            gameMasterRoleMarkup(state.session),
+            `<section class="other-active-sessions" aria-label="Alle actieve gamesessies">
+              ${availableMarkup(state.availability, { allowJoining: false, showCodeForm: false })}
+            </section>`
+          ].join("")
+        : mobilePlayNoticeMarkup({ blocking: true });
+      if (sessionBlocked) state.startedSessionId = null;
+      if (sessionRunningOnDevice && state.startedSessionId !== state.session.session_id) {
         state.startedSessionId = state.session.session_id;
         window.dispatchEvent(new CustomEvent("learngame-session-started", {
           detail: { session: state.session }
@@ -2084,11 +2218,18 @@
       els.managerBadge.hidden = true;
       els.managerTitle.textContent = "Gamesessie";
       if (els.managerCreateButton) {
+        const creationSupported = supportsSessionCreation();
         resetFinishConfirmation(els.managerCreateButton);
-        els.managerCreateButton.hidden = false;
-        els.managerCreateButton.type = "submit";
-        els.managerCreateButton.setAttribute("form", "gameSessionCreateForm");
-        els.managerCreateButton.setAttribute("data-create-game-session", "");
+        els.managerCreateButton.hidden = !creationSupported;
+        els.managerCreateButton.disabled = !creationSupported;
+        els.managerCreateButton.type = creationSupported ? "submit" : "button";
+        if (creationSupported) {
+          els.managerCreateButton.setAttribute("form", "gameSessionCreateForm");
+          els.managerCreateButton.setAttribute("data-create-game-session", "");
+        } else {
+          els.managerCreateButton.removeAttribute("form");
+          els.managerCreateButton.removeAttribute("data-create-game-session");
+        }
         els.managerCreateButton.removeAttribute("data-request-game-start");
         els.managerCreateButton.removeAttribute("data-finish-game-session");
         els.managerCreateButton.textContent = "Sessie aanmaken";
@@ -2127,10 +2268,12 @@
     renderGameAuxiliaryPanels(configForm, config);
     setRunningConfigReadOnly(configForm, state.session?.status === "running");
     renderConsensus();
+    state.actionErrorNeedsAnnouncement = false;
     window.dispatchEvent(new CustomEvent("learngame-session-state", {
       detail: {
         session: state.session,
-        running: state.session?.status === "running"
+        running: sessionRunningOnDevice,
+        accessBlocked: sessionBlocked
       }
     }));
   }
@@ -2141,7 +2284,7 @@
     const refreshVersion = state.mutationVersion;
     const operation = (async () => {
       try {
-        const availability = await request("/v1/game-sessions/availability");
+        const availability = await request(availabilityPath());
         if (refreshVersion !== state.mutationVersion) return;
         state.availability = availability;
         state.session = availability.current_session;
@@ -2191,6 +2334,8 @@
   async function performMutation(path, body) {
     if (!state.authenticated) return;
     state.busy = true;
+    state.actionError = "";
+    state.actionErrorNeedsAnnouncement = false;
     state.mutationVersion += 1;
     const mutationVersion = state.mutationVersion;
     try {
@@ -2222,6 +2367,16 @@
       }
     } catch (error) {
       if (!state.authenticated || mutationVersion !== state.mutationVersion) return;
+      if (
+        error.code === "digital_session_requires_computer"
+        || error.code === "session_creation_requires_computer"
+        || error.code === "game_management_requires_computer"
+      ) {
+        state.actionError = error.message || MOBILE_PLAY_MESSAGE;
+        state.actionErrorNeedsAnnouncement = true;
+        render();
+        return;
+      }
       if (isTransientRequestError(error)) {
         console.warn("Gamesessieactie tijdelijk niet bevestigd; de huidige toestand blijft behouden.", error);
         return;
@@ -2265,6 +2420,10 @@
   }
 
   async function queueGameConfigSave(gameConfig) {
+    if (!supportsGameManagement()) {
+      state.pendingGameConfig = null;
+      return;
+    }
     state.pendingGameConfig = { ...gameConfig };
     if (state.savingGameConfig || !state.session) return;
     state.savingGameConfig = true;
@@ -2286,7 +2445,7 @@
   }
 
   async function refreshAfterMutation(expectedMutationVersion = state.mutationVersion) {
-    const availability = await request("/v1/game-sessions/availability");
+    const availability = await request(availabilityPath());
     if (!state.authenticated || expectedMutationVersion !== state.mutationVersion) return false;
     state.availability = availability;
     state.session = availability.current_session;
@@ -2302,6 +2461,8 @@
     state.session = null;
     state.startedSessionId = null;
     state.selectedSessionId = null;
+    state.actionError = "";
+    state.actionErrorNeedsAnnouncement = false;
     state.pendingGameConfig = null;
     state.savingGameConfig = false;
     state.busy = false;
@@ -2337,6 +2498,11 @@
 
   function createSessionFromForm(form) {
     if (!form || state.busy) return false;
+    if (!supportsSessionCreation()) {
+      state.actionError = MOBILE_SESSION_CREATION_MESSAGE;
+      state.actionErrorNeedsAnnouncement = true;
+      return false;
+    }
     const type = form.querySelector("#gameSessionType")?.value || "closed";
     const difficulty = form.querySelector("#gameSessionDifficulty")?.value || "normal";
     const gameConfig = collectGameConfig(form);
@@ -2358,7 +2524,8 @@
     mutate("/v1/game-sessions", {
       session_type: type,
       difficulty_level: difficulty,
-      game_config: gameConfig
+      game_config: gameConfig,
+      supports_digital_play: supportsDigitalPlay()
     });
     return true;
   }
@@ -2372,13 +2539,17 @@
       if (event.target.matches("[data-game-code-join]")) {
         event.preventDefault();
         const code = new FormData(event.target).get("join_code");
-        mutate("/v1/game-sessions/join", { join_code: String(code || "").toUpperCase() });
+        mutate("/v1/game-sessions/join", {
+          join_code: String(code || "").toUpperCase(),
+          supports_digital_play: supportsDigitalPlay()
+        });
       }
     }, true);
     document.addEventListener("click", event => {
       const saveConfigurationButton = event.target.closest("[data-save-session-config]");
       if (saveConfigurationButton) {
         event.preventDefault();
+        if (!supportsGameManagement()) return;
         saveSessionConfiguration(saveConfigurationButton.form || saveConfigurationButton.closest("form"));
         return;
       }
@@ -2388,6 +2559,17 @@
       createSessionFromForm(createButton.form || document.getElementById("gameSessionCreateForm"));
     }, true);
     document.addEventListener("input", event => {
+      if (event.target.matches('[data-game-code-join] input[name="join_code"]')) {
+        if (state.actionError) {
+          state.actionError = "";
+          state.actionErrorNeedsAnnouncement = false;
+          event.target.closest("[data-game-code-join]")
+            ?.parentElement
+            ?.querySelector(".session-action-error")
+            ?.remove();
+        }
+        return;
+      }
       const createForm = event.target.form?.matches("#gameSessionCreateForm")
         ? event.target.form
         : event.target.closest("#gameSessionCreateForm");
@@ -2425,6 +2607,10 @@
     document.addEventListener("change", event => {
       if (event.target.matches("[data-game-config-control]")) {
         const form = event.target.form || event.target.closest("form");
+        if (
+          form?.matches("[data-active-game-config]")
+          && !supportsGameManagement()
+        ) return;
         const selectedPreset = event.target.matches("[data-session-game-type]")
           ? event.target.value
           : null;
@@ -2472,14 +2658,22 @@
         state.createSessionDraft.session_type = String(event.target.value || "closed");
         return;
       }
-      if (event.target.matches("[data-game-master-role-select]") && state.session) {
+      if (
+        event.target.matches("[data-game-master-role-select]")
+        && state.session
+        && supportsGameManagement()
+      ) {
         mutate(
           `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/game-master-role`,
           { role_id: String(event.target.value || "") }
         );
         return;
       }
-      if (event.target.matches("[data-game-difficulty-select]") && state.session) {
+      if (
+        event.target.matches("[data-game-difficulty-select]")
+        && state.session
+        && supportsGameManagement()
+      ) {
         mutate(
           `/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/difficulty`,
           { difficulty_level: String(event.target.value || "normal") }
@@ -2491,12 +2685,29 @@
       if (!target) return;
       if (target.dataset.joinSession) {
         state.selectedSessionId = target.dataset.joinSession;
-        mutate("/v1/game-sessions/join", { session_id: target.dataset.joinSession });
+        mutate("/v1/game-sessions/join", {
+          session_id: target.dataset.joinSession,
+          supports_digital_play: supportsDigitalPlay()
+        });
       } else if (target.hasAttribute("data-start-free-game")) {
-        mutate("/v1/game-sessions/free");
-      } else if (target.hasAttribute("data-request-game-start") && state.session) {
+        if (!supportsSessionCreation()) {
+          state.actionError = MOBILE_SESSION_CREATION_MESSAGE;
+          state.actionErrorNeedsAnnouncement = true;
+          render();
+          return;
+        }
+        mutate(freeGamePath());
+      } else if (
+        target.hasAttribute("data-request-game-start")
+        && state.session
+        && sessionSupportedOnDevice(state.session)
+      ) {
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/start-requests`);
-      } else if (target.hasAttribute("data-finish-game-session") && state.session) {
+      } else if (
+        target.hasAttribute("data-finish-game-session")
+        && state.session
+        && supportsGameManagement()
+      ) {
         requestFinishConfirmation(target);
       } else if (target.hasAttribute("data-open-game-session-overview")) {
         document.querySelector('.app-view-switcher [data-main-menu-tab="session"]')?.click();
@@ -2508,10 +2719,10 @@
       }
     });
     elements().waitButton?.addEventListener("click", () => {
-      if (state.session) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "wait" });
+      if (state.session && sessionSupportedOnDevice(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "wait" });
     });
     elements().startButton?.addEventListener("click", () => {
-      if (state.session) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "start_with_agents" });
+      if (state.session && sessionSupportedOnDevice(state.session)) mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/consensus`, { decision: "start_with_agents" });
     });
     window.addEventListener("leerpret-auth-changed", event => {
       state.authenticated = Boolean(event.detail?.authenticated);

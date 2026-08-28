@@ -129,6 +129,13 @@
     return session?.status === "running" && participation === "active";
   }
 
+  function sessionSupportedOnDevice(session) {
+    const playMode = session?.game_config?.play_mode;
+    const capabilities = window.LOMDeviceCapabilities?.current?.();
+    return window.LOMDeviceCapabilities?.supportsSession?.(playMode, capabilities)
+      ?? true;
+  }
+
   function clearTimers() {
     clearInterval(state.pollTimer);
     clearTimeout(state.publishTimer);
@@ -733,6 +740,10 @@
 
   async function handleSessionStarted(session) {
     if (!session?.session_id || !currentParticipationIsActive(session)) return;
+    if (!sessionSupportedOnDevice(session)) {
+      if (state.sessionId) stop();
+      return;
+    }
     if (state.sessionId && state.sessionId !== session.session_id) stop();
     if (!state.sessionId) state.generation += 1;
     state.session = session;

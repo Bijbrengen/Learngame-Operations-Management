@@ -4,6 +4,7 @@
   "private": true,
   "description": "Standalone LEARNGame OM webapp with repo-local Playwright visual checks.",
   "scripts": {
+    "test:device": "node --test tests/device-capabilities.test.mjs",
     "test:multiplayer": "node --test tests/multiplayer-runtime.test.mjs",
     "test:multiplayer:production": "playwright test tests/visual/multiplayer-production.spec.js --project=desktop-chromium",
     "test:visual": "playwright test",

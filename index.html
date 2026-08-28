@@ -8,12 +8,51 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="LEARNGame OM">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Mobiele leerbox-proefopstelling voor LEARNGame Operations Management.">
+  <meta name="description" content="Leerbox-proefopstelling voor LEARNGame Operations Management.">
   <title>LEARNGame OM | Leerbox</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <script src="runtime-config.js"></script>
+  <script src="device-capabilities.js?v=20260828.2"></script>
+  <script>
+    (() => {
+      if (window.LOMDeviceCapabilities) return;
+      // Houd de toelatingsregel veilig tijdens een gedeeltelijke deploy of
+      // cachemiss: een ontbrekende classifier mag mobiel nooit digitaal maken.
+      const current = () => {
+        const userAgent = String(navigator.userAgent || "");
+        const platform = String(navigator.platform || "");
+        const touchPoints = Number(navigator.maxTouchPoints || 0);
+        const media = query => {
+          try { return window.matchMedia(query).matches; } catch { return false; }
+        };
+        const mobile = navigator.userAgentData?.mobile === true
+          || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk/i.test(userAgent)
+          || /Xbox|PlayStation|Nintendo|SmartTV|SMART-TV|Tizen|Web0S|HbbTV|NetCast|Viera|BRAVIA|CrKey|AFT[A-Z0-9]*/i.test(userAgent)
+          || (/Mac/i.test(platform) && touchPoints > 1 && /Macintosh|Mac OS X/i.test(userAgent))
+          || (touchPoints > 0
+            && media("(pointer: coarse)")
+            && !media("(any-pointer: fine)")
+            && !media("(any-hover: hover)"));
+        return {
+          deviceKind: mobile ? "mobile" : "computer",
+          isMobileDevice: mobile,
+          supportsDigitalPlay: !mobile,
+          supportsTutorial: !mobile,
+          supportsGameManagement: !mobile,
+          supportsSessionCreation: !mobile
+        };
+      };
+      window.LOMDeviceCapabilities = {
+        current,
+        supportsSession: (playMode, capabilities = current()) => (
+          capabilities.supportsDigitalPlay !== false || playMode === "physical"
+        )
+      };
+      document.documentElement.dataset.deviceKind = current().deviceKind;
+    })();
+  </script>
   <script>
     (() => {
       // Theme-CSS is executable presentation input. Keep it on the configured
@@ -27,7 +66,7 @@
       document.head.append(theme);
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20260827.7">
+  <link rel="stylesheet" href="style.css?v=20260828.2">
 </head>
 <body class="auth-pending">
   <section id="leerpretAuthGate" class="auth-gate" aria-labelledby="leerpretAuthTitle">
@@ -1521,11 +1560,11 @@
   <script src="game-configuration-store.js?v=20260827.1"></script>
   <script src="configuration-layout-preview.js?v=20260827.1"></script>
   <script src="screen-interaction-manifest.js"></script>
-  <script src="game-sessions.js?v=20260827.5"></script>
+  <script src="game-sessions.js?v=20260828.2"></script>
   <script src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"></script>
   <script src="logistics-game-engine.js?v=20260827.2"></script>
-  <script src="logistics-game-ui.js?v=20260827.7"></script>
-  <script src="multiplayer-runtime.js?v=20260827.1"></script>
+  <script src="logistics-game-ui.js?v=20260828.1"></script>
+  <script src="multiplayer-runtime.js?v=20260828.1"></script>
   <script src="chapter-9-insights.js"></script>
   <!-- LeerpretSDK-hub: runtime-config.js bepaalt de Engine-URL. Een expliciete
        testoverride is alleen geldig voor een geconfigureerde oorsprong of
@@ -1581,7 +1620,7 @@
       // scripts blokkeren niet zoals document.write bij cross-origin, dus dit
       // werkt ook op een losse frontend op een andere poort.
       var sdkComponents = ["lego-renderer", "lego-cables", "lego-tower-editor", "lego-builder"];
-      var tail = ["isometric-logistics-view.js?v=20260827.6", "script.js?v=20260827.8"];
+      var tail = ["isometric-logistics-view.js?v=20260827.6", "script.js?v=20260828.3"];
       function loadTail(i) {
         if (i >= tail.length) return;
         var s = document.createElement("script");

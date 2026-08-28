@@ -1,8 +1,9 @@
-const CACHE_VERSION = "learngame-om-v250-drag-entrepreneurship";
+const CACHE_VERSION = "learngame-om-v253-player-game-layout";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./runtime-config.js",
+  "./device-capabilities.js",
   "./style.css",
   "./script.js",
   "./game-configuration-store.js",

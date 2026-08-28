@@ -42,6 +42,7 @@ const SUMMARY_KEYS = Object.freeze([
   "join_mode",
   "member_count",
   "participation_status",
+  "play_mode",
   "queue_count",
   "queue_position",
   "session_id",
@@ -509,6 +510,7 @@ class StatefulMultiplayerApi {
     return {
       session_id: session.session_id,
       session_type: session.session_type,
+      play_mode: session.game_config.play_mode,
       difficulty_level: session.difficulty_level,
       status: session.status,
       member_count: humanCount,

@@ -377,7 +377,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(session).toMatchObject({ online: true, authenticated: false });
   });
 
-  test("3. LO Game 4 blijft geselecteerd bij fysiek-digitaal-fysiek", async ({ page }) => {
+  test("3. LO Game 4 blijft geselecteerd bij fysiek-digitaal-fysiek", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitaal configureren vereist een computer of laptop.");
     const form = await openManagerSessionSettings(page);
     const preset = form.locator('[name="game_type"]');
     const playMode = form.locator('[name="play_mode"]');
@@ -397,7 +398,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(preset.locator("option:checked")).toHaveText("LO Game 4");
   });
 
-  test("4. digitale LO Game 4 voldoet inclusief enabled_roles aan het backendcontract", async ({ page }) => {
+  test("4. digitale LO Game 4 voldoet inclusief enabled_roles aan het backendcontract", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitaal configureren vereist een computer of laptop.");
     const form = await openManagerSessionSettings(page);
     const allowedGameConfigFields = new Set([
       "play_mode",
@@ -477,7 +479,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(dialogs).toEqual([]);
   });
 
-  test("5. LO Game 6 geeft vier kleurlagen vrij en de editor respecteert deelvrijgave", async ({ page }) => {
+  test("5. LO Game 6 geeft vier kleurlagen vrij en de editor respecteert deelvrijgave", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Beheer en de toreneditor zijn alleen beschikbaar op computer of laptop.");
     const form = await openManagerSessionSettings(page);
     await form.locator('[name="game_type"]').selectOption("lo6");
 
@@ -523,6 +526,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
   });
 
   test("6. order van drie blokkeert overdracht tot batchbouw en getekende orderparaaf", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     await page.goto("/");
     await page.waitForFunction(() => (
       window.LogisticsGameEngine
@@ -732,7 +736,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("6b. complete batches van één of meer torens werken met toetsenbord en touch", async ({ page }) => {
+  test("6b. complete batches van één of meer torens werken met toetsenbord en touch", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     await page.goto("/");
     await page.waitForFunction(() => (
       window.LogisticsGameEngine
@@ -870,6 +875,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
   });
 
   test("6c. Magazijn Grondstoffen verplaatst de materiaalwagen met toetsenbord, pointer en touch", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     await page.goto("/");
     await page.waitForFunction(() => window.IsometricLogisticsView);
     await page.evaluate(() => {
@@ -1075,7 +1081,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("6d. een afgewezen of geannuleerde cargo-drag kan onmiddellijk opnieuw worden opgepakt", async ({ page }) => {
+  test("6d. een afgewezen of geannuleerde cargo-drag kan onmiddellijk opnieuw worden opgepakt", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     const { cargo, target } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
     const initialBox = await cargo.boundingBox();
     const targetBox = await target.boundingBox();
@@ -1151,7 +1158,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("6e. keyboard-cargo ruimt op na focus buiten de kaart en slikt de eerste pointerdrag niet in", async ({ page }) => {
+  test("6e. keyboard-cargo ruimt op na focus buiten de kaart en slikt de eerste pointerdrag niet in", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     const { cargo, outsideFocus, target } = await mountIsometricCargoDragHarness(page, {
       cargoKind: "material_cart"
     });
@@ -1186,7 +1194,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.mouse.up();
   });
 
-  test("6f. pointerup buiten de kaart ruimt een drag zonder pointer-capture volledig op", async ({ page }) => {
+  test("6f. pointerup buiten de kaart ruimt een drag zonder pointer-capture volledig op", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     const { cargo } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
     const initialBox = await cargo.boundingBox();
     expect(initialBox).not.toBeNull();
@@ -1252,7 +1261,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.mouse.up();
   });
 
-  test("6g. een fout in onCargoDrop laat geen renderer- of UI-draglock achter", async ({ page }) => {
+  test("6g. een fout in onCargoDrop laat geen renderer- of UI-draglock achter", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     const dragCallbackErrors = [];
     page.on("pageerror", error => {
       if (error.message.includes("drag-lock-")) dragCallbackErrors.push(error.message);
@@ -1342,6 +1352,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
   });
 
   test("6h. stop en destroy ruimen een actieve isometrische drag direct op", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     await page.goto("/");
     await page.waitForFunction(() => (
       window.LogisticsGameEngine
@@ -1448,7 +1459,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     }
   });
 
-  test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }) => {
+  test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     const sdkBase = process.env.CI
       ? "https://api.leerpretpark.nl/api"
       : "http://127.0.0.1:47111/api";
@@ -1546,7 +1558,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("7b. een langzaam versleepte tutorialtoren houdt capture tot werkelijk loslaten", async ({ page }) => {
+  test("7b. een langzaam versleepte tutorialtoren houdt capture tot werkelijk loslaten", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     const sdkBase = process.env.CI
       ? "https://api.leerpretpark.nl/api"
       : "http://127.0.0.1:47111/api";
@@ -1625,7 +1638,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }) => {
+  test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/#tutorialStep2");
     await page.waitForFunction(() => (
@@ -1674,7 +1688,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);
   });
 
-  test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }) => {
+  test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "Beheer is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/");
     await page.waitForFunction(() => (
@@ -1734,7 +1749,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     ]));
   });
 
-  test("10. Akkoord en toevoegen slaat een complete maatwerktoren op", async ({ page }) => {
+  test("10. Akkoord en toevoegen slaat een complete maatwerktoren op", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De toreneditor is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
@@ -1761,7 +1777,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     ))).toBe(true);
   });
 
-  test("10b. tutorialstap 5 bouwt een toren en voegt hem echt aan het assortiment toe", async ({ page }) => {
+  test("10b. tutorialstap 5 bouwt een toren en voegt hem echt aan het assortiment toe", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/");
     await page.waitForFunction(() => window.LEARNGameOMSimulator && window.TowerEditor);
@@ -1806,7 +1823,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(editor.locator('[data-add-tower-part="red_8"]')).toHaveAttribute("aria-disabled", "true");
   });
 
-  test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }) => {
+  test("11. productiestromen en tutorialroutes gebruiken Engine-kabels zonder pijlmarkers", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/#tutorialStep2");
     await page.waitForFunction(() => (
