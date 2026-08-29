@@ -1,8 +1,46 @@
 const { test, expect } = require("./fixtures");
 
+async function fulfillJson(route, status, body) {
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body)
+  });
+}
+
+async function mockAuthenticatedApp(page) {
+  await page.route("**/accounts.google.com/**", route => route.fulfill({
+    status: 200,
+    contentType: "application/javascript",
+    body: ""
+  }));
+  await page.route("**/auth/leerbox/session**", route => fulfillJson(route, 200, {
+    authenticated: true,
+    user: { label: "Playwright manager" },
+    roles: ["learner"]
+  }));
+  await page.route("**/api/auth/google/config**", route => fulfillJson(route, 200, {
+    enabled: true,
+    client_id: "playwright-client.apps.googleusercontent.com",
+    scope: "openid"
+  }));
+  await page.route("**/v1/player/behavior-profile**", route => fulfillJson(route, 200, {
+    exists: true,
+    profile: {}
+  }));
+  await page.route("**/v1/game-sessions/availability**", route => fulfillJson(route, 200, {
+    current_session: null,
+    discoverable_sessions: [],
+    open_sessions: [],
+    can_start_free_game: true
+  }));
+}
+
 async function prepareAppShell(page) {
+  await mockAuthenticatedApp(page);
   await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMReady === true);
+  await page.locator("body.auth-authenticated").waitFor();
   await page.evaluate(() => {
     const capabilities = Object.freeze({
       deviceKind: "computer",
@@ -18,10 +56,8 @@ async function prepareAppShell(page) {
     });
     document.documentElement.dataset.deviceKind = "computer";
     document.body.classList.remove("mobile-player-only");
-    document.body.classList.remove("auth-pending");
-    const gate = document.getElementById("leerpretAuthGate");
-    if (gate) gate.hidden = true;
   });
+  await expect(page.locator("#leerpretAuthGate")).toBeHidden();
 }
 
 test.describe("Manager Dashboard & Perspectives", () => {

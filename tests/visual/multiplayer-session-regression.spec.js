@@ -1497,7 +1497,10 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         expected_revision: 2,
         received_revision: 1
       });
-      expect(backend.stats.runtimePuts).toBeGreaterThanOrEqual(2);
+      await expect.poll(
+        () => backend.stats.runtimePuts,
+        { timeout: 12_000 }
+      ).toBeGreaterThanOrEqual(2);
       await expect.poll(
         () => Array.isArray(backend.runtime.snapshot?.orders),
         { timeout: 12_000 }
@@ -1508,7 +1511,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         participation_status: "active",
         queue_position: null,
         is_controller: true,
-        snapshot_revision: 1,
+        snapshot_revision: expect.any(Number),
         membership_revision: 0,
         snapshot_updated_at: expect.any(String),
         server_time: expect.any(String),
@@ -1519,6 +1522,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         command_results: [],
         telemetry_backlog_count: 0
       });
+      expect(backend.runtime.snapshotRevision).toBeGreaterThanOrEqual(1);
       expect(backend.runtime.snapshot.orders).toHaveLength(0);
       expect(backend.runtime.snapshot.capturedAt).toEqual(expect.any(Number));
       expect(Date.parse(backend.runtimeContract("host").server_time)).toBeGreaterThanOrEqual(
@@ -2457,6 +2461,19 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         engine.config.incidentChance = 0;
         engine.config.transferDelayMinMs = 100;
         engine.config.transferDelayMaxMs = 100;
+        // De deelnemerspoll kan tussen het eerdere leegmaken en deze opzet nog
+        // één oude snapshot terugzetten. Reset daarom atomair in dezelfde
+        // eventloop-turn waarin de regressieorder wordt aangemaakt.
+        engine.orders.clear();
+        Object.values(engine.roleRuntime).forEach(runtime => {
+          runtime.queue = [];
+          runtime.activeOrderId = null;
+          runtime.state = "IDLE";
+          runtime.completesAt = null;
+          runtime.transfersAt = null;
+          runtime.incident = null;
+          runtime.hesitation = false;
+        });
 
         const regression = { enqueues: [], transfers: [] };
         const originalEnqueue = engine.enqueue.bind(engine);

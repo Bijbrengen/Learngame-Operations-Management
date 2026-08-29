@@ -39,7 +39,10 @@ module.exports = defineConfig({
   timeout: 30_000,
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 4 : undefined,
+  // De multiplayerfixture simuleert meerdere browsers en CAS-writers binnen
+  // één test. Eén CI-worker voorkomt dat hostbelasting de timingcontracten van
+  // die interne concurrentie verstoort.
+  workers: process.env.CI ? 1 : undefined,
   expect: {
     timeout: 5_000
   },
