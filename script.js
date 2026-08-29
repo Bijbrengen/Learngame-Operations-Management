@@ -8495,12 +8495,6 @@
     triggerDisruption
   };
 
-  if (window.__LOM_PENDING_SESSION_OVERVIEW) {
-    window.__LOM_PENDING_SESSION_OVERVIEW = false;
-    setAppView("manager", false);
-    setManagerTab("session");
-  }
-
   // Bind this essential escape/restart action before initializing the heavier
   // game views. It must remain usable even if a renderer fails during startup.
   document.addEventListener("click", event => {
@@ -8548,4 +8542,11 @@
   }
   registerServiceWorker();
   applyInitialRoute();
+  window.LEARNGameOMReady = true;
+  if (window.__LOM_PENDING_SESSION_OVERVIEW) {
+    window.__LOM_PENDING_SESSION_OVERVIEW = false;
+    setAppView("manager", false);
+    setManagerTab("session");
+  }
+  window.dispatchEvent(new CustomEvent("learngame-om-ready"));
 })();

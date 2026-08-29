@@ -150,7 +150,7 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260828.5"', html)
-        self.assertIn('"script.js?v=20260829.1"', html)
+        self.assertIn('"script.js?v=20260829.2"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
         self.assertIn('CACHE_VERSION = "learngame-om-v261-spatial-convergence"', service_worker)
         self.assertIn(

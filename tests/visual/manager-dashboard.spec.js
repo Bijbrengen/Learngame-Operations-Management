@@ -2,7 +2,7 @@ const { test, expect } = require("./fixtures");
 
 async function prepareAppShell(page) {
   await page.goto("/");
-  await page.waitForFunction(() => window.LEARNGameOMSimulator);
+  await page.waitForFunction(() => window.LEARNGameOMReady === true);
   await page.evaluate(() => {
     document.body.classList.remove("auth-pending");
     const gate = document.getElementById("leerpretAuthGate");

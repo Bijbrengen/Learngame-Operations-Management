@@ -174,6 +174,7 @@ test("actieve sessie en stopactie blijven compacte bovenbalkknoppen", async ({ p
   );
   await page.goto("/");
   await page.locator("body.auth-authenticated").waitFor();
+  await page.waitForFunction(() => window.LEARNGameOMReady === true);
 
   const topbar = page.locator(".topbar.game-menu");
   const mount = page.locator("#playerSessionMetricMount");
@@ -305,6 +306,7 @@ test("overgenomen Game Master kan niet afsluiten en krijgt direct de beëindigin
   );
   await page.goto("/");
   await page.locator("body.auth-authenticated").waitFor();
+  await page.waitForFunction(() => window.LEARNGameOMReady === true);
 
   const stopButton = page.locator("#topSessionStopButton");
   await expect(stopButton).toHaveAttribute("data-leave-game-session", "");

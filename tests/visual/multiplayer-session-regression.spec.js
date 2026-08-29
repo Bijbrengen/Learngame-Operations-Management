@@ -1362,6 +1362,7 @@ async function waitForApplication(page, backend, diagnostics = []) {
   try {
     await page.waitForFunction(() => (
       window.LEARNGameOMSimulator
+      && window.LEARNGameOMReady === true
       && window.LOMMultiplayerRuntime
       && window.LeerpretAuth?.getSession?.().authenticated
     ));
