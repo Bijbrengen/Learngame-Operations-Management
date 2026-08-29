@@ -141,9 +141,9 @@ class ProductPackageTests(unittest.TestCase):
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
         self.assertIn('href="style.css?v=20260828.3"', html)
-        self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
+        self.assertIn('"logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260828.4"', html)
+        self.assertIn('"logistics-game-ui.js?v=20260828.4"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260828.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
@@ -876,8 +876,8 @@ console.log(JSON.stringify({
         engine_source = engine_path.read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
-        self.assertIn('src="logistics-game-engine.js?v=', html)
-        self.assertRegex(html, r'src="logistics-game-ui\.js(?:\?[^\"]+)?"')
+        self.assertIn('"logistics-game-engine.js?v=', html)
+        self.assertRegex(html, r'"logistics-game-ui\.js(?:\?[^\"]+)?"')
         self.assertIn('id="logisticsGameMount"', html)
         self.assertNotIn("fetch(", engine_source)
         self.assertNotIn("XMLHttpRequest", engine_source)
@@ -1285,7 +1285,7 @@ process.stdout.write(JSON.stringify({{
 
         data_script = 'src="data/agent-behavior/entrepreneurship-human-patterns.v1.js"'
         self.assertIn(data_script, html)
-        self.assertLess(html.index(data_script), html.index('src="logistics-game-engine.js?v='))
+        self.assertLess(html.index(data_script), html.index('"logistics-game-engine.js?v='))
         self.assertIn(
             'state.config.organizationModel === "independent_enterprises"',
             game,

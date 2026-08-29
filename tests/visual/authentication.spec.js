@@ -72,22 +72,22 @@ test.describe("Leerpret-aanmelding", () => {
     expect(session.authenticated).toBe(false);
   });
 
-  test("runtime kiest lokaal de lokale Engine en in CI de productie-Engine", async ({ page }) => {
+  test("runtime volgt de expliciet geconfigureerde lokale of productie-Engine", async ({ page }) => {
     await page.goto("/");
 
     const endpoints = await page.evaluate(() => ({ ...window.LEARNGAME_OM_CONFIG }));
+    const expectedApiBase = (process.env.LEERPRET_API_URL || (
+      process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api"
+    )).replace(/\/+$/, "");
+    const usesLocalEngine = /^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::|\/)/.test(expectedApiBase);
 
-    const expected = process.env.CI
-      ? {
-          appUrl: "https://bijbrengen.github.io/Learngame-Operations-Management/",
-          apiBase: "https://api.leerpretpark.nl/api",
-          configuredApiBase: "https://api.leerpretpark.nl/api"
-        }
-      : {
-          appUrl: "http://127.0.0.1:47113/",
-          apiBase: "http://127.0.0.1:47111/api",
-          configuredApiBase: "http://127.0.0.1:47111/api"
-        };
+    const expected = {
+      appUrl: usesLocalEngine
+        ? "http://127.0.0.1:47113/"
+        : "https://bijbrengen.github.io/Learngame-Operations-Management/",
+      apiBase: expectedApiBase,
+      configuredApiBase: expectedApiBase
+    };
     expect(endpoints).toEqual(expected);
   });
 
@@ -102,9 +102,10 @@ test.describe("Leerpret-aanmelding", () => {
       brain: getComputedStyle(document.documentElement).getPropertyValue("--lp-brand-brain-url").trim(),
     }));
 
-    expect(theme.origin).toBe(process.env.CI
-      ? "https://api.leerpretpark.nl/api/ui/leerpret-theme.css"
-      : "http://127.0.0.1:47111/api/ui/leerpret-theme.css");
+    const expectedApiBase = (process.env.LEERPRET_API_URL || (
+      process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api"
+    )).replace(/\/+$/, "");
+    expect(theme.origin).toBe(`${expectedApiBase}/ui/leerpret-theme.css`);
     expect(theme.orange).toBe("#E97A5F");
     expect(theme.border).toBe("3px solid #684564");
     expect(theme.brain).toContain("brand-brain.svg");
