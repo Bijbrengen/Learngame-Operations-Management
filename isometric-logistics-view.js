@@ -1,15 +1,93 @@
 (() => {
   "use strict";
 
-  const VIEWBOX = { width: 1320, height: 900 };
-  const PROJECTION = { originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 };
-  const MATERIAL_CART_BLOK = Object.freeze({
-    id: "logistics.material-cart",
-    file: "logistics/materiaalwagen.blok",
-    preset: "logistics-material-cart.green"
+  const VIEWBOX = Object.freeze({ width: 1320, height: 900 });
+  const PROJECTION = Object.freeze({ originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 });
+  const BACKGROUND_BOUNDS = Object.freeze({ minX: 0, minY: 0, maxX: 13, maxY: 10, left: 2, top: 1, right: 2, bottom: 2 });
+  const DEPARTMENT_BOX_PROFILE = Object.freeze({ width: 3.4, depth: 3.1, height: 58 });
+  const FRAME_PROFILE = Object.freeze({
+    minimumWidth: 760,
+    minimumHeight: 560,
+    paddingX: 180,
+    paddingY: 170,
+    minimumAspectRatio: 0.65,
+    maximumAspectRatio: 2.4
   });
-  const MATERIAL_CART_VIEW = Object.freeze({ originX: 32, originY: 58, scale: 0.36 });
+  const WAREHOUSE_CONTAINER_PROFILE = Object.freeze({
+    boardWidth: 6,
+    boardDepth: 6,
+    maxLayers: 4,
+    defaultWidth: 2,
+    defaultDepth: 2,
+    margin: 1,
+    translateX: -90,
+    translateY: -90
+  });
+  let diamondProjection = null;
+  let defaultStockBoardProfile = null;
+
+  function spatial() {
+    const api = window.LeerpretSDK?.components?.["lego-spatial"];
+    if (
+      !api?.createDiamondProjection
+      || !api?.projectDiamond
+      || !api?.projectBox
+      || !api?.unionBoxes3
+      || !api?.fitViewBox
+      || !api?.formatViewBox
+      || !api?.packSupportedGrid
+      || !api?.positiveGridInteger
+      || !api?.inverseTransformPoint2
+    ) {
+      throw new Error("De centrale LeerpretSDK-ruimtelijke bouwkern is niet geladen.");
+    }
+    return api;
+  }
+
+  function projection(options) {
+    if (options?.kind === "diamond-v1") return options;
+    if (options) {
+      return spatial().createDiamondProjection({ ...PROJECTION, ...options });
+    }
+    if (!diamondProjection) diamondProjection = spatial().createDiamondProjection(PROJECTION);
+    return diamondProjection;
+  }
+
+  function builderCore() {
+    const core = window.LeerpretSDK?.components?.["lego-builder"]?.logic;
+    if (!core?.builderBoardProfile || !core?.physicalLayer) {
+      throw new Error("De centrale LeerpretSDK-bouwbordkern is niet geladen.");
+    }
+    return core;
+  }
+
+  function stockBoardProfile(options) {
+    if (!options && defaultStockBoardProfile) return defaultStockBoardProfile;
+    const metrics = spatial().LEGACY_RENDER_METRICS;
+    if (!metrics || !Number.isFinite(Number(metrics.plateHeight)) || !Number.isFinite(Number(metrics.brickHeight))) {
+      throw new Error("Het centrale LeerpretSDK-rendermaatprofiel is niet geladen.");
+    }
+    const source = options || {};
+    const profile = builderCore().builderBoardProfile({
+      ...source,
+      placement: {
+        baseHeight: metrics.plateHeight,
+        layerPitch: metrics.brickHeight,
+        ...(source.placement || {})
+      }
+    });
+    if (!options) defaultStockBoardProfile = profile;
+    return profile;
+  }
   let legoGradientInstance = 0;
+
+  function materialCartProfile() {
+    const profile = window.LOMMaterialCartProfile;
+    if (!profile?.markup || !profile?.countParts || !profile?.blok) {
+      throw new Error("Het gedeelde LOM-materiaalwagenprofiel is niet geladen.");
+    }
+    return profile;
+  }
   const TUTORIAL_WAREHOUSE_PALETTES = Object.freeze({
     "tutorial-blue": {
       floor: "rgba(53, 139, 255, 0.34)",
@@ -53,10 +131,15 @@
     }).format(amount)}`;
   }
 
-  function project(x, y, z = 0) {
+  function screenPoint(value) {
+    return { x: value[0], y: value[1] };
+  }
+
+  function project(x, y, z = 0, projectionOptions) {
+    const [screenX, screenY] = spatial().projectDiamond([x, y, z], projection(projectionOptions));
     return {
-      x: PROJECTION.originX + (x - y) * (PROJECTION.tileWidth / 2),
-      y: PROJECTION.originY + (x + y) * (PROJECTION.tileHeight / 2) - z
+      x: screenX,
+      y: screenY
     };
   }
 
@@ -64,28 +147,64 @@
     return values.map(point => `${point.x},${point.y}`).join(" ");
   }
 
-  function zoneGeometry(department) {
-    const { x, y, width = 3.4, depth = 3.1, height = 58 } = department.layout;
-    const floor = [
-      project(x, y),
-      project(x + width, y),
-      project(x + width, y + depth),
-      project(x, y + depth)
-    ];
-    const roof = [
-      project(x, y, height),
-      project(x + width, y, height),
-      project(x + width, y + depth, height),
-      project(x, y + depth, height)
-    ];
+  function profileValue(value, fallback) {
+    return value === undefined ? fallback : value;
+  }
+
+  function departmentBox(department, options) {
+    const layout = department?.layout || {};
+    const defaults = { ...DEPARTMENT_BOX_PROFILE, ...(options || {}) };
+    return Object.freeze({
+      x: layout.x,
+      y: layout.y,
+      z: 0,
+      width: profileValue(layout.width, defaults.width),
+      depth: profileValue(layout.depth, defaults.depth),
+      height: profileValue(layout.height, defaults.height)
+    });
+  }
+
+  function warehouseContainerPlacement(center, options) {
+    const source = options || {};
+    const board = source.board || {};
+    const container = source.container || {};
+    const width = Number(profileValue(board.width, WAREHOUSE_CONTAINER_PROFILE.boardWidth));
+    const depth = Number(profileValue(board.depth, WAREHOUSE_CONTAINER_PROFILE.boardDepth));
+    const margin = Number(profileValue(container.margin, WAREHOUSE_CONTAINER_PROFILE.margin));
+    return Object.freeze({
+      x: -margin,
+      y: -margin,
+      width: width + margin * 2,
+      depth: depth + margin * 2,
+      translateX: center.x + Number(profileValue(container.translateX, WAREHOUSE_CONTAINER_PROFILE.translateX)),
+      translateY: center.y + Number(profileValue(container.translateY, WAREHOUSE_CONTAINER_PROFILE.translateY)),
+      boardWidth: width,
+      boardDepth: depth,
+      maxLayers: Number(profileValue(source.maxLayers, WAREHOUSE_CONTAINER_PROFILE.maxLayers)),
+      defaultWidth: Number(profileValue(source.defaultWidth, WAREHOUSE_CONTAINER_PROFILE.defaultWidth)),
+      defaultDepth: Number(profileValue(source.defaultDepth, WAREHOUSE_CONTAINER_PROFILE.defaultDepth))
+    });
+  }
+
+  function zoneGeometry(department, projectionOptions, departmentProfile) {
+    const { x, y, width, depth, height } = departmentBox(department, departmentProfile);
+    const camera = projection(projectionOptions);
+    const projectedBox = spatial().projectBox(
+      { x, y, z: 0, width, depth, height },
+      camera
+    );
+    const floor = projectedBox.floor.map(screenPoint);
+    const roof = projectedBox.roof.map(screenPoint);
+    const center = project(x + width / 2, y + depth / 2, height, camera);
+    const floorCenter = project(x + width / 2, y + depth / 2, 0, camera);
     const labelAboveBuilding = department.labelPosition === "above";
     return {
       floor,
       roof,
-      center: project(x + width / 2, y + depth / 2, height),
-      floorCenter: project(x + width / 2, y + depth / 2),
+      center,
+      floorCenter,
       label: {
-        x: project(x + width / 2, y + depth / 2).x,
+        x: floorCenter.x,
         y: labelAboveBuilding
           ? Math.min(...roof.map(point => point.y)) - 40
           : Math.max(...floor.map(point => point.y)) + 44
@@ -97,60 +216,62 @@
     };
   }
 
-  function centeredDepartmentViewBox(departments, aspectRatio = VIEWBOX.width / VIEWBOX.height) {
-    if (!departments.length) return `0 0 ${VIEWBOX.width} ${VIEWBOX.height}`;
+  function centeredDepartmentViewBox(
+    departments,
+    aspectRatio = VIEWBOX.width / VIEWBOX.height,
+    projectionOptions,
+    frameOptions,
+    viewportOptions,
+    departmentProfile
+  ) {
+    const viewport = { ...VIEWBOX, ...(viewportOptions || {}) };
+    const frame = { ...FRAME_PROFILE, ...(frameOptions || {}) };
+    if (!departments.length) return `0 0 ${viewport.width} ${viewport.height}`;
     const projectedPoints = departments.flatMap(department => {
-      const geometry = zoneGeometry(department);
+      const geometry = zoneGeometry(department, projectionOptions, departmentProfile);
       return [...geometry.floor, ...geometry.roof];
     });
-    const minX = Math.min(...projectedPoints.map(point => point.x));
-    const maxX = Math.max(...projectedPoints.map(point => point.x));
-    const minY = Math.min(...projectedPoints.map(point => point.y));
-    const maxY = Math.max(...projectedPoints.map(point => point.y));
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const contentWidth = Math.max(760, (maxX - minX) + 180);
-    const contentHeight = Math.max(560, (maxY - minY) + 170);
-    const ratio = Math.max(0.65, Math.min(2.4, Number(aspectRatio) || 1));
-    let width = contentWidth;
-    let height = width / ratio;
-    if (height < contentHeight) {
-      height = contentHeight;
-      width = height * ratio;
-    }
-    return [
-      centerX - width / 2,
-      centerY - height / 2,
-      width,
-      height
-    ].map(value => value.toFixed(2)).join(" ");
+    const viewBox = spatial().fitViewBox(
+      projectedPoints.map(point => [point.x, point.y]),
+      {
+        minimumWidth: frame.minimumWidth,
+        minimumHeight: frame.minimumHeight,
+        paddingX: frame.paddingX,
+        paddingY: frame.paddingY,
+        minimumAspectRatio: frame.minimumAspectRatio,
+        maximumAspectRatio: frame.maximumAspectRatio,
+        aspectRatio
+      }
+    );
+    return spatial().formatViewBox(viewBox);
   }
 
-  function flowPoint(referenceId, departmentById, offset = {}) {
+  function flowPoint(referenceId, departmentById, offset = {}, projectionOptions, departmentProfile) {
     const department = departmentById.get(referenceId);
     if (!department) return null;
-    const center = zoneGeometry(department).floorCenter;
+    const center = zoneGeometry(department, projectionOptions, departmentProfile).floorCenter;
     return { x: center.x + (offset.x || 0), y: center.y + (offset.y || 0) };
   }
 
-  function wallStudFlowPoint(referenceId, departmentById, target, offset = {}) {
+  function wallStudFlowPoint(referenceId, departmentById, target, offset = {}, projectionOptions, renderProfile = {}) {
     const department = departmentById.get(referenceId);
     const cables = window.LeerpretSDK?.components?.["lego-cables"];
     const renderer = window.LegoTowerRenderer;
     if (!department || !cables?.containerWallStudAnchor || !renderer?.iso) {
-      return flowPoint(referenceId, departmentById, offset);
+      return flowPoint(referenceId, departmentById, offset, projectionOptions, renderProfile.departmentProfile);
     }
-    const center = zoneGeometry(department).center;
+    const center = zoneGeometry(department, projectionOptions, renderProfile.departmentProfile).center;
+    const placement = warehouseContainerPlacement(center, renderProfile.stockBoardProfile);
     const targetPoint = target
       ? [target.x + Number(offset.x || 0), target.y + Number(offset.y || 0)]
       : null;
     const anchor = cables.containerWallStudAnchor(renderer, {
-      x: -1,
-      y: -1,
+      x: placement.x,
+      y: placement.y,
       z: 0,
-      width: 8,
-      depth: 8,
-      translate: [center.x - 90, center.y - 90],
+      width: placement.width,
+      depth: placement.depth,
+      translate: [placement.translateX, placement.translateY],
       target: targetPoint
     });
     return {
@@ -162,18 +283,41 @@
     };
   }
 
-  function flowPath(connection, departmentById, connectionIndex, scope) {
-    const sourceCenter = flowPoint(connection.from, departmentById);
-    const targetCenter = flowPoint(connection.to, departmentById);
-    const start = wallStudFlowPoint(connection.from, departmentById, targetCenter, connection.fromOffset);
-    const end = wallStudFlowPoint(connection.to, departmentById, sourceCenter, connection.toOffset);
+  function flowPath(connection, departmentById, connectionIndex, scope, projectionOptions, renderProfile) {
+    const sourceCenter = flowPoint(connection.from, departmentById, {}, projectionOptions, renderProfile.departmentProfile);
+    const targetCenter = flowPoint(connection.to, departmentById, {}, projectionOptions, renderProfile.departmentProfile);
+    const start = wallStudFlowPoint(
+      connection.from,
+      departmentById,
+      targetCenter,
+      connection.fromOffset,
+      projectionOptions,
+      renderProfile
+    );
+    const end = wallStudFlowPoint(
+      connection.to,
+      departmentById,
+      sourceCenter,
+      connection.toOffset,
+      projectionOptions,
+      renderProfile
+    );
     if (!start || !end) return "";
-    const bend = Math.max(36, Math.abs(end.x - start.x) * 0.16);
     const curveOffsetY = Number(connection.curveOffsetY || 0);
-    const path = `M ${start.x} ${start.y} C ${start.x + bend} ${start.y + curveOffsetY}, ${end.x - bend} ${end.y + curveOffsetY}, ${end.x} ${end.y}`;
     const flowKind = connection.kind === "customer" ? "customer" : "material";
     const cables = window.LeerpretSDK?.components?.["lego-cables"];
-    if (!cables?.connectionMarkup) return "";
+    if (!cables?.cubicScreenPath || !cables?.connectionMarkup) return "";
+    const path = cables.cubicScreenPath(
+      [start.x, start.y],
+      [end.x, end.y],
+      {
+        minimumBend: 36,
+        bendRatio: 0.16,
+        bendDirection: "positive",
+        controlOffsetY: curveOffsetY,
+        round: false
+      }
+    );
     return cables.connectionMarkup({
       id: `${scope}-${connectionIndex}-${connection.from}-${connection.to}`,
       path,
@@ -233,45 +377,18 @@
     `;
   }
 
-  function layoutStockItems(items) {
-    const occupied = new Set();
-    const result = [];
-    const interiorSize = 6;
-    const maxLayers = 4;
-    items.forEach(item => {
-      const width = Math.max(1, Math.min(interiorSize, Number(item.width || 2)));
-      const depth = Math.max(1, Math.min(interiorSize, Number(item.depth || 2)));
-      let placement = null;
-      for (let layer = 0; layer < maxLayers && !placement; layer += 1) {
-        for (let y = 0; y <= interiorSize - depth && !placement; y += 1) {
-          for (let x = 0; x <= interiorSize - width && !placement; x += 1) {
-            let fits = true;
-            for (let row = y; row < y + depth && fits; row += 1) {
-              for (let column = x; column < x + width; column += 1) {
-                const free = !occupied.has(`${column},${row},${layer}`);
-                const supported = layer === 0 || occupied.has(`${column},${row},${layer - 1}`);
-                if (!free || !supported) {
-                  fits = false;
-                  break;
-                }
-              }
-            }
-            if (fits) placement = { ...item, x, y, layer, width, depth };
-          }
-        }
-      }
-      if (!placement) return;
-      for (let row = placement.y; row < placement.y + placement.depth; row += 1) {
-        for (let column = placement.x; column < placement.x + placement.width; column += 1) {
-          occupied.add(`${column},${row},${placement.layer}`);
-        }
-      }
-      result.push(placement);
+  function layoutStockItems(items, profileOptions) {
+    const placement = warehouseContainerPlacement({ x: 0, y: 0 }, profileOptions);
+    return spatial().packSupportedGrid(items, {
+      width: placement.boardWidth,
+      depth: placement.boardDepth,
+      maxLayers: placement.maxLayers,
+      defaultWidth: placement.defaultWidth,
+      defaultDepth: placement.defaultDepth
     });
-    return result;
   }
 
-  function openWarehouseMarkup(department, geometry, legoGradientScope) {
+  function openWarehouseMarkup(department, geometry, legoGradientScope, stockProfileOptions) {
     const center = geometry.center;
     const palette = department.materialId
       ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
@@ -291,11 +408,15 @@
         })
       )
     )).slice(0, 8);
-    const laidOutItems = layoutStockItems(items);
-    const containerTransform = `translate(${center.x - 90} ${center.y - 90})`;
+    const laidOutItems = layoutStockItems(items, stockProfileOptions);
+    const containerPlacement = warehouseContainerPlacement(center, stockProfileOptions);
+    const containerTransform = `translate(${containerPlacement.translateX} ${containerPlacement.translateY})`;
+    const placementProfile = laidOutItems.length && window.LegoTowerRenderer
+      ? stockBoardProfile(stockProfileOptions)
+      : null;
     const bricks = window.LegoTowerRenderer
       ? laidOutItems.map(visual => {
-        const brickZ = 0.22 + visual.layer * 0.72;
+        const brickZ = builderCore().physicalLayer(visual.layer, placementProfile);
         return `
           <g class="iso-stock-brick${visual.draggable ? " is-draggable iso-draggable-object" : ""}"
              transform="${containerTransform}"
@@ -342,11 +463,11 @@
       finished: "blue"
     }[department.departmentColor] || "green";
     const container = window.LegoTowerRenderer?.openContainerLayers?.(
-      -1,
-      -1,
+      containerPlacement.x,
+      containerPlacement.y,
       0,
-      8,
-      8,
+      containerPlacement.width,
+      containerPlacement.depth,
       containerColor,
       legoGradientScope
     );
@@ -376,34 +497,13 @@
     if (!cargo || cargo.kind !== "material_cart") return "";
     const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
     const partGroups = Array.isArray(cargo.parts) ? cargo.parts : [];
-    const materialPartCount = partGroups.reduce(
-      (total, part) => total + Math.max(0, Math.floor(Number(part.count) || 0)),
-      0
+    const materialCart = materialCartProfile();
+    const materialPartCount = materialCart.countParts(partGroups);
+    const cartPrimitive = materialCart.markup(
+      partGroups,
+      `${legoGradientScope}-material-cart`,
+      "isometric"
     );
-    const renderer = window.LegoTowerRenderer;
-    const cartPrimitive = typeof renderer?.materialCart === "function"
-      ? renderer.materialCart({
-          x: 0,
-          y: 0,
-          zHalfLayers: 0,
-          color: "green",
-          wheelColor: "black",
-          parts: partGroups,
-          maxVisibleParts: 8,
-          scope: `${legoGradientScope}-material-cart`,
-          view: MATERIAL_CART_VIEW
-        })
-      : `
-          <g data-lego-material-cart
-             data-material-part-count="${materialPartCount}"
-             data-material-cart-fallback="true"
-             data-blok-id="${MATERIAL_CART_BLOK.id}"
-             data-blok-file="${MATERIAL_CART_BLOK.file}"
-             data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
-            <title>Materiaalwagen met ${materialPartCount} losse LEGO-onderdelen</title>
-            <text class="iso-material-cart-fallback-copy" x="32" y="34" text-anchor="middle">MATERIAALWAGEN</text>
-          </g>
-        `;
     const scale = 2.35;
     return `
       <g class="iso-cargo-material-cart iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
@@ -414,9 +514,9 @@
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
          data-material-part-count="${materialPartCount}"
-         data-blok-id="${MATERIAL_CART_BLOK.id}"
-         data-blok-file="${MATERIAL_CART_BLOK.file}"
-         data-blok-render-preset="${MATERIAL_CART_BLOK.preset}"
+         data-blok-id="${materialCart.blok.id}"
+         data-blok-file="${materialCart.blok.file}"
+         data-blok-render-preset="${materialCart.blok.preset}"
          role="${cargo.draggable ? "button" : "img"}"
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
@@ -476,8 +576,8 @@
             0,
             0,
             0,
-            6,
-            6,
+            spatial().positiveGridInteger(cargo.groundPlateWidth, 6),
+            spatial().positiveGridInteger(cargo.groundPlateDepth, 6),
             cargo.groundPlateColor || "green",
             legoGradientScope
           ),
@@ -555,8 +655,8 @@
     `;
   }
 
-  function departmentMarkup(department, selectedId, legoGradientScope) {
-    const geometry = zoneGeometry(department);
+  function departmentMarkup(department, selectedId, legoGradientScope, renderContext = {}) {
+    const geometry = zoneGeometry(department, renderContext.projection, renderContext.departmentProfile);
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
     const palette = department.materialId
@@ -595,7 +695,12 @@
           ])}"
                    ${palette ? `style="fill:${palette.right};stroke:${palette.rim};stroke-width:2"` : ""}></polygon>`}
           ${usesOpenInterior
-            ? openWarehouseMarkup(department, geometry, legoGradientScope)
+            ? openWarehouseMarkup(
+              department,
+              geometry,
+              legoGradientScope,
+              renderContext.stockBoardProfile
+            )
             : `
               <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>
               ${symbolMarkup(department, geometry.center)}
@@ -606,8 +711,8 @@
     `;
   }
 
-  function departmentOverlayMarkup(department, selectedId) {
-    const geometry = zoneGeometry(department);
+  function departmentOverlayMarkup(department, selectedId, projectionOptions, departmentProfile) {
+    const geometry = zoneGeometry(department, projectionOptions, departmentProfile);
     const selected = department.id === selectedId;
     const selectedRenderState = selected || department.forceSelectedRender || Boolean(
       department.materialId
@@ -795,12 +900,12 @@
     `;
   }
 
-  function financeMutationMarkup(finance, departmentById) {
+  function financeMutationMarkup(finance, departmentById, projectionOptions, departmentProfile) {
     const mutation = finance?.mutation;
     if (!finance?.active || !finance.moneyEnabled || !mutation) return "";
     const department = departmentById.get(mutation.departmentId);
     if (!department) return "";
-    const geometry = zoneGeometry(department);
+    const geometry = zoneGeometry(department, projectionOptions, departmentProfile);
     const positive = Number(mutation.amount) > 0;
     return `
       <g transform="translate(${geometry.center.x} ${geometry.center.y - 64})" aria-hidden="true">
@@ -851,6 +956,24 @@
       container._isoPendingMount = { scene, options };
       return;
     }
+    const mapProjection = projection(options.projection || scene.projection);
+    const viewportProfile = { ...VIEWBOX, ...(scene.viewportProfile || {}), ...(options.viewportProfile || {}) };
+    const frameProfile = { ...FRAME_PROFILE, ...(scene.frameProfile || {}), ...(options.frameProfile || {}) };
+    const departmentProfile = {
+      ...DEPARTMENT_BOX_PROFILE,
+      ...(scene.departmentProfile || {}),
+      ...(options.departmentProfile || {})
+    };
+    const backgroundProfile = {
+      ...BACKGROUND_BOUNDS,
+      ...(scene.backgroundProfile || {}),
+      ...(options.backgroundProfile || {})
+    };
+    const renderContext = Object.freeze({
+      projection: mapProjection,
+      stockBoardProfile: options.stockBoardProfile || scene.stockBoardProfile,
+      departmentProfile: Object.freeze(departmentProfile)
+    });
     const legoGradientScope = `iso-logistics-${legoGradientInstance += 1}`;
     const departments = (scene.departments || [])
       .filter(department => department.visible !== false)
@@ -861,39 +984,62 @@
       ));
     const mapAspectRatio = container.clientWidth / Math.max(1, container.clientHeight);
     const mapViewBox = options.centerDepartments
-      ? centeredDepartmentViewBox(departments, mapAspectRatio)
-      : `0 0 ${VIEWBOX.width} ${VIEWBOX.height}`;
+      ? centeredDepartmentViewBox(
+        departments,
+        mapAspectRatio,
+        mapProjection,
+        frameProfile,
+        viewportProfile,
+        departmentProfile
+      )
+      : `0 0 ${viewportProfile.width} ${viewportProfile.height}`;
     const departmentById = new Map(departments.map(department => [department.id, department]));
     const selected = departmentById.get(scene.selectedDepartmentId) || null;
-    const minX = Math.min(...departments.map(department => department.layout.x), 0) - 2;
-    const minY = Math.min(...departments.map(department => department.layout.y), 0) - 1;
-    const maxX = Math.max(...departments.map(department => department.layout.x + department.layout.width), 13) + 2;
-    const maxY = Math.max(...departments.map(department => department.layout.y + department.layout.depth), 10) + 2;
-    const background = [
-      project(minX, minY),
-      project(maxX, minY),
-      project(maxX, maxY),
-      project(minX, maxY)
-    ];
+    const departmentBounds = spatial().unionBoxes3(
+      departments.map(department => departmentBox(department, departmentProfile))
+    );
+    const minX = Math.min(departmentBounds?.minX ?? backgroundProfile.minX, backgroundProfile.minX) - backgroundProfile.left;
+    const minY = Math.min(departmentBounds?.minY ?? backgroundProfile.minY, backgroundProfile.minY) - backgroundProfile.top;
+    const maxX = Math.max(departmentBounds?.maxX ?? backgroundProfile.maxX, backgroundProfile.maxX) + backgroundProfile.right;
+    const maxY = Math.max(departmentBounds?.maxY ?? backgroundProfile.maxY, backgroundProfile.maxY) + backgroundProfile.bottom;
+    const background = spatial().projectBox({
+      x: minX,
+      y: minY,
+      z: 0,
+      width: maxX - minX,
+      depth: maxY - minY,
+      height: 0
+    }, mapProjection).floor.map(screenPoint);
     const flows = (scene.connections || [])
       .filter(connection => (
         departmentById.has(connection.from)
         && departmentById.has(connection.to)
       ))
-      .map((connection, connectionIndex) => flowPath(connection, departmentById, connectionIndex, legoGradientScope))
+      .map((connection, connectionIndex) => flowPath(
+        connection,
+        departmentById,
+        connectionIndex,
+        legoGradientScope,
+        mapProjection,
+        renderContext
+      ))
       .join("");
-    const sortedDepartments = [...departments].sort((left, right) => {
-      const leftDepth = left.layout.x + left.layout.y;
-      const rightDepth = right.layout.x + right.layout.y;
-      return leftDepth - rightDepth || left.layout.x - right.layout.x;
-    });
+    const sortedDepartments = window.LegoTowerRenderer.isometricPaintOrder(departments.map(department => ({
+      ...departmentBox(department, departmentProfile),
+      height: 0
+    }))).map(index => departments[index]);
     const zones = sortedDepartments
-      .map(department => departmentMarkup(department, selected?.id, legoGradientScope))
+      .map(department => departmentMarkup(
+        department,
+        selected?.id,
+        legoGradientScope,
+        renderContext
+      ))
       .join("");
     const overlays = sortedDepartments.map(department => departmentOverlayMarkup({
       ...department,
       hideMetric: department.hideMetric || Boolean(scene.tutorial?.active)
-    }, selected?.id)).join("");
+    }, selected?.id, mapProjection, departmentProfile)).join("");
     const legend = (scene.legend || []).map(item => `
       <span><i class="department-${escapeHtml(item.color)}"></i>${escapeHtml(item.label)}</span>
     `).join("");
@@ -936,7 +1082,12 @@
             <g class="iso-grid-lines" aria-hidden="true"></g>
             <g class="iso-flow-layer" aria-hidden="true">${flows}</g>
             <g class="iso-department-layer">${zones}</g>
-            <g class="iso-overlay-layer">${overlays}${financeMutationMarkup(scene.finance, departmentById)}</g>
+            <g class="iso-overlay-layer">${overlays}${financeMutationMarkup(
+              scene.finance,
+              departmentById,
+              mapProjection,
+              departmentProfile
+            )}</g>
           </svg>
           ${financeSummaryMarkup(scene.finance)}
         </div>
@@ -1016,14 +1167,11 @@
       quantity: Number(element.dataset.cargoQuantity || 0) || null
     });
     const clientPointInDragLayer = (dragLayer, clientX, clientY) => {
-      const svg = dragLayer?.ownerSVGElement;
       const screenMatrix = dragLayer?.getScreenCTM?.();
-      if (!svg || !screenMatrix) return { x: clientX, y: clientY };
+      if (!screenMatrix) return { x: clientX, y: clientY };
       try {
-        const point = svg.createSVGPoint();
-        point.x = clientX;
-        point.y = clientY;
-        return point.matrixTransform(screenMatrix.inverse());
+        const point = spatial().inverseTransformPoint2([clientX, clientY], screenMatrix);
+        return { x: point[0], y: point[1] };
       } catch (_error) {
         // Houd slepen bruikbaar in oudere SVG-implementaties zonder inverse CTM.
         return { x: clientX, y: clientY };
@@ -1374,6 +1522,16 @@
     mount,
     project,
     geometryForDepartment: zoneGeometry,
-    wallStudFlowPoint
+    wallStudFlowPoint,
+    departmentBox,
+    warehouseContainerPlacement,
+    profiles: Object.freeze({
+      viewport: VIEWBOX,
+      projection: PROJECTION,
+      background: BACKGROUND_BOUNDS,
+      department: DEPARTMENT_BOX_PROFILE,
+      frame: FRAME_PROFILE,
+      warehouse: WAREHOUSE_CONTAINER_PROFILE
+    })
   });
 })();

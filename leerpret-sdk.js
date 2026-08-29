@@ -15,47 +15,17 @@
     });
   }
 
-  function slug(value) {
-    return String(value || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "interaction";
-  }
-
-  function roleFor(record) {
-    var explicit = String(record.objectRole || record.object_role || "").toLowerCase();
-    if (["self-starting", "self_starting", "starter"].indexOf(explicit) !== -1) return "self-starting";
-    if (["success", "succes", "completion", "outcome"].indexOf(explicit) !== -1) return "success";
-    if (["resistance", "weerstand", "friction", "blocked"].indexOf(explicit) !== -1) return "resistance";
-    var result = String(record.result || "").toLowerCase();
-    if (["success", "completed", "accepted", "delivered", "done"].indexOf(result) !== -1) return "success";
-    if (["blocked", "rejected", "delayed", "failed", "opportunity_cost"].indexOf(result) !== -1) return "resistance";
-    var action = slug(record.actionType);
-    if (/^(session-start|game-start|tutorial-start|start-session|resume-session)/.test(action)) return "self-starting";
-    if (/(complete|accepted|delivered|success)$/.test(action)) return "success";
-    if (/(disruption|blocked|rejected|failure|delay)/.test(action)) return "resistance";
-    return "other";
-  }
-
-  function objectIdFor(record) {
-    var candidate = record.learningObjectID || record.leerobject_id || record.stage || record.screen || record.partId || record.productType;
-    var normalized = slug(candidate);
-    if (normalized === "leerbox-learngame-operations-management" || normalized === LEERBOX_ID) {
-      normalized = "interface." + slug(record.actionType);
-    }
-    return normalized.indexOf("lom.") === 0 ? normalized : "lom." + normalized;
-  }
-
   var loaderReady = loadSdkLoader().then(function () {
     return window.LeerpretSDK.Loader.create({ base: apiBase, fetch: nativeFetch });
   });
   window.LeerpretSDKLoaderReady = loaderReady;
 
-  var ready = loaderReady
-    .then(function (loader) {
-      return loader.load(["api-client", "leerobject"]);
-    })
+  var componentsReady = loaderReady.then(function (loader) {
+    return loader.load(["api-client", "leerobject", "lego-spatial"]);
+  });
+  window.LeerpretSDKComponentsReady = componentsReady;
+
+  var ready = componentsReady
     .then(function () {
       var client = window.LeerpretSDK.create({
         apiBase: apiBase,
@@ -66,43 +36,19 @@
     })
     .then(function (client) {
       return client.get("/leerbox-runtime/" + LEERBOX_ID).then(function (runtime) {
-        var classes = {
-          "self-starting": window.LeerpretSDK.SelfStartingLeerobject,
-          success: window.LeerpretSDK.SuccesLeerobject,
-          resistance: window.LeerpretSDK.WeerstandLeerobject,
-          other: window.LeerpretSDK.OverigLeerobject
-        };
-        var instances = new Map();
+        var tracker = window.LeerpretSDK.createLeerobjectTracker({
+          client: client,
+          leerboxId: LEERBOX_ID,
+          namespace: "lom",
+          rootIds: ["leerbox-learngame-operations-management", LEERBOX_ID],
+          defaultPersonId: "lom-anonymous",
+          version: "ICG2-v2"
+        });
         var bridge = {
           client: client,
           runtime: runtime,
           leerboxId: LEERBOX_ID,
-          track: function (record) {
-            var role = roleFor(record || {});
-            var leerobjectId = objectIdFor(record || {});
-            var personId = String(record.personID || record.person_id || "lom-anonymous");
-            var key = [personId, leerobjectId, role].join("|");
-            if (!instances.has(key)) {
-              var Type = classes[role] || classes.other;
-              instances.set(key, new Type({
-                client: client,
-                personId: personId,
-                leerboxId: LEERBOX_ID,
-                leerobjectId: leerobjectId
-              }));
-            }
-            return instances.get(key).interact(record.actionType || "interaction", {
-              timestamp: record.timestamp || new Date().toISOString(),
-              session_id: record.sessionID || null,
-              game_session_id: record.sessionID || null,
-              group_id: record.sessionID || null,
-              event_id: record.eventID || record.event_id || null,
-              simulated_minute: record.simulatedMinute,
-              result: record.result || null,
-              stage: record.stage == null ? null : String(record.stage),
-              version: record.version || "ICG2-v2"
-            });
-          }
+          track: tracker.track
         };
         window.LEARNGameOMSDK = Object.freeze(bridge);
         window.dispatchEvent(new CustomEvent("learngame-om-sdk-ready", { detail: { runtime: runtime } }));

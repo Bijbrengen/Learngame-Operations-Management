@@ -5,6 +5,11 @@
   "description": "Standalone LEARNGame OM webapp with repo-local Playwright visual checks.",
   "scripts": {
     "test:device": "node --test tests/device-capabilities.test.mjs",
+    "test:bridge": "node --test tests/leerobject-tracker-delegation.test.mjs",
+    "test:material-cart": "node --test tests/material-cart-profile.test.mjs",
+    "test:spatial": "node --test tests/isometric-spatial-delegation.test.mjs tests/builder-board-delegation.test.mjs tests/builder-product-delegation.test.mjs tests/radar-spatial-delegation.test.mjs tests/waiting-heatmap-spatial-delegation.test.mjs",
+    "test:parity-contract": "node --test tests/isometric-history-provenance.test.mjs tests/isometric-parity-helpers.test.mjs",
+    "test:visual:history-parity": "playwright test --config=playwright.parity.config.cjs",
     "test:multiplayer": "node --test tests/multiplayer-runtime.test.mjs",
     "test:multiplayer:production": "playwright test tests/visual/multiplayer-production.spec.js --project=desktop-chromium",
     "test:visual": "playwright test",

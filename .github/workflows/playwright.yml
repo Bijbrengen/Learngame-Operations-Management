@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Repository ophalen
         uses: actions/checkout@v7
+        with:
+          # De historische pariteitspoort leest de geverifieerde baselinecommit.
+          fetch-depth: 0
 
       - name: Node.js instellen
         uses: actions/setup-node@v7
@@ -42,10 +45,16 @@ jobs:
       - name: Device- en multiplayerregressies uitvoeren
         run: |
           npm run test:device
+          npm run test:bridge
+          npm run test:material-cart
+          npm run test:spatial
+          npm run test:parity-contract
           npm run test:multiplayer
 
       - name: Acceptatietests uitvoeren
-        run: npm run test:visual
+        run: |
+          npm run test:visual
+          npm run test:visual:history-parity
 
       - name: Playwright-rapport bewaren
         if: always()

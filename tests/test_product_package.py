@@ -22,6 +22,7 @@ SDK_COMPONENT_DIR = Path(
     or (PRODUCT_ROOT / ".external-sdk-components-not-configured")
 ).resolve()
 SDK_RENDERER_PATH = SDK_COMPONENT_DIR / "lego-renderer.js"
+SDK_TOWER_RENDERER_PATH = SDK_COMPONENT_DIR / "lego-renderer.tower-orchestrator.js"
 SDK_BUILDER_PATH = SDK_COMPONENT_DIR / "lego-builder.mount.js"
 SDK_EDITOR_PATH = SDK_COMPONENT_DIR / "lego-tower-editor.js"
 # Pad zoals node het vanuit cwd=PRODUCT_ROOT ziet (voor de vm-tests).
@@ -29,12 +30,89 @@ SDK_LOGIC_JS_FOR_NODE = SDK_LOGIC_PATH.as_posix()
 _SDK_AVAILABLE = all(path.is_file() for path in (
     SDK_LOGIC_PATH,
     SDK_RENDERER_PATH,
+    SDK_TOWER_RENDERER_PATH,
     SDK_BUILDER_PATH,
     SDK_EDITOR_PATH,
 ))
 os.environ.setdefault("SDK_RENDERER", SDK_RENDERER_PATH.as_posix())
 os.environ.setdefault("SDK_BUILDER", SDK_BUILDER_PATH.as_posix())
 os.environ.setdefault("SDK_EDITOR", SDK_EDITOR_PATH.as_posix())
+
+SPATIAL_SDK_STUB_FOR_NODE = r'''
+window.LeerpretSDK = window.LeerpretSDK || { components: {} };
+window.LeerpretSDK.components = window.LeerpretSDK.components || {};
+window.LeerpretSDK.components["lego-spatial"] = {
+  LEGACY_RENDER_METRICS: { plateHeight: 0.22, brickHeight: 0.72 },
+  createDiamondProjection: options => ({ kind: "diamond-v1", zScale: 1, ...options }),
+  projectDiamond: ([x, y, z = 0], projection) => [
+    projection.originX + (x - y) * (projection.tileWidth / 2),
+    projection.originY + (x + y) * (projection.tileHeight / 2) - z * projection.zScale
+  ],
+  projectBox: (box, projection) => {
+    const project = ([x, y, z = 0]) => [
+      projection.originX + (x - y) * (projection.tileWidth / 2),
+      projection.originY + (x + y) * (projection.tileHeight / 2) - z * projection.zScale
+    ];
+    const floor = [
+      [box.x, box.y, box.z],
+      [box.x + box.width, box.y, box.z],
+      [box.x + box.width, box.y + box.depth, box.z],
+      [box.x, box.y + box.depth, box.z]
+    ].map(project);
+    const roof = [
+      [box.x, box.y, box.z + box.height],
+      [box.x + box.width, box.y, box.z + box.height],
+      [box.x + box.width, box.y + box.depth, box.z + box.height],
+      [box.x, box.y + box.depth, box.z + box.height]
+    ].map(project);
+    return { floor, roof };
+  },
+  unionBoxes3: boxes => boxes.length ? ({
+    minX: Math.min(...boxes.map(box => box.x)),
+    minY: Math.min(...boxes.map(box => box.y)),
+    minZ: Math.min(...boxes.map(box => box.z)),
+    maxX: Math.max(...boxes.map(box => box.x + box.width)),
+    maxY: Math.max(...boxes.map(box => box.y + box.depth)),
+    maxZ: Math.max(...boxes.map(box => box.z + box.height))
+  }) : null,
+  fitViewBox: () => ({ x: 0, y: 0, width: 1, height: 1 }),
+  formatViewBox: viewBox => [viewBox.x, viewBox.y, viewBox.width, viewBox.height]
+    .map(value => Number(value).toFixed(2)).join(" "),
+  inverseTransformPoint2: ([x, y], matrix) => {
+    const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+    return [
+      (matrix.d * (x - matrix.e) - matrix.c * (y - matrix.f)) / determinant,
+      (-matrix.b * (x - matrix.e) + matrix.a * (y - matrix.f)) / determinant
+    ];
+  },
+  positiveGridInteger: (value, fallback) => {
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : fallback;
+  },
+  packSupportedGrid: (items, options) => items.map((item, index) => ({
+    ...item,
+    x: index * 2,
+    y: 0,
+    layer: 0,
+    width: Number(item.width || options.defaultWidth),
+    depth: Number(item.depth || options.defaultDepth)
+  }))
+};
+window.LeerpretSDK.components["lego-builder"] = {
+  logic: {
+    builderBoardProfile: options => ({
+      placement: {
+        baseHeight: Number(options?.placement?.baseHeight ?? 0.22),
+        layerPitch: Number(options?.placement?.layerPitch ?? 0.78),
+        snapLift: Number(options?.placement?.snapLift ?? 0.04)
+      }
+    }),
+    physicalLayer: (layer, profile) => (
+      profile.placement.baseHeight + Number(layer || 0) * profile.placement.layerPitch
+    )
+  }
+};
+'''
 
 
 class ProductPackageTests(unittest.TestCase):
@@ -64,16 +142,19 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn('href="style.css?v=20260828.3"', html)
         self.assertIn('src="logistics-game-engine.js?v=20260827.2"', html)
-        self.assertIn('src="logistics-game-ui.js?v=20260828.1"', html)
+        self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
+        self.assertIn('src="logistics-game-ui.js?v=20260828.4"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260828.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260828.4"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260827.6"', html)
-        self.assertIn('"script.js?v=20260828.5"', html)
-        self.assertIn('CACHE_VERSION = "learngame-om-v255-creator-finish-notice"', service_worker)
+        self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260828.5"', html)
+        self.assertIn('"script.js?v=20260828.10"', html)
+        self.assertIn('"./material-cart-profile.js"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v261-spatial-convergence"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v255-creator-finish-notice")',
+            'register("service-worker.js?v=learngame-om-v261-spatial-convergence")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -176,6 +257,7 @@ class ProductPackageTests(unittest.TestCase):
 
         self.assertIn('"lego-renderer", "lego-cables", "lego-tower-editor"', html)
         self.assertIn('components?.["lego-cables"]', renderer)
+        self.assertIn("cables.cubicScreenPath", renderer)
         self.assertIn("cables.connectionMarkup", renderer)
         self.assertIn("processCableMarkup", game)
         self.assertIn("cables.connectionMarkup", game)
@@ -222,6 +304,21 @@ class ProductPackageTests(unittest.TestCase):
         ]
         missing = [relative_path for relative_path in declared if not (PRODUCT_ROOT / relative_path).is_file()]
         self.assertEqual([], missing)
+
+    def test_product_declares_every_direct_sdk_component(self) -> None:
+        manifest = json.loads((PRODUCT_ROOT / "product.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            [
+                "api-client",
+                "leerobject",
+                "lego-spatial",
+                "lego-renderer",
+                "lego-cables",
+                "lego-tower-editor",
+                "lego-builder",
+            ],
+            manifest["engine_integration"]["sdk_components"],
+        )
 
     def test_html_uses_only_present_local_assets(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
@@ -287,12 +384,16 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn("/ui/leerpret-theme.css", html)
         self.assertIn('theme.dataset.leerpretTheme = "engine"', html)
         self.assertIn("/sdk/sdk-loader/loader.js", sdk)
-        self.assertIn('load(["api-client", "leerobject"])', sdk)
+        self.assertIn('load(["api-client", "leerobject", "lego-spatial"])', sdk)
         self.assertIn("/leerbox-runtime/", sdk)
-        self.assertIn("SelfStartingLeerobject", sdk)
-        self.assertIn("SuccesLeerobject", sdk)
-        self.assertIn("WeerstandLeerobject", sdk)
-        self.assertIn("OverigLeerobject", sdk)
+        self.assertIn("createLeerobjectTracker", sdk)
+        self.assertIn('namespace: "lom"', sdk)
+        self.assertIn('rootIds: ["leerbox-learngame-operations-management", LEERBOX_ID]', sdk)
+        self.assertIn('defaultPersonId: "lom-anonymous"', sdk)
+        self.assertIn('version: "ICG2-v2"', sdk)
+        self.assertNotIn("function roleFor(", sdk)
+        self.assertNotIn("function objectIdFor(", sdk)
+        self.assertNotIn("var instances = new Map()", sdk)
         self.assertIn("bridge.track(queued.record)", (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"))
         self.assertNotIn("--lp-color-orange:", styles)
         self.assertIn("var(--toyist-border)", styles)
@@ -421,7 +522,12 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("window.IsometricLogisticsView", renderer)
         self.assertIn("containerWallStudAnchor", renderer)
-        self.assertIn("wallStudFlowPoint(connection.from", renderer)
+        self.assertIn("const start = wallStudFlowPoint(", renderer)
+        self.assertIn("projectionOptions", renderer)
+        self.assertIn("spatial().projectBox(", renderer)
+        self.assertIn("spatial().unionBoxes3(", renderer)
+        self.assertIn("window.LegoTowerRenderer.isometricPaintOrder(", renderer)
+        self.assertIn("options.projection || scene.projection", renderer)
         self.assertNotIn("flowPoint(connection.from, departmentById, connection.fromOffset)", renderer)
         self.assertIn("isometric-logistics-view.js", html)
         self.assertIn("sortedDepartments", renderer)
@@ -466,6 +572,7 @@ process.stdout.write(JSON.stringify({normal, identical, flat, fast}));
 const fs = require("fs");
 const vm = require("vm");
 global.window = global;
+''' + SPATIAL_SDK_STUB_FOR_NODE + r'''
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const layout = { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 };
 const above = window.IsometricLogisticsView.geometryForDepartment({ layout, labelPosition: "above" });
@@ -496,9 +603,11 @@ process.stdout.write(JSON.stringify({
 const fs = require("fs");
 const vm = require("vm");
 global.window = global;
+''' + SPATIAL_SDK_STUB_FOR_NODE + r'''
 window.LegoTowerRenderer = {
   definitions: () => "",
   layoutSequence: () => [],
+  isometricPaintOrder: solids => solids.map((_solid, index) => index),
   plate: () => "<g class=\"test-plate\"></g>",
   brick: () => "",
   openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" })
@@ -582,19 +691,28 @@ process.stdout.write(JSON.stringify({
     def test_srm_material_kits_render_as_one_cart_with_loose_parts(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        material_cart = (PRODUCT_ROOT / "material-cart-profile.js").read_text(encoding="utf-8")
         self.assertIn('activeTransfer.cargoKind === "material_kits"', game)
         self.assertIn('kind: isMaterialCart ? "material_cart" : "tower"', game)
         self.assertIn("simulationMaterialCartParts", game)
         self.assertIn("materialCartCargoMarkup", renderer)
-        self.assertIn(".materialCart(", renderer)
+        self.assertIn("materialCart.markup(", renderer)
+        self.assertIn("window.LOMMaterialCartProfile", renderer)
+        self.assertIn("window.LOMMaterialCartProfile", (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"))
+        self.assertIn("renderer.materialCart(rendererOptions(parts, scope))", material_cart)
+        self.assertNotIn("MATERIAL_CART_BLOK", renderer)
+        self.assertNotIn("MATERIAL_CART_VIEW", renderer)
 
         node_program = r'''
 const fs = require("fs");
 const vm = require("vm");
 global.window = global;
+''' + SPATIAL_SDK_STUB_FOR_NODE + r'''
+vm.runInThisContext(fs.readFileSync("material-cart-profile.js", "utf8"));
 const materialCartCalls = [];
 window.LegoTowerRenderer = {
   definitions: () => "",
+  isometricPaintOrder: solids => solids.map((_solid, index) => index),
   openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" }),
   materialCart: options => {
     materialCartCalls.push(options);
@@ -1295,7 +1413,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("centerDepartments: true", game)
         self.assertIn('departmentDetailMode: "popup"', game)
         self.assertIn("onDepartmentClose", game)
-        self.assertIn("centeredDepartmentViewBox", isometric)
+        self.assertIn("spatial().fitViewBox", isometric)
+        self.assertIn("spatial().formatViewBox", isometric)
         self.assertIn("iso-department-detail-popup", isometric)
         self.assertIn("data-department-detail-close", isometric)
         self.assertIn("standaloneLogisticsScene(snapshot, interaction)", game)
@@ -1318,10 +1437,13 @@ process.stdout.write(JSON.stringify({{
         builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
         renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
+        tower_renderer = SDK_TOWER_RENDERER_PATH.read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
-        self.assertIn('/sdk/lego-builder/mount.js', html)
+        self.assertIn('var sdkComponents = ["lego-renderer", "lego-cables", "lego-tower-editor", "lego-builder"]', html)
+        self.assertIn('/sdk/sdk-loader/loader.js', html)
+        self.assertIn("loader.load(sdkComponents)", html)
         self.assertIn('id="legoBuilderMount"', html)
         self.assertIn("window.LegoTowerRenderer.renderPart", builder)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
@@ -1329,10 +1451,10 @@ process.stdout.write(JSON.stringify({{
             "window.LegoTowerRenderer.definitions(BOARD_GRADIENT_SCOPE)",
             builder,
         )
-        self.assertIn("static gradientId(", renderer)
-        self.assertIn('this.gradientId(color, "top", scope)', renderer)
-        self.assertIn('this.gradientId(color, "right", scope)', renderer)
-        self.assertIn('const scope = `part-${this.animationId += 1}`', renderer)
+        self.assertIn("Renderer.gradientId = function", renderer)
+        self.assertIn('self.gradientId(color, "top", scope)', renderer)
+        self.assertIn('self.gradientId(color, "right", scope)', renderer)
+        self.assertIn('var scope = "part-" + (this.animationId += 1)', tower_renderer)
         self.assertNotIn('image: "assets/lego/tower-', builder)
         self.assertNotIn("<img src=", builder)
         self.assertIn("supportedLayer", builder)
@@ -1353,7 +1475,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('towerBlueprint: { lower: "yellow", middle: "red", upper: "white"', game)
         self.assertIn('towerBlueprint: { lower: "blue", middle: "yellow", upper: "green"', game)
         self.assertIn('towerBlueprint: { lower: "white", middle: "blue", upper: "red"', game)
-        self.assertIn('A: { lower: "yellow", middle: "red", upper: "white"', renderer)
+        self.assertIn('A: Object.freeze({ lower: "yellow", middle: "red", upper: "white"', tower_renderer)
         self.assertIn("getLegoBuilderSnapshot", game)
 
     @unittest.skipUnless(_SDK_AVAILABLE, "LeerpretSDK-logica niet naast de repo gevonden")
@@ -1366,7 +1488,7 @@ global.document = { activeElement: null };
 global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
-vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
+require(process.env.SDK_RENDERER);
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_BUILDER, "utf8"));
 const container = {
@@ -1468,10 +1590,10 @@ global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
+require(process.env.SDK_RENDERER);
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 const builderSource = fs.readFileSync(process.env.SDK_BUILDER, "utf8").replace(
-  "const publicApi = {\n    mount,",
+  /const publicApi = \{\r?\n    mount,/,
   "window.__placeTutorialBrickForTest = placeAt;\n  window.__rotateTutorialBrickForTest = rotateSelectedPiece;\n  const publicApi = {\n    mount,"
 );
 vm.runInThisContext(builderSource);
@@ -1543,7 +1665,7 @@ global.document = { activeElement: null };
 global.requestAnimationFrame = callback => callback();
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
-vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
+require(process.env.SDK_RENDERER);
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync(process.env.SDK_BUILDER, "utf8"));
 const container = {
@@ -1677,7 +1799,8 @@ const vm = require("vm");
 global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
+""" + SPATIAL_SDK_STUB_FOR_NODE + r"""
+require(process.env.SDK_RENDERER);
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const container = {
@@ -1792,7 +1915,8 @@ const vm = require("vm");
 global.window = global;
 global.document = { elementFromPoint: () => null };
 global.setTimeout = callback => callback();
-vm.runInThisContext(fs.readFileSync(process.env.SDK_RENDERER, "utf8"));
+""" + SPATIAL_SDK_STUB_FOR_NODE + r"""
+require(process.env.SDK_RENDERER);
 vm.runInThisContext(fs.readFileSync(process.env.SDK_LOGIC, "utf8"));
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const makeContainer = () => ({
@@ -1943,8 +2067,12 @@ process.stdout.write(JSON.stringify({
         self.assertIn("FINANCIAL_TUTORIAL_DISTRACTORS", game)
         self.assertIn('actionType: "reject_financial_tutorial_material"', game)
         self.assertIn('reason: "not_in_tower_b_bill_of_materials"', game)
-        self.assertIn("function layoutStockItems(items)", renderer)
-        self.assertIn("const brickZ = 0.22 + visual.layer * 0.72", renderer)
+        self.assertIn("spatial().packSupportedGrid(items", renderer)
+        self.assertNotIn("const occupied = new Set()", renderer)
+        self.assertIn("builderCore().physicalLayer(visual.layer, placementProfile)", renderer)
+        self.assertIn("baseHeight: metrics.plateHeight", renderer)
+        self.assertIn("layerPitch: metrics.brickHeight", renderer)
+        self.assertNotIn("0.22 + visual.layer * 0.72", renderer)
         self.assertIn("slice(0, 8)", renderer)
         self.assertIn("state.config.money", game)
         self.assertIn("state.config.pnl", game)
@@ -2043,7 +2171,7 @@ process.stdout.write(JSON.stringify({
         builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         logic = SDK_LOGIC_PATH.read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
-        tower_renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
+        tower_renderer = SDK_TOWER_RENDERER_PATH.read_text(encoding="utf-8")
         styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
         self.assertIn("Je bent leverancier van LEGO-torens.", builder)
         self.assertIn("Een klant wil deze toren.", builder)
@@ -2062,8 +2190,8 @@ process.stdout.write(JSON.stringify({
         self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8"]', logic)
         self.assertIn('sequence: ["yellow_8", "yellow_8", "red_8", "white_4"]', logic)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", builder)
-        self.assertIn("static layoutSequence(sequence)", tower_renderer)
-        self.assertIn("static renderAnimated(", tower_renderer)
+        self.assertIn("Renderer.layoutSequence = function (sequence)", tower_renderer)
+        self.assertIn("Renderer.renderAnimated = function", tower_renderer)
         self.assertIn("window.LegoTowerRenderer.renderAnimated", renderer)
         self.assertNotIn("plaats hier", builder.lower())
         self.assertIn("builder-rotate", builder)
@@ -2456,6 +2584,22 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('components?.["lego-builder"]?.logic', ui)
         self.assertIn("planRecipeBuild", ui)
         self.assertIn("validatePlannedPlacement", ui)
+        self.assertIn("digitalBuilderBoardProfile", ui)
+        self.assertIn("core.builderBoardProfile({", ui)
+        self.assertIn("core.sortBuildPlacements", ui)
+        self.assertIn("core.physicalLayer(brick.z, boardProfile)", ui)
+        self.assertIn("core.targetFootprint", ui)
+        self.assertIn("core.boardPointFromClient", ui)
+        self.assertIn("core.targetSurface", ui)
+        self.assertIn("core.projectBoardPoint", ui)
+        self.assertNotIn("0.22 + brick.z * 0.78", ui)
+        self.assertNotIn("0.27 + target.z * 0.78", ui)
+        self.assertNotIn('viewBox="0 0 520 420"', ui)
+        self.assertNotIn('transform="translate(170 62) scale(2)"', ui)
+        self.assertNotIn("groene 6 bij 6 grondplaat", ui)
+        self.assertNotIn('<ellipse cx="350" cy="357" rx="150" ry="30"', ui)
+        self.assertNotIn("event.clientX - rect.left", ui)
+        self.assertNotIn("tolerance: 90", ui)
         self.assertNotIn("digitalLayerBricks", ui)
         self.assertNotIn("Math.hypot(targetX - pointerX", ui)
         self.assertIn("data-sim-builder-board", ui)
@@ -2496,7 +2640,7 @@ global.window = global;
 window.setInterval = () => 1;
 window.clearInterval = () => {{}};
 let now = 1000;
-eval(fs.readFileSync({json.dumps(str(renderer_path))}, "utf8"));
+require({json.dumps(str(renderer_path))});
 eval(fs.readFileSync({json.dumps(str(SDK_LOGIC_PATH))}, "utf8"));
 eval(fs.readFileSync({json.dumps(str(engine_path))}, "utf8"));
 eval(fs.readFileSync({json.dumps(str(ui_path))}, "utf8"));
@@ -2767,7 +2911,7 @@ process.stdout.write(JSON.stringify({{
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         editor = SDK_EDITOR_PATH.read_text(encoding="utf-8")
-        renderer = SDK_RENDERER_PATH.read_text(encoding="utf-8")
+        renderer = SDK_TOWER_RENDERER_PATH.read_text(encoding="utf-8")
         builder = SDK_BUILDER_PATH.read_text(encoding="utf-8")
         sessions = (PRODUCT_ROOT / "game-sessions.js").read_text(encoding="utf-8")
         self.assertIn('data-main-menu-tab="tower-editor"', html)
@@ -2784,8 +2928,8 @@ process.stdout.write(JSON.stringify({{
         self.assertIn("data-remove-assortment-product", editor)
         self.assertIn("Kan niet bij een actieve gamesessie", editor)
         self.assertIn("learngame-session-state", editor)
-        self.assertIn("static renderSequence(", renderer)
-        self.assertIn("static foundationCount(", renderer)
+        self.assertIn("Renderer.renderSequence = function", renderer)
+        self.assertIn("Renderer.foundationCount = function", renderer)
         self.assertIn("completedLayerCount", editor)
         self.assertIn("partFitsCurrentLayer", editor)
         self.assertIn("precies 3 lagen hoog", editor)
@@ -2799,7 +2943,7 @@ process.stdout.write(JSON.stringify({{
         self.assertIn('blokId: "element.ground-plate.6x6.green"', game)
         self.assertIn('blokFile: "elements/element_grondplaat_6x6_groen.blok"', game)
         self.assertIn('width: 6,\n      depth: 6', game)
-        self.assertIn('groundPlateColor = "green"', renderer)
+        self.assertIn('groundPlateColor || "green"', renderer)
         self.assertIn("product.groundPlate?.color || \"green\"", builder)
         self.assertIn('name="multiple_colors"', html)
         self.assertIn('name="color_groundPlate"', html)

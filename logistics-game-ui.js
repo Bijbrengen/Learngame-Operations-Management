@@ -3,13 +3,36 @@
 
   const MAX_SIGNATURE_STROKES = 64;
   const MAX_SIGNATURE_POINTS = 512;
-  const MATERIAL_CART_BLOK = Object.freeze({
-    id: "logistics.material-cart",
-    file: "logistics/materiaalwagen.blok",
-    preset: "logistics-material-cart.green"
-  });
-  const MATERIAL_CART_VIEW = Object.freeze({ originX: 32, originY: 58, scale: 0.36 });
+  const REQUIRED_BUILDER_CORE_HELPERS = Object.freeze([
+    "boardPointFromClient",
+    "builderBoardProfile",
+    "physicalLayer",
+    "pieceDimensions",
+    "planRecipeBuild",
+    "projectBoardPoint",
+    "resolvePiece",
+    "sortBuildPlacements",
+    "targetFootprint",
+    "targetSurface",
+    "validatePlannedPlacement"
+  ]);
   let uiControllerSequence = 0;
+
+  function materialCartProfile() {
+    const profile = window.LOMMaterialCartProfile;
+    if (!profile?.markup || !profile?.countParts || !profile?.blok) {
+      throw new Error("Het gedeelde LOM-materiaalwagenprofiel is niet geladen.");
+    }
+    return profile;
+  }
+
+  function spatialGeometry(method) {
+    const geometry = window.LeerpretSDK?.components?.["lego-spatial"];
+    if (!geometry || typeof geometry[method] !== "function") {
+      throw new Error("De generieke SDK-geometrie is niet volledig geladen.");
+    }
+    return geometry;
+  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -87,36 +110,7 @@
   }
 
   function materialCartPrimitiveMarkup(parts, scope) {
-    const renderer = window.LegoTowerRenderer;
-    const partCount = (parts || []).reduce(
-      (total, part) => total + Math.max(0, Math.floor(Number(part.count) || 0)),
-      0
-    );
-    if (typeof renderer?.materialCart === "function") {
-      return renderer.materialCart({
-        x: 0,
-        y: 0,
-        zHalfLayers: 0,
-        color: "green",
-        wheelColor: "black",
-        parts,
-        maxVisibleParts: 8,
-        scope,
-        view: MATERIAL_CART_VIEW
-      });
-    }
-    return `
-      <g data-lego-material-cart
-         data-material-part-count="${partCount}"
-         data-material-cart-fallback="true"
-         data-blok-id="${MATERIAL_CART_BLOK.id}"
-         data-blok-file="${MATERIAL_CART_BLOK.file}"
-         data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
-        <title>Materiaalwagen met ${partCount} losse LEGO-onderdelen</title>
-        <text class="sim-material-cart-fallback-symbol" x="32" y="29" text-anchor="middle" aria-hidden="true">WAGEN</text>
-        <text class="sim-material-cart-fallback-copy" x="32" y="44" text-anchor="middle">Materiaalwagen</text>
-      </g>
-    `;
+    return materialCartProfile().markup(parts, scope, "stage");
   }
 
   class LogisticsGameUIController {
@@ -981,10 +975,12 @@
 
     signaturePoint(event, pad) {
       const bounds = pad.getBoundingClientRect();
-      return {
-        x: Math.max(0, Math.min(320, ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 320)),
-        y: Math.max(0, Math.min(96, ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 96))
-      };
+      return spatialGeometry("mapPointBetweenRects").mapPointBetweenRects(
+        event,
+        bounds,
+        { x: 0, y: 0, width: 320, height: 96 },
+        { clamp: true, minimumSourceExtent: 1 }
+      );
     }
 
     handlePointerDown(event) {
@@ -1684,14 +1680,23 @@
 
     builderCore() {
       const core = window.LeerpretSDK?.components?.["lego-builder"]?.logic;
-      if (!core?.planRecipeBuild || !core?.validatePlannedPlacement) {
-        throw new Error("De centrale LeerpretSDK-bouwkern is niet geladen.");
+      const missing = REQUIRED_BUILDER_CORE_HELPERS.filter(name => typeof core?.[name] !== "function");
+      if (missing.length) {
+        throw new Error(`De centrale LeerpretSDK-bouwkern is niet volledig geladen; ontbrekend: ${missing.join(", ")}.`);
       }
       return core;
     }
 
-    digitalBuildState(task) {
-      const plan = this.builderCore().planRecipeBuild({
+    digitalBuilderBoardProfile(task) {
+      const plate = task?.product?.groundPlate || {};
+      return this.builderCore().builderBoardProfile({
+        board: { width: plate.width, depth: plate.depth }
+      });
+    }
+
+    digitalBuildState(task, boardProfile = this.digitalBuilderBoardProfile(task)) {
+      const core = this.builderCore();
+      const plan = core.planRecipeBuild({
         stageOrder: ["pd1", "pd2", "pd3"],
         currentStage: task.role.id,
         route: task.order?.productionRoute,
@@ -1701,8 +1706,8 @@
         selectedCounts: this.selectedParts,
         quantity: task.order?.quantity,
         groundPlatePartId: "base_green",
-        boardWidth: 6,
-        boardDepth: 6
+        boardWidth: boardProfile.board.width,
+        boardDepth: boardProfile.board.depth
       });
       return {
         ...plan,
@@ -1721,25 +1726,23 @@
           </div>
         `;
       }
-      const state = this.digitalBuildState(task);
+      const core = this.builderCore();
+      const boardProfile = this.digitalBuilderBoardProfile(task);
+      const state = this.digitalBuildState(task, boardProfile);
       const rendererScope = "sim-builder";
-      const selectedPiece = this.builderCore().resolvePiece(
+      const selectedPiece = core.resolvePiece(
         this.engine.parts,
         this.digitalSelectedPartId,
         this.digitalPartRotated
       );
       const canRotate = Boolean(selectedPiece && selectedPiece.width !== selectedPiece.depth);
-      const bricks = [...state.previous, ...state.placed].sort((left, right) => (
-        left.z - right.z
-        || (left.x + left.y) - (right.x + right.y)
-        || left.x - right.x
-      ));
+      const bricks = core.sortBuildPlacements([...state.previous, ...state.placed]);
       const brickMarkup = brick => {
         const color = this.engine.parts[brick.type]?.color || "white";
         return window.LegoTowerRenderer.brick(
           brick.x,
           brick.y,
-          0.22 + brick.z * 0.78,
+          core.physicalLayer(brick.z, boardProfile),
           brick.width,
           brick.depth,
           color,
@@ -1749,13 +1752,7 @@
       let targetMarkup = "";
       if (state.nextTarget) {
         const target = state.nextTarget;
-        const height = 0.27 + target.z * 0.78;
-        const corners = [
-          window.LegoTowerRenderer.iso(target.x, target.y, height),
-          window.LegoTowerRenderer.iso(target.x + target.width, target.y, height),
-          window.LegoTowerRenderer.iso(target.x + target.width, target.y + target.depth, height),
-          window.LegoTowerRenderer.iso(target.x, target.y + target.depth, height)
-        ];
+        const corners = core.targetFootprint(window.LegoTowerRenderer, target, boardProfile);
         targetMarkup = `
           <g class="sim-builder-target" aria-hidden="true">
             <polygon points="${corners.map(point => point.join(",")).join(" ")}"></polygon>
@@ -1771,23 +1768,23 @@
               : `${state.completedTowers} van ${state.quantity} torens gebouwd · bouw toren ${state.currentTower}`}</strong>
           </div>
           <svg class="sim-inline-builder-board"
-               viewBox="0 0 520 420"
+               viewBox="0 0 ${boardProfile.viewBox.width} ${boardProfile.viewBox.height}"
                role="application"
                tabindex="0"
                data-sim-builder-board
                data-sim-part-dropzone
-               aria-label="Bouw ${escapeHtml(task.product.name)} op de isometrische groene 6 bij 6 grondplaat">
+               aria-label="Bouw ${escapeHtml(task.product.name)} op de isometrische groene ${boardProfile.board.width} bij ${boardProfile.board.depth} grondplaat">
             <defs>
               ${window.LegoTowerRenderer.definitions(rendererScope)}
               <filter id="simBuilderBoardShadow" x="-30%" y="-30%" width="170%" height="190%">
                 <feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#173d26" flood-opacity="0.25"></feDropShadow>
               </filter>
             </defs>
-            <ellipse cx="350" cy="357" rx="150" ry="30" fill="rgba(28, 54, 39, 0.16)"></ellipse>
+            <ellipse cx="${boardProfile.decoration.shadowCenterX}" cy="${boardProfile.decoration.shadowCenterY}" rx="${boardProfile.decoration.shadowRadiusX}" ry="${boardProfile.decoration.shadowRadiusY}" fill="rgba(28, 54, 39, 0.16)"></ellipse>
             <g class="builder-isometric-scene"
-               transform="translate(170 62) scale(2)"
+               transform="translate(${boardProfile.transform.x} ${boardProfile.transform.y}) scale(${boardProfile.transform.scale})"
                filter="url(#simBuilderBoardShadow)">
-              ${window.LegoTowerRenderer.plate(0, 0, 0, 6, 6, "green", rendererScope)}
+              ${window.LegoTowerRenderer.plate(0, 0, 0, boardProfile.board.width, boardProfile.board.depth, "green", rendererScope)}
               ${bricks.map(brickMarkup).join("")}
               ${targetMarkup}
             </g>
@@ -1808,23 +1805,28 @@
     placeDigitalBoardPart(partId, event, board) {
       const task = this.engine.playerTask();
       if (!task || !["pd1", "pd2", "pd3"].includes(task.role.id)) return false;
-      const state = this.digitalBuildState(task);
+      const core = this.builderCore();
+      const boardProfile = this.digitalBuilderBoardProfile(task);
+      const state = this.digitalBuildState(task, boardProfile);
       const target = state.nextTarget;
       const rect = board.getBoundingClientRect?.();
       let pointer = null;
       let targetPoint = null;
       if (target && rect?.width && rect?.height && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
-        pointer = { x: ((event.clientX - rect.left) / rect.width) * 520, y: ((event.clientY - rect.top) / rect.height) * 420 };
-        const projected = window.LegoTowerRenderer.iso(target.x + target.width / 2, target.y + target.depth / 2, 0.27 + target.z * 0.78);
-        targetPoint = { x: 170 + projected[0] * 2, y: 62 + projected[1] * 2 };
+        pointer = core.boardPointFromClient({ x: event.clientX, y: event.clientY }, rect, boardProfile);
+        targetPoint = core.projectBoardPoint(window.LegoTowerRenderer, {
+          x: target.x + target.width / 2,
+          y: target.y + target.depth / 2,
+          z: core.targetSurface(target.z, boardProfile)
+        }, boardProfile);
       }
-      const validation = this.builderCore().validatePlannedPlacement({
+      const validation = core.validatePlannedPlacement({
         plan: state,
         partId,
-        piece: this.builderCore().resolvePiece(this.engine.parts, partId, this.digitalPartRotated),
+        piece: core.resolvePiece(this.engine.parts, partId, this.digitalPartRotated),
         pointer,
         targetPoint,
-        tolerance: 90
+        tolerance: boardProfile.target.hitTolerance
       });
       if (validation.reason === "build_complete") {
         this.feedback = "Alle torens voor deze order zijn al opgebouwd.";
@@ -1894,6 +1896,7 @@
       if (["pd1", "pd2", "pd3"].includes(task.role.id)) {
         return this.digitalBuilderBoardMarkup(task);
       }
+      const materialCart = materialCartProfile();
       const materialCartScope = `${this.materialCartScope}-stage`;
       return `
         <div class="sim-digital-workbench is-staging"
@@ -1925,9 +1928,9 @@
                  viewBox="0 0 64 64"
                  role="img"
                  aria-label="Canonieke materiaalwagen met ${selected.length} losse LEGO-onderdelen"
-                 data-blok-id="${MATERIAL_CART_BLOK.id}"
-                 data-blok-file="${MATERIAL_CART_BLOK.file}"
-                 data-blok-render-preset="${MATERIAL_CART_BLOK.preset}">
+                 data-blok-id="${materialCart.blok.id}"
+                 data-blok-file="${materialCart.blok.file}"
+                 data-blok-render-preset="${materialCart.blok.preset}">
               ${materialCartPrimitiveMarkup(materialCartParts, materialCartScope)}
             </svg>
             <ul class="sim-staged-bricks sim-material-cart-basket" role="list" aria-label="Losse LEGO-onderdelen in de materiaalwagen">
@@ -2144,12 +2147,18 @@
       const maximum = Math.max(1, ...roles.map(item => item.activity));
       const center = { x: 250, y: 180 };
       const radius = { x: 190, y: 125 };
+      const axes = roles.length
+        ? spatialGeometry("radialAxes").radialAxes(roles.length, {
+            center: [center.x, center.y],
+            radiusX: radius.x,
+            radiusY: radius.y
+          })
+        : [];
       const positioned = roles.map((item, index) => {
-        const angle = (-Math.PI / 2) + (index / Math.max(1, roles.length)) * Math.PI * 2;
         return {
           ...item,
-          x: center.x + Math.cos(angle) * radius.x,
-          y: center.y + Math.sin(angle) * radius.y,
+          x: axes[index].x,
+          y: axes[index].y,
           level: item.activity
             ? Math.max(1, Math.min(4, Math.ceil((item.activity / maximum) * 4)))
             : 0

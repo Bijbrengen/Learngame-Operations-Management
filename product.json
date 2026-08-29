@@ -23,7 +23,7 @@
     "transport": "https",
     "runtime_endpoint": "/api/leerbox-runtime/learngame-operations-management",
     "interaction_endpoint": "/api/engine/evaluate",
-    "sdk_components": ["api-client", "leerobject", "lego-builder"],
+    "sdk_components": ["api-client", "leerobject", "lego-spatial", "lego-renderer", "lego-cables", "lego-tower-editor", "lego-builder"],
     "auth": {
       "strategy": "google-and-leerpret-scoped-session-v1",
       "session_endpoint": "/api/auth/leerbox/session",

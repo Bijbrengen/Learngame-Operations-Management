@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "fa770363ee70a2177b7364cf91b10ed0502156cb",
+  "comparisonMode": "historical-lom-source-with-shared-current-engine-runtime",
+  "sources": {
+    "isometric-logistics-view.js": {
+      "bytes": 57672,
+      "sha256": "1fe90ddb2c1981dcea91ce851a21389e83f291117f7b39331fee1e86e5cc5ffa"
+    },
+    "style.css": {
+      "bytes": 247587,
+      "sha256": "f7a6b1d1c48d4f2f4270f1ac149f0c7d2d91f353e5e36143ac7e955e76628335"
+    }
+  },
+  "scenario": {
+    "id": "material-cart-department-transfer-v1",
+    "viewport": {
+      "width": 1440,
+      "height": 1000,
+      "deviceScaleFactor": 1
+    },
+    "inputMethods": [
+      "pointer",
+      "keyboard"
+    ],
+    "checkpoints": [
+      "initial",
+      "department-selected",
+      "keyboard-picked-up",
+      "keyboard-cancelled",
+      "keyboard-dropped",
+      "reset",
+      "pointer-dragging",
+      "pointer-dropped"
+    ]
+  },
+  "contracts": {
+    "fingerprintSchemaVersion": 1,
+    "geometryQuantum": 0.015625,
+    "pixelAlgorithm": "decoded-png-sha256-v1",
+    "maximumChannelNoise": 6,
+    "maxDiffPixels": 0
+  },
+  "engineRuntimePolicy": {
+    "sameRuntimeManifestForBothPages": true,
+    "purpose": "Isoleer de LOM-consumentmigratie: historisch en actueel krijgen binnen een testrun exact dezelfde SDK-manifestversie."
+  }
+}

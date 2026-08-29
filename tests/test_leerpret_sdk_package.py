@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
-SDK_COMPONENTS = ("lego-renderer", "lego-tower-editor", "lego-builder")
+SDK_COMPONENTS = ("lego-renderer", "lego-cables", "lego-tower-editor", "lego-builder")
 
 
 class LeerpretSdkWiringTests(unittest.TestCase):
@@ -17,6 +17,10 @@ class LeerpretSdkWiringTests(unittest.TestCase):
         self.assertIn("LEERPRET_SDK_BASE", html)
         self.assertIn("[base(), configuredBase()]", html)
         self.assertIn("window.LeerpretSDKLoaderReady = loaderReady", sdk)
+        self.assertIn("window.LeerpretSDK.createLeerobjectTracker", sdk)
+        self.assertIn('namespace: "lom"', sdk)
+        self.assertIn('defaultPersonId: "lom-anonymous"', sdk)
+        self.assertNotIn("function roleFor(", sdk)
         self.assertIn("return loader.load(sdkComponents)", html)
         for component in SDK_COMPONENTS:
             self.assertIn(f'"{component}"', html)

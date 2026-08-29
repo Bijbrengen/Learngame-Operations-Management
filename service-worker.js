@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v255-creator-finish-notice";
+const CACHE_VERSION = "learngame-om-v261-spatial-convergence";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -18,6 +18,7 @@ const APP_SHELL = [
   "./game-variant-history.js",
   "./game-sessions.js",
   "./data/agent-behavior/entrepreneurship-human-patterns.v1.js",
+  "./material-cart-profile.js",
   "./logistics-game-engine.js",
   "./logistics-game-ui.js",
   "./multiplayer-runtime.js",

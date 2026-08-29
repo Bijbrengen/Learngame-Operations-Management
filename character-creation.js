@@ -234,6 +234,25 @@
       .replaceAll('"', "&quot;");
   }
 
+  function spatial() {
+    const api = window.LeerpretSDK?.components?.["lego-spatial"];
+    if (!api?.radialAxes || !api?.radarSeriesPoints) {
+      throw new Error("De centrale LeerpretSDK-radargeometrie is niet geladen.");
+    }
+    return api;
+  }
+
+  function renderWhenSpatialReady() {
+    const ready = window.LeerpretSDKComponentsReady;
+    if (!ready?.then) {
+      render();
+      return;
+    }
+    ready.then(() => render()).catch((error) => {
+      console.error("De gedragsradargeometrie kon niet laden.", error);
+    });
+  }
+
   function radarValues() {
     const scores = [0, 0, 0, 0];
     const scan = scanKey();
@@ -251,11 +270,15 @@
     const values = radarValues();
     const center = 110;
     const radius = 76;
-    const point = (axis, fraction) => {
-      const angle = (-90 + axis * 90) * Math.PI / 180;
-      return `${center + Math.cos(angle) * radius * fraction},${center + Math.sin(angle) * radius * fraction}`;
-    };
-    const polygon = values.map((value, axis) => point(axis, value / 100)).join(" ");
+    const axes = spatial().radialAxes(values.length, { center: [center, center], radius });
+    const points = spatial().radarSeriesPoints(
+      values.map(value => value / 100),
+      { center: [center, center], radius }
+    );
+    const scaledPoint = (axis, fraction) => (
+      `${center + axis.deltaX * fraction},${center + axis.deltaY * fraction}`
+    );
+    const polygon = points.map(point => `${point.x},${point.y}`).join(" ");
     const leader = values.indexOf(Math.max(...values));
     return `
       <div class="behavior-radar-card">
@@ -264,12 +287,12 @@
           <strong>${ARCHETYPES[leader]}</strong>
         </div>
         <svg class="behavior-radar" viewBox="0 0 220 220" role="img" aria-label="Live gedragsprofiel">
-          <polygon class="radar-grid" points="${[0, 1, 2, 3].map(axis => point(axis, 1)).join(" ")}"></polygon>
-          <polygon class="radar-grid radar-grid-inner" points="${[0, 1, 2, 3].map(axis => point(axis, .5)).join(" ")}"></polygon>
-          ${[0, 1, 2, 3].map(axis => `<line x1="110" y1="110" x2="${point(axis, 1).replace(",", '" y2="')}"></line>`).join("")}
+          <polygon class="radar-grid" points="${axes.map(axis => `${axis.x},${axis.y}`).join(" ")}"></polygon>
+          <polygon class="radar-grid radar-grid-inner" points="${axes.map(axis => scaledPoint(axis, .5)).join(" ")}"></polygon>
+          ${axes.map(axis => `<line x1="110" y1="110" x2="${axis.x}" y2="${axis.y}"></line>`).join("")}
           <polygon class="radar-value" points="${polygon}"></polygon>
           ${AXES.map((label, axis) => {
-            const [x, y] = point(axis, 1.23).split(",");
+            const [x, y] = scaledPoint(axes[axis], 1.23).split(",");
             return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
           }).join("")}
         </svg>
@@ -786,7 +809,7 @@
       state.category = 0;
       beginCategoryTiming();
       saveDraft();
-      render();
+      renderWhenSpatialReady();
     }
     if (action === "retry") submitProfile();
     if (action === "retry-quality") {

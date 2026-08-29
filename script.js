@@ -706,6 +706,15 @@
     { id: "customer_pressure", label: "Klant wil kortere levertijd", minutes: 2, cost: 6, roleId: "customer1" }
   ];
 
+  const ISOMETRIC_DEPARTMENT_LAYOUTS = Object.freeze({
+    inbound: Object.freeze({ x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }),
+    production_1: Object.freeze({ x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }),
+    production_2: Object.freeze({ x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }),
+    production_3: Object.freeze({ x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }),
+    quality: Object.freeze({ x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }),
+    dispatch: Object.freeze({ x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 })
+  });
+
   const ISOMETRIC_DEPARTMENT_DEFINITIONS = [
     {
       id: "inbound",
@@ -715,7 +724,7 @@
       kind: "warehouse",
       departmentColor: "raw",
       lanes: ["raw"],
-      layout: { x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.inbound
     },
     {
       id: "production_1",
@@ -726,7 +735,7 @@
       departmentColor: "production-a",
       productIds: ["A"],
       lanes: ["pd1", "ss1"],
-      layout: { x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_1
     },
     {
       id: "production_2",
@@ -737,7 +746,7 @@
       departmentColor: "production-b",
       productIds: ["B"],
       lanes: ["pd2", "ss2"],
-      layout: { x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_2
     },
     {
       id: "production_3",
@@ -748,7 +757,7 @@
       departmentColor: "production-c",
       productIds: ["C"],
       lanes: ["pd3"],
-      layout: { x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_3
     },
     {
       id: "quality",
@@ -758,7 +767,7 @@
       kind: "warehouse",
       departmentColor: "finished",
       lanes: ["finished", "customer"],
-      layout: { x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.quality
     },
     {
       id: "dispatch",
@@ -768,9 +777,18 @@
       kind: "dispatch",
       departmentColor: "customer",
       lanes: ["archive"],
-      layout: { x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.dispatch
     }
   ];
+
+  const CUSTOMER_DISPATCH_CONNECTION = Object.freeze({
+    from: "quality",
+    to: "dispatch",
+    kind: "customer",
+    fromOffset: Object.freeze({ x: 24, y: 56 }),
+    toOffset: Object.freeze({ x: 0, y: -56 }),
+    curveOffsetY: 32
+  });
 
   const ISOMETRIC_DEPARTMENT_CONNECTIONS = [
     { from: "inbound", to: "production_1", kind: "material", fromOffset: { x: 68, y: -30 }, toOffset: { x: -68, y: -30 }, curveOffsetY: -54 },
@@ -779,7 +797,7 @@
     { from: "production_1", to: "quality", kind: "material", fromOffset: { x: 68, y: -30 }, toOffset: { x: -68, y: -30 }, curveOffsetY: -54 },
     { from: "production_2", to: "quality", kind: "material", fromOffset: { x: 70, y: 0 }, toOffset: { x: -70, y: 0 }, curveOffsetY: -8 },
     { from: "production_3", to: "quality", kind: "material", fromOffset: { x: 68, y: 30 }, toOffset: { x: -68, y: 30 }, curveOffsetY: 48 },
-    { from: "quality", to: "dispatch", kind: "customer", fromOffset: { x: 24, y: 56 }, toOffset: { x: 0, y: -56 }, curveOffsetY: 32 }
+    CUSTOMER_DISPATCH_CONNECTION
   ];
 
   const FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS = [
@@ -791,7 +809,7 @@
       kind: "warehouse",
       departmentColor: "green",
       lanes: ["raw"],
-      layout: { x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.inbound
     },
     {
       id: "production_1",
@@ -801,7 +819,7 @@
       kind: "production",
       departmentColor: "purple",
       lanes: ["pd1"],
-      layout: { x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_1
     },
     {
       id: "production_2",
@@ -811,7 +829,7 @@
       kind: "production",
       departmentColor: "purple",
       lanes: ["ss1", "pd2"],
-      layout: { x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_2
     },
     {
       id: "production_3",
@@ -821,7 +839,7 @@
       kind: "production",
       departmentColor: "purple",
       lanes: ["ss2", "pd3"],
-      layout: { x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_3
     },
     {
       id: "quality",
@@ -831,7 +849,7 @@
       kind: "quality",
       departmentColor: "blue",
       lanes: ["finished", "customer"],
-      layout: { x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.quality
     },
     {
       id: "dispatch",
@@ -841,7 +859,7 @@
       kind: "dispatch",
       departmentColor: "yellow",
       lanes: ["archive"],
-      layout: { x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 }
+      layout: ISOMETRIC_DEPARTMENT_LAYOUTS.dispatch
     }
   ];
 
@@ -850,7 +868,7 @@
     { from: "production_1", to: "production_2", kind: "material" },
     { from: "production_2", to: "production_3", kind: "material" },
     { from: "production_3", to: "quality", kind: "material" },
-    { from: "quality", to: "dispatch", kind: "customer", fromOffset: { x: 24, y: 56 }, toOffset: { x: 0, y: -56 }, curveOffsetY: 32 }
+    CUSTOMER_DISPATCH_CONNECTION
   ];
 
   // De Entrepreneurship-opstelling projecteert de drie historische
@@ -1659,8 +1677,13 @@
     return Object.fromEntries(productIds().map(productId => [productId, 0]));
   }
 
-  function partIdForColor(color, wide = false) {
-    const preferred = wide ? `${color}_8` : `${color}_4`;
+  function gridArea(size, fallback = 4) {
+    const match = String(size || "").match(/(\d+)\s*(?:x|\u00d7)\s*(\d+)/i);
+    return match ? Number(match[1]) * Number(match[2]) : fallback;
+  }
+
+  function partIdForColor(color, size = "2x2") {
+    const preferred = `${color}_${gridArea(size)}`;
     if (partById(preferred)) return preferred;
     return `${color}_4`;
   }
@@ -1674,15 +1697,19 @@
     }, {});
   }
 
-  function makeTowerVisual(blueprint) {
-    const lower = partIdForColor(blueprint.lower);
-    const middle = blueprint.middleSize === "2x2"
-      ? partIdForColor(blueprint.middle)
-      : partIdForColor(blueprint.middle, true);
+  function resolveGeneratedTower(blueprint) {
+    return Object.freeze({
+      lower: partIdForColor(blueprint.lower),
+      middle: partIdForColor(blueprint.middle, blueprint.middleSize),
+      upper: partIdForColor(blueprint.upper)
+    });
+  }
+
+  function makeTowerVisual(parts) {
     return [
-      [partIdForColor(blueprint.upper)],
-      [middle],
-      [lower, lower],
+      [parts.upper],
+      [parts.middle],
+      [parts.lower, parts.lower],
       ["base_green"]
     ];
   }
@@ -1690,15 +1717,11 @@
   function makeGeneratedProduct(index) {
     const id = PRODUCT_IDS[index];
     const blueprint = TOWER_BLUEPRINTS[index];
-    const lower = partIdForColor(blueprint.lower);
-    const middle = blueprint.middleSize === "2x2"
-      ? partIdForColor(blueprint.middle)
-      : partIdForColor(blueprint.middle, true);
-    const upper = partIdForColor(blueprint.upper);
+    const parts = resolveGeneratedTower(blueprint);
     const stages = [
-      { department: 1, output: "ss1", recipe: mergeRecipe({ base_green: 1 }, { [lower]: 2 }) },
-      { department: 2, input: "ss1", output: "ss2", recipe: { [middle]: 1 } },
-      { department: 3, input: "ss2", output: "finished", recipe: { [upper]: 1 } }
+      { department: 1, output: "ss1", recipe: mergeRecipe({ base_green: 1 }, { [parts.lower]: 2 }) },
+      { department: 2, input: "ss1", output: "ss2", recipe: { [parts.middle]: 1 } },
+      { department: 3, input: "ss2", output: "finished", recipe: { [parts.upper]: 1 } }
     ];
     const materialCost = stages.reduce((sum, stage) => {
       return sum + Object.entries(stage.recipe).reduce((inner, [partId, amount]) => {
@@ -1714,7 +1737,7 @@
         Object.entries(stage.recipe).flatMap(([partId, amount]) => Array(amount).fill(partId))
       )).filter(partId => partId !== "base_green"),
       stages,
-      visual: makeTowerVisual(blueprint)
+      visual: makeTowerVisual(parts)
     };
   }
 
@@ -1757,23 +1780,37 @@
     ));
   }
 
-  function recipeFromSequence(sequence) {
-    return sequence.reduce((recipe, partId) => {
-      recipe[partId] = (recipe[partId] || 0) + 1;
-      return recipe;
-    }, {});
+  function builderProductCore() {
+    const core = window.LeerpretSDK?.components?.["lego-builder"]?.logic;
+    if (
+      !core?.analyzeTowerSequence
+      || !core?.countRecipeParts
+      || !core?.partitionSequenceEvenly
+      || !core?.BASE_PIECES
+    ) {
+      throw new Error("De centrale LeerpretSDK-productbouwkern is niet volledig geladen.");
+    }
+    return core;
+  }
+
+  function spatialProductCore() {
+    const core = window.LeerpretSDK?.components?.["lego-spatial"];
+    if (!core?.positiveGridInteger) {
+      throw new Error("De centrale LeerpretSDK-gridgeometrie is niet volledig geladen.");
+    }
+    return core;
   }
 
   function makeCustomProduct(draft, existingId = null) {
     const sequence = Array.isArray(draft?.towerSequence)
       ? draft.towerSequence.filter(partId => partId !== "base_green" && partById(partId))
       : [];
-    const firstPart = partById(sequence[0]);
-    const foundationCount = firstPart?.width === "narrow" ? 4 : 2;
-    const foundationUsesOneFormat = sequence
-      .slice(0, foundationCount)
-      .every(partId => partById(partId)?.width === firstPart?.width);
-    if (sequence.length !== foundationCount + 2 || !foundationUsesOneFormat) {
+    const core = builderProductCore();
+    const groundPlateWidth = spatialProductCore().positiveGridInteger(draft?.groundPlate?.width, 6);
+    const groundPlateDepth = spatialProductCore().positiveGridInteger(draft?.groundPlate?.depth, 6);
+    if (!core.analyzeTowerSequence(core.BASE_PIECES, sequence, {
+      board: { width: groundPlateWidth, depth: groundPlateDepth }
+    })) {
       throw new Error(
         "Een eigen toren heeft een volle eerste laag en is precies 3 lagen hoog."
       );
@@ -1786,19 +1823,13 @@
       color: GROUND_PLATE_COLORS.has(requestedGroundPlateColor)
         ? requestedGroundPlateColor
         : "green",
-      width: 6,
-      depth: 6,
-      blokId: String(draft.groundPlate?.blokId || `element.ground-plate.6x6.${requestedGroundPlateColor.replaceAll("_", "-")}`),
+      width: groundPlateWidth,
+      depth: groundPlateDepth,
+      blokId: String(draft.groundPlate?.blokId || `element.ground-plate.${groundPlateWidth}x${groundPlateDepth}.${requestedGroundPlateColor.replaceAll("_", "-")}`),
       blokFile: String(draft.groundPlate?.blokFile || "elements/element_grondplaat_6x6_groen.blok")
     };
-    const firstBreak = Math.ceil(sequence.length / 3);
-    const secondBreak = Math.ceil(sequence.length * 2 / 3);
-    const stageSequences = [
-      sequence.slice(0, firstBreak),
-      sequence.slice(firstBreak, secondBreak),
-      sequence.slice(secondBreak)
-    ];
-    const firstRecipe = { base_green: 1, ...recipeFromSequence(stageSequences[0]) };
+    const stageSequences = core.partitionSequenceEvenly(sequence, 3);
+    const firstRecipe = { base_green: 1, ...core.countRecipeParts(stageSequences[0]) };
     const id = existingId || `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     return {
       id,
@@ -1809,8 +1840,8 @@
       groundPlate,
       stages: [
         { department: 1, output: "ss1", recipe: firstRecipe },
-        { department: 2, input: "ss1", output: "ss2", recipe: recipeFromSequence(stageSequences[1]) },
-        { department: 3, input: "ss2", output: "finished", recipe: recipeFromSequence(stageSequences[2]) }
+        { department: 2, input: "ss1", output: "ss2", recipe: core.countRecipeParts(stageSequences[1]) },
+        { department: 3, input: "ss2", output: "finished", recipe: core.countRecipeParts(stageSequences[2]) }
       ],
       visual: [
         ...sequence.slice().reverse().map(partId => [partId]),
@@ -3319,6 +3350,8 @@
               )
             : [],
           groundPlateColor: activeProduct?.groundPlate?.color || "green",
+          groundPlateWidth: spatialProductCore().positiveGridInteger(activeProduct?.groundPlate?.width, 6),
+          groundPlateDepth: spatialProductCore().positiveGridInteger(activeProduct?.groundPlate?.depth, 6),
           quantity: Number(activeOrder.quantity || 1),
           displayScale: isTransferSource
             ? Number(activeOrder.quantity || 1) === 1
@@ -3429,8 +3462,8 @@
           towerSequence: [...(product.towerSequence || [])],
           groundPlate: {
             color: product.groundPlate?.color || "green",
-            width: 6,
-            depth: 6
+            width: spatialProductCore().positiveGridInteger(product.groundPlate?.width, 6),
+            depth: spatialProductCore().positiveGridInteger(product.groundPlate?.depth, 6)
           },
           colors: [
             blueprint.lower || "yellow",
@@ -8173,7 +8206,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v255-creator-finish-notice").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v261-spatial-convergence").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });
