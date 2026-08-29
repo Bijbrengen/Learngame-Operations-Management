@@ -1,7 +1,9 @@
 const { test, expect } = require("./fixtures");
 
 async function prepareAppShell(page) {
-  await page.addInitScript(() => {
+  await page.goto("/");
+  await page.waitForFunction(() => window.LEARNGameOMReady === true);
+  await page.evaluate(() => {
     const capabilities = Object.freeze({
       deviceKind: "computer",
       isMobileDevice: false,
@@ -14,10 +16,8 @@ async function prepareAppShell(page) {
       current: () => capabilities,
       supportsSession: () => true
     });
-  });
-  await page.goto("/");
-  await page.waitForFunction(() => window.LEARNGameOMReady === true);
-  await page.evaluate(() => {
+    document.documentElement.dataset.deviceKind = "computer";
+    document.body.classList.remove("mobile-player-only");
     document.body.classList.remove("auth-pending");
     const gate = document.getElementById("leerpretAuthGate");
     if (gate) gate.hidden = true;
