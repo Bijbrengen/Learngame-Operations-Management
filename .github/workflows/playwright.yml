@@ -14,14 +14,14 @@ jobs:
   acceptance:
     name: Desktop en kritieke mobiele Chromium-stromen
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     env:
       CI: "true"
-      # Poort 47913 is de expliciete CI-preview: de statische app draait lokaal,
-      # maar runtime-config.js kiest de productie-Engine. Normale lokale
-      # ontwikkeling blijft op 47113 en gebruikt Engine-poort 47111.
-      LEARNGAME_OM_URL: http://127.0.0.1:47913/
+      # CI draait zowel de statische app als de exact uitgecheckte Engine lokaal,
+      # zodat SDK-contracten niet afhankelijk zijn van de productiedeployment.
+      LEARNGAME_OM_URL: http://127.0.0.1:47113/
+      LEERPRET_API_URL: http://127.0.0.1:47111/api
 
     steps:
       - name: Repository ophalen
@@ -30,14 +30,51 @@ jobs:
           # De historische pariteitspoort leest de geverifieerde baselinecommit.
           fetch-depth: 0
 
+      - name: LeerpretEngine ophalen
+        uses: actions/checkout@v7
+        with:
+          repository: Bijbrengen/LeerpretEngine
+          ref: master
+          path: LeerpretEngine
+          ssh-key: ${{ secrets.LEERPRET_ENGINE_SSH_KEY }}
+          persist-credentials: false
+
       - name: Node.js instellen
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: LeerpretEngine/requirements.txt
+
       - name: Dependencies installeren
-        run: npm ci
+        run: |
+          npm ci
+          python -m pip install -r LeerpretEngine/requirements.txt
+
+      - name: Lokale LeerpretEngine starten
+        shell: bash
+        working-directory: LeerpretEngine
+        run: |
+          python -m uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 47111 \
+            > "${RUNNER_TEMP}/leerpret-engine.log" 2>&1 &
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:47111/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat "${RUNNER_TEMP}/leerpret-engine.log"
+          exit 1
 
       - name: Chromium en systeemdependencies installeren
         run: npx playwright install --with-deps chromium
@@ -64,5 +101,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            ${{ runner.temp }}/leerpret-engine.log
           if-no-files-found: warn
           retention-days: 14
