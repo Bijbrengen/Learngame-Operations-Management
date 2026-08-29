@@ -147,10 +147,10 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="multiplayer-runtime.js?v=20260828.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
-        self.assertIn('src="game-sessions.js?v=20260828.4"', html)
+        self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
         self.assertIn('"isometric-logistics-view.js?v=20260828.5"', html)
-        self.assertIn('"script.js?v=20260828.10"', html)
+        self.assertIn('"script.js?v=20260829.1"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
         self.assertIn('CACHE_VERSION = "learngame-om-v261-spatial-convergence"', service_worker)
         self.assertIn(

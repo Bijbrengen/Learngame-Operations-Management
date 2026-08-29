@@ -1461,9 +1461,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("7. een langzaam versleept tutorialblok houdt de grijpcursor en kan worden afgeleverd", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
-    const sdkBase = process.env.CI
-      ? "https://api.leerpretpark.nl/api"
-      : "http://127.0.0.1:47111/api";
+    const sdkBase = process.env.LEERPRET_API_URL
+      || (process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api");
     const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
     expect(manifestResponse.ok()).toBe(true);
     const manifest = await manifestResponse.json();
@@ -1472,7 +1471,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.addStyleTag({ url: "/style.css" });
     await page.addScriptTag({ url: `${sdkBase}/sdk/sdk-loader/loader.js?v=${manifest.version}` });
     await page.evaluate(async ({ sdkBase, manifest }) => {
-      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer"]);
+      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer", "lego-builder"]);
     }, { sdkBase, manifest });
     await page.addScriptTag({ url: "/isometric-logistics-view.js" });
     await page.evaluate(() => {
@@ -1560,9 +1559,8 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("7b. een langzaam versleepte tutorialtoren houdt capture tot werkelijk loslaten", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
-    const sdkBase = process.env.CI
-      ? "https://api.leerpretpark.nl/api"
-      : "http://127.0.0.1:47111/api";
+    const sdkBase = process.env.LEERPRET_API_URL
+      || (process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api");
     const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
     expect(manifestResponse.ok()).toBe(true);
     const manifest = await manifestResponse.json();
@@ -1571,7 +1569,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await page.addStyleTag({ url: "/style.css" });
     await page.addScriptTag({ url: `${sdkBase}/sdk/sdk-loader/loader.js?v=${manifest.version}` });
     await page.evaluate(async ({ sdkBase, manifest }) => {
-      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer"]);
+      await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest }).load(["lego-renderer", "lego-builder"]);
     }, { sdkBase, manifest });
     await page.addScriptTag({ url: "/isometric-logistics-view.js" });
     await page.evaluate(() => {

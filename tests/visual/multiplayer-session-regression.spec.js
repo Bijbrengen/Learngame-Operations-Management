@@ -301,7 +301,9 @@ class StatefulMultiplayerApi {
     this.injectConflictForNextCommandResult = false;
     this.commandResultBarrier = null;
     this.runtimeGetBarriers = new Map();
-    this.telemetryProbeFailuresRemaining = 1;
+    // De echte centrale API-client probeert een 503 tweemaal opnieuw voordat
+    // de duurzame product-outbox het verzoek bij een reload overneemt.
+    this.telemetryProbeFailuresRemaining = 3;
     this.loseAcceptedResponseFor = new Map();
   }
 
@@ -1088,12 +1090,14 @@ class StatefulMultiplayerApi {
         origin: url.origin
       });
     }
-    if (path === "/sdk/sdk-loader/loader.js") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/javascript",
-        body: SDK_LOADER_STUB
-      });
+    if (path.startsWith("/sdk/")) {
+      // De regressiebackend mockt alleen mutable sessie-API's. SDK-code en de
+      // dependencygraaf komen uit dezelfde lokale Engine als de productruntime.
+      await route.continue();
+      return;
+    }
+    if (path === "/leerbox-runtime/learngame-operations-management") {
+      await route.fulfill(jsonResponse(200, { test_runtime: true }));
       return;
     }
     if (path === "/ui/leerpret-theme.css") {
@@ -1269,6 +1273,12 @@ class StatefulMultiplayerApi {
     }
     if (path === "/v1/interactions" && request.method() === "POST") {
       const result = this.telemetry(key, request.postDataJSON(), url.origin);
+      await route.fulfill(jsonResponse(result.status, result.body));
+      return;
+    }
+    if (path === "/engine/evaluate" && request.method() === "POST") {
+      const body = request.postDataJSON();
+      const result = this.telemetry(key, body?.STATEMENT?.ACTION?.data || {}, url.origin);
       await route.fulfill(jsonResponse(result.status, result.body));
       return;
     }
@@ -1760,7 +1770,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
       });
       await expect.poll(() => backend.stats.telemetryAttempts.filter(
         attempt => attempt.event_id === firstAliceEvent.eventID
-      ).length).toBe(1);
+      ).length).toBe(3);
       expect(backend.stats.telemetryAttempts.find(
         attempt => attempt.event_id === firstAliceEvent.eventID
       )?.failed).toBe(true);
@@ -1768,6 +1778,10 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         attempt => attempt.event_id === firstAliceEvent.eventID
       )?.origin).toBe(ALLOWED_OVERRIDE_ORIGIN);
       expect(firstAliceEvent.personID).toBe("member-alice");
+      await expect.poll(() => alice.page.evaluate(({ prefix, eventId }) => {
+        const item = JSON.parse(localStorage.getItem(`${prefix}${eventId}`) || "null");
+        return item?.attempts || 0;
+      }, { prefix: OUTBOX_V2_PREFIX, eventId: firstAliceEvent.eventID })).toBe(1);
       const failedOutboxItem = await alice.page.evaluate(({ key, prefix, eventId }) => {
         const itemKey = `${prefix}${eventId}`;
         return {
@@ -1799,14 +1813,14 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
 
       await expect.poll(() => backend.stats.telemetryAttempts.filter(
         attempt => attempt.event_id === firstAliceEvent.eventID
-      ).length, { timeout: 10_000 }).toBe(2);
+      ).length, { timeout: 10_000 }).toBe(4);
       const aliceRetryAttempts = backend.stats.telemetryAttempts.filter(
         attempt => attempt.event_id === firstAliceEvent.eventID
       );
       expect(new Set(aliceRetryAttempts.map(attempt => attempt.person_id))).toEqual(
         new Set([firstAliceEvent.personID])
       );
-      expect(aliceRetryAttempts.map(attempt => attempt.failed)).toEqual([true, false]);
+      expect(aliceRetryAttempts.map(attempt => attempt.failed)).toEqual([true, true, true, false]);
       expect(backend.stats.logicalTelemetry.get(firstAliceEvent.eventID)).toMatchObject({
         event_id: firstAliceEvent.eventID,
         person_id: "member-alice"

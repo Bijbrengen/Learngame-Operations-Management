@@ -2993,7 +2993,13 @@
       ) {
         requestFinishConfirmation(target);
       } else if (target.hasAttribute("data-open-game-session-overview")) {
-        document.querySelector('.app-view-switcher [data-main-menu-tab="session"]')?.click();
+        const simulator = window.LEARNGameOMSimulator;
+        if (simulator?.setAppView && simulator?.setManagerTab) {
+          simulator.setAppView("manager");
+          simulator.setManagerTab("session");
+        } else {
+          window.__LOM_PENDING_SESSION_OVERVIEW = true;
+        }
       } else if (target.hasAttribute("data-leave-game-session") && state.session) {
         mutate(`/v1/game-sessions/${encodeURIComponent(state.session.session_id)}/leave`);
       } else if (target.dataset.copyGameCode) {

@@ -7856,6 +7856,11 @@
         setManagerTab(button.dataset.mainMenuTab);
       });
     });
+    document.getElementById("topSessionStatusButton")?.addEventListener("click", () => {
+      if (!gameManagementSupportedOnDevice()) return;
+      setAppView("manager", false);
+      setManagerTab("session");
+    });
     els.liveEventsToggle?.addEventListener("click", event => {
       event.stopPropagation();
       setLiveEventsOpen(els.liveEventsToggle.getAttribute("aria-expanded") !== "true");
@@ -8489,6 +8494,12 @@
     purchaseMaterials,
     triggerDisruption
   };
+
+  if (window.__LOM_PENDING_SESSION_OVERVIEW) {
+    window.__LOM_PENDING_SESSION_OVERVIEW = false;
+    setAppView("manager", false);
+    setManagerTab("session");
+  }
 
   // Bind this essential escape/restart action before initializing the heavier
   // game views. It must remain usable even if a renderer fails during startup.

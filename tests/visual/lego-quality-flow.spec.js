@@ -1,9 +1,8 @@
 const { test, expect } = require("./fixtures");
 
 async function loadIsolatedLegoComponents(page) {
-  const sdkBase = process.env.CI
-    ? "https://api.leerpretpark.nl/api"
-    : "http://127.0.0.1:47111/api";
+  const sdkBase = process.env.LEERPRET_API_URL
+    || (process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api");
   const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
   expect(manifestResponse.ok()).toBe(true);
   const manifest = await manifestResponse.json();
