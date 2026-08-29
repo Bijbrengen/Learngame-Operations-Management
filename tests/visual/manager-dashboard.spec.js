@@ -1,6 +1,20 @@
 const { test, expect } = require("./fixtures");
 
 async function prepareAppShell(page) {
+  await page.addInitScript(() => {
+    const capabilities = Object.freeze({
+      deviceKind: "computer",
+      isMobileDevice: false,
+      supportsDigitalPlay: true,
+      supportsTutorial: true,
+      supportsGameManagement: true,
+      supportsSessionCreation: true
+    });
+    window.LOMDeviceCapabilities = Object.freeze({
+      current: () => capabilities,
+      supportsSession: () => true
+    });
+  });
   await page.goto("/");
   await page.waitForFunction(() => window.LEARNGameOMReady === true);
   await page.evaluate(() => {
