@@ -48,24 +48,37 @@ window.LeerpretSDK.components["lego-spatial"] = {
     projection.originX + (x - y) * (projection.tileWidth / 2),
     projection.originY + (x + y) * (projection.tileHeight / 2) - z * projection.zScale
   ],
-  projectBox: (box, projection) => {
-    const project = ([x, y, z = 0]) => [
-      projection.originX + (x - y) * (projection.tileWidth / 2),
-      projection.originY + (x + y) * (projection.tileHeight / 2) - z * projection.zScale
+  projectBox: (box, projection, projector) => {
+    const x = Number(box.x ?? box.minX ?? 0);
+    const y = Number(box.y ?? box.minY ?? 0);
+    const z = Number(box.z ?? box.minZ ?? 0);
+    const width = Number(box.width ?? (box.maxX - x));
+    const depth = Number(box.depth ?? (box.maxY - y));
+    const height = Number(box.height ?? (box.maxZ - z));
+    const project = point => projector ? projector(point, projection) : [
+      projection.originX + (point[0] - point[1]) * (projection.tileWidth / 2),
+      projection.originY + (point[0] + point[1]) * (projection.tileHeight / 2) - point[2] * projection.zScale
     ];
     const floor = [
-      [box.x, box.y, box.z],
-      [box.x + box.width, box.y, box.z],
-      [box.x + box.width, box.y + box.depth, box.z],
-      [box.x, box.y + box.depth, box.z]
+      [x, y, z],
+      [x + width, y, z],
+      [x + width, y + depth, z],
+      [x, y + depth, z]
     ].map(project);
     const roof = [
-      [box.x, box.y, box.z + box.height],
-      [box.x + box.width, box.y, box.z + box.height],
-      [box.x + box.width, box.y + box.depth, box.z + box.height],
-      [box.x, box.y + box.depth, box.z + box.height]
+      [x, y, z + height],
+      [x + width, y, z + height],
+      [x + width, y + depth, z + height],
+      [x, y + depth, z + height]
     ].map(project);
-    return { floor, roof };
+    const points = [...floor, ...roof];
+    const xs = points.map(point => point[0]);
+    const ys = points.map(point => point[1]);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    return { floor, roof, bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY } };
   },
   unionBoxes3: boxes => boxes.length ? ({
     minX: Math.min(...boxes.map(box => box.x)),
@@ -75,6 +88,25 @@ window.LeerpretSDK.components["lego-spatial"] = {
     maxY: Math.max(...boxes.map(box => box.y + box.depth)),
     maxZ: Math.max(...boxes.map(box => box.z + box.height))
   }) : null,
+  boxAlignmentOffset3: (subjectBox, targetBox, alignment) => {
+    const normalize = box => {
+      const minX = Number(box.minX ?? box.x ?? 0);
+      const minY = Number(box.minY ?? box.y ?? 0);
+      const minZ = Number(box.minZ ?? box.z ?? 0);
+      const maxX = Number(box.maxX ?? (minX + Number(box.width || 0)));
+      const maxY = Number(box.maxY ?? (minY + Number(box.depth || 0)));
+      const maxZ = Number(box.maxZ ?? (minZ + Number(box.height || 0)));
+      return { minX, minY, minZ, maxX, maxY, maxZ, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2, centerZ: (minZ + maxZ) / 2 };
+    };
+    const subject = normalize(subjectBox);
+    const target = normalize(targetBox);
+    const anchor = (box, axis, mode) => box[`${mode === "center" ? "center" : mode}${axis}`];
+    return {
+      x: anchor(target, "X", alignment.x) - anchor(subject, "X", alignment.x),
+      y: anchor(target, "Y", alignment.y) - anchor(subject, "Y", alignment.y),
+      z: anchor(target, "Z", alignment.z) - anchor(subject, "Z", alignment.z)
+    };
+  },
   fitViewBox: () => ({ x: 0, y: 0, width: 1, height: 1 }),
   formatViewBox: viewBox => [viewBox.x, viewBox.y, viewBox.width, viewBox.height]
     .map(value => Number(value).toFixed(2)).join(" "),
@@ -140,7 +172,7 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260830.1"', html)
+        self.assertIn('href="style.css?v=20260830.2"', html)
         self.assertIn('"logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
         self.assertIn('"logistics-game-ui.js?v=20260830.1"', html)
@@ -149,12 +181,12 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260830.1"', html)
-        self.assertIn('"script.js?v=20260830.1"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260830.2"', html)
+        self.assertIn('"script.js?v=20260830.2"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
-        self.assertIn('CACHE_VERSION = "learngame-om-v262-order-document"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v263-order-document-centered"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v262-order-document")',
+            'register("service-worker.js?v=learngame-om-v263-order-document-centered")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -695,6 +727,8 @@ process.stdout.write(JSON.stringify({
         self.assertIn('"order_document"', game)
         self.assertIn("orderDocumentCargoMarkup", renderer)
         self.assertIn("renderer.orderDocument", renderer)
+        self.assertIn("boxAlignmentOffset3", renderer)
+        self.assertNotIn("iso-order-document-fallback", renderer)
 
         node_program = r'''
 const fs = require("fs");
@@ -705,11 +739,24 @@ const orderDocumentCalls = [];
 window.LegoTowerRenderer = {
   definitions: () => "",
   isometricPaintOrder: solids => solids.map((_solid, index) => index),
-  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" }),
+  openContainerLayers: (x, y, z, width, depth) => ({
+    base: "", rear: "", front: "", roof: "",
+    interior: { x: x + 1, y: y + 1, z: z + 0.22, width: width - 2, depth: depth - 2 }
+  }),
+  iso: (x, y, z = 0) => [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15],
   orderDocumentModel: {
     blokId: "logistics.order-document",
     blokFile: "logistics/bestelformulier.blok",
     renderPreset: "logistics-order-document.mirrored"
+  },
+  orderDocumentGeometry: options => {
+    const x = Number(options.x || 0);
+    const y = Number(options.y || 0);
+    const z = Number(options.z ?? 0);
+    return {
+      x, y, z,
+      physicalBounds: { minX: x, minY: y, minZ: z, maxX: x + 6, maxY: y + 1, maxZ: z + 5.88 }
+    };
   },
   orderDocument: options => {
     orderDocumentCalls.push(options);
@@ -772,6 +819,10 @@ process.stdout.write(JSON.stringify({
   documentQuantity: /data-order-document-quantity="4"/.test(container.innerHTML),
   primitiveCalls: orderDocumentCalls.length,
   primitiveOptions: orderDocumentCalls[0] && {
+    x: orderDocumentCalls[0].x,
+    y: orderDocumentCalls[0].y,
+    z: orderDocumentCalls[0].z,
+    hasView: Object.hasOwn(orderDocumentCalls[0], "view"),
     order: orderDocumentCalls[0].order,
     preview: orderDocumentCalls[0].preview
   }
@@ -794,6 +845,13 @@ process.stdout.write(JSON.stringify({
         self.assertTrue(rendered["cargoQuantity"])
         self.assertTrue(rendered["documentQuantity"])
         self.assertEqual(1, rendered["primitiveCalls"])
+        self.assertEqual(
+            {"x": 0, "y": 2.5, "z": 0.22, "hasView": False},
+            {
+                key: rendered["primitiveOptions"][key]
+                for key in ("x", "y", "z", "hasView")
+            },
+        )
         self.assertEqual(
             {
                 "id": "ORD-DOC-001",

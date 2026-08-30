@@ -8872,24 +8872,6 @@ select {
   letter-spacing: 0.04em;
 }
 
-.iso-order-document-fallback polygon {
-  fill: #f7f4ed;
-  stroke: #6d797d;
-  stroke-width: 3;
-}
-
-.iso-order-document-fallback polyline {
-  fill: none;
-  stroke: #a0aaad;
-  stroke-width: 4;
-}
-
-.iso-order-document-fallback text {
-  fill: #334247;
-  font-size: 7px;
-  font-weight: 900;
-}
-
 .iso-cargo-quantity-overflow circle {
   fill: #10272d;
   stroke: #f5cb72;

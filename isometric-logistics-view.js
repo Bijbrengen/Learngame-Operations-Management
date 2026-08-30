@@ -33,6 +33,7 @@
       || !api?.projectDiamond
       || !api?.projectBox
       || !api?.unionBoxes3
+      || !api?.boxAlignmentOffset3
       || !api?.fitViewBox
       || !api?.formatViewBox
       || !api?.packSupportedGrid
@@ -411,6 +412,21 @@
     const laidOutItems = layoutStockItems(items, stockProfileOptions);
     const containerPlacement = warehouseContainerPlacement(center, stockProfileOptions);
     const containerTransform = `translate(${containerPlacement.translateX} ${containerPlacement.translateY})`;
+    const containerColor = {
+      "tutorial-blue": "blue",
+      "tutorial-yellow": "yellow",
+      "tutorial-transit": "dark_gray",
+      finished: "blue"
+    }[department.departmentColor] || "green";
+    const container = window.LegoTowerRenderer?.openContainerLayers?.(
+      containerPlacement.x,
+      containerPlacement.y,
+      0,
+      containerPlacement.width,
+      containerPlacement.depth,
+      containerColor,
+      legoGradientScope
+    );
     const placementProfile = laidOutItems.length && window.LegoTowerRenderer
       ? stockBoardProfile(stockProfileOptions)
       : null;
@@ -445,7 +461,10 @@
         `;
       }).join("")
       : "";
-    const cargo = cargoMarkup(department, geometry, legoGradientScope);
+    const cargo = cargoMarkup(department, geometry, legoGradientScope, {
+      interior: container?.interior,
+      transform: containerTransform
+    });
     const empty = hasLogisticsContent && items.length === 0 && !cargo
       ? `<text class="iso-empty-stock-label"
                x="${center.x}"
@@ -456,21 +475,6 @@
       x: center.x,
       y: center.y + 10
     });
-    const containerColor = {
-      "tutorial-blue": "blue",
-      "tutorial-yellow": "yellow",
-      "tutorial-transit": "dark_gray",
-      finished: "blue"
-    }[department.departmentColor] || "green";
-    const container = window.LegoTowerRenderer?.openContainerLayers?.(
-      containerPlacement.x,
-      containerPlacement.y,
-      0,
-      containerPlacement.width,
-      containerPlacement.depth,
-      containerColor,
-      legoGradientScope
-    );
     if (container) {
       return `
         <g class="iso-lego-box" data-container-grid="8x8" data-rear-wall-height="2-bricks" data-transparent-front="true" data-transparent-roof="true">
@@ -531,7 +535,7 @@
     `;
   }
 
-  function orderDocumentCargoMarkup(department, geometry, legoGradientScope) {
+  function orderDocumentCargoMarkup(department, legoGradientScope, containerContext) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "order_document") return "";
     const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
@@ -562,60 +566,71 @@
       }
     };
     const renderer = window.LegoTowerRenderer;
-    let documentPrimitive = "";
-    if (typeof renderer?.orderDocument === "function") {
-      try {
-        documentPrimitive = renderer.orderDocument({
-          x: 0,
-          y: 0,
-          zHalfLayers: 0,
-          frontFace: "left",
-          scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
-          view: { originX: 90, originY: 135, scale: 0.9 },
-          order,
-          preview
-        });
-      } catch (_error) {
-        documentPrimitive = "";
-      }
+    const interior = containerContext?.interior;
+    if (
+      !interior
+      || typeof renderer?.orderDocument !== "function"
+      || typeof renderer?.orderDocumentGeometry !== "function"
+      || typeof renderer?.iso !== "function"
+    ) return "";
+    let documentPrimitive;
+    let documentGeometry;
+    let hitbox;
+    try {
+      const originGeometry = renderer.orderDocumentGeometry({ x: 0, y: 0, z: 0, frontFace: "left" });
+      const placement = spatial().boxAlignmentOffset3(
+        originGeometry.physicalBounds,
+        interior,
+        { x: "center", y: "center", z: "min" }
+      );
+      const documentOptions = {
+        x: placement.x,
+        y: placement.y,
+        z: placement.z,
+        frontFace: "left",
+        scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
+        order,
+        preview
+      };
+      documentGeometry = renderer.orderDocumentGeometry(documentOptions);
+      documentPrimitive = renderer.orderDocument(documentOptions);
+      hitbox = spatial().projectBox(
+        documentGeometry.physicalBounds,
+        null,
+        point => renderer.iso(point[0], point[1], point[2])
+      ).bounds;
+    } catch (_error) {
+      return "";
     }
-    if (!documentPrimitive) {
-      documentPrimitive = `
-        <g class="iso-order-document-fallback" data-order-document-fallback="true">
-          <polygon points="79,12 161,56 161,141 79,97"></polygon>
-          <polyline points="88,35 149,68 149,76 88,43"></polyline>
-          <polyline points="88,51 132,75 132,83 88,59"></polyline>
-          <text x="119" y="91" text-anchor="middle">BESTELLING</text>
-          <text x="119" y="107" text-anchor="middle">${escapeHtml(order.id)} · ×${quantity}</text>
-        </g>
-      `;
-    }
-    const scale = 1.15;
     return `
       <g class="iso-cargo-order-document iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
-         transform="translate(${geometry.center.x - 119 * scale} ${geometry.center.y + 15 - 74 * scale}) scale(${scale})"
+         transform="${containerContext.transform}"
          data-drag-kind="cargo"
          data-cargo-kind="${escapeHtml(cargo.cargoKind || "order_information")}"
          data-cargo-source-id="${escapeHtml(department.id)}"
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
+         data-container-alignment="center-center-min"
+         data-model-x="${documentGeometry.x}"
+         data-model-y="${documentGeometry.y}"
+         data-model-z="${documentGeometry.z}"
          role="${cargo.draggable ? "button" : "img"}"
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
-         aria-label="${escapeHtml(cargo.draggable
+        aria-label="${escapeHtml(cargo.draggable
            ? `Pak het bestelformulier voor order ${order.id} op en zet het neer in de gemarkeerde volgende afdeling`
            : `${cargo.label || `Bestelformulier ${order.id}`}; ${quantity}× ${order.productLabel}`)}">
         ${cargo.draggable
-          ? '<rect class="iso-cargo-hitbox" x="70" y="0" width="102" height="150" fill="transparent" pointer-events="all"></rect>'
+          ? `<rect class="iso-cargo-hitbox" x="${hitbox.minX}" y="${hitbox.minY}" width="${hitbox.width}" height="${hitbox.height}" fill="transparent" pointer-events="all"></rect>`
           : ""}
         <g aria-hidden="true">${documentPrimitive}</g>
       </g>
     `;
   }
 
-  function cargoMarkup(department, geometry, legoGradientScope) {
+  function cargoMarkup(department, geometry, legoGradientScope, containerContext) {
     if (department.cargoVisual?.kind === "order_document") {
-      return orderDocumentCargoMarkup(department, geometry, legoGradientScope);
+      return orderDocumentCargoMarkup(department, legoGradientScope, containerContext);
     }
     if (department.cargoVisual?.kind === "material_cart") {
       return materialCartCargoMarkup(department, geometry, legoGradientScope);

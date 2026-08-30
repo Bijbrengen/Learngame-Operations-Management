@@ -18,6 +18,7 @@ function harness({ packedLayer = 0 } = {}) {
     projectDiamond: [],
     projectBox: [],
     unionBoxes3: [],
+    boxAlignmentOffset3: [],
     fitViewBox: [],
     formatViewBox: [],
     packSupportedGrid: [],
@@ -28,6 +29,7 @@ function harness({ packedLayer = 0 } = {}) {
     physicalLayer: [],
     brick: [],
     orderDocument: [],
+    orderDocumentGeometry: [],
     openContainerLayers: [],
     isometricPaintOrder: []
   };
@@ -49,20 +51,38 @@ function harness({ packedLayer = 0 } = {}) {
         projection.originY + (x + y) * (projection.tileHeight / 2) - z * projection.zScale
       ];
     },
-    projectBox(box, projection) {
+    projectBox(box, projection, projector) {
       calls.projectBox.push({ box: plain(box), projection: plain(projection) });
+      const x = Number(box.x ?? box.minX ?? 0);
+      const y = Number(box.y ?? box.minY ?? 0);
+      const z = Number(box.z ?? box.minZ ?? 0);
+      const width = Number(box.width ?? (box.maxX - x) ?? 0);
+      const depth = Number(box.depth ?? (box.maxY - y) ?? 0);
+      const height = Number(box.height ?? (box.maxZ - z) ?? 0);
       const corners = [
-        [box.x, box.y, box.z],
-        [box.x + box.width, box.y, box.z],
-        [box.x + box.width, box.y + box.depth, box.z],
-        [box.x, box.y + box.depth, box.z],
-        [box.x, box.y, box.z + box.height],
-        [box.x + box.width, box.y, box.z + box.height],
-        [box.x + box.width, box.y + box.depth, box.z + box.height],
-        [box.x, box.y + box.depth, box.z + box.height]
+        [x, y, z],
+        [x + width, y, z],
+        [x + width, y + depth, z],
+        [x, y + depth, z],
+        [x, y, z + height],
+        [x + width, y, z + height],
+        [x + width, y + depth, z + height],
+        [x, y + depth, z + height]
       ];
-      const projected = corners.map(point => this.projectDiamond(point, projection));
-      return { floor: projected.slice(0, 4), roof: projected.slice(4) };
+      const projected = corners.map(point => (
+        projector ? projector(point, projection) : this.projectDiamond(point, projection)
+      ));
+      const xs = projected.map(point => point[0]);
+      const ys = projected.map(point => point[1]);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        floor: projected.slice(0, 4),
+        roof: projected.slice(4),
+        bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY }
+      };
     },
     unionBoxes3(boxes) {
       calls.unionBoxes3.push(plain(boxes));
@@ -74,6 +94,26 @@ function harness({ packedLayer = 0 } = {}) {
         maxX: Math.max(...boxes.map(box => box.x + box.width)),
         maxY: Math.max(...boxes.map(box => box.y + box.depth)),
         maxZ: Math.max(...boxes.map(box => box.z + box.height))
+      };
+    },
+    boxAlignmentOffset3(subjectBox, targetBox, alignment) {
+      calls.boxAlignmentOffset3.push({ subjectBox: plain(subjectBox), targetBox: plain(targetBox), alignment: plain(alignment) });
+      const normalize = box => {
+        const minX = Number(box.minX ?? box.x ?? 0);
+        const minY = Number(box.minY ?? box.y ?? 0);
+        const minZ = Number(box.minZ ?? box.z ?? 0);
+        const maxX = Number(box.maxX ?? (minX + Number(box.width || 0)));
+        const maxY = Number(box.maxY ?? (minY + Number(box.depth || 0)));
+        const maxZ = Number(box.maxZ ?? (minZ + Number(box.height || 0)));
+        return { minX, minY, minZ, maxX, maxY, maxZ, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2, centerZ: (minZ + maxZ) / 2 };
+      };
+      const subject = normalize(subjectBox);
+      const target = normalize(targetBox);
+      const anchor = (box, axis, mode) => box[`${mode === "center" ? "center" : mode}${axis}`];
+      return {
+        x: anchor(target, "X", alignment.x) - anchor(subject, "X", alignment.x),
+        y: anchor(target, "Y", alignment.y) - anchor(subject, "Y", alignment.y),
+        z: anchor(target, "Z", alignment.z) - anchor(subject, "Z", alignment.z)
       };
     },
     fitViewBox(points, options) {
@@ -139,7 +179,28 @@ function harness({ packedLayer = 0 } = {}) {
     },
     openContainerLayers(...args) {
       calls.openContainerLayers.push(plain(args));
-      return { base: "", rear: "", front: "", roof: "" };
+      return {
+        base: "",
+        rear: "",
+        front: "",
+        roof: "",
+        interior: { x: args[0] + 1, y: args[1] + 1, z: args[2] + 0.22, width: args[3] - 2, depth: args[4] - 2 }
+      };
+    },
+    iso(x, y, z = 0) {
+      return [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15];
+    },
+    orderDocumentGeometry(options) {
+      calls.orderDocumentGeometry.push(plain(options));
+      const x = Number(options?.x || 0);
+      const y = Number(options?.y || 0);
+      const z = Number(options?.z ?? (Number(options?.zHalfLayers || 0) * 0.36));
+      return {
+        x,
+        y,
+        z,
+        physicalBounds: { minX: x, minY: y, minZ: z, maxX: x + 6, maxY: y + 1, maxZ: z + 5.88 }
+      };
     },
     orderDocument(options) {
       calls.orderDocument.push(plain(options));
@@ -441,6 +502,16 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
     sequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
     groundPlate: { color: "green", widthStuds: 6, depthStuds: 6 }
   });
+  assert.deepEqual(calls.boxAlignmentOffset3, [{
+    subjectBox: { minX: 0, minY: 0, minZ: 0, maxX: 6, maxY: 1, maxZ: 5.88 },
+    targetBox: { x: 0, y: 0, z: 0.22, width: 6, depth: 6 },
+    alignment: { x: "center", y: "center", z: "min" }
+  }]);
+  assert.deepEqual(
+    { x: calls.orderDocument[0].x, y: calls.orderDocument[0].y, z: calls.orderDocument[0].z },
+    { x: 0, y: 2.5, z: 0.22 }
+  );
+  assert.equal(Object.hasOwn(calls.orderDocument[0], "view"), false);
   assert.equal((container.innerHTML.match(/class="iso-cargo-order-document\b/g) || []).length, 1);
   assert.equal((container.innerHTML.match(/data-lego-order-document/g) || []).length, 1);
   assert.match(container.innerHTML, /data-cargo-kind="order_information"/);
@@ -448,6 +519,13 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
   assert.match(container.innerHTML, /data-cargo-quantity="3"/);
   assert.match(container.innerHTML, /data-blok-id="logistics\.order-document"/);
   assert.match(container.innerHTML, /data-order-document-quantity="3"/);
+  assert.match(container.innerHTML, /data-container-alignment="center-center-min"/);
+  assert.match(container.innerHTML, /data-model-x="0"\s+data-model-y="2\.5"\s+data-model-z="0\.22"/);
+  const containerTransform = container.innerHTML.match(/class="iso-lego-box"[^>]*>\s*<g transform="([^"]+)"/s)?.[1];
+  const documentTransform = container.innerHTML.match(/class="iso-cargo-order-document[^>]*transform="([^"]+)"/s)?.[1];
+  assert.equal(documentTransform, containerTransform);
+  assert.match(container.innerHTML, /class="iso-cargo-hitbox"[^>]*width="[1-9]/);
+  assert.doesNotMatch(container.innerHTML, /iso-order-document-fallback|scale\(1\.15\)/);
   assert.doesNotMatch(container.innerHTML, /iso-cargo-tower(?:\s|"|-instance)/);
 });
 

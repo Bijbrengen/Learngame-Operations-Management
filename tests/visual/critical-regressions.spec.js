@@ -807,6 +807,19 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     );
     await expect(keyboardDocument).toHaveCount(1);
     await expect(keyboardDocument).toHaveAttribute("data-order-document-quantity", "1");
+    await expect(keyboardCargo).toHaveAttribute("data-container-alignment", "center-center-min");
+    await expect(keyboardCargo).toHaveAttribute("data-model-x", "0");
+    await expect(keyboardCargo).toHaveAttribute("data-model-y", "2.5");
+    await expect(keyboardCargo).toHaveAttribute("data-model-z", "0.22");
+    const keyboardPlacement = await keyboardCargo.evaluate(element => ({
+      cargoTransform: element.getAttribute("transform"),
+      containerTransform: element.closest(".iso-lego-box")?.querySelector(":scope > g:first-child")?.getAttribute("transform"),
+      hitboxWidth: Number(element.querySelector(".iso-cargo-hitbox")?.getAttribute("width")),
+      hitboxHeight: Number(element.querySelector(".iso-cargo-hitbox")?.getAttribute("height"))
+    }));
+    expect(keyboardPlacement.cargoTransform).toBe(keyboardPlacement.containerTransform);
+    expect(keyboardPlacement.hitboxWidth).toBeGreaterThan(0);
+    expect(keyboardPlacement.hitboxHeight).toBeGreaterThan(0);
     await expect(keyboard.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
     await keyboardCargo.focus();
     await page.keyboard.press("Enter");
