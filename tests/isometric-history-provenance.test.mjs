@@ -20,15 +20,17 @@ test("de historische isometrische Playwright-bron is exact en bereikbaar", () =>
   }
 });
 
-test("de vergelijking gebruikt een werkelijk gewijzigde renderer en leesbare actuele bronnen", () => {
+test("de vergelijking gebruikt een vaste geaccepteerde baseline en leesbare actuele bronnen", () => {
   const { sources: historical } = loadHistoricalSources();
   const current = loadCurrentSources(Object.keys(historical));
 
-  assert.notEqual(
-    sha256(current["isometric-logistics-view.js"]),
-    sha256(historical["isometric-logistics-view.js"]),
-    "De actuele renderer moet afwijken van de historische referentie; anders meet dit contract geen migratie."
-  );
+  assert.deepEqual(Object.keys(current).sort(), Object.keys(historical).sort());
+  for (const [name, source] of Object.entries(current)) {
+    assert.match(sha256(source), /^[0-9a-f]{64}$/u, name);
+    assert.ok(source.length > 0, name);
+  }
+  assert.ok(current["isometric-logistics-view.js"].includes("IsometricLogisticsView"));
+  assert.ok(current["material-cart-profile.js"].includes("LOMMaterialCartProfile"));
   assert.match(sha256(current["style.css"]), /^[0-9a-f]{64}$/u);
   assert.ok(current["style.css"].includes(".iso-logistics-view"));
 });

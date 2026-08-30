@@ -2,14 +2,11 @@
 
 const { createHash } = require("node:crypto");
 const { isDeepStrictEqual } = require("node:util");
-const fs = require("node:fs");
-const path = require("node:path");
 
 const { test, expect } = require("./fixtures");
 const {
   loadCurrentSources,
-  loadHistoricalSources,
-  REPOSITORY_ROOT
+  loadHistoricalSources
 } = require("./isometric-history-source.cjs");
 const {
   captureOutputFingerprint,
@@ -67,7 +64,7 @@ async function engineRuntime(page) {
   };
 }
 
-async function preparePage(page, sources, rendererSource, runtime, includeMaterialCartProfile) {
+async function preparePage(page, sources, rendererSource, runtime) {
   const errors = [];
   const onPageError = error => errors.push(String(error?.stack || error));
   page.on("pageerror", onPageError);
@@ -90,10 +87,8 @@ async function preparePage(page, sources, rendererSource, runtime, includeMateri
     await window.LeerpretSDK.Loader.create({ base: sdkBase, manifest })
       .load(["lego-renderer", "lego-cables", "lego-builder"]);
   }, { sdkBase: runtime.sdkBase, manifest: runtime.manifest });
-  if (includeMaterialCartProfile) {
-    await page.addScriptTag({
-      content: fs.readFileSync(path.join(REPOSITORY_ROOT, "material-cart-profile.js"), "utf8")
-    });
+  if (sources["material-cart-profile.js"]) {
+    await page.addScriptTag({ content: sources["material-cart-profile.js"] });
   }
   await page.addScriptTag({ content: rendererSource });
   await page.evaluate(() => {
@@ -389,8 +384,7 @@ test("historische en actuele isometrische logistiek blijven browserexact gelijk"
       page,
       historicalSources,
       historicalRenderer,
-      runtime,
-      false
+      runtime
     );
     const historicalCaptures = await runScenario(page, runtime, provenance);
     const historicalErrors = [...activePreparation.errors];
@@ -399,8 +393,7 @@ test("historische en actuele isometrische logistiek blijven browserexact gelijk"
       page,
       currentSources,
       currentRenderer,
-      runtime,
-      true
+      runtime
     );
     const currentCaptures = await runScenario(page, runtime, provenance);
     const currentErrors = [...activePreparation.errors];

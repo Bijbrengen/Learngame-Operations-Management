@@ -1,10 +1,10 @@
 # Isometrische historische pariteitspoort
 
 Deze poort vergelijkt de renderer uit Git-commit
-`fa770363ee70a2177b7364cf91b10ed0502156cb` rechtstreeks met de actuele
-werkboom. De historische JavaScript- en CSS-bronnen worden met `git show`
-gelezen en pas gebruikt nadat bytegrootte en SHA-256 overeenkomen met
-`isometric-history-provenance.json`. Er staat dus geen handmatig gekopieerde
+`440ee20ee3224eba3dba1cb70346a6af75374f55` rechtstreeks met de actuele
+werkboom. De historische renderer-, materiaalwagenprofiel- en CSS-bronnen
+worden met `git show` gelezen en pas gebruikt nadat bytegrootte en SHA-256
+overeenkomen met `isometric-history-provenance.json`. Er staat dus geen handmatig gekopieerde
 "oude" productcode in de testmap.
 
 Het scenario voert in twee door een volledige navigatie geïsoleerde
@@ -44,10 +44,16 @@ geometrie daarnaast exact gelijk moeten zijn, kan deze tolerantie geen
 positionele of stijlafwijking verhullen.
 
 Beide pagina's laden binnen een run exact hetzelfde actuele Engine-manifest.
-Dat is een bewuste isolatiegrens: deze poort bewijst dat de LOM-consumentmigratie
-de output niet verandert; hij vergelijkt geen oude Engine-deployment met een
-nieuwe. Manifestversie en -hash worden wel in de testruntime vastgelegd. Een
-aparte Engine-contracttest blijft nodig voor wijzigingen binnen de SDK zelf.
+Dat is een bewuste isolatiegrens: deze poort bewaakt de expliciet geaccepteerde
+LOM-output en bewijst bij volgende consumentmigraties dat die output niet
+verandert; hij vergelijkt geen oude Engine-deployment met een nieuwe.
+Manifestversie en -hash worden wel in de testruntime vastgelegd. Een aparte
+Engine-contracttest blijft nodig voor wijzigingen binnen de SDK zelf.
+
+Direct na een expliciet beoordeelde baselineverplaatsing mogen historische en
+actuele bronnen byte-identiek zijn. De poort blijft dan de geaccepteerde output
+vastleggen en wordt bij de eerstvolgende bronwijziging vanzelf weer een
+migratievergelijking; bronverschil kunstmatig afdwingen voegt geen zekerheid toe.
 
 Lokaal is een Engine op `http://127.0.0.1:47111/api` nodig, tenzij
 `LEERPRET_API_URL` is gezet. Uitvoeren:
@@ -58,6 +64,7 @@ npm run test:visual:history-parity
 ```
 
 Wijzig de baseline alleen na expliciete beoordeling van alle verwachte
-outputverschillen. Werk dan commit, hashes, scenario en contractversie samen
-bij. De CI-checkout gebruikt volledige Git-geschiedenis omdat een onbereikbare
-historische commit hard moet falen.
+outputverschillen. Werk dan commit en bronhashes samen bij; wijzig scenario- en
+contractversies alleen wanneer ook de handelingen of het fingerprintcontract
+veranderen. De CI-checkout gebruikt volledige Git-geschiedenis omdat een
+onbereikbare historische commit hard moet falen.
