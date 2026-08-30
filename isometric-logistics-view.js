@@ -915,7 +915,7 @@
     const labelWidth = title.length > 18 ? 230 : 194;
     const hideMetric = Boolean(department.hideMetric);
     return `
-      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selectedRenderState ? " is-selected" : ""}" data-department-id="${escapeHtml(department.id)}" aria-hidden="true">
+      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selectedRenderState ? " is-selected" : ""}" data-department-overlay-for="${escapeHtml(department.id)}" aria-hidden="true">
         <g class="iso-status-badge" transform="translate(${geometry.badge.x} ${geometry.badge.y})">
           <circle r="13"></circle>
           <text text-anchor="middle" dominant-baseline="central">${escapeHtml(badgeValue)}</text>

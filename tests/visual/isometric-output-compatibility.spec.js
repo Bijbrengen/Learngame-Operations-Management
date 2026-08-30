@@ -1,12 +1,21 @@
 const { createHash } = require("node:crypto");
 const { test, expect } = require("./fixtures");
 
+const EXPECTED_MARKUP_BY_SDK_VERSION = Object.freeze({
+  "5.31.0": "c405616a0a3c2e6fbee7cc78188b8c5dc8df347306e30388c7201b79a47ddba6"
+});
+
 test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup", async ({ page }) => {
   const sdkBase = process.env.LEERPRET_API_URL
     || (process.env.CI ? "https://api.leerpretpark.nl/api" : "http://127.0.0.1:47111/api");
   const manifestResponse = await page.request.get(`${sdkBase}/sdk/manifest.json`);
   expect(manifestResponse.ok()).toBe(true);
   const manifest = await manifestResponse.json();
+  const expectedMarkupDigest = EXPECTED_MARKUP_BY_SDK_VERSION[manifest.version];
+  expect(
+    expectedMarkupDigest,
+    `Geen beoordeelde isometrische outputfingerprint voor Engine SDK ${manifest.version}`
+  ).toBeTruthy();
 
   await page.goto("/style.css");
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -112,5 +121,8 @@ test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup
   await expect(page.locator(".iso-roof-symbol")).toHaveCount(0);
   const markup = await page.locator("#compatibility-scene").innerHTML();
   const digest = createHash("sha256").update(markup).digest("hex");
-  expect(digest).toBe("713b6666b5624579ef1194734744789d37ed51c9af9d443024e9d2aa7ce3d34a");
+  expect(
+    digest,
+    `Isometrische markup wijkt af voor Engine SDK ${manifest.version}`
+  ).toBe(expectedMarkupDigest);
 });

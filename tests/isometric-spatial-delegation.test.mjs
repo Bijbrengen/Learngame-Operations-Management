@@ -807,6 +807,8 @@ test("mount laat frame, viewport, afdelingsbox, achtergrond en voorraadgrid door
     defaultDepth: 3
   });
   assert.deepEqual(calls.openContainerLayers[0].slice(0, 5), [-2, -2, 0, 12, 14]);
+  assert.equal((container.innerHTML.match(/data-department-id="stock"/g) || []).length, 1);
+  assert.match(container.innerHTML, /class="iso-department-overlay[^>]*data-department-overlay-for="stock"/);
 
   view.mount(container, { departments: [], connections: [] }, {
     viewportProfile: { width: 1440, height: 960 }

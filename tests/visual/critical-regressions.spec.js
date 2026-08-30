@@ -1940,7 +1940,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       const zones = Array.from(svg.querySelectorAll(".iso-department-layer > .iso-department"));
       const overlays = Array.from(svg.querySelectorAll(".iso-overlay-layer > .iso-department-overlay"));
       const labelsById = new Map(overlays.map(overlay => [
-        overlay.dataset.departmentId,
+        overlay.dataset.departmentOverlayFor,
         overlay.querySelector(".iso-zone-label")
       ]));
       if (!(scale > 0) || zones.length !== labelsById.size) throw new Error("Afdelingslabels missen hun gebouw");
