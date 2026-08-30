@@ -507,12 +507,18 @@
         this.digitalTransferSelected = !this.digitalTransferSelected;
         const task = this.engine.playerTask();
         const quantity = Number(task?.order?.quantity || 1);
-        const materialCart = task?.role?.id === "srm";
+        const cargoKind = this.batchTransferDescriptor(task)?.cargoKind;
+        const orderInformation = cargoKind === "order_information";
+        const materialCart = cargoKind === "material_kits";
         this.feedback = this.digitalTransferSelected
-          ? materialCart
-            ? `De materiaalwagen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de productieafdeling.`
-            : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de volgende afdeling.`
-          : "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
+          ? orderInformation
+            ? `Het bestelformulier voor order ${task?.order?.id || ""} is opgepakt. Plaats het bij de volgende afdeling.`
+            : materialCart
+              ? `De materiaalwagen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de productieafdeling.`
+              : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is opgepakt. Plaats hem bij de volgende afdeling.`
+          : orderInformation
+            ? "Het bestelformulier is teruggezet. Sleep het naar de volgende afdeling om de order door te geven."
+            : "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
         this.render();
         if (this.digitalTransferSelected) {
           requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-dropzone]")?.focus());
@@ -523,7 +529,10 @@
       const transferDestination = eventTargetClosest(event, "[data-sim-transfer-dropzone]");
       if (transferDestination && !transferDestination.disabled) {
         if (!this.digitalTransferSelected) {
-          this.feedback = "Pak eerst de complete batch op of sleep hem rechtstreeks naar deze afdeling.";
+          const task = this.engine.playerTask();
+          this.feedback = this.batchTransferDescriptor(task)?.cargoKind === "order_information"
+            ? "Pak eerst het bestelformulier op of sleep het rechtstreeks naar deze afdeling."
+            : "Pak eerst de complete batch op of sleep hem rechtstreeks naar deze afdeling.";
           this.render();
           return;
         }
@@ -715,7 +724,10 @@
       if (dragged && target) {
         void this.completeDigitalTransfer("touch");
       } else if (dragged && deliver) {
-        this.feedback = "Zet de complete batch neer in het gemarkeerde vak van de volgende afdeling.";
+        const task = this.engine.playerTask();
+        this.feedback = this.batchTransferDescriptor(task)?.cargoKind === "order_information"
+          ? "Zet het bestelformulier neer in het gemarkeerde vak van de volgende afdeling."
+          : "Zet de complete batch neer in het gemarkeerde vak van de volgende afdeling.";
         this.render();
       } else if (needsRender) {
         this.render();
@@ -739,7 +751,10 @@
       if (event.key === "Escape" && this.digitalTransferSelected) {
         event.preventDefault();
         this.digitalTransferSelected = false;
-        this.feedback = "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
+        const task = this.engine.playerTask();
+        this.feedback = this.batchTransferDescriptor(task)?.cargoKind === "order_information"
+          ? "Het bestelformulier is teruggezet. Sleep het naar de volgende afdeling om de order door te geven."
+          : "De batch is teruggezet. Sleep hem naar de volgende afdeling om af te leveren.";
         this.render();
         requestAnimationFrame(() => this.mount.querySelector("[data-sim-transfer-cargo]")?.focus());
         return;
@@ -804,11 +819,15 @@
     async completeDigitalTransfer(method = "drag") {
       const task = this.engine.playerTask();
       if (!task || this.transferred || this.remoteActionPending) return false;
+      const cargoKind = this.batchTransferDescriptor(task)?.cargoKind;
+      const orderInformation = cargoKind === "order_information";
       if (!this.partsComplete(task) || !this.signed) {
         this.feedback = !this.partsComplete(task)
-          ? task.role.id === "srm"
-            ? "Leg eerst alle losse grondstoffen voor deze order in de materiaalwagen."
-            : "Maak eerst alle torens van deze order af."
+          ? orderInformation
+            ? "Controleer eerst de volledige klantorder."
+            : task.role.id === "srm"
+              ? "Leg eerst alle losse grondstoffen voor deze order in de materiaalwagen."
+              : "Maak eerst alle torens van deze order af."
           : "Zet eerst één paraaf voor de volledige order.";
         this.render();
         return false;
@@ -817,16 +836,22 @@
       this.digitalTransferSelected = false;
       const keyboardMethod = method.includes("keyboard");
       this.feedback = keyboardMethod
-        ? "De complete batch wordt bij de volgende afdeling neergezet…"
-        : "De complete batch wordt naar de volgende afdeling verplaatst…";
+        ? orderInformation
+          ? "Het bestelformulier wordt bij de volgende afdeling neergezet…"
+          : "De complete batch wordt bij de volgende afdeling neergezet…"
+        : orderInformation
+          ? "Het bestelformulier wordt naar de volgende afdeling verplaatst…"
+          : "De complete batch wordt naar de volgende afdeling verplaatst…";
       this.render();
       if (keyboardMethod) this.focusTransferStatus();
       const quantity = Number(task.order.quantity || 1);
       const result = await this.submitPlayerAction(
         this.digitalCompletionPayload(task),
-        task.role.id === "srm"
-          ? `De materiaalwagen met losse grondstoffen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
-          : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
+        orderInformation
+          ? `Het bestelformulier voor order ${task.order.id} is afgeleverd.`
+          : task.role.id === "srm"
+            ? `De materiaalwagen met losse grondstoffen voor ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
+            : `De complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} is afgeleverd.`
       );
       if (result?.ok === false) {
         this.transferred = false;
@@ -1965,12 +1990,20 @@
 
     digitalCargoVisualMarkup(task) {
       const quantity = Math.max(1, Number(task.order.quantity || 1));
+      const cargoKind = this.batchTransferDescriptor(task)?.cargoKind;
+      if (cargoKind === "order_information") {
+        return `
+          <span class="sim-transfer-cargo-visual" data-sim-cargo-kind="order_information" aria-hidden="true">
+            <span class="sim-transfer-order-document"><i>×${quantity}</i></span>
+          </span>
+        `;
+      }
       const visibleItems = Math.min(4, quantity);
       const colors = Array.isArray(task.product?.colors) && task.product.colors.length
         ? task.product.colors
         : ["yellow", "red", "white"];
       const items = Array.from({ length: visibleItems }, (_, index) => {
-        if (task.role.id === "srm") {
+        if (cargoKind === "material_kits") {
           return `<span class="sim-transfer-kit" style="--sim-cargo-index:${index}"><i></i><i></i><i></i></span>`;
         }
         return `
@@ -1982,7 +2015,7 @@
         `;
       }).join("");
       return `
-        <span class="sim-transfer-cargo-visual" aria-hidden="true">
+        <span class="sim-transfer-cargo-visual" data-sim-cargo-kind="${escapeHtml(cargoKind || "tower_batch")}" aria-hidden="true">
           ${items}
           ${quantity > visibleItems ? `<b>+${quantity - visibleItems}</b>` : ""}
         </span>
@@ -1993,7 +2026,8 @@
       const quantity = Number(task.order.quantity || 1);
       const transfer = this.batchTransferDescriptor(task);
       const selected = Boolean(this.digitalTransferSelected);
-      const materialCart = task.role.id === "srm";
+      const orderInformation = transfer?.cargoKind === "order_information";
+      const materialCart = transfer?.cargoKind === "material_kits";
       const instructionId = this.transferInstructionId || "simTransferInstruction";
       if (this.renderProcessFlow) {
         return `
@@ -2005,12 +2039,16 @@
                  data-sim-transfer-target="${escapeHtml(transfer?.targetRoleId || "customer")}"></div>
             <p id="${instructionId}" class="sim-transfer-instruction" aria-live="polite">
               ${batchReady
-                ? materialCart
-                  ? `Pak de materiaalwagen met alle losse onderdelen op en zet hem neer in ${escapeHtml(task.role.form.transferLabel)}.`
-                  : `Pak de ${quantity === 1 ? "toren" : `${quantity} torens`} in ${escapeHtml(task.role.department)} op en zet de complete batch neer in ${escapeHtml(task.role.form.transferLabel)}.`
-                : materialCart
-                  ? "Leg alle losse grondstoffen in de materiaalwagen en parafeer de order; daarna kun je de wagen verslepen."
-                  : "Bouw en parafeer eerst de volledige order; daarna kun je de torens in de isometrische kaart verslepen."}
+                ? orderInformation
+                  ? `Pak het bestelformulier voor order ${escapeHtml(task.order.id)} op en zet het neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                  : materialCart
+                    ? `Pak de materiaalwagen met alle losse onderdelen op en zet hem neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                    : `Pak de ${quantity === 1 ? "toren" : `${quantity} torens`} in ${escapeHtml(task.role.department)} op en zet de complete batch neer in ${escapeHtml(task.role.form.transferLabel)}.`
+                : orderInformation
+                  ? "Controleer en parafeer eerst de klantorder; daarna kun je het bestelformulier verslepen."
+                  : materialCart
+                    ? "Leg alle losse grondstoffen in de materiaalwagen en parafeer de order; daarna kun je de wagen verslepen."
+                    : "Bouw en parafeer eerst de volledige order; daarna kun je de torens in de isometrische kaart verslepen."}
             </p>
           </div>
         `;
@@ -2024,14 +2062,18 @@
                   draggable="${batchReady ? "true" : "false"}"
                   aria-pressed="${selected ? "true" : "false"}"
                   aria-describedby="${instructionId}"
-                  aria-label="${materialCart
-                    ? `Sleep de materiaalwagen met losse grondstoffen naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`
-                    : `Sleep de complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`}"
+                  aria-label="${orderInformation
+                    ? `Sleep het bestelformulier voor order ${escapeHtml(task.order.id)} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`
+                    : materialCart
+                      ? `Sleep de materiaalwagen met losse grondstoffen naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`
+                      : `Sleep de complete batch met ${quantity} ${quantity === 1 ? "toren" : "torens"} naar de volgende afdeling: ${escapeHtml(task.role.form.transferLabel)}`}"
                   ${batchReady ? "" : "disabled"}>
             ${this.digitalCargoVisualMarkup(task)}
-            <strong>${task.role.id === "srm"
-              ? `Materiaalwagen voor ${quantity}× ${escapeHtml(task.product.name)}`
-              : `${quantity}× ${escapeHtml(task.product.name)}`}</strong>
+            <strong>${orderInformation
+              ? `Bestelformulier ${escapeHtml(task.order.id)} · ${quantity}× ${escapeHtml(task.product.name)}`
+              : materialCart
+                ? `Materiaalwagen voor ${quantity}× ${escapeHtml(task.product.name)}`
+                : `${quantity}× ${escapeHtml(task.product.name)}`}</strong>
           </button>
           <span aria-hidden="true">⇢</span>
           <button type="button"
@@ -2039,19 +2081,25 @@
                data-sim-transfer-dropzone
                data-sim-transfer-target="${escapeHtml(transfer?.targetRoleId || "customer")}"
                aria-describedby="${instructionId}"
-               aria-label="Zet de complete batch neer: ${escapeHtml(task.role.form.transferLabel)}"
+               aria-label="${orderInformation ? "Zet het bestelformulier neer" : "Zet de complete batch neer"}: ${escapeHtml(task.role.form.transferLabel)}"
                ${batchReady ? "" : "disabled"}>
             <span aria-hidden="true">⌂</span>
             <strong>${escapeHtml(task.role.form.transferLabel)}</strong>
           </button>
           <p id="${instructionId}" class="sim-transfer-instruction" aria-live="polite">
             ${selected
-              ? "Batch opgepakt. Activeer het doelvak om hem neer te zetten, of druk Escape om te annuleren."
+              ? orderInformation
+                ? "Bestelformulier opgepakt. Activeer het doelvak om het neer te zetten, of druk Escape om te annuleren."
+                : "Batch opgepakt. Activeer het doelvak om hem neer te zetten, of druk Escape om te annuleren."
               : batchReady
-                ? "Sleep de complete batch naar het doelvak. Met het toetsenbord: activeer eerst de batch en daarna het doelvak."
-                : materialCart
-                  ? "Vul en parafeer eerst de materiaalwagen; daarna wordt de wagen verplaatsbaar."
-                  : "Bouw en parafeer eerst de volledige order; daarna wordt de complete batch verplaatsbaar."}
+                ? orderInformation
+                  ? "Sleep het bestelformulier naar het doelvak. Met het toetsenbord: activeer eerst het formulier en daarna het doelvak."
+                  : "Sleep de complete batch naar het doelvak. Met het toetsenbord: activeer eerst de batch en daarna het doelvak."
+                : orderInformation
+                  ? "Controleer en parafeer eerst de klantorder; daarna wordt het bestelformulier verplaatsbaar."
+                  : materialCart
+                    ? "Vul en parafeer eerst de materiaalwagen; daarna wordt de wagen verplaatsbaar."
+                    : "Bouw en parafeer eerst de volledige order; daarna wordt de complete batch verplaatsbaar."}
           </p>
         </div>
       `;
@@ -2081,6 +2129,7 @@
       const partEntries = Object.entries(task.requiredParts || {});
       const partsComplete = this.partsComplete(task);
       const batchReady = partsComplete && this.signed;
+      const orderInformation = this.batchTransferDescriptor(task)?.cargoKind === "order_information";
       const partActionTitle = task.role.id === "srm"
         ? "1. Haal losse onderdelen uit het magazijn en leg ze in de materiaalwagen"
         : partEntries.length
@@ -2098,9 +2147,11 @@
               <summary aria-label="Help bij deze handeling">i</summary>
               <div>
                 <strong>Hulp</strong>
-                <p>${task.role.id === "srm"
-                  ? "Leg de juiste losse LEGO-onderdelen vanuit de magazijnstelling in de materiaalwagen. Parafeer daarna de wagen en lever hem als één materiaalbatch af bij Productie."
-                  : "Sleep de juiste blokken vanuit de materiaalbak naar de toren. Sleep daarna de complete torenbatch naar de volgende afdeling."}</p>
+                <p>${orderInformation
+                  ? "Controleer de klantorder en parafeer de vrijgave. Geef daarna hetzelfde bestelformulier door aan de volgende afdeling; de toren op het formulier is alleen het bestelde product."
+                  : task.role.id === "srm"
+                    ? "Leg de juiste losse LEGO-onderdelen vanuit de magazijnstelling in de materiaalwagen. Parafeer daarna de wagen en lever hem als één materiaalbatch af bij Productie."
+                    : "Sleep de juiste blokken vanuit de materiaalbak naar de toren. Sleep daarna de complete torenbatch naar de volgende afdeling."}</p>
               </div>
             </details>
           </header>
@@ -2116,13 +2167,15 @@
             <section class="sim-action-section sim-digital-transfer-section" aria-label="Virtuele logistieke overdracht">
               <h3>${task.role.id === "srm"
                 ? "3. Lever de complete materiaalwagen af"
-                : `3. Lever alle ${Number(task.order.quantity || 1)} torens tegelijk af`}</h3>
+                : orderInformation
+                  ? "3. Geef het bestelformulier door"
+                  : `3. Lever alle ${Number(task.order.quantity || 1)} torens tegelijk af`}</h3>
               ${this.digitalTransportMarkup(task, batchReady)}
             </section>
           `}
           ${this.transferred ? `
             <section class="sim-action-section" data-sim-transfer-pending role="status" aria-live="polite" tabindex="-1">
-              <h3>3. Batch afgeleverd</h3>
+              <h3>${orderInformation ? "3. Bestelformulier doorgegeven" : "3. Batch afgeleverd"}</h3>
               ${this.digitalFormSummaryMarkup(task)}
               <div class="sim-digital-check is-complete">
                 <span aria-hidden="true">✓</span>

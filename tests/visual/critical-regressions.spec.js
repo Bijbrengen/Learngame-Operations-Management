@@ -736,7 +736,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("6b. complete batches van één of meer torens werken met toetsenbord en touch", async ({ page }, testInfo) => {
+  test("6b. bestelformulieren voor complete orders werken met toetsenbord en touch", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
     await page.goto("/");
     await page.waitForFunction(() => (
@@ -797,8 +797,17 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
 
     const keyboard = page.locator("#keyboard-batch");
-    const keyboardCargo = keyboard.locator('.iso-cargo-tower[data-cargo-id="ORD-001"]');
+    const keyboardCargo = keyboard.locator('.iso-cargo-order-document[data-cargo-id="ORD-001"]');
     const keyboardDestination = keyboard.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
+    await expect(keyboardCargo).toHaveCount(1);
+    await expect(keyboardCargo).toHaveAttribute("data-cargo-kind", "order_information");
+    await expect(keyboardCargo).toHaveAttribute("data-cargo-quantity", "1");
+    const keyboardDocument = keyboardCargo.locator(
+      '[data-lego-order-document][data-blok-id="logistics.order-document"]'
+    );
+    await expect(keyboardDocument).toHaveCount(1);
+    await expect(keyboardDocument).toHaveAttribute("data-order-document-quantity", "1");
+    await expect(keyboard.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
     await keyboardCargo.focus();
     await page.keyboard.press("Enter");
     await expect(keyboardDestination).toBeFocused();
@@ -832,8 +841,17 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     // Playwright scrolls the destination into view.
     await keyboard.evaluate(element => element.remove());
     const touch = page.locator("#touch-batch");
-    const touchCargo = touch.locator('.iso-cargo-tower[data-cargo-id="ORD-001"]');
+    const touchCargo = touch.locator('.iso-cargo-order-document[data-cargo-id="ORD-001"]');
     const touchDestination = touch.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
+    await expect(touchCargo).toHaveCount(1);
+    await expect(touchCargo).toHaveAttribute("data-cargo-kind", "order_information");
+    await expect(touchCargo).toHaveAttribute("data-cargo-quantity", "2");
+    const touchDocument = touchCargo.locator(
+      '[data-lego-order-document][data-blok-id="logistics.order-document"]'
+    );
+    await expect(touchDocument).toHaveCount(1);
+    await expect(touchDocument).toHaveAttribute("data-order-document-quantity", "2");
+    await expect(touch.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
     await touch.scrollIntoViewIfNeeded();
     await touchDestination.scrollIntoViewIfNeeded();
     await dispatchTouchDrag(page, touchCargo, touchDestination, { cancel: true });
@@ -870,6 +888,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       quantity: 2,
       sourceRoleId: "operations",
       targetRoleId: "srm",
+      cargoKind: "order_information",
       atomicTransfer: true
     });
   });

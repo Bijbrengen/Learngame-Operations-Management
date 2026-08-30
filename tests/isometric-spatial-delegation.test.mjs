@@ -27,6 +27,7 @@ function harness({ packedLayer = 0 } = {}) {
     builderBoardProfile: [],
     physicalLayer: [],
     brick: [],
+    orderDocument: [],
     openContainerLayers: [],
     isometricPaintOrder: []
   };
@@ -139,6 +140,14 @@ function harness({ packedLayer = 0 } = {}) {
     openContainerLayers(...args) {
       calls.openContainerLayers.push(plain(args));
       return { base: "", rear: "", front: "", roof: "" };
+    },
+    orderDocument(options) {
+      calls.orderDocument.push(plain(options));
+      const quantity = Math.max(1, Math.floor(Number(options?.order?.quantity) || 1));
+      return `<g data-lego-order-document
+                 data-blok-id="logistics.order-document"
+                 data-order-document-id="${options?.order?.id || "ORDER"}"
+                 data-order-document-quantity="${quantity}"></g>`;
     }
   };
   const builder = {
@@ -371,6 +380,75 @@ test("torencargo gebruikt grondplaatafmetingen uit het scenecontract", () => {
   assert.match(source, /spatial\(\)\.positiveGridInteger\(cargo\.groundPlateDepth, 6\)/);
   assert.doesNotMatch(source, /Number\(cargo\.groundPlate(?:Width|Depth) \|\| 6\)/);
   assert.doesNotMatch(source, /LegoTowerRenderer\.plate\(\s*0,\s*0,\s*0,\s*6,\s*6,/s);
+});
+
+test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen torenbatch", () => {
+  const { calls, view } = harness();
+  const container = {
+    clientWidth: 800,
+    clientHeight: 600,
+    innerHTML: "",
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    contains: () => true
+  };
+
+  view.mount(container, {
+    title: "Orderoverdracht",
+    connections: [],
+    departments: [{
+      id: "operations",
+      title: "Operations",
+      departmentColor: "operations",
+      status: "active",
+      openRoof: true,
+      layout: { x: 1, y: 2, width: 4.2, depth: 3.8, height: 78 },
+      cargoVisual: {
+        kind: "order_document",
+        cargoKind: "order_information",
+        cargoId: "ORD-009",
+        productId: "B",
+        quantity: 3,
+        draggable: true,
+        order: {
+          id: "ORD-009",
+          customerLabel: "Klant 9",
+          productId: "B",
+          productLabel: "Toren B",
+          quantity: 3,
+          deliveryLabel: "nog 20:00"
+        },
+        preview: {
+          kind: "tower",
+          sequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
+          groundPlate: { color: "green", widthStuds: 6, depthStuds: 6 }
+        }
+      }
+    }]
+  }, {});
+
+  assert.equal(calls.orderDocument.length, 1);
+  assert.deepEqual(calls.orderDocument[0].order, {
+    id: "ORD-009",
+    customerLabel: "Klant 9",
+    productId: "B",
+    productLabel: "Toren B",
+    quantity: 3,
+    deliveryLabel: "nog 20:00"
+  });
+  assert.deepEqual(calls.orderDocument[0].preview, {
+    kind: "tower",
+    sequence: ["blue_8", "blue_8", "yellow_4", "green_4"],
+    groundPlate: { color: "green", widthStuds: 6, depthStuds: 6 }
+  });
+  assert.equal((container.innerHTML.match(/class="iso-cargo-order-document\b/g) || []).length, 1);
+  assert.equal((container.innerHTML.match(/data-lego-order-document/g) || []).length, 1);
+  assert.match(container.innerHTML, /data-cargo-kind="order_information"/);
+  assert.match(container.innerHTML, /data-cargo-id="ORD-009"/);
+  assert.match(container.innerHTML, /data-cargo-quantity="3"/);
+  assert.match(container.innerHTML, /data-blok-id="logistics\.order-document"/);
+  assert.match(container.innerHTML, /data-order-document-quantity="3"/);
+  assert.doesNotMatch(container.innerHTML, /iso-cargo-tower(?:\s|"|-instance)/);
 });
 
 test("afdelings- en containermaten zijn pure configureerbare profielen", () => {

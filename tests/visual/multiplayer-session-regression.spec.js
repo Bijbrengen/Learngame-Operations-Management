@@ -2562,7 +2562,7 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
         controller.render();
       });
       const transferMap = alice.page.locator(".sim-isometric-transfer-map");
-      const cargo = transferMap.locator(`.iso-cargo-tower[data-cargo-id="${prepared.orderId}"]`);
+      const cargo = transferMap.locator(`.iso-cargo-order-document[data-cargo-id="${prepared.orderId}"]`);
       const destination = transferMap.locator('[data-department-id="srm"][data-accepts-drag-kind="cargo"]');
       await expect(transferMap).toBeVisible();
       const transferDiagnostic = await alice.page.evaluate(() => {
@@ -2579,8 +2579,14 @@ test.describe("LOM multiplayer met echte, geïsoleerde browsers", () => {
       });
       expect(await cargo.count(), JSON.stringify(transferDiagnostic)).toBe(1);
       await expect(cargo).toHaveClass(/is-draggable/);
+      await expect(cargo).toHaveAttribute("data-cargo-kind", "order_information");
       await expect(cargo).toHaveAttribute("data-cargo-quantity", "3");
-      await expect(cargo.locator(".iso-cargo-tower-instance")).toHaveCount(3);
+      const orderDocument = cargo.locator(
+        '[data-lego-order-document][data-blok-id="logistics.order-document"]'
+      );
+      await expect(orderDocument).toHaveCount(1);
+      await expect(orderDocument).toHaveAttribute("data-order-document-quantity", "3");
+      await expect(transferMap.locator(".iso-cargo-tower,.iso-cargo-tower-instance")).toHaveCount(0);
       await expect(destination).toHaveAttribute("data-department-id", "srm");
 
       const resultBarrier = backend.armCommandResultBarrier();

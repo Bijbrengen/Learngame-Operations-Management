@@ -3246,6 +3246,13 @@
     });
   }
 
+  function simulationOrderDeliveryLabel(order) {
+    const dueAt = Number(order?.dueAt);
+    if (!Number.isFinite(dueAt)) return "Te plannen";
+    const remainingMinutes = Math.max(0, Math.ceil((dueAt - Date.now()) / 60000));
+    return remainingMinutes > 0 ? `Nog ${remainingMinutes} min` : "Nu leveren";
+  }
+
   function standaloneLogisticsScene(snapshot, transferContext = null) {
     const orderById = new Map(snapshot.orders.map(order => [order.id, order]));
     const activeTransfer = transferContext?.mode === "player-transfer"
@@ -3300,14 +3307,20 @@
         isTransferSource
         && activeTransfer.cargoKind === "material_kits"
       );
-      const cargoSequence = !isMaterialCart && partialSequence.length
+      const isOrderDocument = Boolean(
+        isTransferSource
+        && activeTransfer.cargoKind === "order_information"
+      );
+      const cargoSequence = isOrderDocument
+        ? [...(activeProduct?.towerSequence || [])]
+        : !isMaterialCart && partialSequence.length
         ? partialSequence
         : !isMaterialCart && isTransferSource
           ? [...(activeProduct?.towerSequence || [])]
           : [];
       const showCargo = Boolean(
         activeProduct
-        && (isMaterialCart || cargoSequence.length)
+        && (isOrderDocument || isMaterialCart || cargoSequence.length)
         && (["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId) || isTransferSource)
       );
       return {
@@ -3316,9 +3329,11 @@
         acceptsCargoDrop: isTransferTarget,
         dropLabel: isTransferTarget ? "ZET HIER NEER" : undefined,
         dropAriaLabel: isTransferTarget
-          ? activeTransfer.cargoKind === "material_kits"
-            ? `Zet de materiaalwagen met losse onderdelen voor ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
-            : `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
+          ? activeTransfer.cargoKind === "order_information"
+            ? `Zet het bestelformulier voor order ${activeTransfer.orderId} neer in ${definition.title}`
+            : activeTransfer.cargoKind === "material_kits"
+              ? `Zet de materiaalwagen met losse onderdelen voor ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
+              : `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
           : undefined,
         emptyLabel: isTransferTarget ? "ontvangstvak" : definition.emptyLabel,
         status: simulationDepartmentStatus(runtime),
@@ -3334,13 +3349,32 @@
           ? simulationStockVisuals(snapshot, activeOrder)
           : [],
         cargoVisual: showCargo ? {
-          kind: isMaterialCart ? "material_cart" : "tower",
+          kind: isOrderDocument ? "order_document" : isMaterialCart ? "material_cart" : "tower",
           cargoKind: activeTransfer?.cargoKind || "tower_batch",
           cargoId: activeOrder.id,
           productId: activeOrder.productId,
-          label: isMaterialCart
-            ? `Materiaalwagen voor ${activeOrder.productName} · ${activeOrder.id}`
-            : `${activeOrder.productName} · ${activeOrder.id}`,
+          label: isOrderDocument
+            ? `Bestelformulier ${activeOrder.id}`
+            : isMaterialCart
+              ? `Materiaalwagen voor ${activeOrder.productName} · ${activeOrder.id}`
+              : `${activeOrder.productName} · ${activeOrder.id}`,
+          order: isOrderDocument ? {
+            id: activeOrder.id,
+            customerLabel: activeOrder.customer || "Klant",
+            productId: activeOrder.productId,
+            productLabel: activeOrder.productName || activeProduct?.name || `Toren ${activeOrder.productId}`,
+            quantity: Number(activeOrder.quantity || 1),
+            deliveryLabel: simulationOrderDeliveryLabel(activeOrder)
+          } : null,
+          preview: isOrderDocument ? {
+            kind: "tower",
+            sequence: [...(activeProduct?.towerSequence || [])],
+            groundPlate: {
+              color: activeProduct?.groundPlate?.color || "green",
+              widthStuds: spatialProductCore().positiveGridInteger(activeProduct?.groundPlate?.width, 6),
+              depthStuds: spatialProductCore().positiveGridInteger(activeProduct?.groundPlate?.depth, 6)
+            }
+          } : null,
           towerSequence: cargoSequence,
           parts: isMaterialCart
             ? simulationMaterialCartParts(
@@ -3415,7 +3449,7 @@
       ? [{
           from: activeTransfer.sourceRoleId,
           to: activeTransfer.targetRoleId,
-          kind: "material",
+          kind: activeTransfer.cargoKind === "order_information" ? "customer" : "material",
           highlight: true
         }]
       : configuredConnections).map(connection => {
@@ -3431,9 +3465,11 @@
     });
     return {
       title: activeTransfer
-        ? activeTransfer.cargoKind === "material_kits"
-          ? `Materiaalwagen voor ${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
-          : `${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
+        ? activeTransfer.cargoKind === "order_information"
+          ? `Bestelformulier ${activeTransfer.orderId} · sleep naar de volgende afdeling`
+          : activeTransfer.cargoKind === "material_kits"
+            ? `Materiaalwagen voor ${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
+            : `${activeTransfer.quantity}× ${orderById.get(activeTransfer.orderId)?.productName || "toren"} · sleep naar de volgende afdeling`
         : parallelEnabled && sequentialEnabled
         ? "Live simulatie · Hybride productiestroom"
         : parallelEnabled
@@ -8211,7 +8247,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v261-spatial-convergence").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v262-order-document").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

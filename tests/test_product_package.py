@@ -140,21 +140,21 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260828.3"', html)
+        self.assertIn('href="style.css?v=20260830.1"', html)
         self.assertIn('"logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
-        self.assertIn('"logistics-game-ui.js?v=20260828.4"', html)
+        self.assertIn('"logistics-game-ui.js?v=20260830.1"', html)
         self.assertIn('src="multiplayer-runtime.js?v=20260828.2"', html)
         self.assertIn('src="game-configuration-store.js?v=20260827.1"', html)
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260828.5"', html)
-        self.assertIn('"script.js?v=20260829.2"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260830.1"', html)
+        self.assertIn('"script.js?v=20260830.1"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
-        self.assertIn('CACHE_VERSION = "learngame-om-v261-spatial-convergence"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v262-order-document"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v261-spatial-convergence")',
+            'register("service-worker.js?v=learngame-om-v262-order-document")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -688,12 +688,141 @@ process.stdout.write(JSON.stringify({
         self.assertEqual(4, rendered["largeInstances"])
         self.assertTrue(rendered["largeOverflow"])
 
+    def test_operations_order_information_renders_as_one_canonical_order_document(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        self.assertIn('activeTransfer.cargoKind === "order_information"', game)
+        self.assertIn('"order_document"', game)
+        self.assertIn("orderDocumentCargoMarkup", renderer)
+        self.assertIn("renderer.orderDocument", renderer)
+
+        node_program = r'''
+const fs = require("fs");
+const vm = require("vm");
+global.window = global;
+''' + SPATIAL_SDK_STUB_FOR_NODE + r'''
+const orderDocumentCalls = [];
+window.LegoTowerRenderer = {
+  definitions: () => "",
+  isometricPaintOrder: solids => solids.map((_solid, index) => index),
+  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" }),
+  orderDocumentModel: {
+    blokId: "logistics.order-document",
+    blokFile: "logistics/bestelformulier.blok",
+    renderPreset: "logistics-order-document.mirrored"
+  },
+  orderDocument: options => {
+    orderDocumentCalls.push(options);
+    return `<g data-lego-order-document
+               data-blok-id="logistics.order-document"
+               data-order-document-id="${options.order.id}"
+               data-order-document-quantity="${options.order.quantity}"></g>`;
+  }
+};
+vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
+const container = {
+  clientWidth: 800,
+  clientHeight: 600,
+  innerHTML: "",
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  contains: () => true
+};
+window.IsometricLogisticsView.mount(container, {
+  title: "Orderoverdracht",
+  connections: [],
+  departments: [{
+    id: "operations",
+    title: "Operations",
+    departmentColor: "operations",
+    status: "active",
+    openRoof: true,
+    layout: { x: 1, y: 2, width: 4.2, depth: 3.8, height: 78 },
+    cargoVisual: {
+      kind: "order_document",
+      cargoKind: "order_information",
+      cargoId: "ORD-DOC-001",
+      productId: "C",
+      quantity: 4,
+      draggable: true,
+      order: {
+        id: "ORD-DOC-001",
+        customerLabel: "Klant 4",
+        productId: "C",
+        productLabel: "Toren C",
+        quantity: 4,
+        deliveryLabel: "nog 12:00"
+      },
+      preview: {
+        kind: "tower",
+        sequence: ["white_8", "white_8", "blue_4", "red_4"],
+        groundPlate: { color: "green", widthStuds: 6, depthStuds: 6 }
+      }
+    }
+  }]
+}, {});
+process.stdout.write(JSON.stringify({
+  documents: (container.innerHTML.match(/class="iso-cargo-order-document\b/g) || []).length,
+  towers: (container.innerHTML.match(/class="iso-cargo-tower(?:\s|")/g) || []).length,
+  towerInstances: (container.innerHTML.match(/iso-cargo-tower-instance/g) || []).length,
+  enginePrimitive: (container.innerHTML.match(/data-lego-order-document/g) || []).length,
+  canonicalBlok: /data-blok-id="logistics\.order-document"/.test(container.innerHTML),
+  cargoKind: /data-cargo-kind="order_information"/.test(container.innerHTML),
+  cargoQuantity: /data-cargo-quantity="4"/.test(container.innerHTML),
+  documentQuantity: /data-order-document-quantity="4"/.test(container.innerHTML),
+  primitiveCalls: orderDocumentCalls.length,
+  primitiveOptions: orderDocumentCalls[0] && {
+    order: orderDocumentCalls[0].order,
+    preview: orderDocumentCalls[0].preview
+  }
+}));
+'''
+        result = subprocess.run(
+            ["node", "-e", node_program],
+            cwd=PRODUCT_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rendered = json.loads(result.stdout)
+        self.assertEqual(1, rendered["documents"])
+        self.assertEqual(0, rendered["towers"])
+        self.assertEqual(0, rendered["towerInstances"])
+        self.assertEqual(1, rendered["enginePrimitive"])
+        self.assertTrue(rendered["canonicalBlok"])
+        self.assertTrue(rendered["cargoKind"])
+        self.assertTrue(rendered["cargoQuantity"])
+        self.assertTrue(rendered["documentQuantity"])
+        self.assertEqual(1, rendered["primitiveCalls"])
+        self.assertEqual(
+            {
+                "id": "ORD-DOC-001",
+                "customerLabel": "Klant 4",
+                "productId": "C",
+                "productLabel": "Toren C",
+                "quantity": 4,
+                "deliveryLabel": "nog 12:00",
+            },
+            rendered["primitiveOptions"]["order"],
+        )
+        self.assertEqual(
+            {
+                "kind": "tower",
+                "sequence": ["white_8", "white_8", "blue_4", "red_4"],
+                "groundPlate": {"color": "green", "widthStuds": 6, "depthStuds": 6},
+            },
+            rendered["primitiveOptions"]["preview"],
+        )
+
     def test_srm_material_kits_render_as_one_cart_with_loose_parts(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         material_cart = (PRODUCT_ROOT / "material-cart-profile.js").read_text(encoding="utf-8")
         self.assertIn('activeTransfer.cargoKind === "material_kits"', game)
-        self.assertIn('kind: isMaterialCart ? "material_cart" : "tower"', game)
+        self.assertIn(
+            'kind: isOrderDocument ? "order_document" : isMaterialCart ? "material_cart" : "tower"',
+            game,
+        )
         self.assertIn("simulationMaterialCartParts", game)
         self.assertIn("materialCartCargoMarkup", renderer)
         self.assertIn("materialCart.markup(", renderer)

@@ -531,7 +531,92 @@
     `;
   }
 
+  function orderDocumentCargoMarkup(department, geometry, legoGradientScope) {
+    const cargo = department.cargoVisual;
+    if (!cargo || cargo.kind !== "order_document") return "";
+    const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
+    const order = {
+      id: cargo.order?.id || cargo.cargoId || "ORDER",
+      customerLabel: cargo.order?.customerLabel || "Klant",
+      productId: cargo.order?.productId || cargo.productId || "A",
+      productLabel: cargo.order?.productLabel || "Toren",
+      quantity,
+      deliveryLabel: cargo.order?.deliveryLabel || "Te plannen"
+    };
+    const previewGroundPlate = cargo.preview?.groundPlate || {};
+    const preview = {
+      kind: "tower",
+      sequence: Array.isArray(cargo.preview?.sequence)
+        ? cargo.preview.sequence
+        : Array.isArray(cargo.towerSequence) ? cargo.towerSequence : [],
+      groundPlate: {
+        color: previewGroundPlate.color || cargo.groundPlateColor || "green",
+        widthStuds: spatial().positiveGridInteger(
+          previewGroundPlate.widthStuds ?? cargo.groundPlateWidth,
+          6
+        ),
+        depthStuds: spatial().positiveGridInteger(
+          previewGroundPlate.depthStuds ?? cargo.groundPlateDepth,
+          6
+        )
+      }
+    };
+    const renderer = window.LegoTowerRenderer;
+    let documentPrimitive = "";
+    if (typeof renderer?.orderDocument === "function") {
+      try {
+        documentPrimitive = renderer.orderDocument({
+          x: 0,
+          y: 0,
+          zHalfLayers: 0,
+          frontFace: "left",
+          scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
+          view: { originX: 90, originY: 135, scale: 0.9 },
+          order,
+          preview
+        });
+      } catch (_error) {
+        documentPrimitive = "";
+      }
+    }
+    if (!documentPrimitive) {
+      documentPrimitive = `
+        <g class="iso-order-document-fallback" data-order-document-fallback="true">
+          <polygon points="79,12 161,56 161,141 79,97"></polygon>
+          <polyline points="88,35 149,68 149,76 88,43"></polyline>
+          <polyline points="88,51 132,75 132,83 88,59"></polyline>
+          <text x="119" y="91" text-anchor="middle">BESTELLING</text>
+          <text x="119" y="107" text-anchor="middle">${escapeHtml(order.id)} · ×${quantity}</text>
+        </g>
+      `;
+    }
+    const scale = 1.15;
+    return `
+      <g class="iso-cargo-order-document iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
+         transform="translate(${geometry.center.x - 119 * scale} ${geometry.center.y + 15 - 74 * scale}) scale(${scale})"
+         data-drag-kind="cargo"
+         data-cargo-kind="${escapeHtml(cargo.cargoKind || "order_information")}"
+         data-cargo-source-id="${escapeHtml(department.id)}"
+         data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
+         data-cargo-quantity="${quantity}"
+         role="${cargo.draggable ? "button" : "img"}"
+         tabindex="${cargo.draggable ? "0" : "-1"}"
+         ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
+         aria-label="${escapeHtml(cargo.draggable
+           ? `Pak het bestelformulier voor order ${order.id} op en zet het neer in de gemarkeerde volgende afdeling`
+           : `${cargo.label || `Bestelformulier ${order.id}`}; ${quantity}× ${order.productLabel}`)}">
+        ${cargo.draggable
+          ? '<rect class="iso-cargo-hitbox" x="70" y="0" width="102" height="150" fill="transparent" pointer-events="all"></rect>'
+          : ""}
+        <g aria-hidden="true">${documentPrimitive}</g>
+      </g>
+    `;
+  }
+
   function cargoMarkup(department, geometry, legoGradientScope) {
+    if (department.cargoVisual?.kind === "order_document") {
+      return orderDocumentCargoMarkup(department, geometry, legoGradientScope);
+    }
     if (department.cargoVisual?.kind === "material_cart") {
       return materialCartCargoMarkup(department, geometry, legoGradientScope);
     }
