@@ -12,7 +12,7 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
+function harness({ packedLayer = 0, withDepartmentModels = false, workAreaOverride = null } = {}) {
   const calls = {
     createDiamondProjection: [],
     projectDiamond: [],
@@ -34,8 +34,11 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     departmentBuildingGeometry: [],
     departmentBuildingLayers: [],
     worldToScreen: [],
+    viewForModelAnchor: [],
     openContainerLayers: [],
-    isometricPaintOrder: []
+    isometricPaintOrder: [],
+    layoutSequence: [],
+    plate: []
   };
   const spatial = {
     LEGACY_RENDER_METRICS: Object.freeze({ plateHeight: 0.22, brickHeight: 0.72 }),
@@ -187,9 +190,26 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
   };
   const renderer = {
     definitions: () => "",
+    departmentBuildingDefinitions: scope => `<linearGradient data-test-department-definitions="${scope}"></linearGradient>`,
     brick(...args) {
       calls.brick.push(plain(args));
       return "<g data-test-brick></g>";
+    },
+    plate(...args) {
+      calls.plate.push(plain(args));
+      return "<g data-test-plate></g>";
+    },
+    layoutSequence(sequence) {
+      calls.layoutSequence.push(plain(sequence));
+      return sequence.map((partId, index) => ({
+        pieceId: partId,
+        x: index < 2 ? 1 + index * 2 : 2,
+        y: index < 2 ? 1 : 2,
+        z: index < 2 ? 0.22 : 1 + (index - 2) * 0.78,
+        width: index < 2 ? 2 : 2,
+        depth: index < 2 ? 4 : 2,
+        color: String(partId).split("_")[0]
+      }));
     },
     isometricPaintOrder(solids) {
       calls.isometricPaintOrder.push(plain(solids));
@@ -211,15 +231,33 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
         interior: { x: args[0] + 1, y: args[1] + 1, z: args[2] + 0.22, width: args[3] - 2, depth: args[4] - 2 }
       };
     },
-    iso(x, y, z = 0) {
+    iso(x, y, z = 0, view) {
+      if (view) return this.worldToScreen(x, y, z, view);
       return [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15];
     },
-    worldToScreen(x, y, z = 0) {
-      calls.worldToScreen.push([x, y, z]);
+    worldToScreen(x, y, z = 0, view) {
+      calls.worldToScreen.push(view ? [x, y, z, plain(view)] : [x, y, z]);
+      const scale = Number(view?.scale ?? 1);
+      const originX = Number(view?.originX ?? 90);
+      const originY = Number(view?.originY ?? 63);
       return [
-        90 + (x - 3) * 13 - (y - 3) * 13,
-        105 + (x - 3) * 7 + (y - 3) * 7 - z * 17
+        originX + (x - y) * 13 * scale,
+        originY + (x + y) * 7 * scale - z * 17 * scale
       ];
+    },
+    viewForModelAnchor(modelPoint, screenPoint, scale = 1) {
+      calls.viewForModelAnchor.push({
+        modelPoint: plain(modelPoint),
+        screenPoint: plain(screenPoint),
+        scale
+      });
+      const projectedX = (modelPoint[0] - modelPoint[1]) * 13 * scale;
+      const projectedY = (modelPoint[0] + modelPoint[1]) * 7 * scale - modelPoint[2] * 17 * scale;
+      return {
+        originX: screenPoint[0] - projectedX,
+        originY: screenPoint[1] - projectedY,
+        scale
+      };
     },
     orderDocumentGeometry(options) {
       calls.orderDocumentGeometry.push(plain(options));
@@ -260,6 +298,17 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     renderer.departmentBuildingLayers = options => {
       calls.departmentBuildingLayers.push(plain(options));
       const profile = String(options.profile);
+      const workAreaWidth = Number(options.workAreaWidth ?? 8);
+      const workAreaDepth = Number(options.workAreaDepth ?? 8);
+      const workArea = workAreaOverride
+        ? { ...workAreaOverride }
+        : {
+            x: options.x + (options.width - workAreaWidth) / 2,
+            y: options.y + (options.depth - workAreaDepth) / 2,
+            z: options.z + 0.44,
+            width: workAreaWidth,
+            depth: workAreaDepth
+          };
       const files = {
         store: "logistics/afdeling_winkel.blok",
         office: "logistics/afdeling_kantoor.blok",
@@ -272,13 +321,8 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
         fixtures: `<g data-test-department-fixtures="${profile}"></g>`,
         front: `<g data-test-department-front="${profile}"></g>`,
         roof: `<g data-test-department-roof="${profile}"></g>`,
-        interior: {
-          x: options.x + 1,
-          y: options.y + 1,
-          z: options.z + 0.22,
-          width: options.width - 2,
-          depth: options.depth - 2
-        },
+        workArea,
+        interior: workArea,
         model: {
           id: profile,
           blokId: `logistics.department.${profile}`,
@@ -432,7 +476,9 @@ test("afdelingslabels volgen de geprojecteerde grenzen van het werkelijke .blok-
     y: -2,
     z: 0,
     width: 14,
-    depth: 16
+    depth: 16,
+    workAreaWidth: 10,
+    workAreaDepth: 12
   });
   assert.ok(calls.worldToScreen.length > 0);
   assert.ok(calls.bounds2.length > 0);
@@ -488,8 +534,8 @@ test("viewBox, voorraadpacking en kabelpad delegeren met het legacy-outputprofie
   const stockPacking = calls.packSupportedGrid.find(call => call.items.length === 1);
   assert.ok(stockPacking);
   assert.deepEqual(stockPacking.options, {
-    width: 6,
-    depth: 6,
+    width: 8,
+    depth: 8,
     maxLayers: 4,
     defaultWidth: 2,
     defaultDepth: 2
@@ -516,8 +562,12 @@ test("viewBox, voorraadpacking en kabelpad delegeren met het legacy-outputprofie
   assert.doesNotMatch(source, /const bend = Math\.max\(36,/);
 });
 
-test("voorraadlagen volgen ook bij afwijkende profielen uitsluitend SDK-rekenwerk", () => {
-  const { calls, view } = harness({ packedLayer: 2 });
+test("voorraadpacking en modelplaatsing volgen een verschoven Engine-werkvak volledig", () => {
+  const { calls, view } = harness({
+    packedLayer: 2,
+    withDepartmentModels: true,
+    workAreaOverride: { x: 3, y: 4, z: 0.66, width: 5, depth: 6 }
+  });
   const container = {
     clientWidth: 800,
     clientHeight: 600,
@@ -542,16 +592,26 @@ test("voorraadlagen volgen ook bij afwijkende profielen uitsluitend SDK-rekenwer
     stockBoardProfile: { placement: { baseHeight: 1, layerPitch: 2 } }
   });
 
+  assert.deepEqual(calls.packSupportedGrid[0].options, {
+    width: 5,
+    depth: 6,
+    maxLayers: 4,
+    defaultWidth: 2,
+    defaultDepth: 2
+  });
   assert.deepEqual(calls.builderBoardProfile, [{
-    placement: { baseHeight: 1, layerPitch: 2 }
+    placement: { baseHeight: 0.66, layerPitch: 2 }
   }]);
   assert.deepEqual(calls.physicalLayer, [{
     layer: 2,
-    profile: { placement: { baseHeight: 1, layerPitch: 2, snapLift: 0.04 } }
+    profile: { placement: { baseHeight: 0.66, layerPitch: 2, snapLift: 0.04 } }
   }]);
-  assert.equal(calls.brick[0][2], 5);
+  assert.deepEqual(calls.brick[0].slice(0, 3), [3, 4, 4.66]);
   assert.match(container.innerHTML, /data-stock-grid-layer="2"/);
-  assert.match(container.innerHTML, /data-stock-z="5"/);
+  assert.match(container.innerHTML, /data-stock-z="4\.66"/);
+  assert.match(container.innerHTML, /data-model-x="3"/);
+  assert.match(container.innerHTML, /data-model-y="4"/);
+  assert.match(container.innerHTML, /data-work-area-grid="5x6"/);
 });
 
 test("SVG-sleepconversie gebruikt de pure SDK-matrixinverse zonder lokale DOM-formule", () => {
@@ -565,6 +625,124 @@ test("torencargo gebruikt grondplaatafmetingen uit het scenecontract", () => {
   assert.match(source, /spatial\(\)\.positiveGridInteger\(cargo\.groundPlateDepth, 6\)/);
   assert.doesNotMatch(source, /Number\(cargo\.groundPlate(?:Width|Depth) \|\| 6\)/);
   assert.doesNotMatch(source, /LegoTowerRenderer\.plate\(\s*0,\s*0,\s*0,\s*6,\s*6,/s);
+});
+
+test("torenbatches gebruiken niet-overlappende SDK-modelvakken binnen het 8x8-werkvak", () => {
+  for (const quantity of [1, 2, 3, 4]) {
+    const { calls, view } = harness({ withDepartmentModels: true });
+    const container = {
+      clientWidth: 800,
+      clientHeight: 600,
+      innerHTML: "",
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      contains: () => true
+    };
+
+    view.mount(container, {
+      connections: [],
+      departments: [{
+        id: "production",
+        title: "Productie",
+        kind: "production",
+        departmentModel: "factory",
+        departmentColor: "production-b",
+        status: "active",
+        openRoof: true,
+        layout: { x: 1, y: 2, width: 3.5, depth: 3.2, height: 64 },
+        cargoVisual: {
+          kind: "tower",
+          cargoId: `BATCH-00${quantity}`,
+          quantity,
+          displayScale: quantity === 1 ? 0.7 : quantity === 2 ? 0.58 : 0.48,
+          draggable: true,
+          towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+        }
+      }]
+    });
+
+    assert.equal(calls.viewForModelAnchor.length, quantity);
+    assert.equal(calls.plate.length, quantity);
+    assert.ok(calls.plate.every(call => call[7]?.scale > 0));
+    assert.match(container.innerHTML, /data-container-alignment="work-area"/);
+    assert.match(container.innerHTML, /data-work-area-grid="8x8"/);
+    const instances = [...container.innerHTML.matchAll(
+      /class="iso-cargo-tower-instance"[\s\S]*?data-model-anchor-x="([^"]+)"[\s\S]*?data-model-anchor-y="([^"]+)"[\s\S]*?data-model-anchor-z="([^"]+)"[\s\S]*?data-model-footprint-width="([^"]+)"[\s\S]*?data-model-footprint-depth="([^"]+)"/g
+    )].map(match => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+      z: Number(match[3]),
+      width: Number(match[4]),
+      depth: Number(match[5])
+    }));
+    assert.equal(instances.length, quantity);
+    instances.forEach(instance => {
+      assert.ok(instance.x - instance.width / 2 >= 0, `${quantity}:minX`);
+      assert.ok(instance.x + instance.width / 2 <= 8, `${quantity}:maxX`);
+      assert.ok(instance.y - instance.depth / 2 >= 0, `${quantity}:minY`);
+      assert.ok(instance.y + instance.depth / 2 <= 8, `${quantity}:maxY`);
+      assert.equal(instance.z, 0.44);
+    });
+    for (let leftIndex = 0; leftIndex < instances.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < instances.length; rightIndex += 1) {
+        const left = instances[leftIndex];
+        const right = instances[rightIndex];
+        const overlapWidth = Math.max(0, Math.min(left.x + left.width / 2, right.x + right.width / 2)
+          - Math.max(left.x - left.width / 2, right.x - right.width / 2));
+        const overlapDepth = Math.max(0, Math.min(left.y + left.depth / 2, right.y + right.depth / 2)
+          - Math.max(left.y - left.depth / 2, right.y - right.depth / 2));
+        assert.ok(overlapWidth * overlapDepth < 1e-9, `${quantity}:${leftIndex}/${rightIndex} overlappen niet`);
+      }
+    }
+    const containerTransform = container.innerHTML.match(/class="iso-lego-box iso-department-model"[^>]*>\s*<g transform="([^"]+)"/s)?.[1];
+    const cargoTransform = container.innerHTML.match(/class="iso-cargo-tower[^>]*transform="([^"]+)"/s)?.[1];
+    assert.equal(cargoTransform, containerTransform);
+  }
+  assert.doesNotMatch(source, /geometry\.center\.x - 90|geometry\.center\.y \+ 19 - 105/);
+});
+
+test("de open-containerfallback centreert een echt 8x8-werkvak in het 10x10-interieur", () => {
+  const { calls, view } = harness();
+  const container = {
+    clientWidth: 800,
+    clientHeight: 600,
+    innerHTML: "",
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    contains: () => true
+  };
+  view.mount(container, {
+    connections: [],
+    departments: [{
+      id: "legacy-production",
+      title: "Productie",
+      kind: "production",
+      departmentColor: "production-b",
+      status: "active",
+      openRoof: true,
+      layout: { x: 1, y: 2, width: 3.5, depth: 3.2, height: 64 },
+      cargoVisual: {
+        kind: "tower",
+        cargoId: "BATCH-002",
+        quantity: 2,
+        displayScale: 0.58,
+        towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
+      }
+    }]
+  });
+
+  assert.equal(calls.departmentBuildingLayers.length, 0);
+  assert.equal(calls.openContainerLayers.length, 1);
+  assert.deepEqual(calls.boxAlignmentOffset3[0], {
+    subjectBox: { minX: 0, minY: 0, minZ: 0, maxX: 8, maxY: 8, maxZ: 0 },
+    targetBox: { x: -1, y: -1, z: 0.22, width: 10, depth: 10 },
+    alignment: { x: "center", y: "center", z: "min" }
+  });
+  assert.match(container.innerHTML, /data-work-area-grid="8x8"/);
+  const anchors = [...container.innerHTML.matchAll(
+    /class="iso-cargo-tower-instance"[\s\S]*?data-model-anchor-x="([^"]+)"[\s\S]*?data-model-anchor-y="([^"]+)"[\s\S]*?data-model-anchor-z="([^"]+)"/g
+  )].map(match => match.slice(1, 4).map(Number));
+  assert.deepEqual(anchors, [[2, 4, 0.22], [6, 4, 0.22]]);
 });
 
 test("winkel, kantoor, magazijn en fabriek delegeren als expliciete Engine-afdelingsmodellen", () => {
@@ -588,7 +766,10 @@ test("winkel, kantoor, magazijn en fabriek delegeren als expliciete Engine-afdel
       departmentModel,
       departmentColor: "green",
       status: "idle",
-      layout: { x: index * 4, y: 2, width: 3.5, depth: 3.2, height: 54 }
+      layout: { x: index * 4, y: 2, width: 3.5, depth: 3.2, height: 54 },
+      stockVisuals: departmentModel === "warehouse"
+        ? [{ partId: "blue_8", color: "blue", width: 2, depth: 4, count: 1 }]
+        : []
     }))
   });
 
@@ -596,13 +777,28 @@ test("winkel, kantoor, magazijn en fabriek delegeren als expliciete Engine-afdel
     calls.departmentBuildingLayers.map(call => call.profile),
     models
   );
+  for (const call of calls.departmentBuildingLayers) {
+    assert.equal(call.width, 12);
+    assert.equal(call.depth, 12);
+    assert.equal(call.workAreaWidth, 8);
+    assert.equal(call.workAreaDepth, 8);
+  }
   assert.equal(calls.openContainerLayers.length, 0);
+  assert.deepEqual(calls.builderBoardProfile, [{
+    placement: { baseHeight: 0.44, layerPitch: 0.72 }
+  }]);
+  assert.equal(calls.brick[0][2], 0.44);
   for (const departmentModel of models) {
     assert.match(container.innerHTML, new RegExp(`data-department-model="${departmentModel}"`));
     assert.match(container.innerHTML, new RegExp(`data-blok-id="logistics\\.department\\.${departmentModel}"`));
     assert.match(container.innerHTML, new RegExp(`data-blok-render-preset="logistics-department\\.${departmentModel}"`));
     assert.match(container.innerHTML, new RegExp(`data-test-department-fixtures="${departmentModel}"`));
   }
+  assert.equal((container.innerHTML.match(/data-container-grid="12x12"/g) || []).length, models.length);
+  assert.equal((container.innerHTML.match(/data-work-area-grid="8x8"/g) || []).length, models.length);
+  assert.match(container.innerHTML, /data-test-department-definitions="iso-logistics-/);
+  assert.doesNotMatch(container.innerHTML, /iso-empty-stock-label|ophaalvak leeg/i);
+  assert.doesNotMatch(source, /iso-empty-stock-label|ophaalvak leeg/i);
   assert.doesNotMatch(source, /function symbolMarkup|iso-roof-symbol|h34v-19h16l13/);
   assert.doesNotMatch(container.innerHTML, /iso-roof-symbol|truck|vrachtwagen/i);
 });
@@ -669,12 +865,12 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
   });
   assert.deepEqual(calls.boxAlignmentOffset3, [{
     subjectBox: { minX: 0, minY: 0, minZ: 0, maxX: 6, maxY: 1, maxZ: 5.88 },
-    targetBox: { x: 0, y: 0, z: 0.22, width: 6, depth: 6 },
+    targetBox: { x: 0, y: 0, z: 0.44, width: 8, depth: 8 },
     alignment: { x: "center", y: "center", z: "min" }
   }]);
   assert.deepEqual(
     { x: calls.orderDocument[0].x, y: calls.orderDocument[0].y, z: calls.orderDocument[0].z },
-    { x: 0, y: 2.5, z: 0.22 }
+    { x: 1, y: 3.5, z: 0.44 }
   );
   assert.equal(Object.hasOwn(calls.orderDocument[0], "view"), false);
   assert.equal((container.innerHTML.match(/class="iso-cargo-order-document\b/g) || []).length, 1);
@@ -685,7 +881,7 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
   assert.match(container.innerHTML, /data-blok-id="logistics\.order-document"/);
   assert.match(container.innerHTML, /data-order-document-quantity="3"/);
   assert.match(container.innerHTML, /data-container-alignment="center-center-min"/);
-  assert.match(container.innerHTML, /data-model-x="0"\s+data-model-y="2\.5"\s+data-model-z="0\.22"/);
+  assert.match(container.innerHTML, /data-model-x="1"\s+data-model-y="3\.5"\s+data-model-z="0\.44"/);
   const containerTransform = container.innerHTML.match(/class="iso-lego-box iso-department-model"[^>]*>\s*<g transform="([^"]+)"/s)?.[1];
   const documentTransform = container.innerHTML.match(/class="iso-cargo-order-document[^>]*transform="([^"]+)"/s)?.[1];
   assert.equal(documentTransform, containerTransform);
@@ -694,8 +890,66 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
   assert.doesNotMatch(container.innerHTML, /iso-cargo-tower(?:\s|"|-instance)/);
 });
 
+test("een bestelformulier schaalt modelvast mee wanneer het werkvak smaller dan zes noppen is", () => {
+  const workArea = { x: 10, y: 20, z: 0.7, width: 4, depth: 3 };
+  const { calls, view } = harness({ withDepartmentModels: true, workAreaOverride: workArea });
+  const container = {
+    clientWidth: 800,
+    clientHeight: 600,
+    innerHTML: "",
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    contains: () => true
+  };
+  view.mount(container, {
+    connections: [],
+    departments: [{
+      id: "compact-operations",
+      title: "Compact Operations",
+      departmentModel: "office",
+      departmentColor: "operations",
+      status: "active",
+      openRoof: true,
+      layout: { x: 1, y: 2, width: 4, depth: 4, height: 50 },
+      cargoVisual: {
+        kind: "order_document",
+        cargoId: "ORD-SMALL",
+        quantity: 1,
+        order: { id: "ORD-SMALL", productId: "A", productLabel: "Toren A", quantity: 1 }
+      }
+    }]
+  });
+
+  assert.equal(calls.boxAlignmentOffset3.length, 0);
+  assert.equal(calls.viewForModelAnchor.length, 1);
+  assert.equal(calls.orderDocument.length, 1);
+  assert.ok(Math.abs(calls.orderDocument[0].view.scale - (2 / 3)) < 1e-12);
+  assert.deepEqual(
+    { x: calls.orderDocument[0].x, y: calls.orderDocument[0].y, z: calls.orderDocument[0].z },
+    { x: 0, y: 0, z: 0 }
+  );
+  const match = container.innerHTML.match(
+    /class="iso-cargo-order-document[\s\S]*?data-model-x="([^"]+)"[\s\S]*?data-model-y="([^"]+)"[\s\S]*?data-model-z="([^"]+)"[\s\S]*?data-model-width="([^"]+)"[\s\S]*?data-model-depth="([^"]+)"[\s\S]*?data-display-scale="([^"]+)"/
+  );
+  assert.ok(match);
+  const placement = {
+    x: Number(match[1]),
+    y: Number(match[2]),
+    z: Number(match[3]),
+    width: Number(match[4]),
+    depth: Number(match[5]),
+    scale: Number(match[6])
+  };
+  assert.ok(placement.x >= workArea.x);
+  assert.ok(placement.y >= workArea.y);
+  assert.ok(placement.x + placement.width <= workArea.x + workArea.width);
+  assert.ok(placement.y + placement.depth <= workArea.y + workArea.depth);
+  assert.equal(placement.z, workArea.z);
+  assert.ok(Math.abs(placement.scale - (2 / 3)) < 1e-12);
+});
+
 test("afdelings- en containermaten zijn pure configureerbare profielen", () => {
-  const { view } = harness();
+  const { calls, view } = harness();
   const department = { layout: { x: 2, y: 3 } };
   assert.deepEqual(plain(view.departmentBox(department)), {
     x: 2,
@@ -714,14 +968,14 @@ test("afdelings- en containermaten zijn pure configureerbare profielen", () => {
     height: 11
   });
   assert.deepEqual(plain(view.warehouseContainerPlacement({ x: 400, y: 300 })), {
-    x: -1,
-    y: -1,
-    width: 8,
-    depth: 8,
+    x: -2,
+    y: -2,
+    width: 12,
+    depth: 12,
     translateX: 310,
-    translateY: 210,
-    boardWidth: 6,
-    boardDepth: 6,
+    translateY: 181,
+    boardWidth: 8,
+    boardDepth: 8,
     maxLayers: 4,
     defaultWidth: 2,
     defaultDepth: 2
@@ -745,6 +999,10 @@ test("afdelings- en containermaten zijn pure configureerbare profielen", () => {
     defaultWidth: 1,
     defaultDepth: 3
   });
+  assert.deepEqual(calls.worldToScreen, [
+    [4, 4, 0],
+    [4, 5, 0]
+  ]);
 });
 
 test("mount laat frame, viewport, afdelingsbox, achtergrond en voorraadgrid door de client bepalen", () => {

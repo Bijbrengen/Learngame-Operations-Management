@@ -1,4 +1,4 @@
-const CACHE_VERSION = "learngame-om-v265-department-labels";
+const CACHE_VERSION = "learngame-om-v266-department-work-area";
 const APP_SHELL = [
   "./",
   "./index.html",

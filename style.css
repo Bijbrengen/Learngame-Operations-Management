@@ -8923,14 +8923,6 @@ select {
   stroke-width: 5;
 }
 
-.iso-empty-stock-label {
-  fill: #9fc4c4;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-}
-
 .iso-department.department-green .iso-building-roof {
   fill: #2f7d56;
 }

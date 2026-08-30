@@ -191,7 +191,7 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260830.3"', html)
+        self.assertIn('href="style.css?v=20260830.4"', html)
         self.assertIn('"logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
         self.assertIn('"logistics-game-ui.js?v=20260830.1"', html)
@@ -200,12 +200,12 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260830.4"', html)
-        self.assertIn('"script.js?v=20260830.3"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260830.5"', html)
+        self.assertIn('"script.js?v=20260830.4"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
-        self.assertIn('CACHE_VERSION = "learngame-om-v265-department-labels"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v266-department-work-area"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v265-department-labels")',
+            'register("service-worker.js?v=learngame-om-v266-department-work-area")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -297,7 +297,9 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('data-department-model="${escapeHtml(departmentModel)}"', renderer)
         self.assertIn('data-blok-id="${escapeHtml(model?.blokId || "")}"', renderer)
         self.assertIn("container.base}${container.rear}${container.fixtures || \"\"}", renderer)
-        self.assertIn("${bricks}${cargo}${empty}", renderer)
+        self.assertIn("${bricks}${cargo}", renderer)
+        self.assertNotIn("iso-empty-stock-label", renderer)
+        self.assertNotIn("ophaalvak leeg", renderer)
         self.assertIn("container.front", renderer)
         self.assertIn("container.roof", renderer)
         self.assertIn("renderer?.openContainerLayers", renderer)
@@ -735,7 +737,21 @@ window.LegoTowerRenderer = {
   isometricPaintOrder: solids => solids.map((_solid, index) => index),
   plate: () => "<g class=\"test-plate\"></g>",
   brick: () => "",
-  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" })
+  worldToScreen: (x, y, z = 0, view = {}) => {
+    const scale = Number(view.scale ?? 1);
+    const originX = Number(view.originX ?? 90);
+    const originY = Number(view.originY ?? 63);
+    return [originX + (x - y) * 13 * scale, originY + (x + y) * 7 * scale - z * 17 * scale];
+  },
+  viewForModelAnchor: (model, screen, scale = 1) => ({
+    originX: screen[0] - (model[0] - model[1]) * 13 * scale,
+    originY: screen[1] - ((model[0] + model[1]) * 7 - model[2] * 17) * scale,
+    scale
+  }),
+  openContainerLayers: (x, y, z) => ({
+    base: "", rear: "", front: "", roof: "",
+    interior: { x: x + 2, y: y + 2, z: z + 0.44, width: 8, depth: 8 }
+  })
 };
 vm.runInThisContext(fs.readFileSync("isometric-logistics-view.js", "utf8"));
 const container = {
@@ -794,7 +810,16 @@ process.stdout.write(JSON.stringify({
   sourceId: /data-cargo-source-id="production_b"/.test(container.innerHTML),
   keyboardButton: /role="button"[\s\S]*tabindex="0"/.test(container.innerHTML),
   largeInstances: (largeContainer.innerHTML.match(/iso-cargo-tower-instance/g) || []).length,
-  largeOverflow: />\+2<\/text>/.test(largeContainer.innerHTML)
+  largeOverflow: />\+2<\/text>/.test(largeContainer.innerHTML),
+  workAreaAnchored: /data-container-alignment="work-area"/.test(container.innerHTML),
+  contained: [...container.innerHTML.matchAll(/data-model-anchor-x="([^"]+)"[\s\S]*?data-model-anchor-y="([^"]+)"[\s\S]*?data-model-anchor-z="([^"]+)"[\s\S]*?data-model-footprint-width="([^"]+)"[\s\S]*?data-model-footprint-depth="([^"]+)"/g)]
+    .every(match => {
+      const x = Number(match[1]), y = Number(match[2]);
+      const width = Number(match[4]), depth = Number(match[5]);
+      return Number(match[3]) === 0.44
+        && x - width / 2 >= 0 && x + width / 2 <= 8
+        && y - depth / 2 >= 0 && y + depth / 2 <= 8;
+    })
 }));
 '''
         result = subprocess.run(
@@ -812,11 +837,15 @@ process.stdout.write(JSON.stringify({
         self.assertTrue(rendered["keyboardButton"])
         self.assertEqual(4, rendered["largeInstances"])
         self.assertTrue(rendered["largeOverflow"])
+        self.assertTrue(rendered["workAreaAnchored"])
+        self.assertTrue(rendered["contained"])
 
     def test_operations_order_information_renders_as_one_canonical_order_document(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
         self.assertIn('activeTransfer.cargoKind === "order_information"', game)
+        self.assertIn('["customer", "operations"].includes(definition.roleId)', game)
+        self.assertIn('!activeTransfer', game)
         self.assertIn('"order_document"', game)
         self.assertIn("orderDocumentCargoMarkup", renderer)
         self.assertIn("renderer.orderDocument", renderer)
@@ -832,9 +861,16 @@ const orderDocumentCalls = [];
 window.LegoTowerRenderer = {
   definitions: () => "",
   isometricPaintOrder: solids => solids.map((_solid, index) => index),
-  openContainerLayers: (x, y, z, width, depth) => ({
-    base: "", rear: "", front: "", roof: "",
-    interior: { x: x + 1, y: y + 1, z: z + 0.22, width: width - 2, depth: depth - 2 }
+  worldToScreen: (x, y, z = 0) => [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15],
+  departmentBuildingLayers: options => ({
+    base: "", rear: "", fixtures: "", front: "", roof: "",
+    interior: { x: options.x + 2, y: options.y + 2, z: options.z + 0.44, width: 8, depth: 8 },
+    workArea: { x: options.x + 2, y: options.y + 2, z: options.z + 0.44, width: 8, depth: 8 },
+    model: {
+      blokId: "logistics.department.office",
+      blokFile: "logistics/afdeling_kantoor.blok",
+      renderPreset: "logistics-department.office"
+    }
   }),
   iso: (x, y, z = 0) => [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15],
   orderDocumentModel: {
@@ -939,7 +975,7 @@ process.stdout.write(JSON.stringify({
         self.assertTrue(rendered["documentQuantity"])
         self.assertEqual(1, rendered["primitiveCalls"])
         self.assertEqual(
-            {"x": 0, "y": 2.5, "z": 0.22, "hasView": False},
+            {"x": 1, "y": 3.5, "z": 0.44, "hasView": False},
             {
                 key: rendered["primitiveOptions"][key]
                 for key in ("x", "y", "z", "hasView")
@@ -976,7 +1012,9 @@ process.stdout.write(JSON.stringify({
         )
         self.assertIn("simulationMaterialCartParts", game)
         self.assertIn("materialCartCargoMarkup", renderer)
-        self.assertIn("materialCart.markup(", renderer)
+        self.assertIn("materialCart.rendererOptions(", renderer)
+        self.assertIn("renderer.materialCart({ ...baseOptions, view })", renderer)
+        self.assertIn("renderer.materialCartGeometry(baseOptions)", renderer)
         self.assertIn("window.LOMMaterialCartProfile", renderer)
         self.assertIn("window.LOMMaterialCartProfile", (PRODUCT_ROOT / "logistics-game-ui.js").read_text(encoding="utf-8"))
         self.assertIn("renderer.materialCart(rendererOptions(parts, scope))", material_cart)
@@ -993,7 +1031,25 @@ const materialCartCalls = [];
 window.LegoTowerRenderer = {
   definitions: () => "",
   isometricPaintOrder: solids => solids.map((_solid, index) => index),
-  openContainerLayers: () => ({ base: "", rear: "", front: "", roof: "" }),
+  worldToScreen: (x, y, z = 0, view = {}) => {
+    const scale = Number(view.scale ?? 1);
+    const originX = Number(view.originX ?? 90);
+    const originY = Number(view.originY ?? 63);
+    return [originX + (x - y) * 13 * scale, originY + (x + y) * 7 * scale - z * 17 * scale];
+  },
+  viewForModelAnchor: (model, screen, scale = 1) => ({
+    originX: screen[0] - (model[0] - model[1]) * 13 * scale,
+    originY: screen[1] - ((model[0] + model[1]) * 7 - model[2] * 17) * scale,
+    scale
+  }),
+  openContainerLayers: (x, y, z) => ({
+    base: "", rear: "", front: "", roof: "",
+    interior: { x: x + 2, y: y + 2, z: z + 0.44, width: 8, depth: 8 }
+  }),
+  materialCartGeometry: () => ({
+    x: 0, y: 0, z: 0, width: 3.1765, depth: 4.579795, height: 2.21142,
+    centerX: 3.1765 / 2, centerY: 4.579795 / 2
+  }),
   materialCart: options => {
     materialCartCalls.push(options);
     const parts = (options.parts || []).flatMap(part => (
@@ -1052,8 +1108,14 @@ process.stdout.write(JSON.stringify({
   primitiveCalls: materialCartCalls.length,
   primitiveOptions: materialCartCalls[0] && {
     maxVisibleParts: materialCartCalls[0].maxVisibleParts,
+    view: materialCartCalls[0].view,
     partCounts: Object.fromEntries(materialCartCalls[0].parts.map(part => [part.partId, part.count]))
-  }
+  },
+  workAreaAnchored: /data-container-alignment="work-area-center"/.test(container.innerHTML),
+  placement: (() => {
+    const match = container.innerHTML.match(/class="iso-cargo-material-cart[\s\S]*?data-model-x="([^"]+)"[\s\S]*?data-model-y="([^"]+)"[\s\S]*?data-model-z="([^"]+)"[\s\S]*?data-model-width="([^"]+)"[\s\S]*?data-model-depth="([^"]+)"/);
+    return match ? { x: Number(match[1]), y: Number(match[2]), z: Number(match[3]), width: Number(match[4]), depth: Number(match[5]) } : null;
+  })()
 }));
 '''
         result = subprocess.run(
@@ -1074,10 +1136,19 @@ process.stdout.write(JSON.stringify({
         self.assertTrue(rendered["overflow"])
         self.assertEqual(1, rendered["primitiveCalls"])
         self.assertEqual(8, rendered["primitiveOptions"]["maxVisibleParts"])
+        self.assertGreater(rendered["primitiveOptions"]["view"]["scale"], 0)
         self.assertEqual(
             {"base_green": 2, "white_8": 4, "blue_4": 2, "red_4": 2},
             rendered["primitiveOptions"]["partCounts"],
         )
+        self.assertTrue(rendered["workAreaAnchored"])
+        placement = rendered["placement"]
+        self.assertIsNotNone(placement)
+        self.assertEqual(0.44, placement["z"])
+        self.assertGreaterEqual(placement["x"], 0)
+        self.assertGreaterEqual(placement["y"], 0)
+        self.assertLessEqual(placement["x"] + placement["width"], 8)
+        self.assertLessEqual(placement["y"] + placement["depth"], 8)
 
     def test_game_type_selector_applies_lo_and_entrepreneurial_presets(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")

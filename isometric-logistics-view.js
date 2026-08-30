@@ -18,14 +18,12 @@
     maximumAspectRatio: 2.4
   });
   const WAREHOUSE_CONTAINER_PROFILE = Object.freeze({
-    boardWidth: 6,
-    boardDepth: 6,
+    boardWidth: 8,
+    boardDepth: 8,
     maxLayers: 4,
     defaultWidth: 2,
     defaultDepth: 2,
-    margin: 1,
-    translateX: -90,
-    translateY: -90
+    margin: 2
   });
   let diamondProjection = null;
   let defaultStockBoardProfile = null;
@@ -89,7 +87,7 @@
 
   function materialCartProfile() {
     const profile = window.LOMMaterialCartProfile;
-    if (!profile?.markup || !profile?.countParts || !profile?.blok) {
+    if (!profile?.rendererOptions || !profile?.countParts || !profile?.blok) {
       throw new Error("Het gedeelde LOM-materiaalwagenprofiel is niet geladen.");
     }
     return profile;
@@ -177,13 +175,26 @@
     const width = Number(profileValue(board.width, WAREHOUSE_CONTAINER_PROFILE.boardWidth));
     const depth = Number(profileValue(board.depth, WAREHOUSE_CONTAINER_PROFILE.boardDepth));
     const margin = Number(profileValue(container.margin, WAREHOUSE_CONTAINER_PROFILE.margin));
+    const x = -margin;
+    const y = -margin;
+    const outerWidth = width + margin * 2;
+    const outerDepth = depth + margin * 2;
+    const projectedCenter = window.LegoTowerRenderer?.worldToScreen?.(
+      x + outerWidth / 2,
+      y + outerDepth / 2,
+      0
+    );
+    const projectedCenterX = Number(projectedCenter?.[0]);
+    const projectedCenterY = Number(projectedCenter?.[1]);
+    const defaultTranslateX = Number.isFinite(projectedCenterX) ? -projectedCenterX : -90;
+    const defaultTranslateY = Number.isFinite(projectedCenterY) ? -projectedCenterY : -90;
     return Object.freeze({
-      x: -margin,
-      y: -margin,
-      width: width + margin * 2,
-      depth: depth + margin * 2,
-      translateX: center.x + Number(profileValue(container.translateX, WAREHOUSE_CONTAINER_PROFILE.translateX)),
-      translateY: center.y + Number(profileValue(container.translateY, WAREHOUSE_CONTAINER_PROFILE.translateY)),
+      x,
+      y,
+      width: outerWidth,
+      depth: outerDepth,
+      translateX: center.x + Number(profileValue(container.translateX, defaultTranslateX)),
+      translateY: center.y + Number(profileValue(container.translateY, defaultTranslateY)),
       boardWidth: width,
       boardDepth: depth,
       maxLayers: Number(profileValue(source.maxLayers, WAREHOUSE_CONTAINER_PROFILE.maxLayers)),
@@ -249,14 +260,31 @@
     projectionOptions,
     frameOptions,
     viewportOptions,
-    departmentProfile
+    departmentProfile,
+    departmentLabelProfile,
+    stockProfileOptions
   ) {
     const viewport = { ...VIEWBOX, ...(viewportOptions || {}) };
     const frame = { ...FRAME_PROFILE, ...(frameOptions || {}) };
     if (!departments.length) return `0 0 ${viewport.width} ${viewport.height}`;
     const projectedPoints = departments.flatMap(department => {
-      const geometry = zoneGeometry(department, projectionOptions, departmentProfile);
-      return [...geometry.floor, ...geometry.roof];
+      const geometry = zoneGeometry(
+        department,
+        projectionOptions,
+        departmentProfile,
+        departmentLabelProfile,
+        stockProfileOptions
+      );
+      const visualBounds = geometry.visualBounds;
+      const visualPoints = visualBounds
+        ? [
+            { x: visualBounds.minX, y: visualBounds.minY },
+            { x: visualBounds.maxX, y: visualBounds.minY },
+            { x: visualBounds.maxX, y: visualBounds.maxY },
+            { x: visualBounds.minX, y: visualBounds.maxY }
+          ]
+        : [];
+      return [...geometry.floor, ...geometry.roof, ...visualPoints, geometry.label];
     });
     const viewBox = spatial().fitViewBox(
       projectedPoints.map(point => [point.x, point.y]),
@@ -412,7 +440,9 @@
       y: placement.y,
       z: 0,
       width: placement.width,
-      depth: placement.depth
+      depth: placement.depth,
+      workAreaWidth: placement.boardWidth,
+      workAreaDepth: placement.boardDepth
     });
     const projectedPoints = (geometry.volumes || []).flatMap(volume => {
       const projected = spatial().projectBox(volume, null, point => (
@@ -432,11 +462,14 @@
     });
   }
 
-  function layoutStockItems(items, profileOptions) {
+  function layoutStockItems(items, profileOptions, workArea) {
     const placement = warehouseContainerPlacement({ x: 0, y: 0 }, profileOptions);
+    const availableWidth = Math.floor(Number(workArea?.width ?? placement.boardWidth));
+    const availableDepth = Math.floor(Number(workArea?.depth ?? placement.boardDepth));
+    if (availableWidth <= 0 || availableDepth <= 0) return [];
     return spatial().packSupportedGrid(items, {
-      width: placement.boardWidth,
-      depth: placement.boardDepth,
+      width: availableWidth,
+      depth: availableDepth,
       maxLayers: placement.maxLayers,
       defaultWidth: placement.defaultWidth,
       defaultDepth: placement.defaultDepth
@@ -453,7 +486,6 @@
       y: point.y + (center.y - point.y) * 0.12 + 3
     }));
     const visuals = Array.isArray(department.stockVisuals) ? department.stockVisuals : [];
-    const hasLogisticsContent = Boolean(department.openRoof || visuals.length || department.cargoVisual);
     const items = visuals.flatMap((visual, visualIndex) => (
       Array.from(
         { length: Math.max(0, Math.min(4, Number(visual.count || 0))) },
@@ -463,7 +495,6 @@
         })
       )
     )).slice(0, 8);
-    const laidOutItems = layoutStockItems(items, stockProfileOptions);
     const containerPlacement = warehouseContainerPlacement(center, stockProfileOptions);
     const containerTransform = `translate(${containerPlacement.translateX} ${containerPlacement.translateY})`;
     const fallbackContainerColor = {
@@ -482,6 +513,8 @@
           z: 0,
           width: containerPlacement.width,
           depth: containerPlacement.depth,
+          workAreaWidth: containerPlacement.boardWidth,
+          workAreaDepth: containerPlacement.boardDepth,
           accentColor: departmentModelAccent(department),
           scope: legoGradientScope
         })
@@ -494,12 +527,27 @@
           fallbackContainerColor,
           legoGradientScope
         );
+    const workArea = resolvedContainerWorkArea(container, containerPlacement);
+    const laidOutItems = container && !workArea
+      ? []
+      : layoutStockItems(items, stockProfileOptions, workArea);
+    const contentProfileOptions = workArea
+      ? {
+          ...(stockProfileOptions || {}),
+          placement: {
+            ...(stockProfileOptions?.placement || {}),
+            baseHeight: workArea.z
+          }
+        }
+      : stockProfileOptions;
     const placementProfile = laidOutItems.length && window.LegoTowerRenderer
-      ? stockBoardProfile(stockProfileOptions)
+      ? stockBoardProfile(contentProfileOptions)
       : null;
     const bricks = window.LegoTowerRenderer
       ? laidOutItems.map(visual => {
         const brickZ = builderCore().physicalLayer(visual.layer, placementProfile);
+        const modelX = Number(workArea?.x || 0) + visual.x;
+        const modelY = Number(workArea?.y || 0) + visual.y;
         return `
           <g class="iso-stock-brick${visual.draggable ? " is-draggable iso-draggable-object" : ""}"
              transform="${containerTransform}"
@@ -507,6 +555,8 @@
              data-stock-grid-y="${visual.y}"
              data-stock-grid-layer="${visual.layer}"
              data-stock-z="${brickZ}"
+             data-model-x="${modelX}"
+             data-model-y="${modelY}"
              data-drag-kind="stock"
              data-stock-source-id="${escapeHtml(department.id)}"
              data-stock-part-id="${escapeHtml(visual.partId || "")}"
@@ -516,8 +566,8 @@
                ? `Sleep ${visual.label || "blok"} naar ${department.dragTargetLabel || "de Bouwvoorraad"}`
                : `${visual.label || "Blok"} in ${department.title}`)}">
             ${window.LegoTowerRenderer.brick(
-              visual.x,
-              visual.y,
+              modelX,
+              modelY,
               brickZ,
               visual.width,
               visual.depth,
@@ -528,27 +578,23 @@
         `;
       }).join("")
       : "";
-    const cargo = cargoMarkup(department, geometry, legoGradientScope, {
-      interior: container?.interior,
+    const cargo = cargoMarkup(department, legoGradientScope, {
+      workArea,
+      interior: workArea,
       transform: containerTransform
     });
-    const empty = hasLogisticsContent && items.length === 0 && !cargo
-      ? `<text class="iso-empty-stock-label"
-               x="${center.x}"
-               y="${center.y + 7}"
-               text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
-      : "";
     if (container) {
       const model = container.model;
       return `
         <g class="iso-lego-box iso-department-model"
            data-department-model="${escapeHtml(departmentModel)}"
            data-container-grid="${containerPlacement.width}x${containerPlacement.depth}"
+           data-work-area-grid="${workArea ? `${workArea.width}x${workArea.depth}` : ""}"
            data-blok-id="${escapeHtml(model?.blokId || "")}"
            data-blok-file="${escapeHtml(model?.blokFile || "")}"
            data-blok-render-preset="${escapeHtml(model?.renderPreset || "")}">
           <g transform="${containerTransform}">${container.base}${container.rear}${container.fixtures || ""}</g>
-          <g class="iso-lego-box-interior">${bricks}${cargo}${empty}</g>
+          <g class="iso-lego-box-interior">${bricks}${cargo}</g>
           <g class="iso-lego-container-front" transform="${containerTransform}">${container.front}</g>
           <g class="iso-lego-container-roof" transform="${containerTransform}">${container.roof}</g>
         </g>
@@ -561,32 +607,168 @@
       <polyline class="iso-building-rim"
                 points="${points([...geometry.roof, geometry.roof[0]])}"
                 ${palette ? `style="fill:none;stroke:${palette.rim};stroke-width:5"` : ""}></polyline>
-      <g class="iso-visible-stock">${bricks}${cargo}${empty}</g>
+      <g class="iso-visible-stock">${bricks}${cargo}</g>
     `;
   }
 
-  function materialCartCargoMarkup(department, geometry, legoGradientScope) {
+  function workAreaBox(containerContext) {
+    const source = containerContext?.workArea || containerContext?.interior;
+    if (!source) return null;
+    const area = {
+      x: Number(source.x),
+      y: Number(source.y),
+      z: Number(source.z),
+      width: Number(source.width),
+      depth: Number(source.depth)
+    };
+    return Object.values(area).every(Number.isFinite) && area.width > 0 && area.depth > 0
+      ? Object.freeze(area)
+      : null;
+  }
+
+  function resolvedContainerWorkArea(container, placement) {
+    const declared = workAreaBox({ workArea: container?.workArea });
+    if (declared) return declared;
+    const interior = workAreaBox({ interior: container?.interior });
+    const width = Number(placement?.boardWidth);
+    const depth = Number(placement?.boardDepth);
+    if (
+      !interior
+      || !Number.isFinite(width)
+      || !Number.isFinite(depth)
+      || width <= 0
+      || depth <= 0
+      || width > interior.width
+      || depth > interior.depth
+    ) return null;
+    const offset = spatial().boxAlignmentOffset3(
+      { minX: 0, minY: 0, minZ: 0, maxX: width, maxY: depth, maxZ: 0 },
+      interior,
+      { x: "center", y: "center", z: "min" }
+    );
+    return Object.freeze({
+      x: offset.x,
+      y: offset.y,
+      z: offset.z,
+      width,
+      depth
+    });
+  }
+
+  function anchoredRendererView(renderer, subjectAnchor, targetAnchor, scale) {
+    if (
+      typeof renderer?.worldToScreen !== "function"
+      || typeof renderer?.viewForModelAnchor !== "function"
+    ) return null;
+    const screenAnchor = renderer.worldToScreen(
+      targetAnchor[0],
+      targetAnchor[1],
+      targetAnchor[2]
+    );
+    if (!Array.isArray(screenAnchor) || !screenAnchor.slice(0, 2).every(Number.isFinite)) return null;
+    return Object.freeze({
+      screenAnchor: Object.freeze(screenAnchor.slice(0, 2)),
+      view: renderer.viewForModelAnchor(subjectAnchor, screenAnchor, scale)
+    });
+  }
+
+  function projectedRendererBounds(renderer, modelBox, view) {
+    return spatial().projectBox(modelBox, null, point => (
+      renderer.worldToScreen(point[0], point[1], point[2], view)
+    )).bounds;
+  }
+
+  function unionScreenBounds(bounds) {
+    return spatial().bounds2(bounds.flatMap(box => [
+      [box.minX, box.minY],
+      [box.maxX, box.maxY]
+    ]));
+  }
+
+  function materialCartCargoMarkup(department, legoGradientScope, containerContext) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "material_cart") return "";
     const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
     const partGroups = Array.isArray(cargo.parts) ? cargo.parts : [];
     const materialCart = materialCartProfile();
     const materialPartCount = materialCart.countParts(partGroups);
-    const cartPrimitive = materialCart.markup(
-      partGroups,
-      `${legoGradientScope}-material-cart`,
-      "isometric"
-    );
-    const scale = 2.35;
+    const renderer = window.LegoTowerRenderer;
+    const workArea = workAreaBox(containerContext);
+    if (
+      !workArea
+      || typeof renderer?.materialCart !== "function"
+      || typeof renderer?.materialCartGeometry !== "function"
+    ) return "";
+    let cartPrimitive;
+    let geometry;
+    let hitbox;
+    let placement;
+    let scale;
+    try {
+      const baseOptions = materialCart.rendererOptions(
+        partGroups,
+        `${legoGradientScope}-material-cart`
+      );
+      geometry = renderer.materialCartGeometry(baseOptions);
+      const requestedScale = Number(cargo.displayScale);
+      const preferredScale = Number.isFinite(requestedScale) && requestedScale > 0
+        ? requestedScale
+        : 0.85;
+      scale = Math.min(
+        preferredScale,
+        workArea.width / geometry.width,
+        workArea.depth / geometry.depth
+      );
+      const targetAnchor = [
+        workArea.x + workArea.width / 2,
+        workArea.y + workArea.depth / 2,
+        workArea.z
+      ];
+      const anchored = anchoredRendererView(
+        renderer,
+        [geometry.centerX, geometry.centerY, geometry.z],
+        targetAnchor,
+        scale
+      );
+      if (!anchored) return "";
+      const view = anchored.view;
+      cartPrimitive = renderer.materialCart({ ...baseOptions, view });
+      hitbox = projectedRendererBounds(renderer, {
+        x: geometry.x,
+        y: geometry.y,
+        z: geometry.z,
+        width: geometry.width,
+        depth: geometry.depth,
+        height: geometry.height
+      }, view);
+      const footprintWidth = geometry.width * scale;
+      const footprintDepth = geometry.depth * scale;
+      placement = {
+        x: targetAnchor[0] - footprintWidth / 2,
+        y: targetAnchor[1] - footprintDepth / 2,
+        z: workArea.z,
+        width: footprintWidth,
+        depth: footprintDepth
+      };
+    } catch (_error) {
+      return "";
+    }
     return `
       <g class="iso-cargo-material-cart iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
-         transform="translate(${geometry.center.x - 75} ${geometry.center.y - 69}) scale(${scale})"
+         transform="${containerContext.transform}"
          data-drag-kind="cargo"
          data-cargo-kind="${escapeHtml(cargo.cargoKind || "material_kits")}"
          data-cargo-source-id="${escapeHtml(department.id)}"
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
          data-material-part-count="${materialPartCount}"
+         data-container-alignment="work-area-center"
+         data-model-x="${placement.x}"
+         data-model-y="${placement.y}"
+         data-model-z="${placement.z}"
+         data-model-width="${placement.width}"
+         data-model-depth="${placement.depth}"
+         data-display-scale="${scale}"
          data-blok-id="${materialCart.blok.id}"
          data-blok-file="${materialCart.blok.file}"
          data-blok-render-preset="${materialCart.blok.preset}"
@@ -594,12 +776,12 @@
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
          aria-label="${escapeHtml(cargo.draggable
-           ? `Pak de materiaalwagen met ${materialPartCount} losse LEGO-onderdelen op en zet de complete wagen neer in de gemarkeerde volgende afdeling`
-           : `${cargo.label || "Materiaalwagen"}; ${materialPartCount} losse LEGO-onderdelen`)}">
-        ${cargo.draggable
-          ? '<rect class="iso-cargo-hitbox" x="-4" y="-5" width="72" height="72" fill="transparent" pointer-events="all"></rect>'
+            ? `Pak de materiaalwagen met ${materialPartCount} losse LEGO-onderdelen op en zet de complete wagen neer in de gemarkeerde volgende afdeling`
+            : `${cargo.label || "Materiaalwagen"}; ${materialPartCount} losse LEGO-onderdelen`)}">
+         ${cargo.draggable
+          ? `<rect class="iso-cargo-hitbox" x="${hitbox.minX - 6}" y="${hitbox.minY - 6}" width="${hitbox.width + 12}" height="${hitbox.height + 12}" fill="transparent" pointer-events="all"></rect>`
           : ""}
-        ${cartPrimitive}
+         ${cartPrimitive}
       </g>
     `;
   }
@@ -635,7 +817,7 @@
       }
     };
     const renderer = window.LegoTowerRenderer;
-    const interior = containerContext?.interior;
+    const interior = workAreaBox(containerContext);
     if (
       !interior
       || typeof renderer?.orderDocument !== "function"
@@ -645,28 +827,78 @@
     let documentPrimitive;
     let documentGeometry;
     let hitbox;
+    let placement;
+    let displayScale = 1;
     try {
       const originGeometry = renderer.orderDocumentGeometry({ x: 0, y: 0, z: 0, frontFace: "left" });
-      const placement = spatial().boxAlignmentOffset3(
-        originGeometry.physicalBounds,
-        interior,
-        { x: "center", y: "center", z: "min" }
-      );
-      const documentOptions = {
-        x: placement.x,
-        y: placement.y,
-        z: placement.z,
-        frontFace: "left",
-        scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
-        order,
-        preview
-      };
+      const physicalWidth = originGeometry.physicalBounds.maxX - originGeometry.physicalBounds.minX;
+      const physicalDepth = originGeometry.physicalBounds.maxY - originGeometry.physicalBounds.minY;
+      displayScale = Math.min(1, interior.width / physicalWidth, interior.depth / physicalDepth);
+      if (!Number.isFinite(displayScale) || displayScale <= 0) return "";
+      let documentOptions;
+      if (displayScale === 1) {
+        const offset = spatial().boxAlignmentOffset3(
+          originGeometry.physicalBounds,
+          interior,
+          { x: "center", y: "center", z: "min" }
+        );
+        documentOptions = {
+          x: offset.x,
+          y: offset.y,
+          z: offset.z,
+          frontFace: "left",
+          scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
+          order,
+          preview
+        };
+        placement = {
+          x: offset.x,
+          y: offset.y,
+          z: offset.z,
+          width: physicalWidth,
+          depth: physicalDepth
+        };
+      } else {
+        const targetAnchor = [
+          interior.x + interior.width / 2,
+          interior.y + interior.depth / 2,
+          interior.z
+        ];
+        const anchored = anchoredRendererView(
+          renderer,
+          [
+            (originGeometry.physicalBounds.minX + originGeometry.physicalBounds.maxX) / 2,
+            (originGeometry.physicalBounds.minY + originGeometry.physicalBounds.maxY) / 2,
+            originGeometry.physicalBounds.minZ
+          ],
+          targetAnchor,
+          displayScale
+        );
+        if (!anchored) return "";
+        documentOptions = {
+          x: 0,
+          y: 0,
+          z: 0,
+          view: anchored.view,
+          frontFace: "left",
+          scope: `${legoGradientScope}-order-${cargo.cargoId || department.id}`,
+          order,
+          preview
+        };
+        placement = {
+          x: targetAnchor[0] - physicalWidth * displayScale / 2,
+          y: targetAnchor[1] - physicalDepth * displayScale / 2,
+          z: interior.z,
+          width: physicalWidth * displayScale,
+          depth: physicalDepth * displayScale
+        };
+      }
       documentGeometry = renderer.orderDocumentGeometry(documentOptions);
       documentPrimitive = renderer.orderDocument(documentOptions);
       hitbox = spatial().projectBox(
         documentGeometry.physicalBounds,
         null,
-        point => renderer.iso(point[0], point[1], point[2])
+        point => renderer.iso(point[0], point[1], point[2], documentOptions.view)
       ).bounds;
     } catch (_error) {
       return "";
@@ -680,9 +912,12 @@
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
          data-container-alignment="center-center-min"
-         data-model-x="${documentGeometry.x}"
-         data-model-y="${documentGeometry.y}"
-         data-model-z="${documentGeometry.z}"
+         data-model-x="${placement.x}"
+         data-model-y="${placement.y}"
+         data-model-z="${placement.z}"
+         data-model-width="${placement.width}"
+         data-model-depth="${placement.depth}"
+         data-display-scale="${displayScale}"
          role="${cargo.draggable ? "button" : "img"}"
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
@@ -697,115 +932,177 @@
     `;
   }
 
-  function cargoMarkup(department, geometry, legoGradientScope, containerContext) {
+  function cargoMarkup(department, legoGradientScope, containerContext) {
     if (department.cargoVisual?.kind === "order_document") {
       return orderDocumentCargoMarkup(department, legoGradientScope, containerContext);
     }
     if (department.cargoVisual?.kind === "material_cart") {
-      return materialCartCargoMarkup(department, geometry, legoGradientScope);
+      return materialCartCargoMarkup(department, legoGradientScope, containerContext);
     }
-    return towerCargoMarkup(department, geometry, legoGradientScope);
+    return towerCargoMarkup(department, legoGradientScope, containerContext);
   }
 
-  function towerCargoMarkup(department, geometry, legoGradientScope) {
+  function towerCargoMarkup(department, legoGradientScope, containerContext) {
     const cargo = department.cargoVisual;
     if (!cargo || cargo.kind !== "tower") return "";
     const quantity = Math.max(1, Math.floor(Number(cargo.quantity) || 1));
     const visibleQuantity = Math.min(quantity, 4);
+    const sequence = Array.isArray(cargo.towerSequence) ? cargo.towerSequence : [];
+    const renderer = window.LegoTowerRenderer;
+    const workArea = workAreaBox(containerContext);
+    const canRenderLego = Boolean(
+      workArea
+      && renderer?.layoutSequence
+      && renderer?.plate
+      && renderer?.brick
+      && renderer?.worldToScreen
+      && renderer?.viewForModelAnchor
+    );
+    if (!canRenderLego) return "";
+    const blocks = renderer.layoutSequence(
+      sequence.length ? sequence : ["blue_8", "blue_8", "yellow_4", "green_4"]
+    );
+    const groundPlateWidth = spatial().positiveGridInteger(cargo.groundPlateWidth, 6);
+    const groundPlateDepth = spatial().positiveGridInteger(cargo.groundPlateDepth, 6);
+    const plateHeight = Number(spatial().LEGACY_RENDER_METRICS.plateHeight);
+    const brickHeight = Number(spatial().LEGACY_RENDER_METRICS.brickHeight);
+    const physicalBounds = spatial().unionBoxes3([
+      { x: 0, y: 0, z: 0, width: groundPlateWidth, depth: groundPlateDepth, height: plateHeight },
+      ...blocks.map(block => ({
+        x: block.x,
+        y: block.y,
+        z: block.z,
+        width: block.width,
+        depth: block.depth,
+        height: brickHeight
+      }))
+    ]);
+    const modelBox = {
+      x: physicalBounds.minX,
+      y: physicalBounds.minY,
+      z: physicalBounds.minZ,
+      width: physicalBounds.maxX - physicalBounds.minX,
+      depth: physicalBounds.maxY - physicalBounds.minY,
+      height: physicalBounds.maxZ - physicalBounds.minZ
+    };
+    const slots = {
+      1: [{ x: 0, y: 0, width: 1, depth: 1 }],
+      2: [
+        { x: 0, y: 0, width: 0.5, depth: 1 },
+        { x: 0.5, y: 0, width: 0.5, depth: 1 }
+      ],
+      3: [
+        { x: 0, y: 0, width: 0.5, depth: 0.5 },
+        { x: 0.5, y: 0, width: 0.5, depth: 0.5 },
+        { x: 0.25, y: 0.5, width: 0.5, depth: 0.5 }
+      ],
+      4: [
+        { x: 0, y: 0, width: 0.5, depth: 0.5 },
+        { x: 0.5, y: 0, width: 0.5, depth: 0.5 },
+        { x: 0, y: 0.5, width: 0.5, depth: 0.5 },
+        { x: 0.5, y: 0.5, width: 0.5, depth: 0.5 }
+      ]
+    }[visibleQuantity];
     const requestedScale = Number(cargo.displayScale);
-    const scale = Number.isFinite(requestedScale) && requestedScale > 0
+    const preferredScale = Number.isFinite(requestedScale) && requestedScale > 0
       ? requestedScale
       : visibleQuantity > 1 ? 0.44 : 0.56;
-    const sequence = Array.isArray(cargo.towerSequence) ? cargo.towerSequence : [];
-    const canRenderLego = Boolean(
-      window.LegoTowerRenderer?.layoutSequence
-      && window.LegoTowerRenderer?.plate
-      && window.LegoTowerRenderer?.brick
-    );
-    const blocks = canRenderLego
-      ? window.LegoTowerRenderer.layoutSequence(
-          sequence.length ? sequence : ["blue_8", "blue_8", "yellow_4", "green_4"]
-        )
-      : [];
-    const fallbackColors = [...new Set(
-      (sequence.length ? sequence : ["blue_8", "yellow_4", "white_4"])
-        .map(partId => String(partId).split("_")[0])
-        .filter(Boolean)
-    )];
-    const fallbackPalette = {
-      blue: "#338bca",
-      green: "#49a66b",
-      red: "#d85a55",
-      white: "#eef5f4",
-      yellow: "#e8bd52"
-    };
-    const tower = canRenderLego
-      ? [
-          window.LegoTowerRenderer.plate(
-            0,
-            0,
-            0,
-            spatial().positiveGridInteger(cargo.groundPlateWidth, 6),
-            spatial().positiveGridInteger(cargo.groundPlateDepth, 6),
-            cargo.groundPlateColor || "green",
-            legoGradientScope
-          ),
-          ...blocks.map(block => window.LegoTowerRenderer.brick(
-            block.x,
-            block.y,
-            block.z,
-            block.width,
-            block.depth,
-            block.color,
-            legoGradientScope
-          ))
-        ].join("")
-      : `<g class="iso-cargo-fallback-tower">
-           <polygon points="0,112 88,84 174,112 86,142" fill="#31865b" stroke="#cce9df" stroke-width="4"></polygon>
-           ${fallbackColors.slice(0, 3).map((color, index) => {
-             const y = 76 - index * 30;
-             const width = index === 1 ? 104 : 132;
-             const x = (174 - width) / 2;
-             return `<rect x="${x}" y="${y}" width="${width}" height="26" rx="4"
-                           fill="${fallbackPalette[color] || "#d9e5e2"}"
-                           stroke="#f2fbfa" stroke-width="3"></rect>`;
-           }).join("")}
-         </g>`;
-    const positions = {
-      1: [[0, 0]],
-      2: [[-62, 20], [62, -20]],
-      3: [[-70, 28], [0, -28], [70, 28]],
-      4: [[-62, -28], [62, -28], [-62, 44], [62, 44]]
-    }[visibleQuantity];
-    const towers = positions.map(([offsetX, offsetY], index) => `
-      <g class="iso-cargo-tower-instance"
-         data-cargo-instance="${index + 1}"
-         transform="translate(${offsetX} ${offsetY})">
-        ${tower}
-      </g>
-    `).join("");
+    const containmentScale = Math.min(...slots.flatMap(slot => [
+      (slot.width * workArea.width) / modelBox.width,
+      (slot.depth * workArea.depth) / modelBox.depth
+    ]));
+    const scale = Math.min(preferredScale, containmentScale);
+    if (!Number.isFinite(scale) || scale <= 0) return "";
+    const subjectAnchor = [
+      modelBox.x + modelBox.width / 2,
+      modelBox.y + modelBox.depth / 2,
+      modelBox.z
+    ];
+    const instances = slots.map((slot, index) => {
+      const targetAnchor = [
+        workArea.x + workArea.width * (slot.x + slot.width / 2),
+        workArea.y + workArea.depth * (slot.y + slot.depth / 2),
+        workArea.z
+      ];
+      const anchored = anchoredRendererView(renderer, subjectAnchor, targetAnchor, scale);
+      if (!anchored) return null;
+      const view = anchored.view;
+      const markup = [
+        renderer.plate(
+          0,
+          0,
+          0,
+          groundPlateWidth,
+          groundPlateDepth,
+          cargo.groundPlateColor || "green",
+          legoGradientScope,
+          view
+        ),
+        ...blocks.map(block => renderer.brick(
+          block.x,
+          block.y,
+          block.z,
+          block.width,
+          block.depth,
+          block.color,
+          legoGradientScope,
+          view
+        ))
+      ].join("");
+      return {
+        anchor: targetAnchor,
+        bounds: projectedRendererBounds(renderer, modelBox, view),
+        markup: `
+          <g class="iso-cargo-tower-instance"
+             data-cargo-instance="${index + 1}"
+             data-model-anchor-x="${targetAnchor[0]}"
+             data-model-anchor-y="${targetAnchor[1]}"
+             data-model-anchor-z="${targetAnchor[2]}"
+             data-model-footprint-width="${modelBox.width * scale}"
+             data-model-footprint-depth="${modelBox.depth * scale}"
+             data-work-area-slot="${slot.x},${slot.y},${slot.width},${slot.depth}"
+             data-display-scale="${scale}">
+            ${markup}
+          </g>
+        `
+      };
+    }).filter(Boolean);
+    if (!instances.length) return "";
+    const hitbox = unionScreenBounds(instances.map(instance => instance.bounds));
+    const towers = instances.map(instance => instance.markup).join("");
     const overflow = quantity > visibleQuantity
-      ? `<g class="iso-cargo-quantity-overflow" aria-hidden="true">
-           <circle cx="186" cy="-34" r="31"></circle>
-           <text x="186" y="-24" text-anchor="middle">+${quantity - visibleQuantity}</text>
+      ? (() => {
+          const badge = renderer.worldToScreen(
+            workArea.x + workArea.width * 0.86,
+            workArea.y + workArea.depth * 0.14,
+            workArea.z
+          );
+          return `<g class="iso-cargo-quantity-overflow" transform="translate(${badge[0]} ${badge[1]})" aria-hidden="true">
+           <circle r="31"></circle>
+           <text y="10" text-anchor="middle">+${quantity - visibleQuantity}</text>
          </g>`
+        })()
       : "";
     return `
       <g class="iso-cargo-tower iso-cargo-object${cargo.draggable ? " is-draggable iso-draggable-object" : ""}"
-         transform="translate(${geometry.center.x - 90 * scale} ${geometry.center.y + 19 - 105 * scale}) scale(${scale})"
+         transform="${containerContext.transform}"
          data-drag-kind="cargo"
          data-cargo-kind="${escapeHtml(cargo.cargoKind || "tower_batch")}"
          data-cargo-source-id="${escapeHtml(department.id)}"
          data-cargo-id="${escapeHtml(cargo.cargoId || "")}"
          data-cargo-quantity="${quantity}"
+         data-container-alignment="work-area"
+         data-model-anchor-x="${workArea.x + workArea.width / 2}"
+         data-model-anchor-y="${workArea.y + workArea.depth / 2}"
+         data-model-anchor-z="${workArea.z}"
          role="${cargo.draggable ? "button" : "img"}"
          tabindex="${cargo.draggable ? "0" : "-1"}"
          ${cargo.draggable ? 'aria-pressed="false" aria-keyshortcuts="Enter Space Escape"' : ""}
          aria-label="${escapeHtml(cargo.draggable
-           ? `Pak ${quantity > 1 ? `${quantity} torens` : cargo.label || "toren"} op en zet de complete batch neer in de gemarkeerde volgende afdeling`
-           : quantity > 1 ? `${quantity} torens` : cargo.label || "Toren")}">
-        ${cargo.draggable
-          ? '<rect class="iso-cargo-hitbox" x="-84" y="-64" width="348" height="294" fill="transparent" pointer-events="all"></rect>'
+            ? `Pak ${quantity > 1 ? `${quantity} torens` : cargo.label || "toren"} op en zet de complete batch neer in de gemarkeerde volgende afdeling`
+            : quantity > 1 ? `${quantity} torens` : cargo.label || "Toren")}">
+         ${cargo.draggable
+          ? `<rect class="iso-cargo-hitbox" x="${hitbox.minX - 6}" y="${hitbox.minY - 6}" width="${hitbox.width + 12}" height="${hitbox.height + 12}" fill="transparent" pointer-events="all"></rect>`
           : ""}
         ${towers}${overflow}
       </g>
@@ -1187,7 +1484,9 @@
         mapProjection,
         frameProfile,
         viewportProfile,
-        departmentProfile
+        departmentProfile,
+        departmentLabelProfile,
+        renderContext.stockBoardProfile
       )
       : `0 0 ${viewportProfile.width} ${viewportProfile.height}`;
     const departmentById = new Map(departments.map(department => [department.id, department]));
@@ -1267,6 +1566,7 @@
               ${window.LegoTowerRenderer
                 ? window.LegoTowerRenderer.definitions(legoGradientScope)
                 : ""}
+              ${window.LegoTowerRenderer?.departmentBuildingDefinitions?.(legoGradientScope) || ""}
               <linearGradient id="isoGroundGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#123039"></stop>
                 <stop offset="100%" stop-color="#08161c"></stop>

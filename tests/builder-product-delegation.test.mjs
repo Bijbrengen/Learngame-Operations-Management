@@ -60,7 +60,7 @@ test("product- en functiestromen delen één relatieve isometrische afdelingsind
     ) || [];
     assert.equal(references.length, 2, `${departmentId} moet beide scenetypen voeden`);
   }
-  assert.equal((source.match(/\{ x: 1, y: 17, width: 3\.5, depth: 3\.2, height: 54 \}/g) || []).length, 1);
+  assert.equal((source.match(/\{ x: 1, y: 21, width: 3\.5, depth: 3\.2, height: 54 \}/g) || []).length, 1);
   assert.equal((source.match(/CUSTOMER_DISPATCH_CONNECTION/g) || []).length, 3);
   assert.equal((source.match(/fromOffset: Object\.freeze\(\{ x: 24, y: 56 \}\)/g) || []).length, 1);
 });

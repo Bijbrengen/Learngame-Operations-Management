@@ -193,9 +193,10 @@ async function mountIsometricCargoDragHarness(page, {
           kind: "tower",
           cargoKind: "wip_towers",
           cargoId: "DRAG-LOCK-001",
-          label: "Toren B",
-          quantity: 2,
-          draggable: true,
+             label: "Toren B",
+             quantity: 2,
+             displayScale: 0.58,
+             draggable: true,
           towerSequence: ["blue_8", "blue_8", "yellow_4", "green_4"]
         };
     const harness = {
@@ -228,7 +229,7 @@ async function mountIsometricCargoDragHarness(page, {
         status: "idle",
         openRoof: true,
         acceptsCargoDrop: true,
-        layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+        layout: { x: 14, y: 2, width: 3, depth: 3, height: 58 }
       }]
     };
     window.__dragLockHarness = harness;
@@ -808,9 +809,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(keyboardDocument).toHaveCount(1);
     await expect(keyboardDocument).toHaveAttribute("data-order-document-quantity", "1");
     await expect(keyboardCargo).toHaveAttribute("data-container-alignment", "center-center-min");
-    await expect(keyboardCargo).toHaveAttribute("data-model-x", "0");
-    await expect(keyboardCargo).toHaveAttribute("data-model-y", "2.5");
-    await expect(keyboardCargo).toHaveAttribute("data-model-z", "0.22");
+    await expect(keyboardCargo).toHaveAttribute("data-model-x", "1");
+    await expect(keyboardCargo).toHaveAttribute("data-model-y", "3.5");
+    await expect(keyboardCargo).toHaveAttribute("data-model-z", "0.44");
     const keyboardPlacement = await keyboardCargo.evaluate(element => ({
       cargoTransform: element.getAttribute("transform"),
       containerTransform: element.closest(".iso-lego-box")?.querySelector(":scope > g:first-child")?.getAttribute("transform"),
@@ -973,6 +974,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(cart).toHaveAttribute("data-cargo-source-id", "srm");
     await expect(cart).toHaveAttribute("data-cargo-quantity", "2");
     await expect(cart).toHaveAttribute("data-material-part-count", "10");
+    await expect(cart).toHaveAttribute("data-container-alignment", "work-area-center");
     await expect(cart).toHaveAttribute("role", "button");
     await expect(cart).toHaveAttribute("tabindex", "0");
     await expect(cart).toHaveAttribute("aria-label", /materiaalwagen met 10 losse LEGO-onderdelen/i);
@@ -983,6 +985,21 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(engineCart.locator("[data-material-cart-part]")).toHaveCount(8);
     await expect(engineCart.locator("[data-material-cart-part]:not([data-part-id])")).toHaveCount(0);
     await expect(engineCart.locator("[data-material-cart-overflow]")).toContainText("+2");
+    const cartPlacement = await cart.evaluate(element => ({
+      x: Number(element.dataset.modelX),
+      y: Number(element.dataset.modelY),
+      z: Number(element.dataset.modelZ),
+      width: Number(element.dataset.modelWidth),
+      depth: Number(element.dataset.modelDepth),
+      transform: element.getAttribute("transform"),
+      containerTransform: element.closest(".iso-lego-box")?.querySelector(":scope > g:first-child")?.getAttribute("transform")
+    }));
+    expect(cartPlacement.z).toBeCloseTo(0.44, 8);
+    expect(cartPlacement.x).toBeGreaterThanOrEqual(0);
+    expect(cartPlacement.y).toBeGreaterThanOrEqual(0);
+    expect(cartPlacement.x + cartPlacement.width).toBeLessThanOrEqual(8);
+    expect(cartPlacement.y + cartPlacement.depth).toBeLessThanOrEqual(8);
+    expect(cartPlacement.transform).toBe(cartPlacement.containerTransform);
 
     if (testInfo.project.name === "mobile-chromium") {
       const touchSourceBox = await cart.boundingBox();
@@ -1115,16 +1132,21 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
   test("6d. een afgewezen of geannuleerde cargo-drag kan onmiddellijk opnieuw worden opgepakt", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile-chromium", "Digitale gameplay is alleen beschikbaar op computer of laptop.");
-    const { cargo, target } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
+    const { cargo, outsideFocus, target } = await mountIsometricCargoDragHarness(page, { cargoKind: "tower" });
     const initialBox = await cargo.boundingBox();
+    const outsideBox = await outsideFocus.boundingBox();
     const targetBox = await target.boundingBox();
     expect(initialBox).not.toBeNull();
+    expect(outsideBox).not.toBeNull();
     expect(targetBox).not.toBeNull();
     const start = {
       x: initialBox.x + initialBox.width / 2,
       y: initialBox.y + initialBox.height / 2
     };
-    const invalid = { x: start.x + 34, y: start.y + 14 };
+    const invalid = {
+      x: outsideBox.x + outsideBox.width / 2,
+      y: outsideBox.y + outsideBox.height / 2
+    };
     const retry = { x: start.x + 120, y: start.y + 40 };
 
     // Forceer eerst de afwijsanimatie. De directe tweede drag mag niet door
@@ -1634,7 +1656,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
           status: "idle",
           openRoof: true,
           acceptsCargoDrop: true,
-          layout: { x: 6, y: 2, width: 3, depth: 3, height: 58 }
+          layout: { x: 14, y: 2, width: 3, depth: 3, height: 58 }
         }],
         tutorial: { active: true, visualOnly: true, stepLabel: "5 / 5" }
       };
@@ -1649,6 +1671,46 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
 
     const tower = page.locator(".iso-cargo-tower.is-draggable");
     await expect(tower.locator(".iso-cargo-tower-instance")).toHaveCount(2);
+    await expect(tower).toHaveAttribute("data-container-alignment", "work-area");
+    const towerPlacements = await tower.locator(".iso-cargo-tower-instance").evaluateAll(elements => (
+      elements.map(element => ({
+        x: Number(element.dataset.modelAnchorX),
+        y: Number(element.dataset.modelAnchorY),
+        z: Number(element.dataset.modelAnchorZ),
+        width: Number(element.dataset.modelFootprintWidth),
+        depth: Number(element.dataset.modelFootprintDepth)
+      }))
+    ));
+    expect(towerPlacements).toHaveLength(2);
+    towerPlacements.forEach(placement => {
+      expect(placement.z).toBeCloseTo(0.44, 8);
+      expect(placement.x - placement.width / 2).toBeGreaterThanOrEqual(0);
+      expect(placement.y - placement.depth / 2).toBeGreaterThanOrEqual(0);
+      expect(placement.x + placement.width / 2).toBeLessThanOrEqual(8);
+      expect(placement.y + placement.depth / 2).toBeLessThanOrEqual(8);
+    });
+    const overlapWidth = Math.max(0,
+      Math.min(
+        towerPlacements[0].x + towerPlacements[0].width / 2,
+        towerPlacements[1].x + towerPlacements[1].width / 2
+      ) - Math.max(
+        towerPlacements[0].x - towerPlacements[0].width / 2,
+        towerPlacements[1].x - towerPlacements[1].width / 2
+      ));
+    const overlapDepth = Math.max(0,
+      Math.min(
+        towerPlacements[0].y + towerPlacements[0].depth / 2,
+        towerPlacements[1].y + towerPlacements[1].depth / 2
+      ) - Math.max(
+        towerPlacements[0].y - towerPlacements[0].depth / 2,
+        towerPlacements[1].y - towerPlacements[1].depth / 2
+      ));
+    expect(overlapWidth * overlapDepth).toBe(0);
+    const towerTransforms = await tower.evaluate(element => ({
+      transform: element.getAttribute("transform"),
+      containerTransform: element.closest(".iso-lego-box")?.querySelector(":scope > g:first-child")?.getAttribute("transform")
+    }));
+    expect(towerTransforms.transform).toBe(towerTransforms.containerTransform);
     const target = page.locator('[data-department-id="finished"]');
     const targetBox = await target.boundingBox();
     expect(targetBox).not.toBeNull();
@@ -1677,13 +1739,15 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       && window.IsometricLogisticsView
       && window.LEARNGameOMSimulator
     ));
-    const containers = page.locator(".iso-department-model");
+    const tutorialScene = page.locator("#dataModelGrid .iso-logistics-view");
+    await expect(tutorialScene).toBeVisible();
+    const containers = tutorialScene.locator(".iso-department-model");
     const containerCount = await containers.count();
     expect(containerCount).toBeGreaterThan(2);
     expect(new Set(await containers.evaluateAll(elements => (
       elements.map(element => element.dataset.departmentModel)
-    )))).toEqual(new Set(["store", "warehouse", "factory"]));
-    const container = page.locator('.iso-department-model[data-department-model="warehouse"]').first();
+    )))).toEqual(new Set(["warehouse", "factory"]));
+    const container = tutorialScene.locator('.iso-department-model[data-department-model="warehouse"]').first();
     const geometry = await container.evaluate(element => (
       ({
         modelBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
@@ -1698,6 +1762,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
           transform: brick.getAttribute("transform")
         })),
         roofBricks: element.querySelectorAll(".iso-lego-container-roof .iso-brick").length,
+        containerGrid: element.dataset.containerGrid,
+        workAreaGrid: element.dataset.workAreaGrid,
+        workAreaParts: element.querySelectorAll('[data-department-building-part="work-area"][data-department-color-role="workArea"]').length,
         blokId: element.dataset.blokId,
         blokFile: element.dataset.blokFile,
         renderPreset: element.dataset.blokRenderPreset
@@ -1707,6 +1774,9 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(geometry.fixtureParts).toBeGreaterThan(0);
     expect(geometry.frontBricks).toBeGreaterThan(0);
     expect(geometry.roofBricks).toBeGreaterThan(0);
+    expect(geometry.containerGrid).toBe("12x12");
+    expect(geometry.workAreaGrid).toBe("8x8");
+    expect(geometry.workAreaParts).toBe(1);
     expect(geometry.blokId).toBe("logistics.department.warehouse");
     expect(geometry.blokFile).toBe("logistics/afdeling_magazijn.blok");
     expect(geometry.renderPreset).toBe("logistics-department.warehouse");
@@ -1716,14 +1786,15 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
       expect(Number.isInteger(placement.x)).toBe(true);
       expect(Number.isInteger(placement.y)).toBe(true);
       expect(Number.isInteger(placement.layer)).toBe(true);
-      expect(placement.z).toBeCloseTo(0.22 + placement.layer * 0.72, 8);
+      expect(placement.z).toBeCloseTo(0.44 + placement.layer * 0.72, 8);
       expect(placement.transform).toMatch(/^translate\(/);
       expect(placement.transform).not.toContain("scale(");
     });
     expect(await container.locator(":scope > g").evaluateAll(layers => (
       layers.map(layer => layer.getAttribute("class") || "")
     ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);
-    await expect(page.locator(".iso-roof-symbol")).toHaveCount(0);
+    await expect(tutorialScene.locator(".iso-roof-symbol")).toHaveCount(0);
+    await expect(tutorialScene.locator(".iso-empty-stock-label")).toHaveCount(0);
   });
 
   test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }, testInfo) => {

@@ -707,12 +707,12 @@
   ];
 
   const ISOMETRIC_DEPARTMENT_LAYOUTS = Object.freeze({
-    inbound: Object.freeze({ x: 1, y: 17, width: 3.5, depth: 3.2, height: 54 }),
-    production_1: Object.freeze({ x: 5, y: 13, width: 3.5, depth: 3.2, height: 68 }),
-    production_2: Object.freeze({ x: 9, y: 9, width: 3.5, depth: 3.2, height: 74 }),
-    production_3: Object.freeze({ x: 13, y: 5, width: 3.5, depth: 3.2, height: 82 }),
-    quality: Object.freeze({ x: 17, y: 1, width: 3.5, depth: 3.2, height: 62 }),
-    dispatch: Object.freeze({ x: 23, y: 12, width: 3.5, depth: 3.2, height: 56 })
+    inbound: Object.freeze({ x: 1, y: 21, width: 3.5, depth: 3.2, height: 54 }),
+    production_1: Object.freeze({ x: 6, y: 16, width: 3.5, depth: 3.2, height: 68 }),
+    production_2: Object.freeze({ x: 11, y: 11, width: 3.5, depth: 3.2, height: 74 }),
+    production_3: Object.freeze({ x: 16, y: 6, width: 3.5, depth: 3.2, height: 82 }),
+    quality: Object.freeze({ x: 21, y: 1, width: 3.5, depth: 3.2, height: 62 }),
+    dispatch: Object.freeze({ x: 27, y: 13, width: 3.5, depth: 3.2, height: 56 })
   });
 
   const ISOMETRIC_DEPARTMENT_DEFINITIONS = [
@@ -1279,7 +1279,6 @@
       departmentColor: "tutorial-transit",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "ontvangstvak leeg",
       layout: { x: 8, y: 10, width: 3.8, depth: 3.4, height: 48 }
     },
     {
@@ -1311,7 +1310,6 @@
       departmentModel: "factory",
       departmentColor: "production-b",
       openRoof: true,
-      emptyLabel: "productievak leeg",
       layout: { x: 4, y: 12, width: 4.2, depth: 3.8, height: 78 }
     },
     {
@@ -1324,7 +1322,6 @@
       departmentColor: "finished",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "wacht op Toren B",
       layout: { x: 15, y: 5, width: 4.2, depth: 3.8, height: 66 }
     }
   ];
@@ -1350,7 +1347,6 @@
       openRoof: true,
       compactStock: true,
       dragTargetLabel: "Productie B",
-      emptyLabel: "materialen uitgegeven",
       layout: { x: 3, y: 13, width: 4.1, depth: 3.7, height: 70 }
     },
     {
@@ -1362,7 +1358,6 @@
       departmentModel: "factory",
       departmentColor: "production",
       openRoof: true,
-      emptyLabel: "geen Toren A-order",
       layout: { x: 10, y: 16, width: 4.2, depth: 3.4, height: 66 }
     },
     {
@@ -1375,7 +1370,6 @@
       departmentColor: "production",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "wacht op onderdelen",
       layout: { x: 10, y: 10, width: 4.2, depth: 3.4, height: 68 }
     },
     {
@@ -1387,7 +1381,6 @@
       departmentModel: "factory",
       departmentColor: "production",
       openRoof: true,
-      emptyLabel: "geen Toren C-order",
       layout: { x: 10, y: 4, width: 4.2, depth: 3.4, height: 66 }
     },
     {
@@ -1400,7 +1393,6 @@
       departmentColor: "finished",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "wacht op complete toren",
       layout: { x: 17, y: 10, width: 4.2, depth: 3.8, height: 68 }
     },
     {
@@ -1413,7 +1405,6 @@
       departmentColor: "yellow",
       openRoof: true,
       showDropLabel: false,
-      emptyLabel: "wacht op levering",
       layout: { x: 23, y: 5, width: 4.2, depth: 3.8, height: 62 }
     }
   ];
@@ -3121,7 +3112,7 @@
       departmentModel: "office",
       departmentColor: "blue",
       labelPosition: "above",
-      layout: { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 }
+      layout: { x: 8, y: 2, width: 3.5, depth: 3.2, height: 64 }
     },
     {
       id: "srm",
@@ -3135,7 +3126,7 @@
       openRoof: true,
       compactStock: true,
       labelPosition: "above",
-      layout: { x: 11, y: 1, width: 3.8, depth: 3.4, height: 62 }
+      layout: { x: 15, y: -1, width: 3.8, depth: 3.4, height: 62 }
     },
     {
       id: "pd1",
@@ -3147,7 +3138,7 @@
       departmentModel: "factory",
       departmentColor: "production-a",
       openRoof: true,
-      layout: { x: 5, y: 13, width: 3.8, depth: 3.4, height: 72 }
+      layout: { x: 4, y: 18, width: 3.8, depth: 3.4, height: 72 }
     },
     {
       id: "pd2",
@@ -3159,7 +3150,7 @@
       departmentModel: "factory",
       departmentColor: "production-b",
       openRoof: true,
-      layout: { x: 11, y: 11, width: 3.8, depth: 3.4, height: 78 }
+      layout: { x: 11, y: 15, width: 3.8, depth: 3.4, height: 78 }
     },
     {
       id: "pd3",
@@ -3171,7 +3162,7 @@
       departmentModel: "factory",
       departmentColor: "production-c",
       openRoof: true,
-      layout: { x: 17, y: 9, width: 3.8, depth: 3.4, height: 84 }
+      layout: { x: 18, y: 12, width: 3.8, depth: 3.4, height: 84 }
     },
     {
       id: "ssf",
@@ -3183,7 +3174,7 @@
       departmentModel: "warehouse",
       departmentColor: "finished",
       openRoof: true,
-      layout: { x: 23, y: 7, width: 3.8, depth: 3.4, height: 66 }
+      layout: { x: 25, y: 9, width: 3.8, depth: 3.4, height: 66 }
     }
   ];
 
@@ -3323,7 +3314,7 @@
       );
       const activeOrder = isTransferSourceRole
         ? orderById.get(activeTransfer.orderId) || transferContext?.task?.order || null
-        : orderById.get(runtime.activeOrderId);
+        : orderById.get(runtime.activeOrderId) || orders[0] || null;
       const activeProduct = snapshot.products?.[activeOrder?.productId]
         || (isTransferSourceRole ? transferContext?.task?.product : null);
       const latestEvent = snapshot.feed.find(item => (
@@ -3343,8 +3334,12 @@
         && activeTransfer.cargoKind === "material_kits"
       );
       const isOrderDocument = Boolean(
-        isTransferSource
-        && activeTransfer.cargoKind === "order_information"
+        (isTransferSource && activeTransfer.cargoKind === "order_information")
+        || (
+          !activeTransfer
+          && activeOrder
+          && ["customer", "operations"].includes(definition.roleId)
+        )
       );
       const cargoSequence = isOrderDocument
         ? [...(activeProduct?.towerSequence || [])]
@@ -3356,7 +3351,11 @@
       const showCargo = Boolean(
         activeProduct
         && (isOrderDocument || isMaterialCart || cargoSequence.length)
-        && (["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId) || isTransferSource)
+        && (
+          isOrderDocument
+          || ["pd1", "pd2", "pd3", "ssf"].includes(definition.roleId)
+          || isTransferSource
+        )
       );
       return {
         ...definition,
@@ -3370,7 +3369,6 @@
               ? `Zet de materiaalwagen met losse onderdelen voor ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
               : `Zet de complete batch met ${activeTransfer.quantity} ${activeTransfer.quantity === 1 ? "toren" : "torens"} neer in ${definition.title}`
           : undefined,
-        emptyLabel: isTransferTarget ? "ontvangstvak" : definition.emptyLabel,
         status: simulationDepartmentStatus(runtime),
         badgeValue: orders.length,
         badgeLabel: `${orders.length} orders in behandeling`,
@@ -3385,7 +3383,7 @@
           : [],
         cargoVisual: showCargo ? {
           kind: isOrderDocument ? "order_document" : isMaterialCart ? "material_cart" : "tower",
-          cargoKind: activeTransfer?.cargoKind || "tower_batch",
+          cargoKind: activeTransfer?.cargoKind || (isOrderDocument ? "order_information" : "tower_batch"),
           cargoId: activeOrder.id,
           productId: activeOrder.productId,
           label: isOrderDocument
@@ -8282,7 +8280,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v265-department-labels").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v266-department-work-area").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });
