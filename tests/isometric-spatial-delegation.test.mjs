@@ -12,7 +12,7 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function harness({ packedLayer = 0 } = {}) {
+function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
   const calls = {
     createDiamondProjection: [],
     projectDiamond: [],
@@ -30,6 +30,7 @@ function harness({ packedLayer = 0 } = {}) {
     brick: [],
     orderDocument: [],
     orderDocumentGeometry: [],
+    departmentBuildingLayers: [],
     openContainerLayers: [],
     isometricPaintOrder: []
   };
@@ -211,6 +212,38 @@ function harness({ packedLayer = 0 } = {}) {
                  data-order-document-quantity="${quantity}"></g>`;
     }
   };
+  if (withDepartmentModels) {
+    renderer.departmentBuildingLayers = options => {
+      calls.departmentBuildingLayers.push(plain(options));
+      const profile = String(options.profile);
+      const files = {
+        store: "logistics/afdeling_winkel.blok",
+        office: "logistics/afdeling_kantoor.blok",
+        warehouse: "logistics/afdeling_magazijn.blok",
+        factory: "logistics/afdeling_fabriek.blok"
+      };
+      return {
+        base: `<g data-test-department-base="${profile}"></g>`,
+        rear: `<g data-test-department-rear="${profile}"></g>`,
+        fixtures: `<g data-test-department-fixtures="${profile}"></g>`,
+        front: `<g data-test-department-front="${profile}"></g>`,
+        roof: `<g data-test-department-roof="${profile}"></g>`,
+        interior: {
+          x: options.x + 1,
+          y: options.y + 1,
+          z: options.z + 0.22,
+          width: options.width - 2,
+          depth: options.depth - 2
+        },
+        model: {
+          id: profile,
+          blokId: `logistics.department.${profile}`,
+          blokFile: files[profile],
+          renderPreset: `logistics-department.${profile}`
+        }
+      };
+    };
+  }
   const builder = {
     builderBoardProfile(options) {
       calls.builderBoardProfile.push(plain(options));
@@ -443,8 +476,48 @@ test("torencargo gebruikt grondplaatafmetingen uit het scenecontract", () => {
   assert.doesNotMatch(source, /LegoTowerRenderer\.plate\(\s*0,\s*0,\s*0,\s*6,\s*6,/s);
 });
 
+test("winkel, kantoor, magazijn en fabriek delegeren als expliciete Engine-afdelingsmodellen", () => {
+  const { calls, view } = harness({ withDepartmentModels: true });
+  const container = {
+    clientWidth: 800,
+    clientHeight: 600,
+    innerHTML: "",
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    contains: () => true
+  };
+  const models = ["store", "office", "warehouse", "factory"];
+
+  view.mount(container, {
+    connections: [],
+    departments: models.map((departmentModel, index) => ({
+      id: departmentModel,
+      title: departmentModel,
+      kind: "warehouse",
+      departmentModel,
+      departmentColor: "green",
+      status: "idle",
+      layout: { x: index * 4, y: 2, width: 3.5, depth: 3.2, height: 54 }
+    }))
+  });
+
+  assert.deepEqual(
+    calls.departmentBuildingLayers.map(call => call.profile),
+    models
+  );
+  assert.equal(calls.openContainerLayers.length, 0);
+  for (const departmentModel of models) {
+    assert.match(container.innerHTML, new RegExp(`data-department-model="${departmentModel}"`));
+    assert.match(container.innerHTML, new RegExp(`data-blok-id="logistics\\.department\\.${departmentModel}"`));
+    assert.match(container.innerHTML, new RegExp(`data-blok-render-preset="logistics-department\\.${departmentModel}"`));
+    assert.match(container.innerHTML, new RegExp(`data-test-department-fixtures="${departmentModel}"`));
+  }
+  assert.doesNotMatch(source, /function symbolMarkup|iso-roof-symbol|h34v-19h16l13/);
+  assert.doesNotMatch(container.innerHTML, /iso-roof-symbol|truck|vrachtwagen/i);
+});
+
 test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen torenbatch", () => {
-  const { calls, view } = harness();
+  const { calls, view } = harness({ withDepartmentModels: true });
   const container = {
     clientWidth: 800,
     clientHeight: 600,
@@ -460,6 +533,7 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
     departments: [{
       id: "operations",
       title: "Operations",
+      departmentModel: "office",
       departmentColor: "operations",
       status: "active",
       openRoof: true,
@@ -521,7 +595,7 @@ test("orderinformatie rendert precies een canoniek SDK-bestelformulier en geen t
   assert.match(container.innerHTML, /data-order-document-quantity="3"/);
   assert.match(container.innerHTML, /data-container-alignment="center-center-min"/);
   assert.match(container.innerHTML, /data-model-x="0"\s+data-model-y="2\.5"\s+data-model-z="0\.22"/);
-  const containerTransform = container.innerHTML.match(/class="iso-lego-box"[^>]*>\s*<g transform="([^"]+)"/s)?.[1];
+  const containerTransform = container.innerHTML.match(/class="iso-lego-box iso-department-model"[^>]*>\s*<g transform="([^"]+)"/s)?.[1];
   const documentTransform = container.innerHTML.match(/class="iso-cargo-order-document[^>]*transform="([^"]+)"/s)?.[1];
   assert.equal(documentTransform, containerTransform);
   assert.match(container.innerHTML, /class="iso-cargo-hitbox"[^>]*width="[1-9]/);

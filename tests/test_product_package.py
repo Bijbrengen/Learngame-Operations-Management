@@ -172,7 +172,7 @@ class ProductPackageTests(unittest.TestCase):
         service_worker = (PRODUCT_ROOT / "service-worker.js").read_text(encoding="utf-8")
         stylesheet = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn('href="style.css?v=20260830.2"', html)
+        self.assertIn('href="style.css?v=20260830.3"', html)
         self.assertIn('"logistics-game-engine.js?v=20260827.2"', html)
         self.assertIn('src="leerpret-sdk.js?v=20260828.3"', html)
         self.assertIn('"logistics-game-ui.js?v=20260830.1"', html)
@@ -181,12 +181,12 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260830.2"', html)
-        self.assertIn('"script.js?v=20260830.2"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260830.3"', html)
+        self.assertIn('"script.js?v=20260830.3"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
-        self.assertIn('CACHE_VERSION = "learngame-om-v263-order-document-centered"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v264-department-buildings"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v263-order-document-centered")',
+            'register("service-worker.js?v=learngame-om-v264-department-buildings")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -268,17 +268,83 @@ class ProductPackageTests(unittest.TestCase):
             summary["properties"]["play_mode"]["enum"],
         )
 
-    def test_all_departments_use_the_shared_transparent_lego_box_primitive(self) -> None:
+    def test_all_departments_use_the_shared_engine_department_model_primitive(self) -> None:
         renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
-        self.assertIn("LegoTowerRenderer?.openContainerLayers", renderer)
-        self.assertIn('class="iso-lego-box"', renderer)
-        self.assertIn("container.base}${container.rear}", renderer)
-        self.assertIn("${bricks}${cargo}${empty}${interiorSymbol}", renderer)
+        styles = (PRODUCT_ROOT / "style.css").read_text(encoding="utf-8")
+        self.assertIn('Object.freeze(["store", "office", "warehouse", "factory"])', renderer)
+        self.assertIn('typeof renderer?.departmentBuildingLayers === "function"', renderer)
+        self.assertIn("renderer.departmentBuildingLayers({", renderer)
+        self.assertIn('class="iso-lego-box iso-department-model"', renderer)
+        self.assertIn('data-department-model="${escapeHtml(departmentModel)}"', renderer)
+        self.assertIn('data-blok-id="${escapeHtml(model?.blokId || "")}"', renderer)
+        self.assertIn("container.base}${container.rear}${container.fixtures || \"\"}", renderer)
+        self.assertIn("${bricks}${cargo}${empty}", renderer)
         self.assertIn("container.front", renderer)
         self.assertIn("container.roof", renderer)
-        self.assertIn('data-transparent-front="true"', renderer)
-        self.assertIn('data-transparent-roof="true"', renderer)
-        self.assertIn('usesLegoContainer = typeof window.LegoTowerRenderer', renderer)
+        self.assertIn("renderer?.openContainerLayers", renderer)
+        self.assertIn('usesDepartmentModel = typeof window.LegoTowerRenderer', renderer)
+        self.assertNotIn("function symbolMarkup", renderer)
+        self.assertNotIn("iso-roof-symbol", renderer)
+        self.assertNotIn("h34v-19h16l13", renderer)
+        self.assertNotIn(".iso-roof-symbol", styles)
+
+    def test_department_models_are_explicit_for_each_logistics_scene_family(self) -> None:
+        game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")
+
+        def array_section(name: str) -> str:
+            marker = f"const {name} = ["
+            start = game.index(marker)
+            return game[start : game.index("\n  ];", start)]
+
+        def assert_literal_models(name: str, expected: dict[str, str]) -> None:
+            section = array_section(name)
+            object_marker = '\n    {\n      id: "'
+            self.assertEqual(len(expected), section.count(object_marker), name)
+            self.assertEqual(len(expected), section.count('departmentModel: "'), name)
+            for department_id, model in expected.items():
+                start = section.index(f'id: "{department_id}"')
+                next_object = section.find(object_marker, start)
+                block = section[start : next_object if next_object >= 0 else len(section)]
+                self.assertIn(f'departmentModel: "{model}"', block, f"{name}:{department_id}")
+
+        assert_literal_models("ISOMETRIC_DEPARTMENT_DEFINITIONS", {
+            "inbound": "warehouse",
+            "production_1": "factory",
+            "production_2": "factory",
+            "production_3": "factory",
+            "quality": "warehouse",
+            "dispatch": "store",
+        })
+        assert_literal_models("FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS", {
+            "inbound": "warehouse",
+            "production_1": "factory",
+            "production_2": "factory",
+            "production_3": "factory",
+            "quality": "office",
+            "dispatch": "warehouse",
+        })
+        assert_literal_models("STANDALONE_SIMULATION_DEPARTMENTS", {
+            "customer": "store",
+            "operations": "office",
+            "srm": "warehouse",
+            "pd1": "factory",
+            "pd2": "factory",
+            "pd3": "factory",
+            "ssf": "warehouse",
+        })
+
+        entrepreneurial = array_section("ENTREPRENEURIAL_ISOMETRIC_DEPARTMENT_DEFINITIONS")
+        self.assertIn('id: "operations"', entrepreneurial)
+        self.assertIn('departmentModel: "office"', entrepreneurial)
+        self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[0]", entrepreneurial)
+        self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS.slice(1, 4)", entrepreneurial)
+        self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[4]", entrepreneurial)
+        self.assertIn("FUNCTIONAL_ISOMETRIC_DEPARTMENT_DEFINITIONS[5]", entrepreneurial)
+        self.assertEqual(1, entrepreneurial.count('departmentModel: "warehouse"'))
+        self.assertEqual(1, entrepreneurial.count('departmentModel: "store"'))
+
+        configured_models = set(re.findall(r'departmentModel: "([^"]+)"', game))
+        self.assertEqual({"store", "office", "warehouse", "factory"}, configured_models)
 
     def test_all_lom_process_connections_use_the_engine_cable_primitive(self) -> None:
         html = (PRODUCT_ROOT / "index.html").read_text(encoding="utf-8")

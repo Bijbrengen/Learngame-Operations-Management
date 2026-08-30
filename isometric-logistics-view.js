@@ -340,42 +340,37 @@
     }[status] || "Beschikbaar";
   }
 
-  function symbolMarkup(department, center) {
-    const x = center.x;
-    const y = center.y + 6;
-    if (department.kind === "warehouse") {
-      return `
-        <g class="iso-roof-symbol" aria-hidden="true">
-          <rect x="${x - 24}" y="${y - 14}" width="14" height="14" rx="2"></rect>
-          <rect x="${x - 7}" y="${y - 14}" width="14" height="14" rx="2"></rect>
-          <rect x="${x + 10}" y="${y - 14}" width="14" height="14" rx="2"></rect>
-          <path d="M ${x - 22} ${y - 7}h10M ${x - 5} ${y - 7}h10M ${x + 12} ${y - 7}h10"></path>
-        </g>
-      `;
-    }
-    if (department.kind === "quality") {
-      return `
-        <g class="iso-roof-symbol" aria-hidden="true">
-          <circle cx="${x}" cy="${y - 8}" r="19"></circle>
-          <path d="M ${x - 10} ${y - 8}l7 7 14-17"></path>
-        </g>
-      `;
-    }
-    if (department.kind === "dispatch") {
-      return `
-        <g class="iso-roof-symbol" aria-hidden="true">
-          <path d="M ${x - 25} ${y + 2}h34v-19h16l13 13v16h-10M ${x + 9} ${y - 15}v12h24"></path>
-          <circle cx="${x - 13}" cy="${y + 12}" r="6"></circle>
-          <circle cx="${x + 24}" cy="${y + 12}" r="6"></circle>
-        </g>
-      `;
-    }
-    return `
-      <g class="iso-roof-symbol" aria-hidden="true">
-        <path d="M ${x - 25} ${y + 10}v-26l13 9 12-9 13 9 12-9v26z"></path>
-        <path d="M ${x - 14} ${y + 10}v-10h12v10M ${x + 6} ${y + 10}v-10h12v10"></path>
-      </g>
-    `;
+  const DEPARTMENT_MODEL_IDS = Object.freeze(["store", "office", "warehouse", "factory"]);
+  const DEPARTMENT_MODEL_ACCENTS = Object.freeze({
+    customer: "red",
+    operations: "blue",
+    raw: "yellow",
+    finished: "blue",
+    "production-a": "yellow",
+    "production-b": "blue",
+    "production-c": "red",
+    production: "red",
+    purple: "red",
+    blue: "blue",
+    yellow: "yellow",
+    green: "green",
+    "tutorial-blue": "blue",
+    "tutorial-yellow": "yellow",
+    "tutorial-transit": "dark_gray",
+    warehouse: "dark_gray"
+  });
+
+  function departmentModelProfile(department) {
+    const explicit = String(department.departmentModel || "");
+    if (DEPARTMENT_MODEL_IDS.includes(explicit)) return explicit;
+    if (department.kind === "warehouse") return "warehouse";
+    if (department.kind === "quality" || department.kind === "operations") return "office";
+    if (department.kind === "production") return "factory";
+    return "warehouse";
+  }
+
+  function departmentModelAccent(department) {
+    return DEPARTMENT_MODEL_ACCENTS[department.departmentColor] || undefined;
   }
 
   function layoutStockItems(items, profileOptions) {
@@ -412,21 +407,34 @@
     const laidOutItems = layoutStockItems(items, stockProfileOptions);
     const containerPlacement = warehouseContainerPlacement(center, stockProfileOptions);
     const containerTransform = `translate(${containerPlacement.translateX} ${containerPlacement.translateY})`;
-    const containerColor = {
+    const fallbackContainerColor = {
       "tutorial-blue": "blue",
       "tutorial-yellow": "yellow",
       "tutorial-transit": "dark_gray",
       finished: "blue"
     }[department.departmentColor] || "green";
-    const container = window.LegoTowerRenderer?.openContainerLayers?.(
-      containerPlacement.x,
-      containerPlacement.y,
-      0,
-      containerPlacement.width,
-      containerPlacement.depth,
-      containerColor,
-      legoGradientScope
-    );
+    const departmentModel = departmentModelProfile(department);
+    const renderer = window.LegoTowerRenderer;
+    const container = typeof renderer?.departmentBuildingLayers === "function"
+      ? renderer.departmentBuildingLayers({
+          profile: departmentModel,
+          x: containerPlacement.x,
+          y: containerPlacement.y,
+          z: 0,
+          width: containerPlacement.width,
+          depth: containerPlacement.depth,
+          accentColor: departmentModelAccent(department),
+          scope: legoGradientScope
+        })
+      : renderer?.openContainerLayers?.(
+          containerPlacement.x,
+          containerPlacement.y,
+          0,
+          containerPlacement.width,
+          containerPlacement.depth,
+          fallbackContainerColor,
+          legoGradientScope
+        );
     const placementProfile = laidOutItems.length && window.LegoTowerRenderer
       ? stockBoardProfile(stockProfileOptions)
       : null;
@@ -471,15 +479,17 @@
                y="${center.y + 7}"
                text-anchor="middle">${escapeHtml(department.emptyLabel || "ophaalvak leeg")}</text>`
       : "";
-    const interiorSymbol = hasLogisticsContent ? "" : symbolMarkup(department, {
-      x: center.x,
-      y: center.y + 10
-    });
     if (container) {
+      const model = container.model;
       return `
-        <g class="iso-lego-box" data-container-grid="8x8" data-rear-wall-height="2-bricks" data-transparent-front="true" data-transparent-roof="true">
-          <g transform="${containerTransform}">${container.base}${container.rear}</g>
-          <g class="iso-lego-box-interior">${bricks}${cargo}${empty}${interiorSymbol}</g>
+        <g class="iso-lego-box iso-department-model"
+           data-department-model="${escapeHtml(departmentModel)}"
+           data-container-grid="${containerPlacement.width}x${containerPlacement.depth}"
+           data-blok-id="${escapeHtml(model?.blokId || "")}"
+           data-blok-file="${escapeHtml(model?.blokFile || "")}"
+           data-blok-render-preset="${escapeHtml(model?.renderPreset || "")}">
+          <g transform="${containerTransform}">${container.base}${container.rear}${container.fixtures || ""}</g>
+          <g class="iso-lego-box-interior">${bricks}${cargo}${empty}</g>
           <g class="iso-lego-container-front" transform="${containerTransform}">${container.front}</g>
           <g class="iso-lego-container-roof" transform="${containerTransform}">${container.roof}</g>
         </g>
@@ -763,7 +773,11 @@
       ? TUTORIAL_WAREHOUSE_PALETTES[department.departmentColor]
       : null;
     const selectedRenderState = selected || Boolean(palette) || department.forceSelectedRender;
-    const usesLegoContainer = typeof window.LegoTowerRenderer?.openContainerLayers === "function";
+    const usesLegoContainer = Boolean(
+      typeof window.LegoTowerRenderer?.departmentBuildingLayers === "function"
+      || typeof window.LegoTowerRenderer?.openContainerLayers === "function"
+    );
+    const usesDepartmentModel = typeof window.LegoTowerRenderer?.departmentBuildingLayers === "function";
     const usesOpenInterior = Boolean(
       usesLegoContainer
       || department.openRoof
@@ -771,7 +785,7 @@
       || department.stockVisuals?.length
     );
     return `
-      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${usesLegoContainer ? " has-lego-box" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
+      <g class="iso-department department-${escapeHtml(department.departmentColor)} status-${escapeHtml(department.status)}${department.openRoof ? " is-open-roof" : ""}${usesLegoContainer ? " has-lego-box" : ""}${usesDepartmentModel ? " has-department-model" : ""}${palette ? " is-tutorial-warehouse" : ""}${selectedRenderState ? " is-selected" : ""}${department.highlight ? " is-highlighted" : ""}${department.locked ? " is-locked" : ""}${department.acceptsStockDrop || department.acceptsCargoDrop ? " is-drop-target" : ""}"
          data-department-id="${escapeHtml(department.id)}"
          data-accepts-drag-kind="${department.acceptsCargoDrop ? "cargo" : department.acceptsStockDrop ? "stock" : ""}"
          role="button"
@@ -803,7 +817,6 @@
             )
             : `
               <polygon class="iso-building-roof" points="${points(geometry.roof)}"></polygon>
-              ${symbolMarkup(department, geometry.center)}
             `}
           ${stockDropTargetMarkup(department, geometry)}
         </g>

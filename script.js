@@ -722,6 +722,7 @@
       shortTitle: "Grondstoffen",
       description: "Ontvangst, opslag en uitgifte van LEGO-grondstoffen voor de drie productiestappen.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "raw",
       lanes: ["raw"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.inbound
@@ -732,6 +733,7 @@
       shortTitle: "Afdeling A",
       description: "Zelfstandige productieafdeling voor de productorder Toren A.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-a",
       productIds: ["A"],
       lanes: ["pd1", "ss1"],
@@ -743,6 +745,7 @@
       shortTitle: "Afdeling B",
       description: "Zelfstandige productieafdeling voor de productorder Toren B.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-b",
       productIds: ["B"],
       lanes: ["pd2", "ss2"],
@@ -754,6 +757,7 @@
       shortTitle: "Afdeling C",
       description: "Zelfstandige productieafdeling voor de productorder Toren C.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-c",
       productIds: ["C"],
       lanes: ["pd3"],
@@ -765,6 +769,7 @@
       shortTitle: "Gereed Product",
       description: "Ontvangst en controle van complete torens vóór uitlevering aan de klant.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "finished",
       lanes: ["finished", "customer"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.quality
@@ -775,6 +780,7 @@
       shortTitle: "Klant",
       description: "Uitlevering van het gereed product aan de klant en administratieve afsluiting.",
       kind: "dispatch",
+      departmentModel: "store",
       departmentColor: "customer",
       lanes: ["archive"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.dispatch
@@ -807,6 +813,7 @@
       shortTitle: "Inkomend Magazijn",
       description: "Ontvangst, opslag en seriële uitgifte van grondstoffen aan de functionele productieketen.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "green",
       lanes: ["raw"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.inbound
@@ -817,6 +824,7 @@
       shortTitle: "Assemblage 1",
       description: "Eerste functionele assemblagestap voor alle torensoorten.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "purple",
       lanes: ["pd1"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_1
@@ -829,6 +837,7 @@
       kind: "production",
       departmentColor: "purple",
       lanes: ["ss1", "pd2"],
+      departmentModel: "factory",
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_2
     },
     {
@@ -839,6 +848,7 @@
       kind: "production",
       departmentColor: "purple",
       lanes: ["ss2", "pd3"],
+      departmentModel: "factory",
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.production_3
     },
     {
@@ -847,6 +857,7 @@
       shortTitle: "Kwaliteitscontrole",
       description: "Controleert het complete product na de drie seriële assemblagestappen.",
       kind: "quality",
+      departmentModel: "office",
       departmentColor: "blue",
       lanes: ["finished", "customer"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.quality
@@ -857,6 +868,7 @@
       shortTitle: "Expeditie",
       description: "Levert het gecontroleerde product uit en sluit de keten administratief af.",
       kind: "dispatch",
+      departmentModel: "warehouse",
       departmentColor: "yellow",
       lanes: ["archive"],
       layout: ISOMETRIC_DEPARTMENT_LAYOUTS.dispatch
@@ -881,6 +893,7 @@
       shortTitle: "Handelaar",
       description: "Ontvangt klantorders, verkoopt en regisseert de zelfstandige ondernemingsketen.",
       kind: "operations",
+      departmentModel: "office",
       departmentColor: "blue",
       lanes: [],
       layout: { x: 0, y: 18, width: 3, depth: 2.8, height: 54 }
@@ -904,6 +917,7 @@
       title: "Handelaar · Gereed product",
       shortTitle: "Gereed product",
       description: "Neemt complete torens over en maakt ze gereed voor verkoop en uitlevering.",
+      departmentModel: "warehouse",
       layout: { x: 17.5, y: 0.5, width: 3, depth: 2.8, height: 62 }
     },
     {
@@ -911,6 +925,7 @@
       title: "Klant · Order & ontvangst",
       shortTitle: "Klant",
       description: "Plaatst de order en ontvangt de uitgeleverde torens.",
+      departmentModel: "store",
       layout: { x: 22, y: 10, width: 3, depth: 2.8, height: 54 }
     }
   ];
@@ -1212,6 +1227,7 @@
       shortTitle: "Magazijn A · Blauw",
       description: "Stelling A bevat de blauwe 2×4-bouwstenen voor de ophaalopdracht.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "tutorial-blue",
       materialId: "blue_8",
       openRoof: true,
@@ -1227,6 +1243,7 @@
       shortTitle: "Magazijn B · Geel",
       description: "Stelling B bevat het gele 2×2-blok voor Toren B.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "tutorial-yellow",
       materialId: "yellow_4",
       openRoof: true,
@@ -1242,6 +1259,7 @@
       shortTitle: "Magazijn C · Groen",
       description: "Stelling C bevat het groene 2×2-topblok voor Toren B.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "green",
       materialId: "green_4",
       openRoof: true,
@@ -1257,6 +1275,7 @@
       shortTitle: "Productie B",
       description: "Sleep de juiste blokken vanuit Magazijn Grondstoffen naar Productieafdeling B.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "tutorial-transit",
       openRoof: true,
       showDropLabel: false,
@@ -1269,6 +1288,7 @@
       shortTitle: "Bouwplek B",
       description: "De bouwplek blijft vergrendeld totdat Productieafdeling B de volledige materiaalset heeft ontvangen.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-a",
       layout: { x: 15, y: 10, width: 4, depth: 3.6, height: 76 }
     }
@@ -1288,6 +1308,7 @@
       shortTitle: "Productie B",
       description: "Productieafdeling B heeft zelfstandig de complete Toren B gebouwd.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-b",
       openRoof: true,
       emptyLabel: "productievak leeg",
@@ -1299,6 +1320,7 @@
       shortTitle: "Gereed Product",
       description: "Dit magazijn ontvangt de complete Toren B vanuit Productieafdeling B.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "finished",
       openRoof: true,
       showDropLabel: false,
@@ -1323,6 +1345,7 @@
       shortTitle: "Grondstoffen",
       description: "Hier worden de onderdelen tegen de actuele interne verrekenprijs uitgegeven.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "raw",
       openRoof: true,
       compactStock: true,
@@ -1336,6 +1359,7 @@
       shortTitle: "Productie A",
       description: "Parallelle afdeling voor complete Toren A-orders.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production",
       openRoof: true,
       emptyLabel: "geen Toren A-order",
@@ -1347,6 +1371,7 @@
       shortTitle: "Productie B",
       description: "Deze parallelle afdeling bouwt zelfstandig de complete Toren B.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production",
       openRoof: true,
       showDropLabel: false,
@@ -1359,6 +1384,7 @@
       shortTitle: "Productie C",
       description: "Parallelle afdeling voor complete Toren C-orders.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production",
       openRoof: true,
       emptyLabel: "geen Toren C-order",
@@ -1370,6 +1396,7 @@
       shortTitle: "Gereed Product",
       description: "Ontvang hier de complete Toren B vanuit de parallelle productieafdeling.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "finished",
       openRoof: true,
       showDropLabel: false,
@@ -1382,6 +1409,7 @@
       shortTitle: "Expeditie",
       description: "Lever Toren B hier aan de klant om de verkoopopbrengst te ontvangen.",
       kind: "dispatch",
+      departmentModel: "warehouse",
       departmentColor: "yellow",
       openRoof: true,
       showDropLabel: false,
@@ -3078,6 +3106,7 @@
       shortTitle: "Klant",
       description: "Genereert klantorders en bepaalt aantal en gevraagde levertijd.",
       kind: "dispatch",
+      departmentModel: "store",
       departmentColor: "customer",
       labelPosition: "above",
       layout: { x: 1, y: 5, width: 3.5, depth: 3.2, height: 54 }
@@ -3089,6 +3118,7 @@
       shortTitle: "Operations",
       description: "Registreert orders en geeft de werkzaamheden vrij aan de logistieke keten.",
       kind: "production",
+      departmentModel: "office",
       departmentColor: "blue",
       labelPosition: "above",
       layout: { x: 6, y: 3, width: 3.5, depth: 3.2, height: 64 }
@@ -3100,6 +3130,7 @@
       shortTitle: "Grondstoffen",
       description: "Verzamelt en verstrekt de benodigde LEGO-onderdelen.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "raw",
       openRoof: true,
       compactStock: true,
@@ -3113,6 +3144,7 @@
       shortTitle: "PD1",
       description: "Bouwt de grondplaat en eerste torenlaag.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-a",
       openRoof: true,
       layout: { x: 5, y: 13, width: 3.8, depth: 3.4, height: 72 }
@@ -3124,6 +3156,7 @@
       shortTitle: "PD2",
       description: "Bouwt de tweede laag en controleert Subassembly 1.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-b",
       openRoof: true,
       layout: { x: 11, y: 11, width: 3.8, depth: 3.4, height: 78 }
@@ -3135,6 +3168,7 @@
       shortTitle: "PD3",
       description: "Bouwt de bovenste laag en meldt de toren gereed.",
       kind: "production",
+      departmentModel: "factory",
       departmentColor: "production-c",
       openRoof: true,
       layout: { x: 17, y: 9, width: 3.8, depth: 3.4, height: 84 }
@@ -3146,6 +3180,7 @@
       shortTitle: "SSF",
       description: "Controleert, boekt en levert complete torens uit.",
       kind: "warehouse",
+      departmentModel: "warehouse",
       departmentColor: "finished",
       openRoof: true,
       layout: { x: 23, y: 7, width: 3.8, depth: 3.4, height: 66 }
@@ -8247,7 +8282,7 @@
     if (!/^https?:$/.test(location.protocol)) return;
     if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
 
-    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v263-order-document-centered").then(registration => {
+    navigator.serviceWorker.register("service-worker.js?v=learngame-om-v264-department-buildings").then(registration => {
       registration.update();
       if (registration.waiting) {
         registration.waiting.postMessage({ type: "SKIP_WAITING" });

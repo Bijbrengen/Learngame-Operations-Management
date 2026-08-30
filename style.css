@@ -9234,29 +9234,11 @@ select {
   stroke-width: 3;
 }
 
-.iso-department.department-yellow .iso-roof-symbol {
-  stroke: #3f3309;
-}
-
-.iso-department.department-production-a .iso-roof-symbol,
-.iso-department.department-customer .iso-roof-symbol {
-  stroke: #263f50;
-}
-
 .iso-department:focus .iso-zone-floor,
 .iso-department.is-selected .iso-zone-floor {
   fill: rgba(101, 187, 230, 0.2);
   stroke: #167fb4;
   stroke-width: 4;
-}
-
-.iso-roof-symbol {
-  pointer-events: none;
-  fill: none;
-  stroke: #f8fff9;
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .iso-status-badge circle {

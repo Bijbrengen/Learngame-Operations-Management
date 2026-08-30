@@ -1668,22 +1668,26 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     });
   });
 
-  test("8. alle afdelingen zijn LEGO-boxen met hoge achterwand en transparante voorzijde en dak", async ({ page }, testInfo) => {
+  test("8. alle afdelingen zijn canonieke .blok-modellen met open interieur en eigen inrichting", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile-chromium", "De bouwtutorial is alleen beschikbaar op computer of laptop.");
     await mockAuthenticatedApp(page);
     await page.goto("/#tutorialStep2");
     await page.waitForFunction(() => (
-      window.LegoTowerRenderer?.openContainerLayers
+      window.LegoTowerRenderer?.departmentBuildingLayers
       && window.IsometricLogisticsView
       && window.LEARNGameOMSimulator
     ));
-    const containers = page.locator(".iso-lego-box");
+    const containers = page.locator(".iso-department-model");
     const containerCount = await containers.count();
     expect(containerCount).toBeGreaterThan(2);
-    const container = containers.nth(0);
+    expect(new Set(await containers.evaluateAll(elements => (
+      elements.map(element => element.dataset.departmentModel)
+    )))).toEqual(new Set(["store", "warehouse", "factory"]));
+    const container = page.locator('.iso-department-model[data-department-model="warehouse"]').first();
     const geometry = await container.evaluate(element => (
       ({
-        rearBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
+        modelBricks: element.querySelectorAll(":scope > g:first-child .iso-brick").length,
+        fixtureParts: element.querySelectorAll('[data-department-building-role="fixtures"]').length,
         frontBricks: element.querySelectorAll(".iso-lego-container-front .iso-brick").length,
         stockBricks: element.querySelectorAll(".iso-lego-box-interior .iso-brick").length,
         stockPlacements: Array.from(element.querySelectorAll(".iso-stock-brick")).map(brick => ({
@@ -1694,15 +1698,18 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
           transform: brick.getAttribute("transform")
         })),
         roofBricks: element.querySelectorAll(".iso-lego-container-roof .iso-brick").length,
-        transparentFront: element.querySelector(".iso-lego-container-transparent-front")?.getAttribute("opacity"),
-        transparentRoof: element.querySelector(".iso-lego-container-transparent-roof")?.getAttribute("opacity")
+        blokId: element.dataset.blokId,
+        blokFile: element.dataset.blokFile,
+        renderPreset: element.dataset.blokRenderPreset
       })
     ));
-    expect(geometry.rearBricks).toBe(3);
-    expect(geometry.frontBricks).toBe(2);
-    expect(geometry.roofBricks).toBe(1);
-    expect(geometry.transparentFront).toBe("0.38");
-    expect(geometry.transparentRoof).toBe("0.28");
+    expect(geometry.modelBricks).toBeGreaterThan(0);
+    expect(geometry.fixtureParts).toBeGreaterThan(0);
+    expect(geometry.frontBricks).toBeGreaterThan(0);
+    expect(geometry.roofBricks).toBeGreaterThan(0);
+    expect(geometry.blokId).toBe("logistics.department.warehouse");
+    expect(geometry.blokFile).toBe("logistics/afdeling_magazijn.blok");
+    expect(geometry.renderPreset).toBe("logistics-department.warehouse");
     expect(geometry.stockBricks).toBeGreaterThan(0);
     expect(geometry.stockPlacements.length).toBeGreaterThan(0);
     geometry.stockPlacements.forEach(placement => {
@@ -1716,6 +1723,7 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     expect(await container.locator(":scope > g").evaluateAll(layers => (
       layers.map(layer => layer.getAttribute("class") || "")
     ))).toEqual(["", "iso-lego-box-interior", "iso-lego-container-front", "iso-lego-container-roof"]);
+    await expect(page.locator(".iso-roof-symbol")).toHaveCount(0);
   });
 
   test("9. Game Master Opstelling hergebruikt de actuele isometrische LEGO-scene", async ({ page }, testInfo) => {
@@ -1736,7 +1744,12 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     const layout = page.locator("[data-manager-panel='layout']");
     await expect(layout).toBeVisible();
     await expect(layout.locator("[data-session-layout-lego] > .iso-logistics-view")).toBeVisible();
-    await expect(layout.locator(".iso-lego-box")).toHaveCount(6);
+    await expect(layout.locator(".iso-department-model")).toHaveCount(6);
+    await expect(layout.locator('[data-department-model="store"]')).toHaveCount(1);
+    await expect(layout.locator('[data-department-model="office"]')).toHaveCount(0);
+    await expect(layout.locator('[data-department-model="warehouse"]')).toHaveCount(2);
+    await expect(layout.locator('[data-department-model="factory"]')).toHaveCount(3);
+    await expect(layout.locator(".iso-roof-symbol")).toHaveCount(0);
     await expect(layout.locator(".session-layout-config-summary")).not.toHaveAttribute("open", "");
   });
 

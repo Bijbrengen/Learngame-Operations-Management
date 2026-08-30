@@ -41,6 +41,7 @@ test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup
           shortTitle: "Grondstoffen",
           description: "Rastervaste voorraad.",
           kind: "warehouse",
+          departmentModel: "warehouse",
           departmentColor: "raw",
           status: "active",
           primaryMetric: "8 onderdelen",
@@ -57,6 +58,7 @@ test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup
           shortTitle: "Assemblage",
           description: "Bouwt de toren.",
           kind: "production",
+          departmentModel: "factory",
           departmentColor: "production-b",
           status: "attention",
           primaryMetric: "4 torens",
@@ -76,6 +78,7 @@ test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup
           shortTitle: "Gereed Product",
           description: "Ontvangt de complete batch.",
           kind: "warehouse",
+          departmentModel: "warehouse",
           departmentColor: "finished",
           status: "idle",
           primaryMetric: "0 gereed",
@@ -96,7 +99,18 @@ test("de isometrische logistiek-scene behoudt exact dezelfde gegenereerde markup
     }, { centerDepartments: true });
   });
 
+  expect(await page.locator(".iso-department-model").evaluateAll(elements => (
+    elements.map(element => element.dataset.departmentModel).sort()
+  ))).toEqual(["factory", "warehouse", "warehouse"]);
+  expect(await page.locator(".iso-department-model").evaluateAll(elements => (
+    elements.map(element => element.dataset.blokId).sort()
+  ))).toEqual([
+    "logistics.department.factory",
+    "logistics.department.warehouse",
+    "logistics.department.warehouse"
+  ]);
+  await expect(page.locator(".iso-roof-symbol")).toHaveCount(0);
   const markup = await page.locator("#compatibility-scene").innerHTML();
   const digest = createHash("sha256").update(markup).digest("hex");
-  expect(digest).toBe("7db5277b2bcedf4e31a671c24d6229692bbf4421b6989070358773446eca6f89");
+  expect(digest).toBe("713b6666b5624579ef1194734744789d37ed51c9af9d443024e9d2aa7ce3d34a");
 });
