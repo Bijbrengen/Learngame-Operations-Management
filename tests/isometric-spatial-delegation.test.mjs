@@ -17,6 +17,7 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     createDiamondProjection: [],
     projectDiamond: [],
     projectBox: [],
+    bounds2: [],
     unionBoxes3: [],
     boxAlignmentOffset3: [],
     fitViewBox: [],
@@ -30,7 +31,9 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     brick: [],
     orderDocument: [],
     orderDocumentGeometry: [],
+    departmentBuildingGeometry: [],
     departmentBuildingLayers: [],
+    worldToScreen: [],
     openContainerLayers: [],
     isometricPaintOrder: []
   };
@@ -83,6 +86,26 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
         floor: projected.slice(0, 4),
         roof: projected.slice(4),
         bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY }
+      };
+    },
+    bounds2(points) {
+      calls.bounds2.push(plain(points));
+      if (!points.length) return null;
+      const xs = points.map(point => Number(point[0]));
+      const ys = points.map(point => Number(point[1]));
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY,
+        centerX: (minX + maxX) / 2,
+        centerY: (minY + maxY) / 2
       };
     },
     unionBoxes3(boxes) {
@@ -191,6 +214,13 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     iso(x, y, z = 0) {
       return [90 + (x - y) * 13, 105 + (x + y) * 7 - z * 15];
     },
+    worldToScreen(x, y, z = 0) {
+      calls.worldToScreen.push([x, y, z]);
+      return [
+        90 + (x - 3) * 13 - (y - 3) * 13,
+        105 + (x - 3) * 7 + (y - 3) * 7 - z * 17
+      ];
+    },
     orderDocumentGeometry(options) {
       calls.orderDocumentGeometry.push(plain(options));
       const x = Number(options?.x || 0);
@@ -213,6 +243,20 @@ function harness({ packedLayer = 0, withDepartmentModels = false } = {}) {
     }
   };
   if (withDepartmentModels) {
+    renderer.departmentBuildingGeometry = options => {
+      calls.departmentBuildingGeometry.push(plain(options));
+      return {
+        volumes: [{
+          id: "test-building",
+          x: options.x,
+          y: options.y,
+          z: options.z,
+          width: options.width,
+          depth: options.depth,
+          height: 2
+        }]
+      };
+    };
     renderer.departmentBuildingLayers = options => {
       calls.departmentBuildingLayers.push(plain(options));
       const profile = String(options.profile);
@@ -345,6 +389,53 @@ test("doosgeometrie en configureerbare mountprojectie blijven pure SDK-projectie
   assert.equal(calls.unionBoxes3.length, 1);
   assert.equal(calls.isometricPaintOrder.length, 1);
   assert.doesNotMatch(source, /left\.layout\.x \+ left\.layout\.y/);
+});
+
+test("afdelingslabels volgen de geprojecteerde grenzen van het werkelijke .blok-model", () => {
+  const { calls, view } = harness({ withDepartmentModels: true });
+  const baseDepartment = {
+    id: "custom",
+    title: "Configureerbaar",
+    departmentColor: "raw",
+    departmentModel: "warehouse",
+    status: "idle",
+    layout: { x: 1, y: 2, width: 3, depth: 4, height: 5 }
+  };
+  const labelProfile = { aboveVisualOffset: 52, belowVisualOffset: 31 };
+  const stockBoardProfile = {
+    board: { width: 10, depth: 12 },
+    container: { margin: 2, translateX: -110, translateY: -80 }
+  };
+  const below = plain(view.geometryForDepartment(
+    baseDepartment,
+    undefined,
+    undefined,
+    labelProfile,
+    stockBoardProfile
+  ));
+  const above = plain(view.geometryForDepartment(
+    { ...baseDepartment, labelPosition: "above" },
+    undefined,
+    undefined,
+    labelProfile,
+    stockBoardProfile
+  ));
+
+  assert.ok(below.visualBounds);
+  assert.deepEqual(above.visualBounds, below.visualBounds);
+  assert.equal(below.label.y - below.visualBounds.maxY, labelProfile.belowVisualOffset);
+  assert.equal(above.visualBounds.minY - above.label.y, labelProfile.aboveVisualOffset);
+  assert.equal(calls.departmentBuildingGeometry.length, 2);
+  assert.deepEqual(calls.departmentBuildingGeometry[0], {
+    profile: "warehouse",
+    x: -2,
+    y: -2,
+    z: 0,
+    width: 14,
+    depth: 16
+  });
+  assert.ok(calls.worldToScreen.length > 0);
+  assert.ok(calls.bounds2.length > 0);
 });
 
 test("viewBox, voorraadpacking en kabelpad delegeren met het legacy-outputprofiel", () => {

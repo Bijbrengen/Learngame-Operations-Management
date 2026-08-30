@@ -80,6 +80,25 @@ window.LeerpretSDK.components["lego-spatial"] = {
     const maxY = Math.max(...ys);
     return { floor, roof, bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY } };
   },
+  bounds2: points => {
+    if (!points.length) return null;
+    const xs = points.map(point => Number(point[0]));
+    const ys = points.map(point => Number(point[1]));
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2
+    };
+  },
   unionBoxes3: boxes => boxes.length ? ({
     minX: Math.min(...boxes.map(box => box.x)),
     minY: Math.min(...boxes.map(box => box.y)),
@@ -181,12 +200,12 @@ class ProductPackageTests(unittest.TestCase):
         self.assertIn('src="configuration-layout-preview.js?v=20260827.1"', html)
         self.assertIn('src="game-sessions.js?v=20260829.1"', html)
         self.assertIn('src="material-cart-profile.js?v=20260828.1"', html)
-        self.assertIn('"isometric-logistics-view.js?v=20260830.3"', html)
+        self.assertIn('"isometric-logistics-view.js?v=20260830.4"', html)
         self.assertIn('"script.js?v=20260830.3"', html)
         self.assertIn('"./material-cart-profile.js"', service_worker)
-        self.assertIn('CACHE_VERSION = "learngame-om-v264-department-buildings"', service_worker)
+        self.assertIn('CACHE_VERSION = "learngame-om-v265-department-labels"', service_worker)
         self.assertIn(
-            'register("service-worker.js?v=learngame-om-v264-department-buildings")',
+            'register("service-worker.js?v=learngame-om-v265-department-labels")',
             (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8"),
         )
 
@@ -692,6 +711,14 @@ process.stdout.write(JSON.stringify({
         positions = json.loads(result.stdout)
         self.assertLess(positions["aboveLabelY"], positions["roofTopY"])
         self.assertGreater(positions["belowLabelY"], positions["floorBottomY"])
+        self.assertAlmostEqual(40, positions["roofTopY"] - positions["aboveLabelY"])
+        self.assertAlmostEqual(44, positions["belowLabelY"] - positions["floorBottomY"])
+        renderer = (PRODUCT_ROOT / "isometric-logistics-view.js").read_text(encoding="utf-8")
+        self.assertIn("departmentBuildingScreenBounds", renderer)
+        self.assertIn("renderer.departmentBuildingGeometry", renderer)
+        self.assertIn("spatial().bounds2", renderer)
+        self.assertIn("visualBounds?.minY", renderer)
+        self.assertIn("visualBounds?.maxY", renderer)
 
     def test_live_flow_renders_every_tower_in_a_small_production_batch(self) -> None:
         game = (PRODUCT_ROOT / "script.js").read_text(encoding="utf-8")

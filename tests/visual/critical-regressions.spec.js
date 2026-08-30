@@ -1891,4 +1891,83 @@ test.describe("Kritieke regressies: authenticatie, presets en productie", () => 
     await expect(processGraph.locator(".data-model-cable")).not.toHaveCount(0);
     await expect(processGraph.locator("[marker-end]")).toHaveCount(0);
   });
+
+  test("11b. afdelingslabels blijven vrij van gebouwen en benutten de tussenruimte", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile-chromium", "De volledige Productiestroom-kaart gebruikt de desktopindeling.");
+    await mockAuthenticatedApp(page);
+    await page.goto("/");
+    await page.waitForFunction(() => (
+      window.LogisticsGameEngine
+      && window.LogisticsGameUI
+      && window.IsometricLogisticsView
+      && window.LEARNGameOMSimulator?.getSharedGameController?.()?.renderProcessFlow
+    ));
+    await page.evaluate(() => {
+      const renderProcessFlow = window.LEARNGameOMSimulator.getSharedGameController().renderProcessFlow;
+      document.body.className = "";
+      document.body.innerHTML = '<main id="department-label-regression"></main>';
+      const engine = new window.LogisticsGameEngine.LogisticsGameEngine({
+        random: () => 0,
+        config: {
+          initialOrderDelayMs: 999999999,
+          orderIntervalMinMs: 999999999,
+          orderIntervalMaxMs: 999999999,
+          incidentChance: 0
+        }
+      });
+      const controller = window.LogisticsGameUI.mount(
+        document.getElementById("department-label-regression"),
+        { engine, renderProcessFlow }
+      );
+      controller.start({
+        humanRoleId: "pd1",
+        gameType: "lo4",
+        organizationModel: "single_enterprise",
+        playMode: "physical",
+        productionProcesses: ["parallel"],
+        intermediateStock: false,
+        enabledRoles: ["supplier", "customer"]
+      });
+      window.__departmentLabelRegression = { engine, controller };
+    });
+
+    const map = page.locator(".sim-process-flow-mount .iso-map");
+    await expect(map).toBeVisible();
+    const measurements = await map.evaluate(svg => {
+      const svgBounds = svg.getBoundingClientRect();
+      const viewBox = svg.viewBox.baseVal;
+      const scale = Math.min(svgBounds.width / viewBox.width, svgBounds.height / viewBox.height);
+      const zones = Array.from(svg.querySelectorAll(".iso-department-layer > .iso-department"));
+      const overlays = Array.from(svg.querySelectorAll(".iso-overlay-layer > .iso-department-overlay"));
+      const labelsById = new Map(overlays.map(overlay => [
+        overlay.dataset.departmentId,
+        overlay.querySelector(".iso-zone-label")
+      ]));
+      if (!(scale > 0) || zones.length !== labelsById.size) throw new Error("Afdelingslabels missen hun gebouw");
+      const aboveIds = new Set(["customer", "operations", "srm"]);
+      return zones.map(zone => {
+        const buildingBounds = zone.querySelector(":scope > .iso-building").getBoundingClientRect();
+        const label = labelsById.get(zone.dataset.departmentId);
+        if (!label) throw new Error(`Afdelingslabel ontbreekt voor ${zone.dataset.departmentId}`);
+        const labelBounds = label.getBoundingClientRect();
+        const above = aboveIds.has(zone.dataset.departmentId);
+        return {
+          id: zone.dataset.departmentId,
+          position: above ? "above" : "below",
+          gap: (above
+            ? buildingBounds.top - labelBounds.bottom
+            : labelBounds.top - buildingBounds.bottom) / scale
+        };
+      });
+    });
+
+    expect(measurements.map(measurement => measurement.id).sort()).toEqual([
+      "customer", "operations", "pd1", "pd2", "pd3", "srm", "ssf"
+    ]);
+    measurements.forEach(measurement => {
+      const limits = measurement.position === "above" ? [6, 14] : [18, 30];
+      expect(measurement.gap).toBeGreaterThanOrEqual(limits[0]);
+      expect(measurement.gap).toBeLessThanOrEqual(limits[1]);
+    });
+  });
 });

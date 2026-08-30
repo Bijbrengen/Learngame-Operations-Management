@@ -5,6 +5,10 @@
   const PROJECTION = Object.freeze({ originX: 660, originY: 70, tileWidth: 66, tileHeight: 34 });
   const BACKGROUND_BOUNDS = Object.freeze({ minX: 0, minY: 0, maxX: 13, maxY: 10, left: 2, top: 1, right: 2, bottom: 2 });
   const DEPARTMENT_BOX_PROFILE = Object.freeze({ width: 3.4, depth: 3.1, height: 58 });
+  const DEPARTMENT_LABEL_PROFILE = Object.freeze({
+    aboveVisualOffset: 40,
+    belowVisualOffset: 44
+  });
   const FRAME_PROFILE = Object.freeze({
     minimumWidth: 760,
     minimumHeight: 560,
@@ -32,6 +36,7 @@
       !api?.createDiamondProjection
       || !api?.projectDiamond
       || !api?.projectBox
+      || !api?.bounds2
       || !api?.unionBoxes3
       || !api?.boxAlignmentOffset3
       || !api?.fitViewBox
@@ -187,8 +192,25 @@
     });
   }
 
-  function zoneGeometry(department, projectionOptions, departmentProfile) {
+  function zoneGeometry(
+    department,
+    projectionOptions,
+    departmentProfile,
+    departmentLabelProfile,
+    stockProfileOptions
+  ) {
     const { x, y, width, depth, height } = departmentBox(department, departmentProfile);
+    const labelProfile = { ...DEPARTMENT_LABEL_PROFILE, ...(departmentLabelProfile || {}) };
+    const aboveVisualOffset = Number(labelProfile.aboveVisualOffset);
+    const belowVisualOffset = Number(labelProfile.belowVisualOffset);
+    if (
+      !Number.isFinite(aboveVisualOffset)
+      || aboveVisualOffset < 0
+      || !Number.isFinite(belowVisualOffset)
+      || belowVisualOffset < 0
+    ) {
+      throw new Error("Het afdelingslabelprofiel vereist niet-negatieve eindige offsets.");
+    }
     const camera = projection(projectionOptions);
     const projectedBox = spatial().projectBox(
       { x, y, z: 0, width, depth, height },
@@ -198,6 +220,9 @@
     const roof = projectedBox.roof.map(screenPoint);
     const center = project(x + width / 2, y + depth / 2, height, camera);
     const floorCenter = project(x + width / 2, y + depth / 2, 0, camera);
+    const visualBounds = departmentBuildingScreenBounds(department, center, stockProfileOptions);
+    const visualTop = visualBounds?.minY ?? Math.min(...roof.map(point => point.y));
+    const visualBottom = visualBounds?.maxY ?? Math.max(...floor.map(point => point.y));
     const labelAboveBuilding = department.labelPosition === "above";
     return {
       floor,
@@ -207,13 +232,14 @@
       label: {
         x: floorCenter.x,
         y: labelAboveBuilding
-          ? Math.min(...roof.map(point => point.y)) - 40
-          : Math.max(...floor.map(point => point.y)) + 44
+          ? visualTop - aboveVisualOffset
+          : visualBottom + belowVisualOffset
       },
       badge: {
         x: roof[1].x - 20,
         y: roof[1].y + 10
-      }
+      },
+      visualBounds
     };
   }
 
@@ -371,6 +397,39 @@
 
   function departmentModelAccent(department) {
     return DEPARTMENT_MODEL_ACCENTS[department.departmentColor] || undefined;
+  }
+
+  function departmentBuildingScreenBounds(department, center, stockProfileOptions) {
+    const renderer = window.LegoTowerRenderer;
+    if (
+      typeof renderer?.departmentBuildingGeometry !== "function"
+      || typeof renderer?.worldToScreen !== "function"
+    ) return null;
+    const placement = warehouseContainerPlacement(center, stockProfileOptions);
+    const geometry = renderer.departmentBuildingGeometry({
+      profile: departmentModelProfile(department),
+      x: placement.x,
+      y: placement.y,
+      z: 0,
+      width: placement.width,
+      depth: placement.depth
+    });
+    const projectedPoints = (geometry.volumes || []).flatMap(volume => {
+      const projected = spatial().projectBox(volume, null, point => (
+        renderer.worldToScreen(point[0], point[1], point[2])
+      ));
+      return [...projected.floor, ...projected.roof];
+    });
+    const bounds = spatial().bounds2(projectedPoints);
+    if (!bounds) return null;
+    return Object.freeze({
+      minX: bounds.minX + placement.translateX,
+      minY: bounds.minY + placement.translateY,
+      maxX: bounds.maxX + placement.translateX,
+      maxY: bounds.maxY + placement.translateY,
+      width: bounds.width,
+      height: bounds.height
+    });
   }
 
   function layoutStockItems(items, profileOptions) {
@@ -766,7 +825,13 @@
   }
 
   function departmentMarkup(department, selectedId, legoGradientScope, renderContext = {}) {
-    const geometry = zoneGeometry(department, renderContext.projection, renderContext.departmentProfile);
+    const geometry = zoneGeometry(
+      department,
+      renderContext.projection,
+      renderContext.departmentProfile,
+      renderContext.departmentLabelProfile,
+      renderContext.stockBoardProfile
+    );
     const selected = department.id === selectedId;
     const orderCount = department.orders?.length || 0;
     const palette = department.materialId
@@ -824,8 +889,21 @@
     `;
   }
 
-  function departmentOverlayMarkup(department, selectedId, projectionOptions, departmentProfile) {
-    const geometry = zoneGeometry(department, projectionOptions, departmentProfile);
+  function departmentOverlayMarkup(
+    department,
+    selectedId,
+    projectionOptions,
+    departmentProfile,
+    departmentLabelProfile,
+    stockProfileOptions
+  ) {
+    const geometry = zoneGeometry(
+      department,
+      projectionOptions,
+      departmentProfile,
+      departmentLabelProfile,
+      stockProfileOptions
+    );
     const selected = department.id === selectedId;
     const selectedRenderState = selected || department.forceSelectedRender || Boolean(
       department.materialId
@@ -837,7 +915,7 @@
     const labelWidth = title.length > 18 ? 230 : 194;
     const hideMetric = Boolean(department.hideMetric);
     return `
-      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selectedRenderState ? " is-selected" : ""}" aria-hidden="true">
+      <g class="iso-department-overlay department-${escapeHtml(department.departmentColor)}${selectedRenderState ? " is-selected" : ""}" data-department-id="${escapeHtml(department.id)}" aria-hidden="true">
         <g class="iso-status-badge" transform="translate(${geometry.badge.x} ${geometry.badge.y})">
           <circle r="13"></circle>
           <text text-anchor="middle" dominant-baseline="central">${escapeHtml(badgeValue)}</text>
@@ -1077,6 +1155,11 @@
       ...(scene.departmentProfile || {}),
       ...(options.departmentProfile || {})
     };
+    const departmentLabelProfile = {
+      ...DEPARTMENT_LABEL_PROFILE,
+      ...(scene.departmentLabelProfile || {}),
+      ...(options.departmentLabelProfile || {})
+    };
     const backgroundProfile = {
       ...BACKGROUND_BOUNDS,
       ...(scene.backgroundProfile || {}),
@@ -1085,7 +1168,8 @@
     const renderContext = Object.freeze({
       projection: mapProjection,
       stockBoardProfile: options.stockBoardProfile || scene.stockBoardProfile,
-      departmentProfile: Object.freeze(departmentProfile)
+      departmentProfile: Object.freeze(departmentProfile),
+      departmentLabelProfile: Object.freeze(departmentLabelProfile)
     });
     const legoGradientScope = `iso-logistics-${legoGradientInstance += 1}`;
     const departments = (scene.departments || [])
@@ -1152,7 +1236,7 @@
     const overlays = sortedDepartments.map(department => departmentOverlayMarkup({
       ...department,
       hideMetric: department.hideMetric || Boolean(scene.tutorial?.active)
-    }, selected?.id, mapProjection, departmentProfile)).join("");
+    }, selected?.id, mapProjection, departmentProfile, departmentLabelProfile, renderContext.stockBoardProfile)).join("");
     const legend = (scene.legend || []).map(item => `
       <span><i class="department-${escapeHtml(item.color)}"></i>${escapeHtml(item.label)}</span>
     `).join("");
@@ -1643,6 +1727,7 @@
       projection: PROJECTION,
       background: BACKGROUND_BOUNDS,
       department: DEPARTMENT_BOX_PROFILE,
+      departmentLabel: DEPARTMENT_LABEL_PROFILE,
       frame: FRAME_PROFILE,
       warehouse: WAREHOUSE_CONTAINER_PROFILE
     })
